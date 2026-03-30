@@ -11,6 +11,7 @@ pnpm workspace monorepo using TypeScript. A spiritual social community app — l
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
 - **Frontend**: React + Vite (artifacts/getpraying)
+- **Mobile**: Expo React Native (artifacts/mobile) — Expo Router v6, NativeTabs, React Query v5
 - **API framework**: Express 5 (artifacts/api-server)
 - **Database**: PostgreSQL + Drizzle ORM
 - **Auth**: Custom session-based auth (bcryptjs + session tokens in DB)
@@ -37,11 +38,24 @@ artifacts/
 ├── api-server/         # Express API server
 │   ├── src/routes/     # auth, users, posts, library, notifications, admin
 │   └── src/lib/        # auth.ts, postHelpers.ts, logger.ts
-└── getpraying/         # React + Vite frontend
-    └── src/
-        ├── pages/      # splash, login, register, onboarding, home, post, library, notifications, profile, admin
-        ├── components/ # layout (bottom nav), post-card, etc.
-        └── hooks/      # use-auth.tsx (auth context)
+├── getpraying/         # React + Vite frontend (web)
+│   └── src/
+│       ├── pages/      # splash, login, register, onboarding, home, post, library, notifications, profile, admin
+│       ├── components/ # layout (bottom nav), post-card, etc.
+│       └── hooks/      # use-auth.tsx (auth context)
+└── mobile/             # Expo React Native app (native)
+    ├── app/            # Expo Router file-based routing
+    │   ├── index.tsx   # Welcome/splash screen
+    │   ├── login.tsx   # Login screen
+    │   ├── register.tsx# Register screen
+    │   ├── onboarding.tsx # Category selection
+    │   ├── admin.tsx   # Admin moderation panel
+    │   ├── (tabs)/     # Bottom tab screens (feed, library, compose, notifications, profile)
+    │   ├── post/[id].tsx # Prayer post detail
+    │   └── path/[id].tsx # Prayer path detail
+    ├── components/     # PostCard, PrayerCard, PathCard, ErrorBoundary
+    ├── context/        # auth.tsx (token stored in AsyncStorage)
+    └── constants/      # colors.ts (navy #1A1F36, gold #D4A043, flame #F97316, cream #F9F6F0)
 lib/
 ├── api-spec/           # OpenAPI spec + Orval codegen config
 ├── api-client-react/   # Generated React Query hooks

@@ -1,0 +1,92 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import { login as apiLogin, register as apiRegister, logout as apiLogout } from "@workspace/api-client-react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import type { User } from "@workspace/api-client-react";
+
+const TOKEN_KEY = "@getpraying/token";
+const USER_KEY = "@getpraying/user";
+
+interface AuthContextValue {
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<User>;
+  register: (email: string, username: string, password: string, displayName?: string) => Promise<User>;
+  logout: () => Promise<void>;
+  refreshUser: (updated: User) => void;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [storedToken, storedUser] = await Promise.all([
+          AsyncStorage.getItem(TOKEN_KEY),
+          AsyncStorage.getItem(USER_KEY),
+        ]);
+        if (storedToken && storedUser) {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        }
+      } catch {
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    setAuthTokenGetter(() => token);
+  }, [token]);
+
+  const login = useCallback(async (email: string, password: string): Promise<User> => {
+    const res = await apiLogin({ email, password }) as any;
+    const tok: string = res.token;
+    const u: User = res.user;
+    await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);
+    setToken(tok);
+    setUser(u);
+    return u;
+  }, []);
+
+  const register = useCallback(async (email: string, username: string, password: string, displayName?: string): Promise<User> => {
+    const res = await apiRegister({ email, username, password, displayName }) as any;
+    const tok: string = res.token;
+    const u: User = res.user;
+    await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);
+    setToken(tok);
+    setUser(u);
+    return u;
+  }, []);
+
+  const logout = useCallback(async () => {
+    try { await apiLogout(); } catch {}
+    await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  const refreshUser = useCallback((updated: User) => {
+    setUser(updated);
+    AsyncStorage.setItem(USER_KEY, JSON.stringify(updated)).catch(() => {});
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+}
