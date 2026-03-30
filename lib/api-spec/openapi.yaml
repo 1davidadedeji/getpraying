@@ -1,22 +1,33 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GetPraying API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User profiles
+  - name: posts
+    description: Prayer posts
+  - name: prayers
+    description: Prayers (library)
+  - name: notifications
+    description: Notifications
+  - name: admin
+    description: Moderation/admin
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +35,635 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # AUTH
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/preferences:
+    post:
+      operationId: savePreferences
+      tags: [auth]
+      summary: Save onboarding prayer category preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreferencesInput"
+      responses:
+        "200":
+          description: Preferences saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # USERS
+  /users/{username}:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Get user profile by username
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{username}/posts:
+    get:
+      operationId: getUserPosts
+      tags: [users]
+      summary: Get posts by a specific user
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: User posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostsPage"
+
+  # POSTS / FEED
+  /posts:
+    get:
+      operationId: getPosts
+      tags: [posts]
+      summary: Get approved posts feed
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feed posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostsPage"
+
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Create a new prayer post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostInput"
+      responses:
+        "201":
+          description: Post created (pending moderation)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/trending:
+    get:
+      operationId: getTrendingPosts
+      tags: [posts]
+      summary: Get trending posts by prayer count
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Trending posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+
+  /posts/stats:
+    get:
+      operationId: getFeedStats
+      tags: [posts]
+      summary: Get feed stats (active prayers, total today, by category)
+      responses:
+        "200":
+          description: Feed stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedStats"
+
+  /posts/{postId}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Get a single post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deletePost
+      tags: [posts]
+      summary: Delete own post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /posts/{postId}/pray:
+    post:
+      operationId: prayForPost
+      tags: [posts]
+      summary: Pray for a post (like/prayer reaction)
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Prayer count updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrayResponse"
+
+  /posts/{postId}/save:
+    post:
+      operationId: savePost
+      tags: [posts]
+      summary: Save a post to prayer library
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+    delete:
+      operationId: unsavePost
+      tags: [posts]
+      summary: Remove post from saved library
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unsaved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # PRAYER LIBRARY
+  /library/official:
+    get:
+      operationId: getOfficialPrayers
+      tags: [prayers]
+      summary: Get official curated prayers/guides
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Official prayers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficialPrayer"
+
+  /library/saved:
+    get:
+      operationId: getSavedPrayers
+      tags: [prayers]
+      summary: Get current user's saved prayers/scrolls
+      responses:
+        "200":
+          description: Saved prayers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+
+  /library/paths:
+    get:
+      operationId: getPaths
+      tags: [prayers]
+      summary: Get prayer paths/journeys
+      responses:
+        "200":
+          description: Prayer paths
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrayerPath"
+
+  /library/paths/{pathId}:
+    get:
+      operationId: getPath
+      tags: [prayers]
+      summary: Get a specific prayer path with its content
+      parameters:
+        - name: pathId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Prayer path detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrayerPathDetail"
+
+  /library/categories:
+    get:
+      operationId: getCategories
+      tags: [prayers]
+      summary: Get prayer categories with counts
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  # NOTIFICATIONS
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get user notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/read:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: Marked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ADMIN / MODERATION
+  /admin/posts/pending:
+    get:
+      operationId: getPendingPosts
+      tags: [admin]
+      summary: Get posts pending moderation
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Pending posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostsPage"
+
+  /admin/posts/moderated:
+    get:
+      operationId: getModeratedPosts
+      tags: [admin]
+      summary: Get moderated posts (approved or declined)
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Moderated posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostsPage"
+
+  /admin/posts/{postId}/approve:
+    post:
+      operationId: approvePost
+      tags: [admin]
+      summary: Approve a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /admin/posts/{postId}/decline:
+    post:
+      operationId: declinePost
+      tags: [admin]
+      summary: Decline a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /admin/posts/{postId}/remove:
+    delete:
+      operationId: adminRemovePost
+      tags: [admin]
+      summary: Admin remove/delete a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: Get all users for admin
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsersPage"
+
+  /admin/users/{userId}/ban:
+    post:
+      operationId: banUser
+      tags: [admin]
+      summary: Ban a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/users/{userId}/unban:
+    post:
+      operationId: unbanUser
+      tags: [admin]
+      summary: Unban a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User unbanned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get admin overview stats
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +674,471 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    RegisterInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          minLength: 3
+        password:
+          type: string
+          minLength: 6
+        displayName:
+          type: string
+      required:
+        - email
+        - username
+        - password
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    PreferencesInput:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            type: string
+      required:
+        - categories
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+      required:
+        - user
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        isAdmin:
+          type: boolean
+        isBanned:
+          type: boolean
+        preferredCategories:
+          type: array
+          items:
+            type: string
+        onboardingComplete:
+          type: boolean
+        prayersShared:
+          type: integer
+        prayedFor:
+          type: integer
+        savedScrolls:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - username
+        - isAdmin
+        - isBanned
+        - preferredCategories
+        - onboardingComplete
+        - prayersShared
+        - prayedFor
+        - savedScrolls
+        - createdAt
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        prayersShared:
+          type: integer
+        prayedFor:
+          type: integer
+        savedScrolls:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - prayersShared
+        - prayedFor
+        - savedScrolls
+        - createdAt
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        mediaUrl:
+          type: string
+          nullable: true
+        mediaType:
+          type: string
+          nullable: true
+          enum: [image, video, null]
+        category:
+          type: string
+          nullable: true
+        isAnonymous:
+          type: boolean
+        status:
+          type: string
+          enum: [pending, approved, declined]
+        flagReason:
+          type: string
+          nullable: true
+        prayCount:
+          type: integer
+        hasPrayed:
+          type: boolean
+        isSaved:
+          type: boolean
+        authorId:
+          type: integer
+          nullable: true
+        authorUsername:
+          type: string
+          nullable: true
+        authorDisplayName:
+          type: string
+          nullable: true
+        authorAvatarUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - content
+        - isAnonymous
+        - status
+        - prayCount
+        - hasPrayed
+        - isSaved
+        - createdAt
+
+    CreatePostInput:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+        mediaUrl:
+          type: string
+          nullable: true
+        mediaType:
+          type: string
+          nullable: true
+          enum: [image, video]
+        category:
+          type: string
+          nullable: true
+        isAnonymous:
+          type: boolean
+          default: false
+      required:
+        - content
+
+    PostsPage:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+        nextCursor:
+          type: integer
+          nullable: true
+        total:
+          type: integer
+      required:
+        - posts
+        - total
+
+    PrayResponse:
+      type: object
+      properties:
+        prayCount:
+          type: integer
+        hasPrayed:
+          type: boolean
+      required:
+        - prayCount
+        - hasPrayed
+
+    FeedStats:
+      type: object
+      properties:
+        activePrayers:
+          type: integer
+        prayersToday:
+          type: integer
+        byCategory:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              count:
+                type: integer
+            required:
+              - category
+              - count
+        dailyReflection:
+          type: string
+      required:
+        - activePrayers
+        - prayersToday
+        - byCategory
+        - dailyReflection
+
+    OfficialPrayer:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        subtitle:
+          type: string
+          nullable: true
+        content:
+          type: string
+        category:
+          type: string
+        durationMinutes:
+          type: integer
+          nullable: true
+        scripture:
+          type: string
+          nullable: true
+        label:
+          type: string
+          nullable: true
+        audioVoice:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - content
+        - category
+        - createdAt
+
+    PrayerPath:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        tagline:
+          type: string
+          nullable: true
+        prayerCount:
+          type: integer
+      required:
+        - id
+        - name
+        - description
+        - category
+        - prayerCount
+
+    PrayerPathDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        tagline:
+          type: string
+          nullable: true
+        officialPrayers:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficialPrayer"
+        savedPosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+      required:
+        - id
+        - name
+        - description
+        - category
+        - officialPrayers
+        - savedPosts
+
+    Category:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+        icon:
+          type: string
+          nullable: true
+      required:
+        - name
+        - count
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [prayer, system, category_new, reminder]
+        message:
+          type: string
+        actorUsername:
+          type: string
+          nullable: true
+        actorAvatarUrl:
+          type: string
+          nullable: true
+        postId:
+          type: integer
+          nullable: true
+        postPreview:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - message
+        - isRead
+        - createdAt
+
+    UsersPage:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        nextCursor:
+          type: integer
+          nullable: true
+        total:
+          type: integer
+      required:
+        - users
+        - total
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        totalPosts:
+          type: integer
+        pendingPosts:
+          type: integer
+        approvedPosts:
+          type: integer
+        declinedPosts:
+          type: integer
+        bannedUsers:
+          type: integer
+        prayersToday:
+          type: integer
+      required:
+        - totalUsers
+        - activeUsers
+        - totalPosts
+        - pendingPosts
+        - approvedPosts
+        - declinedPosts
+        - bannedUsers
+        - prayersToday

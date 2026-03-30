@@ -1,0 +1,65 @@
+import { Router, type IRouter } from "express";
+import { db, notificationsTable, usersTable, postsTable } from "@workspace/db";
+import { eq, desc, inArray } from "drizzle-orm";
+import { requireAuth } from "../lib/auth";
+
+const router: IRouter = Router();
+
+router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user;
+
+  const notifications = await db
+    .select()
+    .from(notificationsTable)
+    .where(eq(notificationsTable.userId, user.id))
+    .orderBy(desc(notificationsTable.createdAt))
+    .limit(50);
+
+  // Enrich with actor info and post preview
+  const actorIds = notifications.filter((n) => n.actorId != null).map((n) => n.actorId!);
+  const postIds = notifications.filter((n) => n.postId != null).map((n) => n.postId!);
+
+  let actorsMap = new Map<number, { username: string; avatarUrl: string | null }>();
+  if (actorIds.length > 0) {
+    const actors = await db.select().from(usersTable).where(inArray(usersTable.id, actorIds));
+    for (const a of actors) actorsMap.set(a.id, { username: a.username, avatarUrl: a.avatarUrl });
+  }
+
+  let postsMap = new Map<number, { content: string }>();
+  if (postIds.length > 0) {
+    const posts = await db.select().from(postsTable).where(inArray(postsTable.id, postIds));
+    for (const p of posts) postsMap.set(p.id, { content: p.content });
+  }
+
+  res.json(
+    notifications.map((n) => {
+      const actor = n.actorId ? actorsMap.get(n.actorId) : null;
+      const post = n.postId ? postsMap.get(n.postId) : null;
+      return {
+        id: n.id,
+        type: n.type,
+        message: actor ? `${actor.username} ${n.message}` : n.message,
+        actorUsername: actor?.username ?? null,
+        actorAvatarUrl: actor?.avatarUrl ?? null,
+        postId: n.postId,
+        postPreview: post ? post.content.substring(0, 100) : null,
+        category: n.category,
+        isRead: n.isRead,
+        createdAt: n.createdAt,
+      };
+    })
+  );
+});
+
+router.post("/notifications/read", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user;
+
+  await db
+    .update(notificationsTable)
+    .set({ isRead: true })
+    .where(eq(notificationsTable.userId, user.id));
+
+  res.json({ success: true, message: "Notifications marked as read" });
+});
+
+export default router;
