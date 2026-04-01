@@ -1,0 +1,29 @@
+Please conduct a comprehensive audit of the current codebase in this project. This application, "GetPraying," is a social prayer platform for iOS and Android. I need a strict gap analysis comparing what currently exists in the code versus the project requirements.
+
+Please output a report with two sections: 
+1) What is currently implemented (and working).
+2) What is missing, incomplete, or incorrectly implemented.
+
+Here are the strict requirements you are auditing against:
+
+1. CORE UX & IDENTITY:
+- 7-Day Free Trial onboarding flow.
+- A "Sanctuary Feed" with inline posting.
+- Interactions: "Pray for this" (increases count/notifies poster), "Comment", "Save" (to personal library), and "Share" (external modal).
+- A "Prayer Library" with categorized paths, official guides, and a clock icon for daily/one-time reminders.
+
+2. MONETIZATION (CRITICAL):
+- Subscription paywall after the 7-day trial.
+- Integrations strictly designed for Apple In-App Purchase and Google Play Billing (NO Stripe/PayPal for subscriptions).
+- Graceful restriction of premium features if a subscription lapses.
+
+3. AI & MODERATION (NEW REQUIREMENTS):
+- Auto-Categorization: When a user creates a post, the app must use an OpenAI integration to detect the intent and auto-select a category. The user must be able to override this AI selection.
+- Content Moderation (Text & Image): Moderated primarily by AI. Human moderators act as a fallback and have admin tools to drop/delete a post even after the AI has allowed it to deploy.
+- Content Moderation (Video): Human moderators ONLY. Videos must go to a manual unified queue for verification.
+- Admin Panel: A unified queue for flagged content with "Approve", "Decline", and "Ban User" actions.
+
+4. ENVIRONMENT VARIABLES:
+- Ensure there is a `.env` file containing a placeholder for the OpenAI API key (e.g., OPENAI_API_KEY="mock_key_here"). Do not expose real keys.
+
+Please analyze the frontend, backend, database schemas, and API routes. Let me know exactly what the previous developer has finished and what I need to build next.
