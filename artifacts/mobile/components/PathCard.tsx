@@ -19,15 +19,13 @@ export default function PathCard({ path }: PathCardProps) {
         <Feather name="compass" size={22} color={colors.surface} />
       </View>
       <View style={styles.info}>
-        <Text style={styles.title}>{path.title}</Text>
-        {path.description && (
-          <Text style={styles.desc} numberOfLines={2}>
-            {path.description}
-          </Text>
-        )}
+        <Text style={styles.title}>{path.name}</Text>
+        <Text style={styles.desc} numberOfLines={2}>
+          {path.tagline ?? path.description}
+        </Text>
         <View style={styles.meta}>
           <Feather name="book-open" size={12} color={colors.muted} />
-          <Text style={styles.metaText}>{path.totalPrayers ?? 0} prayers</Text>
+          <Text style={styles.metaText}>{path.prayerCount} prayers</Text>
         </View>
       </View>
       <Feather name="chevron-right" size={18} color={colors.muted} />

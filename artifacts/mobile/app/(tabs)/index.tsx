@@ -46,6 +46,9 @@ export default function FeedScreen() {
         </Text>
         <Text style={styles.subGreeting}>Prayer feed</Text>
       </View>
+      <Pressable onPress={() => router.push("/post/new")} style={styles.composeBtn} testID="compose-btn">
+        <Ionicons name="add" size={22} color={colors.surface} />
+      </Pressable>
       {user?.isAdmin && (
         <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
           <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
@@ -69,6 +72,8 @@ export default function FeedScreen() {
       renderItem={({ item }) => (
         <PostCard post={item} onUpdated={handleUpdated} />
       )}
+      numColumns={Platform.OS === "web" ? 2 : 1}
+      columnWrapperStyle={Platform.OS === "web" ? styles.columnWrap : undefined}
       ListHeaderComponent={renderHeader}
       ListEmptyComponent={
         <View style={styles.emptyState}>
@@ -104,6 +109,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
     paddingHorizontal: 16,
   },
+  columnWrap: {
+    gap: 12,
+    justifyContent: "space-between",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -130,6 +139,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  composeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
   },
   emptyState: {
     alignItems: "center",

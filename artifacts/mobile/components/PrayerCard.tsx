@@ -18,11 +18,9 @@ export default function PrayerCard({ prayer, onPress }: PrayerCardProps) {
       <View style={styles.accentBar} />
       <View style={styles.content}>
         <Text style={styles.title}>{prayer.title}</Text>
-        {prayer.author && (
-          <Text style={styles.author}>— {prayer.author}</Text>
-        )}
+        {prayer.subtitle && <Text style={styles.author}>{prayer.subtitle}</Text>}
         <Text style={styles.body} numberOfLines={3}>
-          {prayer.body}
+          {prayer.content}
         </Text>
         {prayer.category && (
           <View style={styles.tag}>

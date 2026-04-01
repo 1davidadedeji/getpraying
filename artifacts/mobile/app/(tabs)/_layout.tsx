@@ -14,15 +14,11 @@ function NativeTabLayout() {
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "flame", selected: "flame.fill" }} />
-        <Label>Feed</Label>
+        <Label>Feeds</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="library">
         <Icon sf={{ default: "books.vertical", selected: "books.vertical.fill" }} />
         <Label>Library</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="compose">
-        <Icon sf="plus.circle.fill" />
-        <Label>Pray</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="notifications">
         <Icon sf={{ default: "bell", selected: "bell.fill" }} />
@@ -75,7 +71,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Feed",
+          title: "Feeds",
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="flame.fill" tintColor={color} size={24} />
@@ -93,18 +89,6 @@ function ClassicTabLayout() {
               <SymbolView name="books.vertical.fill" tintColor={color} size={24} />
             ) : (
               <Feather name="book-open" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="compose"
-        options={{
-          title: "Pray",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="plus.circle.fill" tintColor={color} size={28} />
-            ) : (
-              <Ionicons name="add-circle" size={28} color={color} />
             ),
         }}
       />

@@ -19,12 +19,21 @@ import { useCreatePost } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 
 const CATEGORIES = [
-  "anxiety", "gratitude", "healing", "guidance",
-  "relationships", "protection", "provision", "grief",
-  "hope", "praise", "wisdom", "peace",
+  "anxiety",
+  "gratitude",
+  "healing",
+  "guidance",
+  "relationships",
+  "protection",
+  "provision",
+  "grief",
+  "hope",
+  "praise",
+  "wisdom",
+  "peace",
 ];
 
-export default function ComposeScreen() {
+export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -51,16 +60,22 @@ export default function ComposeScreen() {
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert(
-            "Prayer submitted",
-            "Your prayer has been submitted for review.",
-            [{ text: "OK", onPress: () => { setContent(""); setIsAnonymous(false); setSelectedCategory(null); router.push("/(tabs)"); } }]
-          );
+          Alert.alert("Prayer submitted", "Your prayer has been submitted for review.", [
+            {
+              text: "OK",
+              onPress: () => {
+                setContent("");
+                setIsAnonymous(false);
+                setSelectedCategory(null);
+                router.replace("/(tabs)");
+              },
+            },
+          ]);
         },
         onError: (err: any) => {
           Alert.alert("Error", err?.data?.error ?? "Could not submit prayer. Please try again.");
         },
-      }
+      },
     );
   };
 
@@ -75,10 +90,14 @@ export default function ComposeScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.header}>
-        <Ionicons name="flame" size={28} color={colors.flame} />
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Share a Prayer</Text>
-          <Text style={styles.subtitle}>Speak your heart. We'll hold space.</Text>
+        <View style={styles.headerLeft}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn} testID="back-btn">
+            <Ionicons name="chevron-back" size={20} color={colors.primary} />
+          </Pressable>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Share a Prayer</Text>
+            <Text style={styles.subtitle}>Speak your heart. We'll hold space.</Text>
+          </View>
         </View>
       </View>
 
@@ -142,9 +161,7 @@ export default function ComposeScreen() {
 
       <View style={styles.notice}>
         <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
-        <Text style={styles.noticeText}>
-          Prayers are reviewed before appearing in the feed.
-        </Text>
+        <Text style={styles.noticeText}>Prayers are reviewed before appearing in the feed.</Text>
       </View>
 
       <Pressable
@@ -157,7 +174,7 @@ export default function ComposeScreen() {
           <ActivityIndicator color={colors.surface} />
         ) : (
           <>
-            <Ionicons name="flame" size={20} color={colors.surface} />
+            <Ionicons name="send" size={18} color={colors.surface} />
             <Text style={styles.submitBtnText}>Submit Prayer</Text>
           </>
         )}
@@ -175,15 +192,31 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 4,
+    justifyContent: "space-between",
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerText: {
     gap: 2,
+    flex: 1,
   },
   title: {
     fontFamily: "Inter_700Bold",
-    fontSize: 22,
+    fontSize: 20,
     color: colors.primary,
   },
   subtitle: {
@@ -260,8 +293,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   categoryChipSelected: {
-    backgroundColor: colors.flame,
-    borderColor: colors.flame,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   categoryChipText: {
     fontFamily: "Inter_400Regular",
@@ -303,3 +336,4 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
 });
+

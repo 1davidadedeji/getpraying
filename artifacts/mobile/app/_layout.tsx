@@ -13,6 +13,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Text, TextInput } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/auth";
@@ -21,6 +22,12 @@ import colors from "@/constants/colors";
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
 SplashScreen.preventAutoHideAsync();
+
+(Text as any).defaultProps = { ...((Text as any).defaultProps ?? {}), allowFontScaling: false };
+(TextInput as any).defaultProps = {
+  ...((TextInput as any).defaultProps ?? {}),
+  allowFontScaling: false,
+};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +51,7 @@ function RootLayoutNav() {
       <Stack.Screen name="register" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="post/new" options={{ title: "New Prayer", headerBackTitle: "Back" }} />
       <Stack.Screen name="post/[id]" options={{ title: "Prayer", headerBackTitle: "Back" }} />
       <Stack.Screen name="path/[id]" options={{ title: "Prayer Path", headerBackTitle: "Back" }} />
       <Stack.Screen name="admin" options={{ title: "Admin", headerBackTitle: "Back" }} />

@@ -65,8 +65,8 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
           if (onUpdated) {
             onUpdated({
               ...post,
-              hasPrayed: res.prayed,
-              prayCount: res.count,
+              hasPrayed: res.hasPrayed,
+              prayCount: res.prayCount,
             });
           }
         },
