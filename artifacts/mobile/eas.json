@@ -1,18 +1,38 @@
+// {
+//   "cli": {
+//     "version": ">= 16.0.0",
+//     "appVersionSource": "remote"
+//   },
+//   "build": {
+//     "preview": {
+//       "distribution": "internal",
+//       "android": {
+//         "buildType": "apk"
+//       }
+//     },
+//     "production": {}
+//   },
+//   "submit": {
+//     "production": {}
+//   }
+// }
+
 {
-  "cli": {
-    "version": ">= 16.0.0",
-    "appVersionSource": "remote"
+  "cli": { 
+    "version": ">= 16.0.0", 
+    "appVersionSource": "remote" 
   },
-  "build": {
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
+  "build": { 
+    "preview": { 
+      "distribution": "internal", 
+      "android": { 
+        "buildType": "apk" 
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://172.234.207.188:3001",
+        "EXPO_PUBLIC_RC_APPLE_KEY": "test_AIJjrRzCVKiEadmgBwlqKSUVkhJ",
+        "EXPO_PUBLIC_RC_GOOGLE_KEY": "test_AIJjrRzCVKiEadmgBwlqKSUVkhJ"
       }
-    },
-    "production": {}
-  },
-  "submit": {
-    "production": {}
+    } 
   }
 }
