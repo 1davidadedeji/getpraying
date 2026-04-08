@@ -9,6 +9,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: content
+    description: Public content (daily word, etc.)
   - name: auth
     description: Authentication
   - name: users
@@ -133,6 +135,50 @@ paths:
       responses:
         "200":
           description: Preferences saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Verify email with OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailInput"
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid/expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [auth]
+      summary: Resend OTP email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendVerificationInput"
+      responses:
+        "200":
+          description: Sent (or masked)
           content:
             application/json:
               schema:
@@ -371,6 +417,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /posts/{postId}/comments:
+    get:
+      operationId: getPostComments
+      tags: [posts]
+      summary: Get comments for a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostCommentsResponse"
+    post:
+      operationId: createPostComment
+      tags: [posts]
+      summary: Add a comment to a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCommentResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # PRAYER LIBRARY
   /library/official:
     get:
@@ -456,6 +550,34 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Category"
+
+  /daily-word:
+    get:
+      operationId: getDailyWord
+      tags: [content]
+      summary: Get daily scripture for the welcome screen
+      description: Returns an admin override for the given calendar date if set; otherwise a deterministic default from the built-in yearly rotation.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Calendar date (YYYY-MM-DD), typically the device local date. Defaults to today on the server if omitted.
+      responses:
+        "200":
+          description: Daily word payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyWordResponse"
+        "400":
+          description: Invalid date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # NOTIFICATIONS
   /notifications:
@@ -664,6 +786,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminStats"
 
+  /admin/daily-word:
+    put:
+      operationId: setDailyWordOverride
+      tags: [admin]
+      summary: Set or replace the daily word override for a calendar date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetDailyWordOverrideInput"
+      responses:
+        "200":
+          description: Saved override
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyWordResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: clearDailyWordOverride
+      tags: [admin]
+      summary: Remove the daily word override for a calendar date (reverts to default rotation)
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Calendar date YYYY-MM-DD
+      responses:
+        "200":
+          description: Cleared (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Missing or invalid date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -733,6 +905,26 @@ components:
       required:
         - categories
 
+    VerifyEmailInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+      required: [email, otp]
+
+    ResendVerificationInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]
+
     AuthResponse:
       type: object
       properties:
@@ -761,9 +953,16 @@ components:
         avatarUrl:
           type: string
           nullable: true
-        isAdmin:
-          type: boolean
+        role:
+          type: string
+          enum: [user, moderator, admin]
         isBanned:
+          type: boolean
+        trialStartsAt:
+          type: string
+          format: date-time
+          nullable: true
+        isEmailVerified:
           type: boolean
         preferredCategories:
           type: array
@@ -784,8 +983,9 @@ components:
         - id
         - email
         - username
-        - isAdmin
+        - role
         - isBanned
+        - isEmailVerified
         - preferredCategories
         - onboardingComplete
         - prayersShared
@@ -881,6 +1081,60 @@ components:
         - hasPrayed
         - isSaved
         - createdAt
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        postId:
+          type: integer
+        authorId:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        authorUsername:
+          type: string
+          nullable: true
+        authorDisplayName:
+          type: string
+          nullable: true
+      required:
+        - id
+        - postId
+        - authorId
+        - content
+        - createdAt
+
+    PostCommentsResponse:
+      type: object
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+      required:
+        - comments
+
+    CreateCommentInput:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+      required:
+        - content
+
+    CreateCommentResponse:
+      type: object
+      properties:
+        comment:
+          $ref: "#/components/schemas/Comment"
+      required:
+        - comment
 
     CreatePostInput:
       type: object
@@ -1142,3 +1396,37 @@ components:
         - declinedPosts
         - bannedUsers
         - prayersToday
+
+    DailyWordResponse:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        quoteText:
+          type: string
+        reference:
+          type: string
+        source:
+          type: string
+          enum: [default, override]
+      required:
+        - date
+        - quoteText
+        - reference
+        - source
+
+    SetDailyWordOverrideInput:
+      type: object
+      properties:
+        effectiveDate:
+          type: string
+          format: date
+        quoteText:
+          type: string
+        reference:
+          type: string
+      required:
+        - effectiveDate
+        - quoteText
+        - reference

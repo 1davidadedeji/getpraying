@@ -20,10 +20,15 @@ import type {
   AdminStats,
   AuthResponse,
   Category,
+  ClearDailyWordOverrideParams,
+  CreateCommentInput,
+  CreateCommentResponse,
   CreatePostInput,
+  DailyWordResponse,
   ErrorResponse,
   FeedStats,
   GetAdminUsersParams,
+  GetDailyWordParams,
   GetModeratedPostsParams,
   GetOfficialPrayersParams,
   GetPendingPostsParams,
@@ -35,16 +40,20 @@ import type {
   Notification,
   OfficialPrayer,
   Post,
+  PostCommentsResponse,
   PostsPage,
   PrayResponse,
   PrayerPath,
   PrayerPathDetail,
   PreferencesInput,
   RegisterInput,
+  ResendVerificationInput,
+  SetDailyWordOverrideInput,
   SuccessResponse,
   User,
   UserProfile,
   UsersPage,
+  VerifyEmailInput,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -531,6 +540,178 @@ export const useSavePreferences = <
   TContext
 > => {
   return useMutation(getSavePreferencesMutationOptions(options));
+};
+
+/**
+ * @summary Verify email with OTP
+ */
+export const getVerifyEmailUrl = () => {
+  return `/api/auth/verify-email`;
+};
+
+export const verifyEmail = async (
+  verifyEmailInput: VerifyEmailInput,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getVerifyEmailUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyEmailInput),
+  });
+};
+
+export const getVerifyEmailMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    TError,
+    { data: BodyType<VerifyEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyEmail>>,
+  TError,
+  { data: BodyType<VerifyEmailInput> },
+  TContext
+> => {
+  const mutationKey = ["verifyEmail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    { data: BodyType<VerifyEmailInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyEmail(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyEmailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyEmail>>
+>;
+export type VerifyEmailMutationBody = BodyType<VerifyEmailInput>;
+export type VerifyEmailMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Verify email with OTP
+ */
+export const useVerifyEmail = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    TError,
+    { data: BodyType<VerifyEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyEmail>>,
+  TError,
+  { data: BodyType<VerifyEmailInput> },
+  TContext
+> => {
+  return useMutation(getVerifyEmailMutationOptions(options));
+};
+
+/**
+ * @summary Resend OTP email
+ */
+export const getResendVerificationUrl = () => {
+  return `/api/auth/resend-verification`;
+};
+
+export const resendVerification = async (
+  resendVerificationInput: ResendVerificationInput,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getResendVerificationUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(resendVerificationInput),
+  });
+};
+
+export const getResendVerificationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendVerification>>,
+    TError,
+    { data: BodyType<ResendVerificationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resendVerification>>,
+  TError,
+  { data: BodyType<ResendVerificationInput> },
+  TContext
+> => {
+  const mutationKey = ["resendVerification"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resendVerification>>,
+    { data: BodyType<ResendVerificationInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return resendVerification(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResendVerificationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resendVerification>>
+>;
+export type ResendVerificationMutationBody = BodyType<ResendVerificationInput>;
+export type ResendVerificationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Resend OTP email
+ */
+export const useResendVerification = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendVerification>>,
+    TError,
+    { data: BodyType<ResendVerificationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resendVerification>>,
+  TError,
+  { data: BodyType<ResendVerificationInput> },
+  TContext
+> => {
+  return useMutation(getResendVerificationMutationOptions(options));
 };
 
 /**
@@ -1496,6 +1677,180 @@ export const useUnsavePost = <
 };
 
 /**
+ * @summary Get comments for a post
+ */
+export const getGetPostCommentsUrl = (postId: number) => {
+  return `/api/posts/${postId}/comments`;
+};
+
+export const getPostComments = async (
+  postId: number,
+  options?: RequestInit,
+): Promise<PostCommentsResponse> => {
+  return customFetch<PostCommentsResponse>(getGetPostCommentsUrl(postId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPostCommentsQueryKey = (postId: number) => {
+  return [`/api/posts/${postId}/comments`] as const;
+};
+
+export const getGetPostCommentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPostComments>>,
+  TError = ErrorType<unknown>,
+>(
+  postId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPostComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPostCommentsQueryKey(postId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPostComments>>> = ({
+    signal,
+  }) => getPostComments(postId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!postId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPostComments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPostCommentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPostComments>>
+>;
+export type GetPostCommentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get comments for a post
+ */
+
+export function useGetPostComments<
+  TData = Awaited<ReturnType<typeof getPostComments>>,
+  TError = ErrorType<unknown>,
+>(
+  postId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPostComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPostCommentsQueryOptions(postId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a comment to a post
+ */
+export const getCreatePostCommentUrl = (postId: number) => {
+  return `/api/posts/${postId}/comments`;
+};
+
+export const createPostComment = async (
+  postId: number,
+  createCommentInput: CreateCommentInput,
+  options?: RequestInit,
+): Promise<CreateCommentResponse> => {
+  return customFetch<CreateCommentResponse>(getCreatePostCommentUrl(postId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCommentInput),
+  });
+};
+
+export const getCreatePostCommentMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPostComment>>,
+    TError,
+    { postId: number; data: BodyType<CreateCommentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPostComment>>,
+  TError,
+  { postId: number; data: BodyType<CreateCommentInput> },
+  TContext
+> => {
+  const mutationKey = ["createPostComment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPostComment>>,
+    { postId: number; data: BodyType<CreateCommentInput> }
+  > = (props) => {
+    const { postId, data } = props ?? {};
+
+    return createPostComment(postId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePostCommentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPostComment>>
+>;
+export type CreatePostCommentMutationBody = BodyType<CreateCommentInput>;
+export type CreatePostCommentMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Add a comment to a post
+ */
+export const useCreatePostComment = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPostComment>>,
+    TError,
+    { postId: number; data: BodyType<CreateCommentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPostComment>>,
+  TError,
+  { postId: number; data: BodyType<CreateCommentInput> },
+  TContext
+> => {
+  return useMutation(getCreatePostCommentMutationOptions(options));
+};
+
+/**
  * @summary Get official curated prayers/guides
  */
 export const getGetOfficialPrayersUrl = (params?: GetOfficialPrayersParams) => {
@@ -1878,6 +2233,101 @@ export function useGetCategories<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetCategoriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns an admin override for the given calendar date if set; otherwise a deterministic default from the built-in yearly rotation.
+ * @summary Get daily scripture for the welcome screen
+ */
+export const getGetDailyWordUrl = (params?: GetDailyWordParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/daily-word?${stringifiedParams}`
+    : `/api/daily-word`;
+};
+
+export const getDailyWord = async (
+  params?: GetDailyWordParams,
+  options?: RequestInit,
+): Promise<DailyWordResponse> => {
+  return customFetch<DailyWordResponse>(getGetDailyWordUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDailyWordQueryKey = (params?: GetDailyWordParams) => {
+  return [`/api/daily-word`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetDailyWordQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDailyWord>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetDailyWordParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDailyWord>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDailyWordQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailyWord>>> = ({
+    signal,
+  }) => getDailyWord(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDailyWord>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDailyWordQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDailyWord>>
+>;
+export type GetDailyWordQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get daily scripture for the welcome screen
+ */
+
+export function useGetDailyWord<
+  TData = Awaited<ReturnType<typeof getDailyWord>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetDailyWordParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDailyWord>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDailyWordQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2821,3 +3271,188 @@ export function useGetAdminStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Set or replace the daily word override for a calendar date
+ */
+export const getSetDailyWordOverrideUrl = () => {
+  return `/api/admin/daily-word`;
+};
+
+export const setDailyWordOverride = async (
+  setDailyWordOverrideInput: SetDailyWordOverrideInput,
+  options?: RequestInit,
+): Promise<DailyWordResponse> => {
+  return customFetch<DailyWordResponse>(getSetDailyWordOverrideUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setDailyWordOverrideInput),
+  });
+};
+
+export const getSetDailyWordOverrideMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDailyWordOverride>>,
+    TError,
+    { data: BodyType<SetDailyWordOverrideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setDailyWordOverride>>,
+  TError,
+  { data: BodyType<SetDailyWordOverrideInput> },
+  TContext
+> => {
+  const mutationKey = ["setDailyWordOverride"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setDailyWordOverride>>,
+    { data: BodyType<SetDailyWordOverrideInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setDailyWordOverride(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetDailyWordOverrideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setDailyWordOverride>>
+>;
+export type SetDailyWordOverrideMutationBody =
+  BodyType<SetDailyWordOverrideInput>;
+export type SetDailyWordOverrideMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Set or replace the daily word override for a calendar date
+ */
+export const useSetDailyWordOverride = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDailyWordOverride>>,
+    TError,
+    { data: BodyType<SetDailyWordOverrideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setDailyWordOverride>>,
+  TError,
+  { data: BodyType<SetDailyWordOverrideInput> },
+  TContext
+> => {
+  return useMutation(getSetDailyWordOverrideMutationOptions(options));
+};
+
+/**
+ * @summary Remove the daily word override for a calendar date (reverts to default rotation)
+ */
+export const getClearDailyWordOverrideUrl = (
+  params: ClearDailyWordOverrideParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/daily-word?${stringifiedParams}`
+    : `/api/admin/daily-word`;
+};
+
+export const clearDailyWordOverride = async (
+  params: ClearDailyWordOverrideParams,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getClearDailyWordOverrideUrl(params), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearDailyWordOverrideMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearDailyWordOverride>>,
+    TError,
+    { params: ClearDailyWordOverrideParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearDailyWordOverride>>,
+  TError,
+  { params: ClearDailyWordOverrideParams },
+  TContext
+> => {
+  const mutationKey = ["clearDailyWordOverride"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearDailyWordOverride>>,
+    { params: ClearDailyWordOverrideParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return clearDailyWordOverride(params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearDailyWordOverrideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearDailyWordOverride>>
+>;
+
+export type ClearDailyWordOverrideMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Remove the daily word override for a calendar date (reverts to default rotation)
+ */
+export const useClearDailyWordOverride = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearDailyWordOverride>>,
+    TError,
+    { params: ClearDailyWordOverrideParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearDailyWordOverride>>,
+  TError,
+  { params: ClearDailyWordOverrideParams },
+  TContext
+> => {
+  return useMutation(getClearDailyWordOverrideMutationOptions(options));
+};

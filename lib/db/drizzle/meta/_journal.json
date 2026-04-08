@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1775043074738,
+      "tag": "0000_add-subscription-platform",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775049483264,
+      "tag": "0001_alter-users-role-trial-email",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775050552680,
+      "tag": "0002_alter-users-email-otp",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775050552681,
+      "tag": "0005_create-daily-word-overrides",
+      "breakpoints": true
+    }
+  ]
+}

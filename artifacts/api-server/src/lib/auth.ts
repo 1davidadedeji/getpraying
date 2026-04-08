@@ -77,7 +77,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   }
 
   const user = await getSessionUser(token);
-  if (!user || !user.isAdmin) {
+  if (!user || user.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return;
   }

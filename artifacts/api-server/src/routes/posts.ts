@@ -1,28 +1,26 @@
 import { Router, type IRouter } from "express";
-import { db, postsTable, postPrayersTable, savedPostsTable, usersTable, notificationsTable } from "@workspace/db";
+import { db, postsTable, postPrayersTable, savedPostsTable, usersTable, notificationsTable, commentsTable } from "@workspace/db";
 import { eq, and, desc, sql, asc } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
-
-const CATEGORIES = ["Anxiety", "Gratitude", "Healing", "Guidance", "Family", "Health", "Work/Career", "Finances", "Sleep", "Growth/Purpose", "Forgiveness", "Relationships", "Mental Health"];
-
-function guessCategory(content: string): string | null {
-  const lower = content.toLowerCase();
-  if (lower.match(/anxiety|stress|worried|fear|overwhelm|panic/)) return "Anxiety";
-  if (lower.match(/grateful|gratitude|thankful|bless/)) return "Gratitude";
-  if (lower.match(/heal|sick|illness|surgery|hospital|health|recover/)) return "Healing";
-  if (lower.match(/guide|guidance|path|direction|lost|clarity|purpose/)) return "Guidance";
-  if (lower.match(/family|parent|child|marriage|spouse|wife|husband|son|daughter/)) return "Family";
-  if (lower.match(/relationship|friend|love|lonely|connect/)) return "Relationships";
-  if (lower.match(/work|job|career|finance|money|debt/)) return "Work/Career";
-  if (lower.match(/sleep|rest|tired|exhausted/)) return "Sleep";
-  if (lower.match(/mental|depression|grief|peace|calm/)) return "Mental Health";
-  if (lower.match(/forgive|forgiveness|anger|resentment/)) return "Forgiveness";
-  if (lower.match(/grow|purpose|meaning|goal/)) return "Growth/Purpose";
-  return null;
-}
+import { suggestCategory } from "../lib/aiCategory";
 
 const router: IRouter = Router();
+
+router.post("/posts/suggest-category", requireAuth, async (req, res): Promise<void> => {
+  const { content } = req.body ?? {};
+  if (typeof content !== "string" || !content.trim()) {
+    res.status(400).json({ error: "Content is required" });
+    return;
+  }
+
+  try {
+    const category = await suggestCategory(content);
+    res.json({ category });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed to suggest category" });
+  }
+});
 
 router.get("/posts/stats", optionalAuth, async (req, res): Promise<void> => {
   const today = new Date();
@@ -116,7 +114,14 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const detectedCategory = category || guessCategory(content);
+  let detectedCategory: string | null = category ?? null;
+  if (!detectedCategory) {
+    try {
+      detectedCategory = await suggestCategory(content);
+    } catch {
+      detectedCategory = null;
+    }
+  }
 
   const [post] = await db
     .insert(postsTable)
@@ -156,6 +161,70 @@ router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
+router.get("/posts/:postId/comments", optionalAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(rawId, 10);
+  if (Number.isNaN(postId)) {
+    res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      id: commentsTable.id,
+      postId: commentsTable.postId,
+      authorId: commentsTable.authorId,
+      content: commentsTable.content,
+      createdAt: commentsTable.createdAt,
+      authorUsername: usersTable.username,
+      authorDisplayName: usersTable.displayName,
+    })
+    .from(commentsTable)
+    .innerJoin(usersTable, eq(usersTable.id, commentsTable.authorId))
+    .where(eq(commentsTable.postId, postId))
+    .orderBy(asc(commentsTable.createdAt));
+
+  res.json({ comments: rows });
+});
+
+router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(rawId, 10);
+  if (Number.isNaN(postId)) {
+    res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const user = (req as any).user;
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  if (!content) {
+    res.status(400).json({ error: "Content is required" });
+    return;
+  }
+
+  const [created] = await db
+    .insert(commentsTable)
+    .values({ postId, authorId: user.id, content })
+    .returning();
+
+  const [author] = await db
+    .select({ username: usersTable.username, displayName: usersTable.displayName })
+    .from(usersTable)
+    .where(eq(usersTable.id, user.id));
+
+  res.status(201).json({
+    comment: {
+      id: created.id,
+      postId: created.postId,
+      authorId: created.authorId,
+      content: created.content,
+      createdAt: created.createdAt,
+      authorUsername: author?.username ?? null,
+      authorDisplayName: author?.displayName ?? null,
+    },
+  });
+});
+
 router.delete("/posts/:postId", requireAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
@@ -167,7 +236,7 @@ router.delete("/posts/:postId", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  if (post.authorId !== user.id && !user.isAdmin) {
+  if (post.authorId !== user.id && user.role !== "admin") {
     res.status(403).json({ error: "Not authorized" });
     return;
   }

@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import crypto from "crypto";
+import sendgrid from "@sendgrid/mail";
 import {
   hashPassword,
   verifyPassword,
@@ -11,6 +13,50 @@ import {
 } from "../lib/auth";
 
 const router: IRouter = Router();
+
+function createOtp(): string {
+  const n = crypto.randomInt(0, 1_000_000);
+  return String(n).padStart(6, "0");
+}
+
+function otpExpiresAt(minutes = 15): Date {
+  return new Date(Date.now() + minutes * 60_000);
+}
+
+async function sendVerificationEmail(args: {
+  to: string;
+  otp: string;
+  expiresAt: Date;
+}): Promise<void> {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = process.env.SENDGRID_FROM_EMAIL;
+
+  if (!apiKey || !from) {
+    // Local/dev fallback: do not fail registration if SendGrid isn't configured.
+    console.log(
+      `[email-verification] OTP for ${args.to}: ${args.otp} (expires ${args.expiresAt.toISOString()})`,
+    );
+    return;
+  }
+
+  sendgrid.setApiKey(apiKey);
+
+  const minutesLeft = Math.max(
+    1,
+    Math.round((args.expiresAt.getTime() - Date.now()) / 60_000),
+  );
+
+  await sendgrid.send({
+    to: args.to,
+    from,
+    subject: "Your GetPraying verification code",
+    text:
+      `Welcome to GetPraying.\n\n` +
+      `Your verification code is: ${args.otp}\n\n` +
+      `It expires in about ${minutesLeft} minutes.\n\n` +
+      `If you didn’t request this, you can ignore this email.\n`,
+  });
+}
 
 router.post("/auth/register", async (req, res): Promise<void> => {
   const { email, username, password, displayName } = req.body;
@@ -32,19 +78,32 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
 
   const passwordHash = await hashPassword(password);
+  const finalDisplayName =
+    typeof displayName === "string" && displayName.trim() !== ""
+      ? displayName.trim()
+      : String(username).trim();
+
+  const otp = createOtp();
+  const expiresAt = otpExpiresAt(15);
+
   const [user] = await db
     .insert(usersTable)
     .values({
       email,
       username,
-      displayName: displayName ?? null,
+      displayName: finalDisplayName,
       passwordHash,
-      isAdmin: false,
       isBanned: false,
       preferredCategories: [],
       onboardingComplete: false,
+      trialStartsAt: new Date(),
+      isEmailVerified: false,
+      verificationToken: otp,
+      verificationExpiresAt: expiresAt,
     })
     .returning();
+
+  await sendVerificationEmail({ to: email, otp, expiresAt });
 
   const token = await createSession(user.id);
   res.cookie("session", token, {
@@ -61,8 +120,10 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       displayName: user.displayName,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
-      isAdmin: user.isAdmin,
+      role: user.role,
       isBanned: user.isBanned,
+      trialStartsAt: user.trialStartsAt,
+      isEmailVerified: user.isEmailVerified,
       preferredCategories: user.preferredCategories,
       onboardingComplete: user.onboardingComplete,
       prayersShared: user.prayersShared,
@@ -73,6 +134,82 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     message: "Registration successful",
     token,
   });
+});
+
+router.post("/auth/verify-email", async (req, res): Promise<void> => {
+  const { email, otp } = req.body ?? {};
+  if (typeof email !== "string" || typeof otp !== "string") {
+    res.status(400).json({ error: "email and otp are required" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  if (!user) {
+    res.status(400).json({ error: "Invalid code" });
+    return;
+  }
+
+  if (user.isEmailVerified) {
+    res.json({ success: true, message: "Email already verified" });
+    return;
+  }
+
+  if (!user.verificationToken || !user.verificationExpiresAt) {
+    res.status(400).json({ error: "No active verification code" });
+    return;
+  }
+
+  if (user.verificationToken !== otp) {
+    res.status(400).json({ error: "Invalid code" });
+    return;
+  }
+
+  if (new Date(user.verificationExpiresAt).getTime() < Date.now()) {
+    res.status(400).json({ error: "Code expired" });
+    return;
+  }
+
+  await db
+    .update(usersTable)
+    .set({
+      isEmailVerified: true,
+      verificationToken: null,
+      verificationExpiresAt: null,
+    })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ success: true, message: "Email verified" });
+});
+
+router.post("/auth/resend-verification", async (req, res): Promise<void> => {
+  const { email } = req.body ?? {};
+  if (typeof email !== "string" || !email.trim()) {
+    res.status(400).json({ error: "email is required" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  if (!user) {
+    // Don’t leak which emails exist; still return success.
+    res.json({ success: true, message: "If your account exists, a code was sent." });
+    return;
+  }
+
+  if (user.isEmailVerified) {
+    res.json({ success: true, message: "Email already verified" });
+    return;
+  }
+
+  const otp = createOtp();
+  const expiresAt = otpExpiresAt(15);
+
+  await db
+    .update(usersTable)
+    .set({ verificationToken: otp, verificationExpiresAt: expiresAt })
+    .where(eq(usersTable.id, user.id));
+
+  await sendVerificationEmail({ to: user.email, otp, expiresAt });
+  res.json({ success: true, message: "Verification code sent" });
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -114,8 +251,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       displayName: user.displayName,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
-      isAdmin: user.isAdmin,
+      role: user.role,
       isBanned: user.isBanned,
+      trialStartsAt: user.trialStartsAt,
+      isEmailVerified: user.isEmailVerified,
       preferredCategories: user.preferredCategories,
       onboardingComplete: user.onboardingComplete,
       prayersShared: user.prayersShared,
@@ -146,8 +285,10 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     displayName: user.displayName,
     bio: user.bio,
     avatarUrl: user.avatarUrl,
-    isAdmin: user.isAdmin,
+    role: user.role,
     isBanned: user.isBanned,
+    trialStartsAt: user.trialStartsAt,
+    isEmailVerified: user.isEmailVerified,
     preferredCategories: user.preferredCategories,
     onboardingComplete: user.onboardingComplete,
     prayersShared: user.prayersShared,

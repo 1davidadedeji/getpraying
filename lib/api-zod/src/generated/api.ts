@@ -44,8 +44,10 @@ export const LoginResponse = zod.object({
     displayName: zod.string().nullish(),
     bio: zod.string().nullish(),
     avatarUrl: zod.string().nullish(),
-    isAdmin: zod.boolean(),
+    role: zod.enum(["user", "moderator", "admin"]),
     isBanned: zod.boolean(),
+    trialStartsAt: zod.coerce.date().nullish(),
+    isEmailVerified: zod.boolean(),
     preferredCategories: zod.array(zod.string()),
     onboardingComplete: zod.boolean(),
     prayersShared: zod.number(),
@@ -74,8 +76,10 @@ export const GetMeResponse = zod.object({
   displayName: zod.string().nullish(),
   bio: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
-  isAdmin: zod.boolean(),
+  role: zod.enum(["user", "moderator", "admin"]),
   isBanned: zod.boolean(),
+  trialStartsAt: zod.coerce.date().nullish(),
+  isEmailVerified: zod.boolean(),
   preferredCategories: zod.array(zod.string()),
   onboardingComplete: zod.boolean(),
   prayersShared: zod.number(),
@@ -92,6 +96,34 @@ export const SavePreferencesBody = zod.object({
 });
 
 export const SavePreferencesResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Verify email with OTP
+ */
+export const verifyEmailBodyOtpMin = 6;
+export const verifyEmailBodyOtpMax = 6;
+
+export const VerifyEmailBody = zod.object({
+  email: zod.string().email(),
+  otp: zod.string().min(verifyEmailBodyOtpMin).max(verifyEmailBodyOtpMax),
+});
+
+export const VerifyEmailResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Resend OTP email
+ */
+export const ResendVerificationBody = zod.object({
+  email: zod.string().email(),
+});
+
+export const ResendVerificationResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
 });
@@ -331,6 +363,38 @@ export const UnsavePostResponse = zod.object({
 });
 
 /**
+ * @summary Get comments for a post
+ */
+export const GetPostCommentsParams = zod.object({
+  postId: zod.coerce.number(),
+});
+
+export const GetPostCommentsResponse = zod.object({
+  comments: zod.array(
+    zod.object({
+      id: zod.number(),
+      postId: zod.number(),
+      authorId: zod.number(),
+      content: zod.string(),
+      createdAt: zod.coerce.date(),
+      authorUsername: zod.string().nullish(),
+      authorDisplayName: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Add a comment to a post
+ */
+export const CreatePostCommentParams = zod.object({
+  postId: zod.coerce.number(),
+});
+
+export const CreatePostCommentBody = zod.object({
+  content: zod.string().min(1),
+});
+
+/**
  * @summary Get official curated prayers/guides
  */
 export const getOfficialPrayersQueryLimitDefault = 20;
@@ -453,6 +517,26 @@ export const GetCategoriesResponseItem = zod.object({
   icon: zod.string().nullish(),
 });
 export const GetCategoriesResponse = zod.array(GetCategoriesResponseItem);
+
+/**
+ * Returns an admin override for the given calendar date if set; otherwise a deterministic default from the built-in yearly rotation.
+ * @summary Get daily scripture for the welcome screen
+ */
+export const GetDailyWordQueryParams = zod.object({
+  date: zod
+    .date()
+    .optional()
+    .describe(
+      "Calendar date (YYYY-MM-DD), typically the device local date. Defaults to today on the server if omitted.",
+    ),
+});
+
+export const GetDailyWordResponse = zod.object({
+  date: zod.coerce.date(),
+  quoteText: zod.string(),
+  reference: zod.string(),
+  source: zod.enum(["default", "override"]),
+});
 
 /**
  * @summary Get user notifications
@@ -640,8 +724,10 @@ export const GetAdminUsersResponse = zod.object({
       displayName: zod.string().nullish(),
       bio: zod.string().nullish(),
       avatarUrl: zod.string().nullish(),
-      isAdmin: zod.boolean(),
+      role: zod.enum(["user", "moderator", "admin"]),
       isBanned: zod.boolean(),
+      trialStartsAt: zod.coerce.date().nullish(),
+      isEmailVerified: zod.boolean(),
       preferredCategories: zod.array(zod.string()),
       onboardingComplete: zod.boolean(),
       prayersShared: zod.number(),
@@ -690,4 +776,32 @@ export const GetAdminStatsResponse = zod.object({
   declinedPosts: zod.number(),
   bannedUsers: zod.number(),
   prayersToday: zod.number(),
+});
+
+/**
+ * @summary Set or replace the daily word override for a calendar date
+ */
+export const SetDailyWordOverrideBody = zod.object({
+  effectiveDate: zod.coerce.date(),
+  quoteText: zod.string(),
+  reference: zod.string(),
+});
+
+export const SetDailyWordOverrideResponse = zod.object({
+  date: zod.coerce.date(),
+  quoteText: zod.string(),
+  reference: zod.string(),
+  source: zod.enum(["default", "override"]),
+});
+
+/**
+ * @summary Remove the daily word override for a calendar date (reverts to default rotation)
+ */
+export const ClearDailyWordOverrideQueryParams = zod.object({
+  date: zod.date().describe("Calendar date YYYY-MM-DD"),
+});
+
+export const ClearDailyWordOverrideResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
 });

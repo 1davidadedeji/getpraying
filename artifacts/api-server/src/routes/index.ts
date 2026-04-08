@@ -6,6 +6,7 @@ import postsRouter from "./posts";
 import libraryRouter from "./library";
 import notificationsRouter from "./notifications";
 import adminRouter from "./admin";
+import dailyWordRouter from "./dailyWord";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.use(usersRouter);
 router.use(postsRouter);
 router.use(libraryRouter);
 router.use(notificationsRouter);
+router.use(dailyWordRouter);
 router.use(adminRouter);
 
 export default router;

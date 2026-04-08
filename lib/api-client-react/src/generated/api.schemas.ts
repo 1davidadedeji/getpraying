@@ -36,6 +36,27 @@ export interface PreferencesInput {
   categories: string[];
 }
 
+export interface VerifyEmailInput {
+  email: string;
+  /**
+   * @minLength 6
+   * @maxLength 6
+   */
+  otp: string;
+}
+
+export interface ResendVerificationInput {
+  email: string;
+}
+
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const UserRole = {
+  user: "user",
+  moderator: "moderator",
+  admin: "admin",
+} as const;
+
 export interface User {
   id: number;
   email: string;
@@ -43,8 +64,10 @@ export interface User {
   displayName?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
-  isAdmin: boolean;
+  role: UserRole;
   isBanned: boolean;
+  trialStartsAt?: string | null;
+  isEmailVerified: boolean;
   preferredCategories: string[];
   onboardingComplete: boolean;
   prayersShared: number;
@@ -104,6 +127,29 @@ export interface Post {
   authorDisplayName?: string | null;
   authorAvatarUrl?: string | null;
   createdAt: string;
+}
+
+export interface Comment {
+  id: number;
+  postId: number;
+  authorId: number;
+  content: string;
+  createdAt: string;
+  authorUsername?: string | null;
+  authorDisplayName?: string | null;
+}
+
+export interface PostCommentsResponse {
+  comments: Comment[];
+}
+
+export interface CreateCommentInput {
+  /** @minLength 1 */
+  content: string;
+}
+
+export interface CreateCommentResponse {
+  comment: Comment;
 }
 
 export type CreatePostInputMediaType =
@@ -225,6 +271,27 @@ export interface AdminStats {
   prayersToday: number;
 }
 
+export type DailyWordResponseSource =
+  (typeof DailyWordResponseSource)[keyof typeof DailyWordResponseSource];
+
+export const DailyWordResponseSource = {
+  default: "default",
+  override: "override",
+} as const;
+
+export interface DailyWordResponse {
+  date: string;
+  quoteText: string;
+  reference: string;
+  source: DailyWordResponseSource;
+}
+
+export interface SetDailyWordOverrideInput {
+  effectiveDate: string;
+  quoteText: string;
+  reference: string;
+}
+
 export type GetUserPostsParams = {
   cursor?: number;
   limit?: number;
@@ -244,6 +311,13 @@ export type GetOfficialPrayersParams = {
   limit?: number;
 };
 
+export type GetDailyWordParams = {
+  /**
+   * Calendar date (YYYY-MM-DD), typically the device local date. Defaults to today on the server if omitted.
+   */
+  date?: string;
+};
+
 export type GetPendingPostsParams = {
   cursor?: number;
   limit?: number;
@@ -257,4 +331,11 @@ export type GetModeratedPostsParams = {
 export type GetAdminUsersParams = {
   cursor?: number;
   limit?: number;
+};
+
+export type ClearDailyWordOverrideParams = {
+  /**
+   * Calendar date YYYY-MM-DD
+   */
+  date: string;
 };

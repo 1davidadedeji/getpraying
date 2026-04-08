@@ -1,6 +1,8 @@
-import { pgTable, text, serial, boolean, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, serial, boolean, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+
+export const userRoleEnum = pgEnum("user_role", ["user", "moderator", "admin"]);
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -10,8 +12,14 @@ export const usersTable = pgTable("users", {
   bio: text("bio"),
   avatarUrl: text("avatar_url"),
   passwordHash: text("password_hash").notNull(),
-  isAdmin: boolean("is_admin").notNull().default(false),
+  role: userRoleEnum("role").notNull().default("user"),
   isBanned: boolean("is_banned").notNull().default(false),
+  subscription: text("subscription").notNull().default("free"),
+  platform: text("platform").notNull().default("unknown"),
+  trialStartsAt: timestamp("trial_starts_at", { withTimezone: true }),
+  isEmailVerified: boolean("is_email_verified").notNull().default(false),
+  verificationToken: text("verification_token"),
+  verificationExpiresAt: timestamp("verification_expires_at", { withTimezone: true }),
   preferredCategories: text("preferred_categories").array().notNull().default([]),
   onboardingComplete: boolean("onboarding_complete").notNull().default(false),
   prayersShared: integer("prayers_shared").notNull().default(0),

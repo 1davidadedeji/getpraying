@@ -5,6 +5,7 @@
  * GetPraying API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserRole } from "./userRole";
 
 export interface User {
   id: number;
@@ -13,8 +14,10 @@ export interface User {
   displayName?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
-  isAdmin: boolean;
+  role: UserRole;
   isBanned: boolean;
+  trialStartsAt?: Date | null;
+  isEmailVerified: boolean;
   preferredCategories: string[];
   onboardingComplete: boolean;
   prayersShared: number;
