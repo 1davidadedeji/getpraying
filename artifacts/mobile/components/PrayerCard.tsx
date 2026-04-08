@@ -37,7 +37,7 @@ export default function PrayerCard({ prayer, onPress }: PrayerCardProps) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: colors.border,
@@ -55,8 +55,8 @@ const styles = StyleSheet.create({
   accentBar: {
     width: 4,
     backgroundColor: colors.accent,
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
+    borderTopLeftRadius: 32,
+    borderBottomLeftRadius: 32,
   },
   content: {
     flex: 1,
@@ -64,18 +64,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 15,
     color: colors.text,
   },
   author: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     color: colors.muted,
     fontStyle: "italic",
   },
   body: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 19,
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tagText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
     color: colors.accent,
     textTransform: "capitalize",

@@ -145,13 +145,13 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   title: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 24,
     color: colors.primary,
     textAlign: "center",
   },
   subtitle: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
     textAlign: "center",
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   chipText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.primary,
   },
@@ -198,14 +198,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   selectionCount: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
     textAlign: "center",
   },
   continueBtn: {
     backgroundColor: colors.accent,
-    borderRadius: 16,
+    borderRadius: 32,
     paddingVertical: 16,
     alignItems: "center",
   },
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   continueBtnText: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.primary,
   },

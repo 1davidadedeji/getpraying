@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,17 +10,24 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  getGetDailyWordQueryKey,
   useApprovePost,
+  useClearDailyWordOverride,
   useDeclinePost,
   useGetAdminStats,
+  useGetDailyWord,
   useGetPendingPosts,
+  useSetDailyWordOverride,
 } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
+import { formatLocalYMD } from "@/lib/date";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 
 function StatBadge({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -116,6 +123,212 @@ function PendingPostCard({
   );
 }
 
+function DailyWordAdminCard() {
+  const [dateStr, setDateStr] = useState(() => formatLocalYMD(new Date()));
+  const [quoteText, setQuoteText] = useState("");
+  const [reference, setReference] = useState("");
+  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim());
+
+  const trimmedDate = dateStr.trim();
+  const { data: word, refetch: refetchWord } = useGetDailyWord(
+    { date: trimmedDate },
+    {
+      query: {
+        queryKey: getGetDailyWordQueryKey({ date: trimmedDate }),
+        enabled: dateOk,
+        retry: 1,
+      },
+    },
+  );
+
+  useEffect(() => {
+    if (!word) return;
+    setQuoteText(word.quoteText);
+    setReference(word.reference);
+  }, [word?.date, word?.quoteText, word?.reference]);
+
+  const setOverride = useSetDailyWordOverride();
+  const clearOverride = useClearDailyWordOverride();
+
+  const onSave = () => {
+    const d = dateStr.trim();
+    const qt = quoteText.trim();
+    const ref = reference.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !qt || !ref) {
+      Alert.alert("Check fields", "Use date YYYY-MM-DD and fill quote and reference.");
+      return;
+    }
+    setOverride.mutate(
+      { data: { effectiveDate: d, quoteText: qt, reference: ref } },
+      {
+        onSuccess: () => {
+          Alert.alert("Saved", "Today’s Word override updated for that date.");
+          refetchWord();
+        },
+        onError: (e: unknown) => Alert.alert("Save failed", getApiErrorMessage(e, "Try again")),
+      },
+    );
+  };
+
+  const onClear = () => {
+    const d = dateStr.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      Alert.alert("Invalid date", "Use YYYY-MM-DD.");
+      return;
+    }
+    clearOverride.mutate(
+      { params: { date: d } },
+      {
+        onSuccess: () => {
+          Alert.alert("Cleared", "That date now uses the automatic daily rotation.");
+          refetchWord();
+        },
+        onError: (e: unknown) => Alert.alert("Clear failed", getApiErrorMessage(e, "Try again")),
+      },
+    );
+  };
+
+  return (
+    <View style={dwStyles.card}>
+      <Text style={dwStyles.cardTitle}>{"Today's Word (override)"}</Text>
+      <Text style={dwStyles.hint}>
+        Set a custom verse for a calendar date, or clear to use the automatic rotation (
+        {word?.source === "override" ? "this date has an override" : "this date uses defaults"}).
+      </Text>
+      <Text style={dwStyles.label}>Date (YYYY-MM-DD)</Text>
+      <TextInput
+        value={dateStr}
+        onChangeText={setDateStr}
+        placeholder="2026-04-07"
+        placeholderTextColor={colors.muted}
+        style={dwStyles.input}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <Text style={dwStyles.label}>Quote</Text>
+      <TextInput
+        value={quoteText}
+        onChangeText={setQuoteText}
+        placeholder="Verse text"
+        placeholderTextColor={colors.muted}
+        style={[dwStyles.input, dwStyles.inputMultiline]}
+        multiline
+      />
+      <Text style={dwStyles.label}>Reference</Text>
+      <TextInput
+        value={reference}
+        onChangeText={setReference}
+        placeholder="— Psalm 23:1"
+        placeholderTextColor={colors.muted}
+        style={dwStyles.input}
+        autoCapitalize="none"
+      />
+      <View style={dwStyles.row}>
+        <Pressable
+          style={[dwStyles.btn, dwStyles.btnPrimary, setOverride.isPending && dwStyles.btnDisabled]}
+          onPress={onSave}
+          disabled={setOverride.isPending}
+        >
+          {setOverride.isPending ? (
+            <ActivityIndicator color={colors.surface} size="small" />
+          ) : (
+            <Text style={dwStyles.btnPrimaryText}>Save override</Text>
+          )}
+        </Pressable>
+        <Pressable
+          style={[dwStyles.btn, dwStyles.btnGhost, clearOverride.isPending && dwStyles.btnDisabled]}
+          onPress={onClear}
+          disabled={clearOverride.isPending}
+        >
+          {clearOverride.isPending ? (
+            <ActivityIndicator color={colors.danger} size="small" />
+          ) : (
+            <Text style={dwStyles.btnGhostText}>Clear</Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const dwStyles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 32,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  cardTitle: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 17,
+    color: colors.primary,
+  },
+  hint: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  label: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 11,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginTop: 4,
+  },
+  input: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 15,
+    color: colors.text,
+    backgroundColor: colors.cream,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  inputMultiline: {
+    minHeight: 72,
+    textAlignVertical: "top",
+  },
+  row: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  btn: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnPrimary: {
+    backgroundColor: colors.success,
+  },
+  btnPrimaryText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+    color: colors.surface,
+  },
+  btnGhost: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.danger,
+  },
+  btnGhostText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+    color: colors.danger,
+  },
+  btnDisabled: { opacity: 0.6 },
+});
+
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const { data: pending, isLoading, refetch, isFetching } = useGetPendingPosts({});
@@ -134,6 +347,7 @@ export default function AdminScreen() {
       )}
       ListHeaderComponent={
         <View style={{ paddingTop: Platform.OS === "web" ? 20 : 8 }}>
+          <DailyWordAdminCard />
           {stats && (
             <View style={styles.statsRow}>
               <StatBadge
@@ -195,23 +409,23 @@ const styles = StyleSheet.create({
   statBadge: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 32,
     padding: 12,
     alignItems: "center",
     gap: 3,
     borderWidth: 1.5,
   },
   statValue: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 20,
   },
   statLabel: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 11,
     color: colors.muted,
   },
   sectionTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -220,7 +434,7 @@ const styles = StyleSheet.create({
   },
   postCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
@@ -241,12 +455,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   postAvatarText: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
     color: colors.accent,
   },
   postAuthor: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 14,
     color: colors.text,
     flex: 1,
@@ -258,13 +472,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   postCategoryText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 10,
     color: colors.flame,
     textTransform: "capitalize",
   },
   postContent: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.text,
     lineHeight: 21,
@@ -284,7 +498,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success,
   },
   approveBtnText: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
     color: colors.surface,
   },
@@ -301,7 +515,7 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
   },
   declineBtnText: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
     color: colors.danger,
   },
@@ -312,12 +526,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 18,
     color: colors.primary,
   },
   emptySubtitle: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
   },

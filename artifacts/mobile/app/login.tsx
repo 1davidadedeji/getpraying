@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,10 +16,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
+  const passwordRef = useRef<TextInput | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -41,9 +43,8 @@ export default function LoginScreen() {
       } else {
         router.replace("/(tabs)");
       }
-    } catch (err: any) {
-      const msg = err?.data?.error ?? err?.message ?? "Login failed";
-      Alert.alert("Login failed", msg);
+    } catch (err: unknown) {
+      Alert.alert("Login failed", getApiErrorMessage(err, "Login failed"));
     } finally {
       setLoading(false);
     }
@@ -85,6 +86,9 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => passwordRef.current?.focus()}
               testID="email-input"
             />
           </View>
@@ -93,12 +97,15 @@ export default function LoginScreen() {
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordRow}>
               <TextInput
+                ref={passwordRef}
                 style={[styles.input, styles.passwordInput]}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Your password"
                 placeholderTextColor={colors.muted}
                 secureTextEntry={!showPass}
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
                 testID="password-input"
               />
               <Pressable onPress={() => setShowPass((s) => !s)} style={styles.eyeBtn}>
@@ -152,12 +159,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   title: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 28,
     color: colors.primary,
   },
   subtitle: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 15,
     color: colors.muted,
   },
@@ -168,18 +175,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.textSecondary,
   },
   input: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     borderWidth: 1.5,
     borderColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 15,
     color: colors.text,
   },
@@ -198,7 +205,7 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     backgroundColor: colors.primary,
-    borderRadius: 16,
+    borderRadius: 32,
     paddingVertical: 16,
     alignItems: "center",
     marginTop: 8,
@@ -207,7 +214,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitBtnText: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.surface,
   },
@@ -217,12 +224,12 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   footerText: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
   },
   footerLink: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
     color: colors.accent,
   },

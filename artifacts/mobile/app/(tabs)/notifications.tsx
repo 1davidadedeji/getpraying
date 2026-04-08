@@ -129,12 +129,12 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 24,
     color: colors.primary,
   },
   unreadLabel: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
     marginTop: 2,
@@ -151,13 +151,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   markReadText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     color: colors.accent,
   },
   notifCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     padding: 14,
     marginBottom: 10,
     flexDirection: "row",
@@ -183,18 +183,18 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   notifTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
     color: colors.text,
   },
   notifBody: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 18,
   },
   notifTime: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 11,
     color: colors.muted,
     marginTop: 3,
@@ -214,12 +214,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 18,
     color: colors.primary,
   },
   emptySubtitle: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
   },

@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCreatePost } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
+import { useAuth } from "@/context/auth";
 
 const CATEGORIES = [
   "anxiety",
@@ -35,13 +36,54 @@ const CATEGORIES = [
 
 export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const { mutate: createPost, isPending } = useCreatePost();
+  const [aiCategory, setAiCategory] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiMode, setAiMode] = useState(true);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const trimmed = content.trim();
+    if (!aiMode) return;
+    if (trimmed.length < 20) {
+      setAiCategory(null);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      try {
+        setAiLoading(true);
+        const base = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+        const res = await fetch(`${base}/api/posts/suggest-category`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ content: trimmed }),
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        setAiCategory(typeof data?.category === "string" ? data.category : null);
+      } catch {
+        if (!cancelled) setAiCategory(null);
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    }, 800);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [content, token, aiMode]);
 
   const handleSubmit = () => {
     if (!content.trim()) {
@@ -54,7 +96,7 @@ export default function NewPostScreen() {
         data: {
           content: content.trim(),
           isAnonymous,
-          category: selectedCategory ?? undefined,
+          category: (aiMode ? aiCategory : selectedCategory) ?? selectedCategory ?? undefined,
         },
       },
       {
@@ -135,21 +177,41 @@ export default function NewPostScreen() {
       </View>
 
       <View style={styles.categorySection}>
-        <Text style={styles.sectionLabel}>Category (optional)</Text>
+        <View style={styles.categoryHeader}>
+          <Text style={styles.sectionLabel}>Category</Text>
+          {aiLoading ? (
+            <Text style={styles.aiHint}>AI thinking…</Text>
+          ) : aiCategory ? (
+            <Pressable
+              onPress={() => setAiMode((v) => !v)}
+              style={[styles.aiPill, aiMode ? styles.aiPillOn : styles.aiPillOff]}
+              testID="ai-toggle"
+            >
+              <Text style={[styles.aiPillText, aiMode && styles.aiPillTextOn]}>
+                AI suggestion: {aiCategory}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.aiHint}>Optional</Text>
+          )}
+        </View>
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => (
             <Pressable
               key={cat}
-              onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+              onPress={() => {
+                setAiMode(false);
+                setSelectedCategory(selectedCategory === cat ? null : cat);
+              }}
               style={[
                 styles.categoryChip,
-                selectedCategory === cat && styles.categoryChipSelected,
+                (aiMode ? aiCategory : selectedCategory) === cat && styles.categoryChipSelected,
               ]}
             >
               <Text
                 style={[
                   styles.categoryChipText,
-                  selectedCategory === cat && styles.categoryChipTextSelected,
+                  (aiMode ? aiCategory : selectedCategory) === cat && styles.categoryChipTextSelected,
                 ]}
               >
                 {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -215,31 +277,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 20,
     color: colors.primary,
   },
   subtitle: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 32,
     padding: 16,
     borderWidth: 1.5,
     borderColor: colors.border,
   },
   prayerInput: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 16,
     color: colors.text,
     lineHeight: 24,
     minHeight: 180,
   },
   charCount: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     color: colors.muted,
     textAlign: "right",
@@ -250,7 +312,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
@@ -261,12 +323,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   optionLabel: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 14,
     color: colors.text,
   },
   optionDesc: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     color: colors.muted,
     marginTop: 1,
@@ -274,10 +336,43 @@ const styles = StyleSheet.create({
   categorySection: {
     gap: 10,
   },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   sectionLabel: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  aiHint: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+  },
+  aiPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  aiPillOn: {
+    backgroundColor: "#E3F2FD",
+    borderColor: "#93CDFC",
+  },
+  aiPillOff: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+  },
+  aiPillText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  aiPillTextOn: {
+    color: "#21638D",
   },
   categoryGrid: {
     flexDirection: "row",
@@ -297,13 +392,13 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   categoryChipText: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.text,
   },
   categoryChipTextSelected: {
     color: colors.surface,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   notice: {
     flexDirection: "row",
@@ -311,7 +406,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   noticeText: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     color: colors.muted,
     flex: 1,
@@ -319,7 +414,7 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     backgroundColor: colors.primary,
-    borderRadius: 16,
+    borderRadius: 32,
     paddingVertical: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -331,7 +426,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.surface,
   },

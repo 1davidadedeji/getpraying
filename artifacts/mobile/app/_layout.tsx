@@ -1,10 +1,15 @@
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
+  NotoSerif_400Regular,
+  NotoSerif_600SemiBold,
+  NotoSerif_700Bold,
+} from "@expo-google-fonts/noto-serif";
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
   useFonts,
-} from "@expo-google-fonts/inter";
+} from "@expo-google-fonts/plus-jakarta-sans";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setBaseUrl } from "@workspace/api-client-react";
 import { Stack } from "expo-router";
@@ -17,9 +22,10 @@ import { Text, TextInput } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/auth";
+import { RevenueCatProvider } from "@/context/revenuecat";
 import colors from "@/constants/colors";
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+setBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3001");
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,7 +47,7 @@ function RootLayoutNav() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream },
         headerTintColor: colors.primary,
-        headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
+        headerTitleStyle: { fontFamily: "NotoSerif_700Bold" },
         contentStyle: { backgroundColor: colors.cream },
         animation: "slide_from_right",
       }}
@@ -49,6 +55,8 @@ function RootLayoutNav() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(paywall)" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="post/new" options={{ title: "New Prayer", headerBackTitle: "Back" }} />
@@ -61,10 +69,13 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    NotoSerif_400Regular,
+    NotoSerif_600SemiBold,
+    NotoSerif_700Bold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
   });
 
   useEffect(() => {
@@ -80,11 +91,13 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
+            <RevenueCatProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </RevenueCatProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>

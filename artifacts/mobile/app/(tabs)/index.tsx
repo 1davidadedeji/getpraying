@@ -49,7 +49,7 @@ export default function FeedScreen() {
       <Pressable onPress={() => router.push("/post/new")} style={styles.composeBtn} testID="compose-btn">
         <Ionicons name="add" size={22} color={colors.surface} />
       </Pressable>
-      {user?.isAdmin && (
+      {user?.role === "admin" && (
         <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
           <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
         </Pressable>
@@ -120,12 +120,12 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   greeting: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 24,
     color: colors.primary,
   },
   subGreeting: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
     marginTop: 2,
@@ -157,12 +157,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 18,
     color: colors.primary,
   },
   emptySubtitle: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
   },

@@ -53,11 +53,17 @@ export default function LibraryScreen() {
             style={[styles.tab, activeTab === t.key && styles.tabActive]}
             onPress={() => setActiveTab(t.key)}
           >
-            <Feather
-              name={t.icon as any}
-              size={15}
-              color={activeTab === t.key ? colors.surface : colors.muted}
-            />
+            {t.key === "saved" ? (
+              <Text style={[styles.tabEmoji, activeTab === t.key ? styles.tabEmojiActive : styles.tabEmojiInactive]}>
+                🪜
+              </Text>
+            ) : (
+              <Feather
+                name={t.icon as any}
+                size={15}
+                color={activeTab === t.key ? colors.surface : colors.muted}
+              />
+            )}
             <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
               {t.label}
             </Text>
@@ -140,12 +146,12 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   title: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 24,
     color: colors.primary,
   },
   subtitle: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
     marginTop: 2,
@@ -172,9 +178,19 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   tabText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.muted,
+  },
+  tabEmoji: {
+    fontSize: 15,
+    lineHeight: 16,
+  },
+  tabEmojiActive: {
+    opacity: 1,
+  },
+  tabEmojiInactive: {
+    opacity: 0.7,
   },
   tabTextActive: {
     color: colors.surface,
@@ -192,12 +208,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyText: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 16,
     color: colors.primary,
   },
   emptySubtext: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
     textAlign: "center",

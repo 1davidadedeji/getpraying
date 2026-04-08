@@ -110,7 +110,7 @@ export default function ProfileScreen() {
             <Feather name="chevron-right" size={16} color={colors.muted} />
           </Pressable>
 
-          {user.isAdmin && (
+          {user.role === "admin" && (
             <Pressable style={styles.menuItem} onPress={() => router.push("/admin")}>
               <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
               <Text style={[styles.menuItemText, { color: colors.accent }]}>Admin Panel</Text>
@@ -157,29 +157,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 28,
     color: colors.accent,
   },
   displayName: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 22,
     color: colors.primary,
   },
   username: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
   },
   bio: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 20,
   },
   joinDate: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     color: colors.muted,
     marginTop: 2,
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     padding: 14,
     alignItems: "center",
     gap: 4,
@@ -199,12 +199,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   statValue: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 22,
     color: colors.primary,
   },
   statLabel: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 11,
     color: colors.muted,
     textAlign: "center",
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -231,13 +231,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.flameDim,
   },
   chipText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     color: colors.flame,
   },
   menuCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: "hidden",
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   menuItemText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 15,
     color: colors.text,
     flex: 1,

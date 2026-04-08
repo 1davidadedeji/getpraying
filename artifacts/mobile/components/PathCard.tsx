@@ -36,7 +36,7 @@ export default function PathCard({ path }: PathCardProps) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     padding: 14,
     marginBottom: 10,
     flexDirection: "row",
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   iconBg: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 24,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
@@ -66,12 +66,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   title: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 15,
     color: colors.text,
   },
   desc: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 18,
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   metaText: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     color: colors.muted,
   },

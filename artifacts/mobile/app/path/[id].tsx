@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
   errorText: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 16,
     color: colors.muted,
   },
@@ -113,13 +113,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroTitle: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 24,
     color: colors.surface,
     textAlign: "center",
   },
   heroDesc: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: "rgba(255,255,255,0.65)",
     textAlign: "center",
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   heroMetaText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.accent,
   },
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   sectionTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 14,
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 32,
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   prayerNumberText: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 13,
     color: colors.accent,
   },
@@ -177,18 +177,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   prayerTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 15,
     color: colors.text,
   },
   prayerAuthor: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     color: colors.muted,
     fontStyle: "italic",
   },
   prayerBody: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 21,
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyText: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
   },

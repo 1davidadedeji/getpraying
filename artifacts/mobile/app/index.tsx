@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
+import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
   ActivityIndicator,
   Platform,
@@ -13,20 +14,59 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useRevenueCat } from "@/context/revenuecat";
+import { formatLocalYMD } from "@/lib/date";
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { user, loading } = useAuth();
+  const rc = useRevenueCat();
+  const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
+  const { data: dailyWord } = useGetDailyWord(
+    { date: todayYmd },
+    {
+      query: {
+        queryKey: getGetDailyWordQueryKey({ date: todayYmd }),
+        retry: 1,
+      },
+    },
+  );
 
   useEffect(() => {
     if (!loading && user) {
+      // b) Email verification gate
+      if (!user.isEmailVerified) {
+        router.replace("/(auth)/verify" as any);
+        return;
+      }
+
+      // d) moderator/admin always bypass paywall
+      if (user.role === "admin" || user.role === "moderator") {
+        if (!user.onboardingComplete) {
+          router.replace("/onboarding");
+        } else {
+          router.replace("/(tabs)");
+        }
+        return;
+      }
+
+      // c) trial + RevenueCat entitlement gate (users only)
+      const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
+      const trialExpired =
+        startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+
+      if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
+        router.replace("/(paywall)" as any);
+        return;
+      }
+
       if (!user.onboardingComplete) {
         router.replace("/onboarding");
       } else {
         router.replace("/(tabs)");
       }
     }
-  }, [loading, user]);
+  }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled]);
 
   if (loading) {
     return (
@@ -57,9 +97,11 @@ export default function WelcomeScreen() {
         <View style={styles.quoteCard}>
           <Text style={styles.quoteLabel}>Today's Word</Text>
           <Text style={styles.quoteText}>
-            "Be still, and know that I am God."
+            &ldquo;{dailyWord?.quoteText ?? "Be still, and know that I am God."}&rdquo;
           </Text>
-          <Text style={styles.quoteRef}>— Psalm 46:10</Text>
+          <Text style={styles.quoteRef}>
+            {dailyWord?.reference ?? "— Psalm 46:10"}
+          </Text>
         </View>
 
         <View style={styles.actions}>
@@ -113,13 +155,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(212,160,67,0.1)",
   },
   appName: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 38,
     color: colors.surface,
     letterSpacing: -0.5,
   },
   tagline: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 16,
     color: "rgba(255,255,255,0.65)",
     textAlign: "center",
@@ -127,27 +169,27 @@ const styles = StyleSheet.create({
   },
   quoteCard: {
     backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 20,
+    borderRadius: 32,
     padding: 24,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
     gap: 6,
   },
   quoteLabel: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
     color: colors.accent,
     textTransform: "uppercase",
     letterSpacing: 1.5,
   },
   quoteText: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 18,
     color: colors.surface,
     lineHeight: 28,
   },
   quoteRef: {
-    fontFamily: "Inter_400Regular",
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: "rgba(255,255,255,0.5)",
     fontStyle: "italic",
@@ -157,24 +199,24 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     backgroundColor: colors.accent,
-    borderRadius: 16,
+    borderRadius: 32,
     paddingVertical: 16,
     alignItems: "center",
   },
   primaryBtnText: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.primary,
   },
   secondaryBtn: {
-    borderRadius: 16,
+    borderRadius: 32,
     paddingVertical: 15,
     alignItems: "center",
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.3)",
   },
   secondaryBtnText: {
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.surface,
   },
