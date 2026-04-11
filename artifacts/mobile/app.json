@@ -20,8 +20,7 @@
       }
     },
     "android": {
-      "package": "com.getpraying.app",
-      "usesCleartextTraffic": true
+      "package": "com.getpraying.app"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -31,6 +30,14 @@
         "expo-router",
         {
           "origin": "https://getpraying.com"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ],
       "expo-font",
