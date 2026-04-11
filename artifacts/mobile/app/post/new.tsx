@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import { getInfoAsync } from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -86,7 +86,7 @@ async function resizeUnderCap(uri: string): Promise<string> {
       [{ resize: { width: 1400 } }],
       { compress: quality, format: ImageManipulator.SaveFormat.JPEG },
     );
-    const info = await FileSystem.getInfoAsync(manipulated.uri);
+    const info = await getInfoAsync(manipulated.uri);
     const size =
       info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
     if (size > 0 && size <= MAX_UPLOAD_BYTES) {
@@ -284,7 +284,7 @@ export default function NewPostScreen() {
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
-    const info = await FileSystem.getInfoAsync(asset.uri);
+    const info = await getInfoAsync(asset.uri);
     const sz =
       info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
     if (sz > MAX_AUDIO_BYTES) {

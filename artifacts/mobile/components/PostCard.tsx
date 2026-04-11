@@ -10,7 +10,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { Paths, writeAsStringAsync } from "expo-file-system";
+import { Paths } from "expo-file-system";
+import { writeAsStringAsync } from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { usePrayForPost, useSavePost, useUnsavePost } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";

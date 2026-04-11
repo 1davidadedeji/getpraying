@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "getpraying",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -30,15 +30,14 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://getpraying.com"
         }
       ],
       "expo-font",
       "expo-web-browser"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "eas": {

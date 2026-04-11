@@ -1,6 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Paths, writeAsStringAsync } from "expo-file-system";
+import { Paths } from "expo-file-system";
+import { writeAsStringAsync } from "expo-file-system/legacy";
 import { useLocalSearchParams } from "expo-router";
 import * as Sharing from "expo-sharing";
 import React, { useEffect, useRef, useState } from "react";
