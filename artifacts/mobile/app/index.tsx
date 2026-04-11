@@ -14,13 +14,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { useRevenueCat } from "@/context/revenuecat";
 import { formatLocalYMD } from "@/lib/date";
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { user, loading } = useAuth();
-  const rc = useRevenueCat();
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
   const { data: dailyWord } = useGetDailyWord(
     { date: todayYmd },
@@ -36,7 +34,7 @@ export default function WelcomeScreen() {
     if (!loading && user) {
       // b) Email verification gate
       if (!user.isEmailVerified) {
-        router.replace("/(auth)/verify" as any);
+        router.replace("/verify" as any);
         return;
       }
 
@@ -50,15 +48,15 @@ export default function WelcomeScreen() {
         return;
       }
 
+      // TODO: Re-enable RevenueCat for final milestone — restore trial + entitlement paywall gate
       // c) trial + RevenueCat entitlement gate (users only)
-      const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
-      const trialExpired =
-        startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
-
-      if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-        router.replace("/(paywall)" as any);
-        return;
-      }
+      // const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
+      // const trialExpired =
+      //   startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+      // if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
+      //   router.replace("/(paywall)" as any);
+      //   return;
+      // }
 
       if (!user.onboardingComplete) {
         router.replace("/onboarding");
@@ -66,7 +64,7 @@ export default function WelcomeScreen() {
         router.replace("/(tabs)");
       }
     }
-  }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled]);
+  }, [loading, user]);
 
   if (loading) {
     return (
@@ -90,7 +88,7 @@ export default function WelcomeScreen() {
           <View style={styles.logoRing}>
             <Ionicons name="flame" size={48} color={colors.accent} />
           </View>
-          <Text style={styles.appName}>GetPraying</Text>
+          <Text style={styles.appName}>Get Praying</Text>
           <Text style={styles.tagline}>A sanctuary for your{"\n"}daily walk with God</Text>
         </View>
 

@@ -1,10 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSavePreferences } from "@workspace/api-client-react";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 
@@ -36,10 +36,19 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { refreshUser, user } = useAuth();
   const [selected, setSelected] = useState<string[]>([]);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   const { mutate: savePrefs, isPending } = useSavePreferences();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  useEffect(() => {
+    if (!user || prefsLoaded) return;
+    if (user.preferredCategories.length > 0) {
+      setSelected([...user.preferredCategories]);
+    }
+    setPrefsLoaded(true);
+  }, [user, prefsLoaded]);
 
   const toggle = (key: string) => {
     Haptics.selectionAsync();
@@ -50,7 +59,10 @@ export default function OnboardingScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) {
-      Alert.alert("Choose categories", "Please select at least one prayer category.");
+      showAppAlert({
+        title: "Choose categories",
+        message: "Select at least one area you’d like prayer for in your feed.",
+      });
       return;
     }
     savePrefs(
@@ -61,9 +73,12 @@ export default function OnboardingScreen() {
           router.replace("/(tabs)");
         },
         onError: () => {
-          Alert.alert("Error", "Could not save preferences. Please try again.");
+          showAppAlert({
+            title: "Could not save",
+            message: "Check your connection and try again.",
+          });
         },
-      }
+      },
     );
   };
 
@@ -76,9 +91,9 @@ export default function OnboardingScreen() {
       >
         <View style={styles.header}>
           <Ionicons name="flame" size={32} color={colors.accent} />
-          <Text style={styles.title}>What will you pray about?</Text>
+          <Text style={styles.title}>Prayer preferences</Text>
           <Text style={styles.subtitle}>
-            Choose categories that resonate with you. We'll tailor your prayer feed.
+            Choose categories for your feed. You can change these anytime from your profile.
           </Text>
         </View>
 

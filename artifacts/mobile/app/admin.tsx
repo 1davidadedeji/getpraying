@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -25,6 +24,7 @@ import {
   useSetDailyWordOverride,
 } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { formatLocalYMD } from "@/lib/date";
 import { getApiErrorMessage } from "@/lib/apiErrors";
@@ -54,17 +54,21 @@ function PendingPostCard({
   };
 
   const handleDecline = () => {
-    Alert.alert("Decline Prayer", "Decline this prayer post?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Decline",
-        style: "destructive",
-        onPress: () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          decline({ postId: post.id }, { onSuccess: onModerated });
+    showAppAlert({
+      title: "Decline prayer",
+      message: "This post will be removed from the moderation queue.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Decline",
+          style: "destructive",
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            decline({ postId: post.id }, { onSuccess: onModerated });
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   const authorName = post.isAnonymous
@@ -155,17 +159,24 @@ function DailyWordAdminCard() {
     const qt = quoteText.trim();
     const ref = reference.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !qt || !ref) {
-      Alert.alert("Check fields", "Use date YYYY-MM-DD and fill quote and reference.");
+      showAppAlert({
+        title: "Check fields",
+        message: "Use date YYYY-MM-DD and fill in both quote and reference.",
+      });
       return;
     }
     setOverride.mutate(
       { data: { effectiveDate: d, quoteText: qt, reference: ref } },
       {
         onSuccess: () => {
-          Alert.alert("Saved", "Today’s Word override updated for that date.");
+          showAppAlert({
+            title: "Saved",
+            message: "Daily Word for that date has been updated.",
+          });
           refetchWord();
         },
-        onError: (e: unknown) => Alert.alert("Save failed", getApiErrorMessage(e, "Try again")),
+        onError: (e: unknown) =>
+          showAppAlert({ title: "Save failed", message: getApiErrorMessage(e, "Try again") }),
       },
     );
   };
@@ -173,17 +184,21 @@ function DailyWordAdminCard() {
   const onClear = () => {
     const d = dateStr.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      Alert.alert("Invalid date", "Use YYYY-MM-DD.");
+      showAppAlert({ title: "Invalid date", message: "Use YYYY-MM-DD." });
       return;
     }
     clearOverride.mutate(
       { params: { date: d } },
       {
         onSuccess: () => {
-          Alert.alert("Cleared", "That date now uses the automatic daily rotation.");
+          showAppAlert({
+            title: "Cleared",
+            message: "That date will use the automatic daily rotation again.",
+          });
           refetchWord();
         },
-        onError: (e: unknown) => Alert.alert("Clear failed", getApiErrorMessage(e, "Try again")),
+        onError: (e: unknown) =>
+          showAppAlert({ title: "Clear failed", message: getApiErrorMessage(e, "Try again") }),
       },
     );
   };

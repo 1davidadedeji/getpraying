@@ -96,3 +96,15 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
   }
   next();
 }
+
+/**
+ * TODO: Re-enable RevenueCat for final milestone — enforce subscription / trial server-side here.
+ * Currently a no-op so all authenticated traffic passes; attach to premium routes when billing returns.
+ */
+export async function requirePremiumSubscription(
+  _req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
+  next();
+}

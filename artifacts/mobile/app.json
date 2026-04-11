@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "GetPraying Mobile",
+    "name": "Praying",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "CFBundleDisplayName": "Praying"
+      }
     },
     "android": {
       "package": "com.getpraying.app",

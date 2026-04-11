@@ -8,7 +8,6 @@ import React from "react";
 import { ActivityIndicator, Platform, StyleSheet, View, useColorScheme } from "react-native";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { useRevenueCat } from "@/context/revenuecat";
 
 function NativeTabLayout() {
   return (
@@ -123,7 +122,6 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { user, loading } = useAuth();
-  const rc = useRevenueCat();
 
   if (loading) {
     return (
@@ -137,16 +135,17 @@ export default function TabLayout() {
     return <Redirect href="/" />;
   }
   if (!user.isEmailVerified) {
-    return <Redirect href={"/(auth)/verify" as any} />;
+    return <Redirect href={"/verify" as any} />;
   }
-  if (user.role !== "admin" && user.role !== "moderator") {
-    const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
-    const trialExpired =
-      startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
-    if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-      return <Redirect href={"/(paywall)" as any} />;
-    }
-  }
+  // TODO: Re-enable RevenueCat for final milestone — restore paywall redirect for expired trial without entitlement
+  // if (user.role !== "admin" && user.role !== "moderator") {
+  //   const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
+  //   const trialExpired =
+  //     startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+  //   if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
+  //     return <Redirect href={"/(paywall)" as any} />;
+  //   }
+  // }
 
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;

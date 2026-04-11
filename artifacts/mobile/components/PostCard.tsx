@@ -1,9 +1,9 @@
+import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -14,6 +14,7 @@ import { Paths, writeAsStringAsync } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { usePrayForPost, useSavePost, useUnsavePost } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 
 interface PostCardProps {
@@ -47,12 +48,35 @@ const CATEGORIES: Record<string, string> = {
   peace: "Peace",
 };
 
+const ICON_SIZE = 22;
+
 export default function PostCard({ post, onUpdated }: PostCardProps) {
   const flameScale = useRef(new Animated.Value(1)).current;
+  const [localPost, setLocalPost] = useState(post);
+
+  useEffect(() => {
+    setLocalPost(post);
+  }, [
+    post.id,
+    post.prayCount,
+    post.hasPrayed,
+    post.isSaved,
+    post.content,
+    post.createdAt,
+    post.category,
+    post.isAnonymous,
+    post.authorDisplayName,
+    post.authorUsername,
+  ]);
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
   const { mutate: unsave } = useUnsavePost();
+
+  const merge = (next: Post) => {
+    setLocalPost(next);
+    onUpdated?.(next);
+  };
 
   const handlePray = () => {
     Animated.sequence([
@@ -61,119 +85,145 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
     ]).start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     pray(
-      { postId: post.id },
+      { postId: localPost.id },
       {
         onSuccess: (res) => {
-          if (onUpdated) {
-            onUpdated({
-              ...post,
-              hasPrayed: res.hasPrayed,
-              prayCount: res.prayCount,
-            });
-          }
+          merge({
+            ...localPost,
+            hasPrayed: res.hasPrayed,
+            prayCount: res.prayCount,
+          });
         },
-      }
+      },
     );
   };
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (post.isSaved) {
-      unsave({ postId: post.id }, { onSuccess: () => onUpdated?.({ ...post, isSaved: false }) });
+    if (localPost.isSaved) {
+      unsave(
+        { postId: localPost.id },
+        { onSuccess: () => merge({ ...localPost, isSaved: false }) },
+      );
     } else {
-      save({ postId: post.id }, { onSuccess: () => onUpdated?.({ ...post, isSaved: true }) });
+      save(
+        { postId: localPost.id },
+        { onSuccess: () => merge({ ...localPost, isSaved: true }) },
+      );
     }
   };
 
   const handleShare = async () => {
     const ok = await Sharing.isAvailableAsync().catch(() => false);
     if (!ok) {
-      Alert.alert("Sharing not available", "Sharing isn't available on this device.");
+      showAppAlert({
+        title: "Sharing not available",
+        message: "Sharing isn’t available on this device.",
+      });
       return;
     }
 
-    const authorName = post.isAnonymous
+    const authorName = localPost.isAnonymous
       ? "Anonymous"
-      : post.authorDisplayName ?? post.authorUsername ?? "Someone";
+      : localPost.authorDisplayName ?? localPost.authorUsername ?? "Someone";
     const text =
-      `GetPraying — A prayer shared by ${authorName}\n\n` +
-      `${post.content}\n\n` +
-      `🙏 ${post.prayCount} praying`;
+      `Get Praying — shared by ${authorName}\n\n` +
+      `${localPost.content}\n\n` +
+      `${localPost.prayCount} praying`;
 
     const dir = Paths.cache?.uri ?? Paths.document?.uri ?? null;
     if (!dir) {
-      Alert.alert("Share failed", "Could not access storage.");
+      showAppAlert({ title: "Share failed", message: "Could not access storage." });
       return;
     }
 
-    const path = `${dir}getpraying-share-${post.id}.txt`;
+    const path = `${dir}getpraying-share-${localPost.id}.txt`;
     await writeAsStringAsync(path, text, { encoding: "utf8" });
     await Sharing.shareAsync(path, { mimeType: "text/plain", dialogTitle: "Share prayer" });
   };
 
-  const authorName = post.isAnonymous
+  const authorName = localPost.isAnonymous
     ? "Anonymous"
-    : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
+    : localPost.authorDisplayName ?? localPost.authorUsername ?? "Unknown";
+
+  const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
+  const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
 
   return (
-    <Pressable
-      onPress={() => router.push(`/post/${post.id}`)}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-    >
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.authorName}>{authorName}</Text>
-          <Text style={styles.timeAgo}>{timeAgo(post.createdAt)}</Text>
-        </View>
-        {post.category && CATEGORIES[post.category] && (
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryText}>{CATEGORIES[post.category]}</Text>
+    <View style={styles.card}>
+      <Pressable
+        onPress={() => router.push(`/post/${localPost.id}`)}
+        style={({ pressed }) => [styles.cardBody, pressed && styles.cardBodyPressed]}
+        accessibilityRole="button"
+        accessibilityLabel={`Open prayer from ${authorName}`}
+      >
+        <View style={styles.header}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {localPost.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
+            </Text>
           </View>
-        )}
-      </View>
+          <View style={styles.headerInfo}>
+            <Text style={styles.authorName}>{authorName}</Text>
+            <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
+          </View>
+          {localPost.category && CATEGORIES[localPost.category] && (
+            <View style={styles.categoryBadge}>
+              <Text style={styles.categoryText}>{CATEGORIES[localPost.category]}</Text>
+            </View>
+          )}
+        </View>
 
-      <Text style={styles.content} numberOfLines={4}>
-        {post.content}
-      </Text>
+        <Text style={styles.content} numberOfLines={4}>
+          {localPost.content}
+        </Text>
+      </Pressable>
 
       <View style={styles.actions}>
-        <Pressable onPress={handlePray} style={styles.actionBtn} testID="pray-btn">
+        <Pressable
+          onPress={handlePray}
+          style={styles.actionBtn}
+          testID="pray-btn"
+          accessibilityRole="button"
+          accessibilityLabel={localPost.hasPrayed ? "Praying" : "Pray for this post"}
+        >
           <Animated.View style={{ transform: [{ scale: flameScale }] }}>
-            <Text
-              style={[
-                styles.emojiIcon,
-                post.hasPrayed ? styles.emojiIconActive : styles.emojiIconInactive,
-              ]}
-            >
-              🙏
-            </Text>
+            <Ionicons
+              name={localPost.hasPrayed ? "flame" : "flame-outline"}
+              size={ICON_SIZE}
+              color={prayColor}
+            />
           </Animated.View>
-          <Text style={[styles.actionCount, post.hasPrayed && styles.actionCountActive]}>
-            {post.prayCount}
+          <Text style={[styles.actionCount, localPost.hasPrayed && styles.actionCountActive]}>
+            {localPost.prayCount}
           </Text>
         </Pressable>
 
-        <Pressable onPress={handleSave} style={styles.actionBtn} testID="save-btn">
-          <Text
-            style={[
-              styles.emojiIcon,
-              post.isSaved ? styles.emojiIconActive : styles.emojiIconInactive,
-            ]}
-          >
-            🪜
-          </Text>
+        <Pressable
+          onPress={handleSave}
+          style={styles.actionBtn}
+          testID="save-btn"
+          accessibilityRole="button"
+          accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
+        >
+          <Ionicons
+            name={localPost.isSaved ? "bookmark" : "bookmark-outline"}
+            size={ICON_SIZE}
+            color={bookmarkColor}
+          />
         </Pressable>
 
-        <Pressable onPress={handleShare} style={styles.actionBtn} testID="share-btn">
-          <Text style={[styles.emojiIcon, styles.emojiIconInactive]}>🔗</Text>
+        <Pressable
+          onPress={handleShare}
+          style={styles.actionBtn}
+          testID="share-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Share prayer"
+        >
+          <Feather name="share-2" size={ICON_SIZE - 2} color={colors.muted} />
         </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -181,7 +231,6 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: 32,
-    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
@@ -190,10 +239,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+    overflow: "hidden",
   },
-  cardPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.99 }],
+  cardBody: {
+    padding: 16,
+    paddingBottom: 12,
+  },
+  cardBodyPressed: {
+    opacity: Platform.OS === "web" ? 0.92 : 1,
   },
   header: {
     flexDirection: "row",
@@ -244,39 +297,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     lineHeight: 22,
-    marginBottom: 12,
   },
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
-    paddingTop: 8,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    backgroundColor: colors.cream,
   },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    minHeight: 44,
+    justifyContent: "center",
   },
   actionCount: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 14,
     color: colors.muted,
+    minWidth: 20,
   },
   actionCountActive: {
     color: colors.flame,
-  },
-  emojiIcon: {
-    fontSize: 20,
-    lineHeight: 22,
-  },
-  emojiIconActive: {
-    opacity: 1,
-  },
-  emojiIconInactive: {
-    opacity: 0.5,
   },
 });

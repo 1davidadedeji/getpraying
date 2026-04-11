@@ -4,7 +4,6 @@ import { router } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 
@@ -33,18 +33,22 @@ export default function ProfileScreen() {
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const handleLogout = () => {
-    Alert.alert("Sign out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          await logout();
-          router.replace("/");
+    showAppAlert({
+      title: "Sign out",
+      message: "You’ll need to sign in again to view your feed.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign out",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            await logout();
+            router.replace("/");
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   if (!user) {
@@ -106,7 +110,7 @@ export default function ProfileScreen() {
         <View style={styles.menuCard}>
           <Pressable style={styles.menuItem} onPress={() => router.push("/onboarding")}>
             <Feather name="settings" size={18} color={colors.primary} />
-            <Text style={styles.menuItemText}>Prayer Preferences</Text>
+            <Text style={styles.menuItemText}>Prayer preferences</Text>
             <Feather name="chevron-right" size={16} color={colors.muted} />
           </Pressable>
 

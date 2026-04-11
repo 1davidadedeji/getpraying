@@ -42,7 +42,7 @@ export default function FeedScreen() {
     <View style={[styles.header, { paddingTop: topPad + 4 }]}>
       <View>
         <Text style={styles.greeting}>
-          {user?.displayName ? `Hello, ${user.displayName}` : "GetPraying"}
+          {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
         </Text>
         <Text style={styles.subGreeting}>Prayer feed</Text>
       </View>

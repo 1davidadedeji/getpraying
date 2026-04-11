@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVerifyEmail, useResendVerification } from "@workspace/api-client-react";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 
@@ -31,12 +31,18 @@ export default function VerifyScreen() {
   const onVerify = () => {
     const code = otp.replace(/\D/g, "").slice(0, 6);
     if (code.length !== 6) {
-      Alert.alert("Invalid code", "Please enter the 6-digit code.");
+      showAppAlert({
+        title: "Invalid code",
+        message: "Please enter the 6-digit code from your email.",
+      });
       return;
     }
     if (!email) {
-      Alert.alert("Missing email", "Please sign in again.");
-      router.replace("/login");
+      showAppAlert({
+        title: "Session needed",
+        message: "Please sign in again to verify your email.",
+        buttons: [{ text: "OK", onPress: () => router.replace("/login") }],
+      });
       return;
     }
 
@@ -48,7 +54,10 @@ export default function VerifyScreen() {
           router.replace("/(tabs)");
         },
         onError: (err: any) => {
-          Alert.alert("Verification failed", err?.data?.error ?? err?.message ?? "Invalid code");
+          showAppAlert({
+            title: "Verification failed",
+            message: err?.data?.error ?? err?.message ?? "That code did not match. Try again or request a new code.",
+          });
         },
       },
     );
@@ -56,16 +65,26 @@ export default function VerifyScreen() {
 
   const onResend = () => {
     if (!email) {
-      Alert.alert("Missing email", "Please sign in again.");
-      router.replace("/login");
+      showAppAlert({
+        title: "Session needed",
+        message: "Please sign in again.",
+        buttons: [{ text: "OK", onPress: () => router.replace("/login") }],
+      });
       return;
     }
     resend.mutate(
       { data: { email } },
       {
-        onSuccess: () => Alert.alert("Sent", "A new code has been sent to your email."),
+        onSuccess: () =>
+          showAppAlert({
+            title: "Code sent",
+            message: "Check your inbox for a new verification code.",
+          }),
         onError: (err: any) =>
-          Alert.alert("Could not resend", err?.data?.error ?? err?.message ?? "Try again"),
+          showAppAlert({
+            title: "Could not resend",
+            message: err?.data?.error ?? err?.message ?? "Please try again in a moment.",
+          }),
       },
     );
   };
@@ -75,7 +94,7 @@ export default function VerifyScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.iconCircle}>
-            <Ionicons name="mail" size={22} color="#21638D" />
+            <Ionicons name="mail" size={22} color={colors.primary} />
           </View>
           <Text style={styles.title}>Verify your email</Text>
           <Text style={styles.subtitle}>
@@ -90,7 +109,7 @@ export default function VerifyScreen() {
             <TextInput
               value={otp}
               onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
-              placeholder="123456"
+              placeholder="000000"
               placeholderTextColor={colors.muted}
               keyboardType="number-pad"
               returnKeyType="done"
@@ -118,9 +137,7 @@ export default function VerifyScreen() {
           </Pressable>
 
           <Pressable onPress={onResend} disabled={resend.isPending} testID="resend-btn">
-            <Text style={styles.linkText}>
-              {resend.isPending ? "Resending…" : "Resend code"}
-            </Text>
+            <Text style={styles.linkText}>{resend.isPending ? "Sending…" : "Resend code"}</Text>
           </Pressable>
         </View>
       </View>
@@ -131,7 +148,7 @@ export default function VerifyScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: "#E3F2FD",
+    backgroundColor: colors.cream,
   },
   container: {
     flex: 1,
@@ -148,38 +165,38 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "rgba(33,99,141,0.18)",
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
     fontFamily: "NotoSerif_700Bold",
     fontSize: 26,
-    color: "#0E2A3A",
+    color: colors.primary,
     textAlign: "center",
   },
   subtitle: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
-    color: "rgba(14,42,58,0.72)",
+    color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 20,
   },
   email: {
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#21638D",
+    color: colors.primary,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 32,
     padding: 18,
     borderWidth: 1,
-    borderColor: "rgba(33,99,141,0.12)",
+    borderColor: colors.border,
     gap: 12,
-    shadowColor: "#21638D",
-    shadowOpacity: 0.08,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.06,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
     elevation: 2,
@@ -189,7 +206,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    color: "rgba(14,42,58,0.65)",
+    color: colors.textSecondary,
   },
   codeRow: {
     flexDirection: "row",
@@ -198,48 +215,47 @@ const styles = StyleSheet.create({
   },
   codeInput: {
     flex: 1,
-    backgroundColor: "#F7FBFF",
+    backgroundColor: colors.cream,
     borderRadius: 32,
     borderWidth: 1,
-    borderColor: "rgba(33,99,141,0.16)",
+    borderColor: colors.border,
     paddingHorizontal: 18,
     paddingVertical: 14,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 18,
     letterSpacing: 6,
-    color: "#0E2A3A",
+    color: colors.text,
   },
   clearBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F7FBFF",
+    backgroundColor: colors.cream,
     borderWidth: 1,
-    borderColor: "rgba(33,99,141,0.16)",
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
   primaryBtn: {
-    backgroundColor: "#21638D",
+    backgroundColor: colors.primary,
     borderRadius: 32,
     paddingVertical: 16,
     alignItems: "center",
     marginTop: 2,
   },
   btnDisabled: {
-    opacity: 0.6,
+    opacity: 0.55,
   },
   primaryBtnText: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
-    color: "#FFFFFF",
+    color: colors.surface,
   },
   linkText: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
-    color: "#21638D",
+    color: colors.accent,
     textAlign: "center",
     paddingVertical: 8,
   },
 });
-

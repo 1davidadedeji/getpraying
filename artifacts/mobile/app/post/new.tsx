@@ -4,7 +4,6 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -16,8 +15,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCreatePost } from "@workspace/api-client-react";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
 const CATEGORIES = [
   "anxiety",
@@ -60,7 +61,7 @@ export default function NewPostScreen() {
     const t = setTimeout(async () => {
       try {
         setAiLoading(true);
-        const base = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+        const base = getApiBaseUrl();
         const res = await fetch(`${base}/api/posts/suggest-category`, {
           method: "POST",
           headers: {
@@ -71,7 +72,17 @@ export default function NewPostScreen() {
         });
         const data = await res.json().catch(() => null);
         if (cancelled) return;
-        setAiCategory(typeof data?.category === "string" ? data.category : null);
+        if (!res.ok) {
+          setAiCategory(null);
+          return;
+        }
+        const raw = data?.category;
+        const normalized =
+          typeof raw === "string" && CATEGORIES.includes(raw) ? raw : null;
+        setAiCategory(normalized);
+        if (normalized) {
+          setSelectedCategory(normalized);
+        }
       } catch {
         if (!cancelled) setAiCategory(null);
       } finally {
@@ -87,35 +98,45 @@ export default function NewPostScreen() {
 
   const handleSubmit = () => {
     if (!content.trim()) {
-      Alert.alert("Empty prayer", "Please write your prayer request.");
+      showAppAlert({ title: "Empty prayer", message: "Write your prayer, praise, or request before submitting." });
       return;
     }
+    const category =
+      (aiMode ? aiCategory ?? selectedCategory : selectedCategory) ?? undefined;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     createPost(
       {
         data: {
           content: content.trim(),
           isAnonymous,
-          category: (aiMode ? aiCategory : selectedCategory) ?? selectedCategory ?? undefined,
+          category,
         },
       },
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert("Prayer submitted", "Your prayer has been submitted for review.", [
-            {
-              text: "OK",
-              onPress: () => {
-                setContent("");
-                setIsAnonymous(false);
-                setSelectedCategory(null);
-                router.replace("/(tabs)");
+          showAppAlert({
+            title: "Prayer submitted",
+            message: "Your prayer is in review and will appear in the feed once approved.",
+            buttons: [
+              {
+                text: "OK",
+                onPress: () => {
+                  setContent("");
+                  setIsAnonymous(false);
+                  setSelectedCategory(null);
+                  setAiCategory(null);
+                  router.replace("/(tabs)");
+                },
               },
-            },
-          ]);
+            ],
+          });
         },
         onError: (err: any) => {
-          Alert.alert("Error", err?.data?.error ?? "Could not submit prayer. Please try again.");
+          showAppAlert({
+            title: "Could not submit",
+            message: err?.data?.error ?? "Please check your connection and try again.",
+          });
         },
       },
     );

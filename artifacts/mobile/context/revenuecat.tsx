@@ -43,6 +43,12 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     (async () => {
+      // TODO: Re-enable RevenueCat for final milestone — restore SDK initialization below; remove bypass flags.
+      setEnabled(false);
+      setIsReady(true);
+      return;
+
+      /* Original RevenueCat init (preserved):
       try {
         const apiKey = getApiKey();
         if (!apiKey) {
@@ -64,6 +70,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       } finally {
         setIsReady(true);
       }
+      */
     })();
   }, []);
 
@@ -95,7 +102,8 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       isReady,
       offerings,
       customerInfo,
-      isEntitled: computeEntitled(customerInfo),
+      // TODO: Re-enable RevenueCat for final milestone — restore: computeEntitled(customerInfo)
+      isEntitled: true,
       refresh,
       purchasePackage,
       restore,
@@ -114,7 +122,8 @@ export function useRevenueCat(): RevenueCatState {
       isReady: true,
       offerings: null,
       customerInfo: null,
-      isEntitled: false,
+      // TODO: Re-enable RevenueCat for final milestone — restore: isEntitled: false
+      isEntitled: true,
       refresh: async () => {},
       purchasePackage: async () => {
         throw new Error("RevenueCatProvider missing");

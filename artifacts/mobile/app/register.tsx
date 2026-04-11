@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { getApiErrorMessage } from "@/lib/apiErrors";
@@ -36,15 +36,15 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!email.trim() || !username.trim() || !password) {
-      Alert.alert("Missing fields", "Email, username, and password are required.");
+      showAppAlert({ title: "Missing fields", message: "Email, username, and password are required." });
       return;
     }
     if (username.trim().length < 3) {
-      Alert.alert("Invalid username", "Username must be at least 3 characters.");
+      showAppAlert({ title: "Invalid username", message: "Username must be at least 3 characters." });
       return;
     }
     if (password.length < 6) {
-      Alert.alert("Weak password", "Password must be at least 6 characters.");
+      showAppAlert({ title: "Weak password", message: "Password must be at least 6 characters." });
       return;
     }
     setLoading(true);
@@ -52,7 +52,7 @@ export default function RegisterScreen() {
       await register(email.trim(), username.trim(), password, displayName.trim() || undefined);
       router.replace("/onboarding");
     } catch (err: unknown) {
-      Alert.alert("Sign up failed", getApiErrorMessage(err, "Registration failed"));
+      showAppAlert({ title: "Sign up failed", message: getApiErrorMessage(err, "Registration failed") });
     } finally {
       setLoading(false);
     }
@@ -165,7 +165,7 @@ export default function RegisterScreen() {
             {loading ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
-              <Text style={styles.submitBtnText}>Join GetPraying</Text>
+              <Text style={styles.submitBtnText}>Join Get Praying</Text>
             )}
           </Pressable>
         </View>

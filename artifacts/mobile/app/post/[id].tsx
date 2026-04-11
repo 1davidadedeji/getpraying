@@ -1,10 +1,12 @@
+import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Paths, writeAsStringAsync } from "expo-file-system";
 import { useLocalSearchParams } from "expo-router";
+import * as Sharing from "expo-sharing";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -23,7 +25,10 @@ import {
   useUnsavePost,
 } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
+
+const ENGAGE_ICON = 24;
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -69,8 +74,10 @@ export default function PostDetailScreen() {
       { postId: post.id },
       {
         onSuccess: (res) =>
-          setLocalPost((p) => p ? { ...p, hasPrayed: (res as any).prayed, prayCount: (res as any).count } : p),
-      }
+          setLocalPost((p) =>
+            p ? { ...p, hasPrayed: res.hasPrayed, prayCount: res.prayCount } : p,
+          ),
+      },
     );
   };
 
@@ -82,6 +89,34 @@ export default function PostDetailScreen() {
     } else {
       save({ postId: post.id }, { onSuccess: () => setLocalPost((p) => p ? { ...p, isSaved: true } : p) });
     }
+  };
+
+  const handleShare = async () => {
+    if (!post) return;
+    const ok = await Sharing.isAvailableAsync().catch(() => false);
+    if (!ok) {
+      showAppAlert({
+        title: "Sharing not available",
+        message: "Sharing isn’t available on this device.",
+      });
+      return;
+    }
+    const authorName = post.isAnonymous
+      ? "Anonymous"
+      : post.authorDisplayName ?? post.authorUsername ?? "Someone";
+    const text =
+      `Get Praying — shared by ${authorName}\n\n` +
+      `${post.content}\n\n` +
+      `${post.prayCount} praying`;
+    const dir = Paths.cache?.uri ?? Paths.document?.uri ?? null;
+    if (!dir) {
+      showAppAlert({ title: "Share failed", message: "Could not access storage." });
+      return;
+    }
+    const path = `${dir}getpraying-share-${post.id}.txt`;
+    await writeAsStringAsync(path, text, { encoding: "utf8" });
+    Haptics.selectionAsync();
+    await Sharing.shareAsync(path, { mimeType: "text/plain", dialogTitle: "Share prayer" });
   };
 
   if (isLoading || !post) {
@@ -109,7 +144,10 @@ export default function PostDetailScreen() {
           commentsQuery.refetch();
         },
         onError: (err: any) => {
-          Alert.alert("Could not post comment", err?.data?.error ?? err?.message ?? "Try again.");
+          showAppAlert({
+            title: "Could not post comment",
+            message: err?.data?.error ?? err?.message ?? "Try again.",
+          });
         },
       },
     );
@@ -147,7 +185,7 @@ export default function PostDetailScreen() {
 
         <View style={styles.reactionsRow}>
           <View style={styles.prayCount}>
-            <Text style={styles.emojiSmall}>🙏</Text>
+            <Ionicons name="flame-outline" size={18} color={colors.flame} />
             <Text style={styles.prayCountText}>
               {post.prayCount} {post.prayCount === 1 ? "person" : "people"} praying
             </Text>
@@ -208,21 +246,43 @@ export default function PostDetailScreen() {
           onPress={handlePray}
           style={[styles.prayBtn, post.hasPrayed && styles.prayBtnActive]}
           testID="pray-btn"
+          accessibilityRole="button"
+          accessibilityLabel={post.hasPrayed ? "Praying" : "Pray for this"}
         >
           <Animated.View style={{ transform: [{ scale: flameScale }] }}>
-            <Text style={[styles.emojiIcon, post.hasPrayed ? styles.emojiIconOn : styles.emojiIconOff]}>
-              🙏
-            </Text>
+            <Ionicons
+              name={post.hasPrayed ? "flame" : "flame-outline"}
+              size={ENGAGE_ICON}
+              color={post.hasPrayed ? colors.surface : colors.flame}
+            />
           </Animated.View>
           <Text style={[styles.prayBtnText, post.hasPrayed && styles.prayBtnTextActive]}>
             {post.hasPrayed ? "Praying" : "Pray for this"}
           </Text>
         </Pressable>
 
-        <Pressable onPress={handleSave} style={styles.saveBtn} testID="save-btn">
-          <Text style={[styles.emojiIcon, post.isSaved ? styles.emojiIconOn : styles.emojiIconOff]}>
-            🪜
-          </Text>
+        <Pressable
+          onPress={handleSave}
+          style={[styles.iconCircleBtn, post.isSaved && styles.iconCircleBtnActive]}
+          testID="save-btn"
+          accessibilityRole="button"
+          accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
+        >
+          <Ionicons
+            name={post.isSaved ? "bookmark" : "bookmark-outline"}
+            size={ENGAGE_ICON}
+            color={post.isSaved ? colors.surface : colors.primary}
+          />
+        </Pressable>
+
+        <Pressable
+          onPress={handleShare}
+          style={styles.iconCircleBtn}
+          testID="share-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Share prayer"
+        >
+          <Feather name="share-2" size={ENGAGE_ICON - 2} color={colors.primary} />
         </Pressable>
       </View>
     </View>
@@ -381,9 +441,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 12,
-    gap: 10,
+    gap: 8,
   },
   prayBtn: {
     flex: 1,
@@ -409,29 +469,18 @@ const styles = StyleSheet.create({
   prayBtnTextActive: {
     color: colors.surface,
   },
-  saveBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 32,
-    backgroundColor: colors.surface,
+  iconCircleBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.cream,
     borderWidth: 1.5,
     borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
-  emojiSmall: {
-    fontSize: 16,
-    lineHeight: 18,
-    opacity: 0.95,
-  },
-  emojiIcon: {
-    fontSize: 20,
-    lineHeight: 22,
-  },
-  emojiIconOn: {
-    opacity: 1,
-  },
-  emojiIconOff: {
-    opacity: 0.6,
+  iconCircleBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
 });

@@ -33,7 +33,7 @@ export default function LibraryScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const tabs: { key: Tab; label: string; icon: string }[] = [
+  const tabs: { key: Tab; label: string; icon: "book-open" | "compass" | "bookmark" }[] = [
     { key: "official", label: "Prayers", icon: "book-open" },
     { key: "paths", label: "Paths", icon: "compass" },
     { key: "saved", label: "Saved", icon: "bookmark" },
@@ -53,17 +53,11 @@ export default function LibraryScreen() {
             style={[styles.tab, activeTab === t.key && styles.tabActive]}
             onPress={() => setActiveTab(t.key)}
           >
-            {t.key === "saved" ? (
-              <Text style={[styles.tabEmoji, activeTab === t.key ? styles.tabEmojiActive : styles.tabEmojiInactive]}>
-                🪜
-              </Text>
-            ) : (
-              <Feather
-                name={t.icon as any}
-                size={15}
-                color={activeTab === t.key ? colors.surface : colors.muted}
-              />
-            )}
+            <Feather
+              name={t.icon}
+              size={15}
+              color={activeTab === t.key ? colors.surface : colors.muted}
+            />
             <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
               {t.label}
             </Text>
@@ -181,16 +175,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     color: colors.muted,
-  },
-  tabEmoji: {
-    fontSize: 15,
-    lineHeight: 16,
-  },
-  tabEmojiActive: {
-    opacity: 1,
-  },
-  tabEmojiInactive: {
-    opacity: 0.7,
   },
   tabTextActive: {
     color: colors.surface,

@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { getApiErrorMessage } from "@/lib/apiErrors";
@@ -32,7 +32,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert("Missing fields", "Please enter your email and password.");
+      showAppAlert({ title: "Missing fields", message: "Enter your email and password." });
       return;
     }
     setLoading(true);
@@ -44,7 +44,7 @@ export default function LoginScreen() {
         router.replace("/(tabs)");
       }
     } catch (err: unknown) {
-      Alert.alert("Login failed", getApiErrorMessage(err, "Login failed"));
+      showAppAlert({ title: "Login failed", message: getApiErrorMessage(err, "Login failed") });
     } finally {
       setLoading(false);
     }

@@ -7,7 +7,8 @@
     "dev": "node ./build.mjs && node --enable-source-maps ./dist/index.mjs",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
@@ -23,6 +24,7 @@
     "pino-http": "^10"
   },
   "devDependencies": {
+    "tsx": "catalog:",
     "@types/bcryptjs": "^3.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",

@@ -28,18 +28,19 @@ function timeAgo(date: string | Date): string {
 function notificationTitle(n: Notification): string {
   switch (n.type) {
     case "prayer":
-      return n.actorUsername ? `🙏 ${n.actorUsername} prayed with you` : "🙏 Someone prayed with you";
+      return n.actorUsername ? `${n.actorUsername} prayed with you` : "Someone prayed with you";
     case "reminder":
-      return "⏰ Prayer reminder";
+      return "Prayer reminder";
     case "category_new":
-      return n.category ? `🪜 ${n.category}` : "🪜 Library update";
+      return n.category ? `New in library: ${n.category}` : "Library update";
     default:
       return "Updates";
   }
 }
 
 function NotificationItem({ item }: { item: Notification }) {
-  const icon = item.type === "prayer" ? "flame" : item.type === "reminder" ? "clock" : "bell";
+  const icon =
+    item.type === "prayer" ? "flame" : item.type === "reminder" ? "time-outline" : "notifications-outline";
   const iconColor = item.type === "prayer" ? colors.flame : colors.accent;
 
   return (

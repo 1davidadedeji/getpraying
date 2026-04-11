@@ -12,6 +12,7 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setBaseUrl } from "@workspace/api-client-react";
+import { getApiBaseUrl } from "@/lib/apiBase";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
@@ -20,12 +21,13 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Text, TextInput } from "react-native";
 
+import { AppAlertHost } from "@/components/AppAlert";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/auth";
 import { RevenueCatProvider } from "@/context/revenuecat";
 import colors from "@/constants/colors";
 
-setBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3001");
+setBaseUrl(getApiBaseUrl());
 
 SplashScreen.preventAutoHideAsync();
 
@@ -94,6 +96,7 @@ export default function RootLayout() {
             <RevenueCatProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
+                  <AppAlertHost />
                   <RootLayoutNav />
                 </KeyboardProvider>
               </GestureHandlerRootView>
