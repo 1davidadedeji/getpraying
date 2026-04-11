@@ -26,13 +26,12 @@ export default function FeedScreen() {
   const personalize = (user?.preferredCategories?.length ?? 0) > 0;
 
   const { data, isLoading, isFetching, refetch } = useGetPosts(
-    (personalize ? { personalize: true } : {}) as any,
+    personalize ? { personalize: true } : {},
   );
 
   useEffect(() => {
-    const raw = data as any;
-    if (raw?.posts) {
-      setPosts(raw.posts);
+    if (data?.posts) {
+      setPosts(data.posts);
     }
   }, [data]);
 

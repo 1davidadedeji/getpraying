@@ -26,8 +26,7 @@ function timeAgo(date: string | Date): string {
 }
 
 function notificationTitle(n: Notification): string {
-  const t = n.type as string;
-  switch (t) {
+  switch (n.type) {
     case "prayer":
       return n.actorUsername ? `${n.actorUsername} prayed with you` : "Someone prayed with you";
     case "reminder":
@@ -38,29 +37,30 @@ function notificationTitle(n: Notification): string {
       return "Prayer approved";
     case "post_declined":
       return "Prayer not approved";
+    case "system":
+      return "Update";
     default:
       return "Updates";
   }
 }
 
 function NotificationItem({ item }: { item: Notification }) {
-  const t = item.type as string;
   const icon =
-    t === "prayer"
+    item.type === "prayer"
       ? "flame"
-      : t === "reminder"
+      : item.type === "reminder"
         ? "time-outline"
-        : t === "post_approved"
+        : item.type === "post_approved"
           ? "checkmark-circle"
-          : t === "post_declined"
+          : item.type === "post_declined"
             ? "alert-circle"
             : "notifications-outline";
   const iconColor =
-    t === "prayer"
+    item.type === "prayer"
       ? colors.flame
-      : t === "post_declined"
+      : item.type === "post_declined"
         ? colors.danger
-        : t === "post_approved"
+        : item.type === "post_approved"
           ? colors.success
           : colors.accent;
 

@@ -10,4 +10,8 @@ export type GetPostsParams = {
   cursor?: number;
   limit?: number;
   category?: string;
+  /**
+   * When true and the user is authenticated, return only posts in their preferred categories
+   */
+  personalize?: boolean;
 };

@@ -53,8 +53,7 @@ function PendingPostCard({
   onModerated: () => void;
 }) {
   const { mutate: approve, isPending: isApproving } = useApprovePost();
-  const { mutate: declineMutate, isPending: isDeclining } = useDeclinePost();
-  const decline = declineMutate as (vars: { postId: number; reason: string }, opts?: object) => void;
+  const { mutate: decline, isPending: isDeclining } = useDeclinePost();
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
 
@@ -74,7 +73,7 @@ function PendingPostCard({
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     decline(
-      { postId: post.id, reason: r },
+      { postId: post.id, data: { reason: r } },
       {
         onSuccess: () => {
           setDeclineOpen(false);

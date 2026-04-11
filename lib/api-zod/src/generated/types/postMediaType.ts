@@ -13,4 +13,5 @@ export type PostMediaType =
 export const PostMediaType = {
   image: "image",
   video: "video",
+  audio: "audio",
 } as const;

@@ -14,4 +14,6 @@ export const NotificationType = {
   system: "system",
   category_new: "category_new",
   reminder: "reminder",
+  post_approved: "post_approved",
+  post_declined: "post_declined",
 } as const;

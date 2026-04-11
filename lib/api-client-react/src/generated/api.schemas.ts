@@ -77,8 +77,9 @@ export interface User {
 }
 
 export interface AuthResponse {
+  token: string;
   user: User;
-  message?: string;
+  message?: string | null;
 }
 
 export interface UserProfile {
@@ -120,6 +121,8 @@ export interface Post {
   isAnonymous: boolean;
   status: PostStatus;
   flagReason?: string | null;
+  /** Shown to the author when a moderator declines the post */
+  moderationReason?: string | null;
   prayCount: number;
   hasPrayed: boolean;
   isSaved: boolean;
@@ -153,6 +156,15 @@ export interface CreateCommentResponse {
   comment: Comment;
 }
 
+export interface DeclinePostInput {
+  /**
+   * Shown to the post author in their notifications
+   * @minLength 3
+   * @maxLength 500
+   */
+  reason: string;
+}
+
 export type CreatePostInputMediaType =
   | (typeof CreatePostInputMediaType)[keyof typeof CreatePostInputMediaType]
   | null;
@@ -164,8 +176,8 @@ export const CreatePostInputMediaType = {
 } as const;
 
 export interface CreatePostInput {
-  /** @minLength 1 */
-  content: string;
+  /** May be empty when mediaUrl is set (e.g. image-only post) */
+  content?: string;
   mediaUrl?: string | null;
   mediaType?: CreatePostInputMediaType;
   category?: string | null;
@@ -305,7 +317,9 @@ export type GetPostsParams = {
   cursor?: number;
   limit?: number;
   category?: string;
-  /** When true and the user is authenticated, only posts in their saved prayer categories are returned. */
+  /**
+   * When true and the user is authenticated, return only posts in their preferred categories
+   */
   personalize?: boolean;
 };
 

@@ -19,8 +19,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useCreatePost } from "@workspace/api-client-react";
-import type { CreatePostInputMediaType } from "@workspace/api-client-react";
+import { CreatePostInputMediaType, useCreatePost } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -329,7 +328,7 @@ export default function NewPostScreen() {
       try {
         if (pendingMedia.kind === "image") {
           mediaUrl = await uploadPostImage(pendingMedia.uri, token);
-          postMediaType = "image" as CreatePostInputMediaType;
+          postMediaType = CreatePostInputMediaType.image;
         } else if (pendingMedia.kind === "video") {
           const r = await uploadMultipart(
             pendingMedia.uri,
@@ -339,7 +338,7 @@ export default function NewPostScreen() {
             pendingMedia.mimeType,
           );
           mediaUrl = r.url;
-          postMediaType = "video" as CreatePostInputMediaType;
+          postMediaType = CreatePostInputMediaType.video;
         } else {
           const r = await uploadMultipart(
             pendingMedia.uri,
@@ -349,7 +348,7 @@ export default function NewPostScreen() {
             pendingMedia.mimeType,
           );
           mediaUrl = r.url;
-          postMediaType = "audio" as CreatePostInputMediaType;
+          postMediaType = CreatePostInputMediaType.audio;
         }
       } catch (e) {
         setUploadBusy(false);

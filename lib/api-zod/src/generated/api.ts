@@ -37,6 +37,7 @@ export const LoginBody = zod.object({
 });
 
 export const LoginResponse = zod.object({
+  token: zod.string(),
   user: zod.object({
     id: zod.number(),
     email: zod.string(),
@@ -55,7 +56,7 @@ export const LoginResponse = zod.object({
     savedScrolls: zod.number(),
     createdAt: zod.coerce.date(),
   }),
-  message: zod.string().optional(),
+  message: zod.string().nullish(),
 });
 
 /**
@@ -167,13 +168,15 @@ export const GetUserPostsResponse = zod.object({
       id: zod.number(),
       content: zod.string(),
       mediaUrl: zod.string().nullish(),
-      mediaType: zod
-        .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-        .nullish(),
+      mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
+      moderationReason: zod
+        .string()
+        .nullish()
+        .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
       hasPrayed: zod.boolean(),
       isSaved: zod.boolean(),
@@ -197,6 +200,12 @@ export const GetPostsQueryParams = zod.object({
   cursor: zod.coerce.number().optional(),
   limit: zod.coerce.number().default(getPostsQueryLimitDefault),
   category: zod.coerce.string().optional(),
+  personalize: zod.coerce
+    .boolean()
+    .optional()
+    .describe(
+      "When true and the user is authenticated, return only posts in their preferred categories",
+    ),
 });
 
 export const GetPostsResponse = zod.object({
@@ -205,13 +214,15 @@ export const GetPostsResponse = zod.object({
       id: zod.number(),
       content: zod.string(),
       mediaUrl: zod.string().nullish(),
-      mediaType: zod
-        .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-        .nullish(),
+      mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
+      moderationReason: zod
+        .string()
+        .nullish()
+        .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
       hasPrayed: zod.boolean(),
       isSaved: zod.boolean(),
@@ -229,13 +240,15 @@ export const GetPostsResponse = zod.object({
 /**
  * @summary Create a new prayer post
  */
-
 export const createPostBodyIsAnonymousDefault = false;
 
 export const CreatePostBody = zod.object({
-  content: zod.string().min(1),
+  content: zod
+    .string()
+    .optional()
+    .describe("May be empty when mediaUrl is set (e.g. image-only post)"),
   mediaUrl: zod.string().nullish(),
-  mediaType: zod.enum(["image", "video"]).nullish(),
+  mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
   isAnonymous: zod.boolean().default(createPostBodyIsAnonymousDefault),
 });
@@ -253,13 +266,15 @@ export const GetTrendingPostsResponseItem = zod.object({
   id: zod.number(),
   content: zod.string(),
   mediaUrl: zod.string().nullish(),
-  mediaType: zod
-    .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-    .nullish(),
+  mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
+  moderationReason: zod
+    .string()
+    .nullish()
+    .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
   hasPrayed: zod.boolean(),
   isSaved: zod.boolean(),
@@ -297,13 +312,15 @@ export const GetPostResponse = zod.object({
   id: zod.number(),
   content: zod.string(),
   mediaUrl: zod.string().nullish(),
-  mediaType: zod
-    .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-    .nullish(),
+  mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
+  moderationReason: zod
+    .string()
+    .nullish()
+    .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
   hasPrayed: zod.boolean(),
   isSaved: zod.boolean(),
@@ -426,13 +443,15 @@ export const GetSavedPrayersResponseItem = zod.object({
   id: zod.number(),
   content: zod.string(),
   mediaUrl: zod.string().nullish(),
-  mediaType: zod
-    .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-    .nullish(),
+  mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
+  moderationReason: zod
+    .string()
+    .nullish()
+    .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
   hasPrayed: zod.boolean(),
   isSaved: zod.boolean(),
@@ -489,13 +508,15 @@ export const GetPathResponse = zod.object({
       id: zod.number(),
       content: zod.string(),
       mediaUrl: zod.string().nullish(),
-      mediaType: zod
-        .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-        .nullish(),
+      mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
+      moderationReason: zod
+        .string()
+        .nullish()
+        .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
       hasPrayed: zod.boolean(),
       isSaved: zod.boolean(),
@@ -543,7 +564,14 @@ export const GetDailyWordResponse = zod.object({
  */
 export const GetNotificationsResponseItem = zod.object({
   id: zod.number(),
-  type: zod.enum(["prayer", "system", "category_new", "reminder"]),
+  type: zod.enum([
+    "prayer",
+    "system",
+    "category_new",
+    "reminder",
+    "post_approved",
+    "post_declined",
+  ]),
   message: zod.string(),
   actorUsername: zod.string().nullish(),
   actorAvatarUrl: zod.string().nullish(),
@@ -579,13 +607,15 @@ export const GetPendingPostsResponse = zod.object({
       id: zod.number(),
       content: zod.string(),
       mediaUrl: zod.string().nullish(),
-      mediaType: zod
-        .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-        .nullish(),
+      mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
+      moderationReason: zod
+        .string()
+        .nullish()
+        .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
       hasPrayed: zod.boolean(),
       isSaved: zod.boolean(),
@@ -616,13 +646,15 @@ export const GetModeratedPostsResponse = zod.object({
       id: zod.number(),
       content: zod.string(),
       mediaUrl: zod.string().nullish(),
-      mediaType: zod
-        .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-        .nullish(),
+      mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
+      moderationReason: zod
+        .string()
+        .nullish()
+        .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
       hasPrayed: zod.boolean(),
       isSaved: zod.boolean(),
@@ -648,13 +680,15 @@ export const ApprovePostResponse = zod.object({
   id: zod.number(),
   content: zod.string(),
   mediaUrl: zod.string().nullish(),
-  mediaType: zod
-    .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-    .nullish(),
+  mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
+  moderationReason: zod
+    .string()
+    .nullish()
+    .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
   hasPrayed: zod.boolean(),
   isSaved: zod.boolean(),
@@ -672,17 +706,30 @@ export const DeclinePostParams = zod.object({
   postId: zod.coerce.number(),
 });
 
+export const declinePostBodyReasonMin = 3;
+export const declinePostBodyReasonMax = 500;
+
+export const DeclinePostBody = zod.object({
+  reason: zod
+    .string()
+    .min(declinePostBodyReasonMin)
+    .max(declinePostBodyReasonMax)
+    .describe("Shown to the post author in their notifications"),
+});
+
 export const DeclinePostResponse = zod.object({
   id: zod.number(),
   content: zod.string(),
   mediaUrl: zod.string().nullish(),
-  mediaType: zod
-    .union([zod.literal("image"), zod.literal("video"), zod.literal(null)])
-    .nullish(),
+  mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
+  moderationReason: zod
+    .string()
+    .nullish()
+    .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
   hasPrayed: zod.boolean(),
   isSaved: zod.boolean(),

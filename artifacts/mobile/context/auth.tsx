@@ -47,9 +47,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
-    const res = await apiLogin({ email, password }) as any;
-    const tok: string = res.token;
-    const u: User = res.user;
+    const res = await apiLogin({ email, password });
+    const tok = res.token;
+    const u = res.user;
     await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);
     setToken(tok);
     setUser(u);
@@ -57,9 +57,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (email: string, username: string, password: string, displayName?: string): Promise<User> => {
-    const res = await apiRegister({ email, username, password, displayName }) as any;
-    const tok: string = res.token;
-    const u: User = res.user;
+    const res = await apiRegister({ email, username, password, displayName });
+    const tok = res.token;
+    const u = res.user;
     await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);
     setToken(tok);
     setUser(u);

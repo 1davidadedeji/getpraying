@@ -17,6 +17,7 @@ export * from "./createPostInput";
 export * from "./createPostInputMediaType";
 export * from "./dailyWordResponse";
 export * from "./dailyWordResponseSource";
+export * from "./declinePostInput";
 export * from "./errorResponse";
 export * from "./feedStats";
 export * from "./feedStatsByCategoryItem";

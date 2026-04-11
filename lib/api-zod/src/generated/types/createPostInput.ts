@@ -8,8 +8,8 @@
 import type { CreatePostInputMediaType } from "./createPostInputMediaType";
 
 export interface CreatePostInput {
-  /** @minLength 1 */
-  content: string;
+  /** May be empty when mediaUrl is set (e.g. image-only post) */
+  content?: string;
   mediaUrl?: string | null;
   mediaType?: CreatePostInputMediaType;
   category?: string | null;

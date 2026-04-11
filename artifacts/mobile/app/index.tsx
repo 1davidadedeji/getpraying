@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useEffect, useMemo } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
     if (!loading && user) {
       // b) Email verification gate
       if (!user.isEmailVerified) {
-        router.replace("/verify" as any);
+        router.replace("/(auth)/verify" as Href);
         return;
       }
 

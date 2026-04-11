@@ -258,6 +258,11 @@ paths:
           in: query
           schema:
             type: string
+        - name: personalize
+          in: query
+          description: When true and the user is authenticated, return only posts in their preferred categories
+          schema:
+            type: boolean
       responses:
         "200":
           description: Feed posts
@@ -685,6 +690,12 @@ paths:
           required: true
           schema:
             type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeclinePostInput"
       responses:
         "200":
           description: Post declined
@@ -928,11 +939,15 @@ components:
     AuthResponse:
       type: object
       properties:
+        token:
+          type: string
         user:
           $ref: "#/components/schemas/User"
         message:
           type: string
+          nullable: true
       required:
+        - token
         - user
 
     User:
@@ -1039,7 +1054,7 @@ components:
         mediaType:
           type: string
           nullable: true
-          enum: [image, video, null]
+          enum: [image, video, audio]
         category:
           type: string
           nullable: true
@@ -1051,6 +1066,10 @@ components:
         flagReason:
           type: string
           nullable: true
+        moderationReason:
+          type: string
+          nullable: true
+          description: Shown to the author when a moderator declines the post
         prayCount:
           type: integer
         hasPrayed:
@@ -1136,27 +1155,36 @@ components:
       required:
         - comment
 
+    DeclinePostInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Shown to the post author in their notifications
+      required:
+        - reason
+
     CreatePostInput:
       type: object
       properties:
         content:
           type: string
-          minLength: 1
+          description: May be empty when mediaUrl is set (e.g. image-only post)
         mediaUrl:
           type: string
           nullable: true
         mediaType:
           type: string
           nullable: true
-          enum: [image, video]
+          enum: [image, video, audio]
         category:
           type: string
           nullable: true
         isAnonymous:
           type: boolean
           default: false
-      required:
-        - content
 
     PostsPage:
       type: object
@@ -1322,7 +1350,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [prayer, system, category_new, reminder]
+          enum: [prayer, system, category_new, reminder, post_approved, post_declined]
         message:
           type: string
         actorUsername:

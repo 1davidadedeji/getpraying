@@ -17,6 +17,8 @@ export interface Post {
   isAnonymous: boolean;
   status: PostStatus;
   flagReason?: string | null;
+  /** Shown to the author when a moderator declines the post */
+  moderationReason?: string | null;
   prayCount: number;
   hasPrayed: boolean;
   isSaved: boolean;

@@ -13,4 +13,5 @@ export type CreatePostInputMediaType =
 export const CreatePostInputMediaType = {
   image: "image",
   video: "video",
+  audio: "audio",
 } as const;

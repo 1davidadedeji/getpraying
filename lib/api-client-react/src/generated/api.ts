@@ -25,6 +25,7 @@ import type {
   CreateCommentResponse,
   CreatePostInput,
   DailyWordResponse,
+  DeclinePostInput,
   ErrorResponse,
   FeedStats,
   GetAdminUsersParams,
@@ -2776,14 +2777,14 @@ export const getDeclinePostUrl = (postId: number) => {
 
 export const declinePost = async (
   postId: number,
-  declinePostBody: { reason: string },
+  declinePostInput: DeclinePostInput,
   options?: RequestInit,
 ): Promise<Post> => {
   return customFetch<Post>(getDeclinePostUrl(postId), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(declinePostBody),
+    body: JSON.stringify(declinePostInput),
   });
 };
 
@@ -2794,14 +2795,14 @@ export const getDeclinePostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof declinePost>>,
     TError,
-    { postId: number; reason: string },
+    { postId: number; data: BodyType<DeclinePostInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof declinePost>>,
   TError,
-  { postId: number; reason: string },
+  { postId: number; data: BodyType<DeclinePostInput> },
   TContext
 > => {
   const mutationKey = ["declinePost"];
@@ -2815,11 +2816,11 @@ export const getDeclinePostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof declinePost>>,
-    { postId: number; reason: string }
+    { postId: number; data: BodyType<DeclinePostInput> }
   > = (props) => {
-    const { postId, reason } = props ?? { postId: 0, reason: "" };
+    const { postId, data } = props ?? {};
 
-    return declinePost(postId, { reason }, requestOptions);
+    return declinePost(postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2828,7 +2829,7 @@ export const getDeclinePostMutationOptions = <
 export type DeclinePostMutationResult = NonNullable<
   Awaited<ReturnType<typeof declinePost>>
 >;
-
+export type DeclinePostMutationBody = BodyType<DeclinePostInput>;
 export type DeclinePostMutationError = ErrorType<unknown>;
 
 /**
@@ -2841,14 +2842,14 @@ export const useDeclinePost = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof declinePost>>,
     TError,
-    { postId: number; reason: string },
+    { postId: number; data: BodyType<DeclinePostInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof declinePost>>,
   TError,
-  { postId: number; reason: string },
+  { postId: number; data: BodyType<DeclinePostInput> },
   TContext
 > => {
   return useMutation(getDeclinePostMutationOptions(options));
