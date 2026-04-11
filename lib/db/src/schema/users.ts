@@ -20,6 +20,8 @@ export const usersTable = pgTable("users", {
   isEmailVerified: boolean("is_email_verified").notNull().default(false),
   verificationToken: text("verification_token"),
   verificationExpiresAt: timestamp("verification_expires_at", { withTimezone: true }),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
   preferredCategories: text("preferred_categories").array().notNull().default([]),
   onboardingComplete: boolean("onboarding_complete").notNull().default(false),
   prayersShared: integer("prayers_shared").notNull().default(0),

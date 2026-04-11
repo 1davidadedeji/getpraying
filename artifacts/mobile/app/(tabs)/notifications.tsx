@@ -26,22 +26,43 @@ function timeAgo(date: string | Date): string {
 }
 
 function notificationTitle(n: Notification): string {
-  switch (n.type) {
+  const t = n.type as string;
+  switch (t) {
     case "prayer":
       return n.actorUsername ? `${n.actorUsername} prayed with you` : "Someone prayed with you";
     case "reminder":
       return "Prayer reminder";
     case "category_new":
       return n.category ? `New in library: ${n.category}` : "Library update";
+    case "post_approved":
+      return "Prayer approved";
+    case "post_declined":
+      return "Prayer not approved";
     default:
       return "Updates";
   }
 }
 
 function NotificationItem({ item }: { item: Notification }) {
+  const t = item.type as string;
   const icon =
-    item.type === "prayer" ? "flame" : item.type === "reminder" ? "time-outline" : "notifications-outline";
-  const iconColor = item.type === "prayer" ? colors.flame : colors.accent;
+    t === "prayer"
+      ? "flame"
+      : t === "reminder"
+        ? "time-outline"
+        : t === "post_approved"
+          ? "checkmark-circle"
+          : t === "post_declined"
+            ? "alert-circle"
+            : "notifications-outline";
+  const iconColor =
+    t === "prayer"
+      ? colors.flame
+      : t === "post_declined"
+        ? colors.danger
+        : t === "post_approved"
+          ? colors.success
+          : colors.accent;
 
   return (
     <View style={[styles.notifCard, !item.isRead && styles.notifCardUnread]}>

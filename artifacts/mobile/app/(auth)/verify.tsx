@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -50,8 +50,13 @@ export default function VerifyScreen() {
       { data: { email, otp: code } },
       {
         onSuccess: () => {
-          if (user) refreshUser({ ...user, isEmailVerified: true });
-          router.replace("/(tabs)");
+          const next = user ? { ...user, isEmailVerified: true } : null;
+          if (next) refreshUser(next);
+          if (next && !next.onboardingComplete) {
+            router.replace("/onboarding" as Href);
+          } else {
+            router.replace("/(tabs)" as Href);
+          }
         },
         onError: (err: any) => {
           showAppAlert({

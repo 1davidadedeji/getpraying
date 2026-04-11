@@ -86,6 +86,38 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   next();
 }
 
+/** Approve / decline pending posts (moderators + admins). */
+export async function requireModeratorOrAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const token = getToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const user = await getSessionUser(token);
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  if (user.isBanned) {
+    res.status(403).json({ error: "Account is banned" });
+    return;
+  }
+
+  if (user.role !== "admin" && user.role !== "moderator") {
+    res.status(403).json({ error: "Moderator or admin access required" });
+    return;
+  }
+
+  (req as any).user = user;
+  next();
+}
+
 export async function optionalAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const token = getToken(req);
   if (token) {

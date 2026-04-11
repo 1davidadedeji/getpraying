@@ -1,5 +1,10 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -15,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCreatePost } from "@workspace/api-client-react";
+import type { CreatePostInputMediaType } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -35,9 +41,90 @@ const CATEGORIES = [
   "peace",
 ];
 
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+
+type PendingMedia =
+  | { kind: "image"; uri: string }
+  | { kind: "video"; uri: string; mimeType: string; fileName: string }
+  | { kind: "audio"; uri: string; mimeType: string; name: string };
+
+async function uploadMultipart(
+  localUri: string,
+  token: string,
+  route: string,
+  fileName: string,
+  mimeType: string,
+): Promise<{ url: string; mediaType: string }> {
+  const form = new FormData();
+  form.append("file", {
+    uri: localUri,
+    name: fileName,
+    type: mimeType,
+  } as unknown as Blob);
+  const res = await fetch(`${getApiBaseUrl()}/api/uploads/${route}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data?.error === "string" ? data.error : "Upload failed");
+  }
+  if (typeof data?.url !== "string") {
+    throw new Error("Upload failed");
+  }
+  return { url: data.url, mediaType: data.mediaType };
+}
+
+async function resizeUnderCap(uri: string): Promise<string> {
+  let current = uri;
+  let quality = 0.88;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const manipulated = await ImageManipulator.manipulateAsync(
+      current,
+      [{ resize: { width: 1400 } }],
+      { compress: quality, format: ImageManipulator.SaveFormat.JPEG },
+    );
+    const info = await FileSystem.getInfoAsync(manipulated.uri);
+    const size =
+      info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
+    if (size > 0 && size <= MAX_UPLOAD_BYTES) {
+      return manipulated.uri;
+    }
+    current = manipulated.uri;
+    quality = Math.max(0.45, quality - 0.1);
+  }
+  throw new Error("Photo is still too large. Try another image.");
+}
+
+async function uploadPostImage(localUri: string, token: string): Promise<string> {
+  const form = new FormData();
+  form.append("file", {
+    uri: localUri,
+    name: "prayer.jpg",
+    type: "image/jpeg",
+  } as unknown as Blob);
+  const res = await fetch(`${getApiBaseUrl()}/api/uploads/post-image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data?.error === "string" ? data.error : "Upload failed");
+  }
+  if (typeof data?.url !== "string") {
+    throw new Error("Upload failed");
+  }
+  return data.url;
+}
+
 export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const staff = user?.role === "admin" || user?.role === "moderator";
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -45,15 +132,16 @@ export default function NewPostScreen() {
   const [aiCategory, setAiCategory] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMode, setAiMode] = useState(true);
+  const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   React.useEffect(() => {
     let cancelled = false;
     const trimmed = content.trim();
     if (!aiMode) return;
-    if (trimmed.length < 20) {
+    if (trimmed.length < 12) {
       setAiCategory(null);
       return;
     }
@@ -88,7 +176,7 @@ export default function NewPostScreen() {
       } finally {
         if (!cancelled) setAiLoading(false);
       }
-    }, 800);
+    }, 400);
 
     return () => {
       cancelled = true;
@@ -96,13 +184,184 @@ export default function NewPostScreen() {
     };
   }, [content, token, aiMode]);
 
-  const handleSubmit = () => {
-    if (!content.trim()) {
-      showAppAlert({ title: "Empty prayer", message: "Write your prayer, praise, or request before submitting." });
+  const pickImage = async () => {
+    if (Platform.OS === "web") {
+      showAppAlert({
+        title: "Photos on mobile",
+        message: "Adding a photo works best in the iOS or Android app.",
+      });
       return;
     }
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showAppAlert({
+        title: "Permission needed",
+        message: "Allow photo library access to attach an image.",
+      });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (asset.fileSize != null && asset.fileSize > 48 * 1024 * 1024) {
+      showAppAlert({
+        title: "File too large",
+        message: "Choose a photo under about 48MB. It will be resized before upload.",
+      });
+      return;
+    }
+    try {
+      setUploadBusy(true);
+      const resized = await resizeUnderCap(asset.uri);
+      setPendingMedia({ kind: "image", uri: resized });
+    } catch (e) {
+      showAppAlert({
+        title: "Could not use photo",
+        message: e instanceof Error ? e.message : "Try a different image.",
+      });
+    } finally {
+      setUploadBusy(false);
+    }
+  };
+
+  const pickVideo = async () => {
+    if (!staff || Platform.OS === "web") {
+      showAppAlert({
+        title: "Video",
+        message: staff
+          ? "Video attach works on the mobile app."
+          : "Only moderators and admins can attach video.",
+      });
+      return;
+    }
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showAppAlert({
+        title: "Permission needed",
+        message: "Allow library access to attach a video.",
+      });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["videos"],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (asset.fileSize != null && asset.fileSize > MAX_VIDEO_BYTES) {
+      showAppAlert({
+        title: "Video too large",
+        message: "Choose a clip under 40MB.",
+      });
+      return;
+    }
+    const mime =
+      "mimeType" in asset && typeof (asset as { mimeType?: string }).mimeType === "string"
+        ? (asset as { mimeType: string }).mimeType
+        : "video/mp4";
+    const fileName = mime.includes("quicktime") ? "clip.mov" : "clip.mp4";
+    setPendingMedia({ kind: "video", uri: asset.uri, mimeType: mime, fileName });
+  };
+
+  const pickAudio = async () => {
+    if (!staff || Platform.OS === "web") {
+      showAppAlert({
+        title: "Audio",
+        message: staff
+          ? "Audio attach works on the mobile app."
+          : "Only moderators and admins can attach audio.",
+      });
+      return;
+    }
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "audio/*",
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const info = await FileSystem.getInfoAsync(asset.uri);
+    const sz =
+      info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
+    if (sz > MAX_AUDIO_BYTES) {
+      showAppAlert({
+        title: "Audio too large",
+        message: "Choose a file under 15MB.",
+      });
+      return;
+    }
+    const mimeType =
+      asset.mimeType && asset.mimeType.length > 0 ? asset.mimeType : "audio/mpeg";
+    const name =
+      asset.name && asset.name.length > 0 ? asset.name.replace(/[^\w.\-]+/g, "_") : "audio.m4a";
+    setPendingMedia({ kind: "audio", uri: asset.uri, mimeType, name });
+  };
+
+  const canSubmit = !!(content.trim() || pendingMedia);
+  const busy = isPending || uploadBusy;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) {
+      showAppAlert({
+        title: "Add something",
+        message: "Write a prayer or attach a photo (or both).",
+      });
+      return;
+    }
+    if (!token) {
+      showAppAlert({ title: "Sign in required", message: "Please sign in again." });
+      return;
+    }
+
     const category =
       (aiMode ? aiCategory ?? selectedCategory : selectedCategory) ?? undefined;
+
+    let mediaUrl: string | undefined;
+    let postMediaType: CreatePostInputMediaType | undefined;
+
+    if (pendingMedia) {
+      setUploadBusy(true);
+      try {
+        if (pendingMedia.kind === "image") {
+          mediaUrl = await uploadPostImage(pendingMedia.uri, token);
+          postMediaType = "image" as CreatePostInputMediaType;
+        } else if (pendingMedia.kind === "video") {
+          const r = await uploadMultipart(
+            pendingMedia.uri,
+            token,
+            "post-video",
+            pendingMedia.fileName,
+            pendingMedia.mimeType,
+          );
+          mediaUrl = r.url;
+          postMediaType = "video" as CreatePostInputMediaType;
+        } else {
+          const r = await uploadMultipart(
+            pendingMedia.uri,
+            token,
+            "post-audio",
+            pendingMedia.name,
+            pendingMedia.mimeType,
+          );
+          mediaUrl = r.url;
+          postMediaType = "audio" as CreatePostInputMediaType;
+        }
+      } catch (e) {
+        setUploadBusy(false);
+        showAppAlert({
+          title: "Upload failed",
+          message: e instanceof Error ? e.message : "Try again.",
+        });
+        return;
+      }
+      setUploadBusy(false);
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     createPost(
       {
@@ -110,6 +369,7 @@ export default function NewPostScreen() {
           content: content.trim(),
           isAnonymous,
           category,
+          ...(mediaUrl && postMediaType ? { mediaUrl, mediaType: postMediaType } : {}),
         },
       },
       {
@@ -126,6 +386,7 @@ export default function NewPostScreen() {
                   setIsAnonymous(false);
                   setSelectedCategory(null);
                   setAiCategory(null);
+                  setPendingMedia(null);
                   router.replace("/(tabs)");
                 },
               },
@@ -147,22 +408,12 @@ export default function NewPostScreen() {
       style={styles.flex}
       contentContainerStyle={[
         styles.container,
-        { paddingTop: topPad + 8, paddingBottom: botPad + 40 },
+        { paddingTop: 12, paddingBottom: botPad + 40 },
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} testID="back-btn">
-            <Ionicons name="chevron-back" size={20} color={colors.primary} />
-          </Pressable>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Share a Prayer</Text>
-            <Text style={styles.subtitle}>Speak your heart. We'll hold space.</Text>
-          </View>
-        </View>
-      </View>
+      <Text style={styles.lead}>Speak your heart. We’ll hold space.</Text>
 
       <View style={styles.card}>
         <TextInput
@@ -180,12 +431,80 @@ export default function NewPostScreen() {
         <Text style={styles.charCount}>{content.length}/2000</Text>
       </View>
 
+      <View style={styles.imageSection}>
+        <Text style={styles.sectionLabel}>
+          Media (optional) — photos max ~2MB after resize
+          {staff ? ". Mods: video max 40MB, audio max 15MB." : ""}
+        </Text>
+        {pendingMedia ? (
+          <View style={styles.imagePreviewWrap}>
+            {pendingMedia.kind === "image" ? (
+              <Image
+                source={{ uri: pendingMedia.uri }}
+                style={styles.imagePreview}
+                contentFit="cover"
+              />
+            ) : pendingMedia.kind === "video" ? (
+              <View style={styles.mediaPlaceholder}>
+                <Ionicons name="videocam" size={36} color={colors.primary} />
+                <Text style={styles.mediaPlaceholderText}>Video selected</Text>
+              </View>
+            ) : (
+              <View style={styles.mediaPlaceholder}>
+                <Ionicons name="musical-notes" size={36} color={colors.primary} />
+                <Text style={styles.mediaPlaceholderText}>Audio selected</Text>
+              </View>
+            )}
+            <Pressable style={styles.removeImageBtn} onPress={() => setPendingMedia(null)}>
+              <Feather name="x" size={18} color={colors.surface} />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.mediaBtnGrid}>
+            <Pressable
+              style={[styles.addPhotoBtn, uploadBusy && styles.addPhotoBtnDisabled]}
+              onPress={pickImage}
+              disabled={uploadBusy}
+            >
+              {uploadBusy ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <>
+                  <Ionicons name="image-outline" size={22} color={colors.primary} />
+                  <Text style={styles.addPhotoText}>Photo</Text>
+                </>
+              )}
+            </Pressable>
+            {staff ? (
+              <>
+                <Pressable
+                  style={[styles.addPhotoBtn, uploadBusy && styles.addPhotoBtnDisabled]}
+                  onPress={pickVideo}
+                  disabled={uploadBusy}
+                >
+                  <Ionicons name="videocam-outline" size={22} color={colors.primary} />
+                  <Text style={styles.addPhotoText}>Video</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.addPhotoBtn, uploadBusy && styles.addPhotoBtnDisabled]}
+                  onPress={pickAudio}
+                  disabled={uploadBusy}
+                >
+                  <Ionicons name="mic-outline" size={22} color={colors.primary} />
+                  <Text style={styles.addPhotoText}>Audio</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        )}
+      </View>
+
       <View style={styles.option}>
         <View style={styles.optionLeft}>
           <Feather name="eye-off" size={18} color={colors.primary} />
           <View>
             <Text style={styles.optionLabel}>Post Anonymously</Text>
-            <Text style={styles.optionDesc}>Your name won't be shown</Text>
+            <Text style={styles.optionDesc}>Your name won&apos;t be shown</Text>
           </View>
         </View>
         <Switch
@@ -248,12 +567,12 @@ export default function NewPostScreen() {
       </View>
 
       <Pressable
-        style={[styles.submitBtn, (isPending || !content.trim()) && styles.submitBtnDisabled]}
-        onPress={handleSubmit}
-        disabled={isPending || !content.trim()}
+        style={[styles.submitBtn, (busy || !canSubmit) && styles.submitBtnDisabled]}
+        onPress={() => void handleSubmit()}
+        disabled={busy || !canSubmit}
         testID="submit-prayer-btn"
       >
-        {isPending ? (
+        {busy ? (
           <ActivityIndicator color={colors.surface} />
         ) : (
           <>
@@ -272,40 +591,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 16,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerText: {
-    gap: 2,
-    flex: 1,
-  },
-  title: {
-    fontFamily: "NotoSerif_700Bold",
-    fontSize: 20,
-    color: colors.primary,
-  },
-  subtitle: {
+  lead: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
+    lineHeight: 18,
+  },
+  sectionLabel: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   card: {
     backgroundColor: colors.surface,
@@ -327,6 +622,70 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: "right",
     marginTop: 8,
+  },
+  imageSection: {
+    gap: 10,
+  },
+  mediaBtnGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  addPhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 100,
+    backgroundColor: colors.surface,
+    borderRadius: 32,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+  },
+  addPhotoBtnDisabled: { opacity: 0.6 },
+  addPhotoText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 15,
+    color: colors.primary,
+  },
+  imagePreviewWrap: {
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: "relative",
+  },
+  imagePreview: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    backgroundColor: colors.cream,
+  },
+  mediaPlaceholder: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    backgroundColor: colors.cream,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  mediaPlaceholderText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    color: colors.primary,
+  },
+  removeImageBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   option: {
     flexDirection: "row",
@@ -362,11 +721,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
-  },
-  sectionLabel: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 13,
-    color: colors.textSecondary,
   },
   aiHint: {
     fontFamily: "PlusJakartaSans_400Regular",
@@ -452,4 +806,3 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
 });
-

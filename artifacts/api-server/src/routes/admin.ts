@@ -1,12 +1,32 @@
 import { Router, type IRouter } from "express";
-import { db, postsTable, usersTable, postPrayersTable } from "@workspace/db";
-import { eq, ne, desc, sql, and } from "drizzle-orm";
-import { requireAdmin } from "../lib/auth";
+import { db, postsTable, usersTable, postPrayersTable, notificationsTable } from "@workspace/db";
+import { eq, ne, desc, sql, and, isNotNull, inArray } from "drizzle-orm";
+import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
+
+async function notifyAuthorPostDecision(
+  authorId: number | null,
+  postId: number,
+  decision: "approved" | "declined",
+  moderationReason?: string,
+): Promise<void> {
+  if (authorId == null) return;
+  const message =
+    decision === "approved"
+      ? "Your prayer post was approved and is now visible in the feed."
+      : `Your prayer post was not approved. Reason: ${(moderationReason ?? "").trim() || "No details provided."}`;
+  await db.insert(notificationsTable).values({
+    userId: authorId,
+    type: decision === "approved" ? "post_approved" : "post_declined",
+    message,
+    postId,
+    actorId: null,
+  });
+}
 
 const router: IRouter = Router();
 
-router.get("/admin/posts/pending", requireAdmin, async (req, res): Promise<void> => {
+router.get("/admin/posts/pending", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "20", 10);
 
   const posts = await db
@@ -48,13 +68,14 @@ router.get("/admin/posts/moderated", requireAdmin, async (req, res): Promise<voi
   });
 });
 
-router.post("/admin/posts/:postId/approve", requireAdmin, async (req, res): Promise<void> => {
+router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
+  const mod = (req as any).user;
 
   const [post] = await db
     .update(postsTable)
-    .set({ status: "approved" })
+    .set({ status: "approved", moderatedByUserId: mod.id, moderationReason: null })
     .where(eq(postsTable.id, postId))
     .returning();
 
@@ -62,18 +83,34 @@ router.post("/admin/posts/:postId/approve", requireAdmin, async (req, res): Prom
     res.status(404).json({ error: "Post not found" });
     return;
   }
+
+  await notifyAuthorPostDecision(post.authorId ?? null, post.id, "approved");
 
   const [enriched] = await enrichPosts([post]);
   res.json(enriched);
 });
 
-router.post("/admin/posts/:postId/decline", requireAdmin, async (req, res): Promise<void> => {
+router.post("/admin/posts/:postId/decline", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
+  const mod = (req as any).user;
+
+  const reason =
+    typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (reason.length < 3) {
+    res.status(400).json({
+      error: "A decline reason is required so the author can see it in their alerts (at least 3 characters).",
+    });
+    return;
+  }
 
   const [post] = await db
     .update(postsTable)
-    .set({ status: "declined" })
+    .set({
+      status: "declined",
+      moderatedByUserId: mod.id,
+      moderationReason: reason,
+    })
     .where(eq(postsTable.id, postId))
     .returning();
 
@@ -81,6 +118,8 @@ router.post("/admin/posts/:postId/decline", requireAdmin, async (req, res): Prom
     res.status(404).json({ error: "Post not found" });
     return;
   }
+
+  await notifyAuthorPostDecision(post.authorId ?? null, post.id, "declined", reason);
 
   const [enriched] = await enrichPosts([post]);
   res.json(enriched);
@@ -99,6 +138,87 @@ router.delete("/admin/posts/:postId/remove", requireAdmin, async (req, res): Pro
   await db.delete(postPrayersTable).where(eq(postPrayersTable.postId, postId));
   await db.delete(postsTable).where(eq(postsTable.id, postId));
   res.json({ success: true, message: "Post removed" });
+});
+
+/** Return an approved post to the moderation queue (admin only). */
+router.post("/admin/posts/:postId/requeue", requireAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(rawId, 10);
+
+  const [post] = await db
+    .update(postsTable)
+    .set({ status: "pending", moderatedByUserId: null })
+    .where(eq(postsTable.id, postId))
+    .returning();
+
+  if (!post) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
+  const [enriched] = await enrichPosts([post]);
+  res.json(enriched);
+});
+
+router.get("/admin/moderators/activity", requireAdmin, async (req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      moderatorId: postsTable.moderatedByUserId,
+      actions: sql<number>`count(*)::int`,
+    })
+    .from(postsTable)
+    .where(isNotNull(postsTable.moderatedByUserId))
+    .groupBy(postsTable.moderatedByUserId);
+
+  const ids = rows.map((r) => r.moderatorId).filter((id): id is number => id != null);
+  if (ids.length === 0) {
+    res.json({ moderators: [] });
+    return;
+  }
+
+  const mods = await db.select().from(usersTable).where(inArray(usersTable.id, ids));
+
+  const nameById = new Map(mods.map((u) => [u.id, u]));
+
+  res.json({
+    moderators: rows.map((r) => {
+      const u = r.moderatorId != null ? nameById.get(r.moderatorId) : undefined;
+      return {
+        moderatorId: r.moderatorId,
+        username: u?.username ?? null,
+        displayName: u?.displayName ?? null,
+        role: u?.role ?? null,
+        actions: Number(r.actions ?? 0),
+      };
+    }),
+  });
+});
+
+router.post("/admin/users/:userId/role", requireAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const userId = parseInt(rawId, 10);
+  const adminUser = (req as any).user;
+  const role = req.body?.role;
+
+  if (!["user", "moderator", "admin"].includes(role)) {
+    res.status(400).json({ error: "role must be user, moderator, or admin" });
+    return;
+  }
+
+  if (userId === adminUser.id && role !== "admin") {
+    res.status(400).json({ error: "You cannot remove your own admin access" });
+    return;
+  }
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  await db.update(usersTable).set({ role }).where(eq(usersTable.id, userId));
+
+  res.json({ success: true, message: "Role updated", role });
 });
 
 router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {

@@ -1,16 +1,61 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, router, Tabs, type Href } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useColorScheme } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 
+const TAB_BAR_HEIGHT = Platform.OS === "web" ? 72 : Platform.OS === "ios" ? 52 : 58;
+
+function ComposeFab() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <Pressable
+        onPress={() => router.push("/post/new")}
+        style={({ pressed }) => [
+          fabStyles.fab,
+          { bottom: insets.bottom + TAB_BAR_HEIGHT + 10, right: 20 },
+          pressed && fabStyles.fabPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Share a prayer"
+        testID="compose-fab"
+      >
+        <Ionicons name="add" size={28} color={colors.surface} />
+      </Pressable>
+    </View>
+  );
+}
+
+const fabStyles = StyleSheet.create({
+  fab: {
+    position: "absolute",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  fabPressed: { opacity: 0.92 },
+});
+
 function NativeTabLayout() {
   return (
+    <View style={{ flex: 1 }}>
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "flame", selected: "flame.fill" }} />
@@ -29,6 +74,8 @@ function NativeTabLayout() {
         <Label>Profile</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
+    <ComposeFab />
+    </View>
   );
 }
 
@@ -38,6 +85,7 @@ function ClassicTabLayout() {
   const isWeb = Platform.OS === "web";
 
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -117,6 +165,8 @@ function ClassicTabLayout() {
         }}
       />
     </Tabs>
+    <ComposeFab />
+    </View>
   );
 }
 
@@ -135,7 +185,7 @@ export default function TabLayout() {
     return <Redirect href="/" />;
   }
   if (!user.isEmailVerified) {
-    return <Redirect href={"/verify" as any} />;
+    return <Redirect href={"/(auth)/verify" as Href} />;
   }
   // TODO: Re-enable RevenueCat for final milestone — restore paywall redirect for expired trial without entitlement
   // if (user.role !== "admin" && user.role !== "moderator") {

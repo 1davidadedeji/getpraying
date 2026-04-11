@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -50,7 +50,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(email.trim(), username.trim(), password, displayName.trim() || undefined);
-      router.replace("/onboarding");
+      router.replace("/(auth)/verify" as Href);
     } catch (err: unknown) {
       showAppAlert({ title: "Sign up failed", message: getApiErrorMessage(err, "Registration failed") });
     } finally {

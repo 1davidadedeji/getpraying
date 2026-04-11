@@ -7,11 +7,13 @@ import libraryRouter from "./library";
 import notificationsRouter from "./notifications";
 import adminRouter from "./admin";
 import dailyWordRouter from "./dailyWord";
+import uploadsRouter from "./uploads";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(uploadsRouter);
 router.use(usersRouter);
 router.use(postsRouter);
 router.use(libraryRouter);

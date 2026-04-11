@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, postsTable, postPrayersTable, savedPostsTable, usersTable, notificationsTable, commentsTable } from "@workspace/db";
-import { eq, and, desc, sql, asc } from "drizzle-orm";
+import { eq, and, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory } from "../lib/aiCategory";
@@ -80,11 +80,25 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "20", 10);
   const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
   const category = req.query.category as string | undefined;
+  const personalize =
+    req.query.personalize === "true" || req.query.personalize === "1" || req.query.personalize === "yes";
   const currentUser = (req as any).user;
 
   let conditions: any = eq(postsTable.status, "approved");
   if (category) {
     conditions = and(conditions, eq(postsTable.category, category));
+  }
+
+  if (
+    personalize &&
+    currentUser &&
+    Array.isArray(currentUser.preferredCategories) &&
+    currentUser.preferredCategories.length > 0
+  ) {
+    const prefs = currentUser.preferredCategories.filter((c: string) => typeof c === "string" && c.length > 0);
+    if (prefs.length > 0) {
+      conditions = and(conditions, inArray(postsTable.category, prefs));
+    }
   }
 
   const posts = await db
@@ -109,15 +123,41 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
   const { content, mediaUrl, mediaType, category, isAnonymous } = req.body;
 
-  if (!content) {
-    res.status(400).json({ error: "Content is required" });
+  const contentTrimmed = typeof content === "string" ? content.trim() : "";
+  const mediaUrlStr = typeof mediaUrl === "string" ? mediaUrl.trim() : "";
+  const hasMedia = mediaUrlStr.length > 0;
+
+  if (!contentTrimmed && !hasMedia) {
+    res.status(400).json({ error: "Write something or attach an image." });
     return;
+  }
+
+  const storedContent = contentTrimmed || "(Image)";
+
+  const rawMediaType =
+    typeof mediaType === "string" ? mediaType.trim().toLowerCase() : null;
+  const isStaff = user.role === "admin" || user.role === "moderator";
+  let storedMediaType: string | null = null;
+  if (hasMedia) {
+    if (!isStaff) {
+      if (rawMediaType === "video" || rawMediaType === "audio") {
+        res.status(403).json({
+          error: "Video and audio posts are only available to moderators and admins.",
+        });
+        return;
+      }
+      storedMediaType = "image";
+    } else if (rawMediaType && ["image", "video", "audio"].includes(rawMediaType)) {
+      storedMediaType = rawMediaType;
+    } else {
+      storedMediaType = "image";
+    }
   }
 
   let detectedCategory: string | null = category ?? null;
   if (!detectedCategory) {
     try {
-      detectedCategory = await suggestCategory(content);
+      detectedCategory = await suggestCategory(storedContent);
     } catch {
       detectedCategory = null;
     }
@@ -126,9 +166,9 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const [post] = await db
     .insert(postsTable)
     .values({
-      content,
-      mediaUrl: mediaUrl ?? null,
-      mediaType: mediaType ?? null,
+      content: storedContent,
+      mediaUrl: hasMedia ? mediaUrlStr : null,
+      mediaType: storedMediaType,
       category: detectedCategory,
       isAnonymous: isAnonymous ?? false,
       status: "pending",

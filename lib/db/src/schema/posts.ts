@@ -12,8 +12,11 @@ export const postsTable = pgTable("posts", {
   isAnonymous: boolean("is_anonymous").notNull().default(false),
   status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'declined'
   flagReason: text("flag_reason"),
+  /** Shown to the author when a moderator declines the post (also copied into notifications). */
+  moderationReason: text("moderation_reason"),
   prayCount: integer("pray_count").notNull().default(0),
   authorId: integer("author_id").references(() => usersTable.id),
+  moderatedByUserId: integer("moderated_by_user_id").references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

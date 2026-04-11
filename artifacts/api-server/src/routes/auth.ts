@@ -314,4 +314,95 @@ router.post("/auth/preferences", requireAuth, async (req, res): Promise<void> =>
   res.json({ success: true, message: "Preferences saved" });
 });
 
+function createPasswordResetToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const emailRaw =
+    typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+
+  res.json({
+    success: true,
+    message: "If an account exists for that email, you will receive reset instructions shortly.",
+  });
+
+  if (!emailRaw) return;
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailRaw));
+  if (!user) return;
+
+  const token = createPasswordResetToken();
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  await db
+    .update(usersTable)
+    .set({ passwordResetToken: token, passwordResetExpiresAt: expiresAt })
+    .where(eq(usersTable.id, user.id));
+
+  const deepLinkBase = process.env.PASSWORD_RESET_DEEP_LINK_BASE ?? "getpraying://reset-password";
+  const deepLink = `${deepLinkBase}?email=${encodeURIComponent(emailRaw)}&token=${token}`;
+
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = process.env.SENDGRID_FROM_EMAIL;
+
+  if (!apiKey || !from) {
+    console.log(
+      `[password-reset] ${emailRaw} — open app or visit reset screen with token (1h):\n${deepLink}\n`,
+    );
+    return;
+  }
+
+  sendgrid.setApiKey(apiKey);
+  await sendgrid.send({
+    to: emailRaw,
+    from,
+    subject: "Reset your Get Praying password",
+    text:
+      `You asked to reset your password.\n\n` +
+      `Open this link on your phone (Get Praying app):\n${deepLink}\n\n` +
+      `This link expires in about one hour. If you didn’t request this, you can ignore this email.\n`,
+  });
+});
+
+router.post("/auth/reset-password", async (req, res): Promise<void> => {
+  const emailRaw =
+    typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+  const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+
+  if (!emailRaw || !token || newPassword.length < 6) {
+    res.status(400).json({ error: "Email, token, and a new password (6+ characters) are required" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailRaw));
+  if (
+    !user ||
+    !user.passwordResetToken ||
+    user.passwordResetToken !== token ||
+    !user.passwordResetExpiresAt
+  ) {
+    res.status(400).json({ error: "Invalid or expired reset link" });
+    return;
+  }
+
+  if (new Date(user.passwordResetExpiresAt).getTime() < Date.now()) {
+    res.status(400).json({ error: "Reset link has expired. Request a new one." });
+    return;
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  await db
+    .update(usersTable)
+    .set({
+      passwordHash,
+      passwordResetToken: null,
+      passwordResetExpiresAt: null,
+    })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ success: true, message: "Password updated. You can sign in now." });
+});
+
 export default router;

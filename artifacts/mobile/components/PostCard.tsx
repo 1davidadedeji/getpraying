@@ -16,6 +16,7 @@ import { usePrayForPost, useSavePost, useUnsavePost } from "@workspace/api-clien
 import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
+import { PostMediaBlock } from "@/components/PostMedia";
 
 interface PostCardProps {
   post: Post;
@@ -67,6 +68,8 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
     post.isAnonymous,
     post.authorDisplayName,
     post.authorUsername,
+    post.mediaUrl,
+    post.mediaType,
   ]);
 
   const { mutate: pray } = usePrayForPost();
@@ -148,7 +151,6 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
 
   const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
   const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
-
   return (
     <View style={styles.card}>
       <Pressable
@@ -173,6 +175,12 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
             </View>
           )}
         </View>
+
+        <PostMediaBlock
+          mediaUrl={localPost.mediaUrl}
+          mediaType={localPost.mediaType}
+          style={styles.media}
+        />
 
         <Text style={styles.content} numberOfLines={4}>
           {localPost.content}
@@ -291,6 +299,9 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
     color: colors.flame,
+  },
+  media: {
+    marginBottom: 10,
   },
   content: {
     fontFamily: "PlusJakartaSans_400Regular",

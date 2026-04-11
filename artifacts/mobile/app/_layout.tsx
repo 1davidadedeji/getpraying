@@ -57,11 +57,16 @@ function RootLayoutNav() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />
+      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+      <Stack.Screen name="reset-password" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(paywall)" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="post/new" options={{ title: "New Prayer", headerBackTitle: "Back" }} />
+      <Stack.Screen
+        name="post/new"
+        options={{ title: "Share a prayer", headerBackTitle: "Back", headerShown: true }}
+      />
       <Stack.Screen name="post/[id]" options={{ title: "Prayer", headerBackTitle: "Back" }} />
       <Stack.Screen name="path/[id]" options={{ title: "Prayer Path", headerBackTitle: "Back" }} />
       <Stack.Screen name="admin" options={{ title: "Admin", headerBackTitle: "Back" }} />

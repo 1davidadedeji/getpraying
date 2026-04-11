@@ -23,7 +23,11 @@ export default function FeedScreen() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
 
-  const { data, isLoading, isFetching, refetch } = useGetPosts({});
+  const personalize = (user?.preferredCategories?.length ?? 0) > 0;
+
+  const { data, isLoading, isFetching, refetch } = useGetPosts(
+    (personalize ? { personalize: true } : {}) as any,
+  );
 
   useEffect(() => {
     const raw = data as any;
@@ -40,16 +44,15 @@ export default function FeedScreen() {
 
   const renderHeader = () => (
     <View style={[styles.header, { paddingTop: topPad + 4 }]}>
-      <View>
+      <View style={styles.headerTextBlock}>
         <Text style={styles.greeting}>
           {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
         </Text>
-        <Text style={styles.subGreeting}>Prayer feed</Text>
+        <Text style={styles.subGreeting}>
+          {personalize ? "Personalized for your categories" : "Prayer feed"}
+        </Text>
       </View>
-      <Pressable onPress={() => router.push("/post/new")} style={styles.composeBtn} testID="compose-btn">
-        <Ionicons name="add" size={22} color={colors.surface} />
-      </Pressable>
-      {user?.role === "admin" && (
+      {(user?.role === "admin" || user?.role === "moderator") && (
         <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
           <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
         </Pressable>
@@ -118,6 +121,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-end",
     paddingBottom: 16,
+    gap: 12,
+  },
+  headerTextBlock: {
+    flex: 1,
   },
   greeting: {
     fontFamily: "NotoSerif_700Bold",
@@ -139,16 +146,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  composeBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
   },
   emptyState: {
     alignItems: "center",

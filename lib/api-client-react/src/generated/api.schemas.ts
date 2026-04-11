@@ -100,6 +100,7 @@ export type PostMediaType =
 export const PostMediaType = {
   image: "image",
   video: "video",
+  audio: "audio",
 } as const;
 
 export type PostStatus = (typeof PostStatus)[keyof typeof PostStatus];
@@ -159,6 +160,7 @@ export type CreatePostInputMediaType =
 export const CreatePostInputMediaType = {
   image: "image",
   video: "video",
+  audio: "audio",
 } as const;
 
 export interface CreatePostInput {
@@ -239,6 +241,8 @@ export const NotificationType = {
   system: "system",
   category_new: "category_new",
   reminder: "reminder",
+  post_approved: "post_approved",
+  post_declined: "post_declined",
 } as const;
 
 export interface Notification {
@@ -301,6 +305,8 @@ export type GetPostsParams = {
   cursor?: number;
   limit?: number;
   category?: string;
+  /** When true and the user is authenticated, only posts in their saved prayer categories are returned. */
+  personalize?: boolean;
 };
 
 export type GetTrendingPostsParams = {

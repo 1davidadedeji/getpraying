@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -37,8 +37,10 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      const user = await login(email.trim(), password);
-      if (!user.onboardingComplete) {
+      const u = await login(email.trim(), password);
+      if (!u.isEmailVerified) {
+        router.replace("/(auth)/verify" as Href);
+      } else if (!u.onboardingComplete) {
         router.replace("/onboarding");
       } else {
         router.replace("/(tabs)");
@@ -113,6 +115,10 @@ export default function LoginScreen() {
               </Pressable>
             </View>
           </View>
+
+          <Pressable onPress={() => router.push("/forgot-password" as Href)} style={styles.forgotRow}>
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </Pressable>
 
           <Pressable
             style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
@@ -202,6 +208,17 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: "center",
+  },
+  forgotRow: {
+    alignSelf: "flex-end",
+    marginTop: -4,
+    marginBottom: 4,
+    paddingVertical: 6,
+  },
+  forgotText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.accent,
   },
   submitBtn: {
     backgroundColor: colors.primary,

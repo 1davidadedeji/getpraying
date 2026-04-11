@@ -44,7 +44,9 @@ export default function ProfileScreen() {
           onPress: async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             await logout();
-            router.replace("/");
+            requestAnimationFrame(() => {
+              router.replace("/");
+            });
           },
         },
       ],
@@ -114,10 +116,12 @@ export default function ProfileScreen() {
             <Feather name="chevron-right" size={16} color={colors.muted} />
           </Pressable>
 
-          {user.role === "admin" && (
+          {(user.role === "admin" || user.role === "moderator") && (
             <Pressable style={styles.menuItem} onPress={() => router.push("/admin")}>
               <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
-              <Text style={[styles.menuItemText, { color: colors.accent }]}>Admin Panel</Text>
+              <Text style={[styles.menuItemText, { color: colors.accent }]}>
+                {user.role === "admin" ? "Admin panel" : "Moderation"}
+              </Text>
               <Feather name="chevron-right" size={16} color={colors.muted} />
             </Pressable>
           )}

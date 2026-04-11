@@ -27,6 +27,7 @@ import {
 import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
+import { PostMediaBlock } from "@/components/PostMedia";
 
 const ENGAGE_ICON = 24;
 
@@ -178,6 +179,12 @@ export default function PostDetailScreen() {
             </View>
           )}
         </View>
+
+        <PostMediaBlock
+          mediaUrl={post.mediaUrl}
+          mediaType={post.mediaType}
+          style={styles.postImage}
+        />
 
         <Text style={styles.prayerContent}>{post.content}</Text>
 
@@ -336,6 +343,9 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     color: colors.flame,
+  },
+  postImage: {
+    marginBottom: 20,
   },
   prayerContent: {
     fontFamily: "PlusJakartaSans_400Regular",
