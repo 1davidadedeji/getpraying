@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { Platform } from "react-native";
-import Purchases, {
-  type CustomerInfo,
-  type PurchasesOfferings,
-  type PurchasesPackage,
+import type {
+  CustomerInfo,
+  PurchasesOfferings,
+  PurchasesPackage,
 } from "react-native-purchases";
 
 type RevenueCatState = {
@@ -19,20 +18,10 @@ type RevenueCatState = {
 
 const RevenueCatContext = createContext<RevenueCatState | null>(null);
 
-function getApiKey(): string | null {
-  const apple = process.env.EXPO_PUBLIC_RC_APPLE_KEY;
-  const google = process.env.EXPO_PUBLIC_RC_GOOGLE_KEY;
-  if (Platform.OS === "ios") return apple ?? null;
-  if (Platform.OS === "android") return google ?? null;
-  return null;
-}
-
-function computeEntitled(info: CustomerInfo | null): boolean {
-  if (!info) return false;
-  // RevenueCat entitlements are product-configurable. We treat "any active entitlement"
-  // as subscribed to keep this generic until your dashboard naming is finalized.
-  const ents = info.entitlements?.active ?? {};
-  return Object.keys(ents).length > 0;
+/** Load native module only when needed — avoids eager init at bundle parse (release crash risk with billing SDK). */
+function getPurchases() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("react-native-purchases").default;
 }
 
 export function RevenueCatProvider({ children }: { children: React.ReactNode }) {
@@ -48,34 +37,20 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       setIsReady(true);
       return;
 
-      /* Original RevenueCat init (preserved):
+      /* Original RevenueCat init (preserved) — use EXPO_PUBLIC_RC_* keys + getPurchases() then configure.
       try {
-        const apiKey = getApiKey();
-        if (!apiKey) {
-          setEnabled(false);
-          setIsReady(true);
-          return;
-        }
-
+        const apiKey = ...;
+        const Purchases = getPurchases();
         await Purchases.configure({ apiKey });
-        setEnabled(true);
-
-        const [o, info] = await Promise.all([
-          Purchases.getOfferings(),
-          Purchases.getCustomerInfo(),
-        ]);
-        setOfferings(o);
-        setCustomerInfo(info);
-      } catch {
-      } finally {
-        setIsReady(true);
-      }
+        ...
+      } catch { } finally { setIsReady(true); }
       */
     })();
   }, []);
 
   const refresh = async () => {
     if (!enabled) return;
+    const Purchases = getPurchases();
     const [o, info] = await Promise.all([
       Purchases.getOfferings(),
       Purchases.getCustomerInfo(),
@@ -86,12 +61,14 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
 
   const purchasePackage = async (pkg: PurchasesPackage) => {
     if (!enabled) throw new Error("RevenueCat not configured");
+    const Purchases = getPurchases();
     const { customerInfo: info } = await Purchases.purchasePackage(pkg);
     setCustomerInfo(info);
   };
 
   const restore = async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
+    const Purchases = getPurchases();
     const info = await Purchases.restorePurchases();
     setCustomerInfo(info);
   };
@@ -135,4 +112,3 @@ export function useRevenueCat(): RevenueCatState {
   }
   return ctx;
 }
-

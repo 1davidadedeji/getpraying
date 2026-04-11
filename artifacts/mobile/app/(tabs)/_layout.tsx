@@ -197,7 +197,8 @@ export default function TabLayout() {
   //   }
   // }
 
-  if (isLiquidGlassAvailable()) {
+  // NativeTabs + SF Symbol icons are iOS-only; never use on Android (can crash release builds).
+  if (Platform.OS === "ios" && isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }
   return <ClassicTabLayout />;

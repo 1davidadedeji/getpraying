@@ -1,3 +1,5 @@
+import "react-native-gesture-handler";
+
 import {
   NotoSerif_400Regular,
   NotoSerif_600SemiBold,
