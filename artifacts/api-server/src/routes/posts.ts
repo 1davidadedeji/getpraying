@@ -3,7 +3,7 @@ import { db, postsTable, postPrayersTable, savedPostsTable, usersTable, notifica
 import { eq, and, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
-import { suggestCategory } from "../lib/aiCategory";
+import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 
 const router: IRouter = Router();
 
@@ -15,8 +15,9 @@ router.post("/posts/suggest-category", requireAuth, async (req, res): Promise<vo
   }
 
   try {
-    const category = await suggestCategory(content);
-    res.json({ category });
+    const categories = await suggestCategories(content);
+    // Return both formats: primary category + full list
+    res.json({ category: categories[0] ?? null, categories });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "Failed to suggest category" });
   }
@@ -285,6 +286,9 @@ router.delete("/posts/:postId", requireAuth, async (req, res): Promise<void> => 
   res.json({ success: true, message: "Post deleted" });
 });
 
+// Prayer count milestones that trigger special notifications
+const PRAYER_MILESTONES = [5, 10, 25, 50, 100, 250, 500];
+
 router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
@@ -320,14 +324,15 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
       .where(eq(postsTable.id, postId))
       .returning();
 
-    // Increment prayed_for for post author
+    const newCount = updated.prayCount ?? 0;
+
     if (post.authorId && post.authorId !== user.id) {
       await db
         .update(usersTable)
         .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
         .where(eq(usersTable.id, post.authorId));
 
-      // Create notification
+      // Individual pray notification
       await db.insert(notificationsTable).values({
         userId: post.authorId,
         type: "prayer",
@@ -336,9 +341,21 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
         postId,
         isRead: false,
       });
+
+      // Milestone notifications (e.g., "10 people are now praying for your post!")
+      if (PRAYER_MILESTONES.includes(newCount)) {
+        await db.insert(notificationsTable).values({
+          userId: post.authorId,
+          type: "prayer_milestone",
+          message: `${newCount} people are now praying for your post! 🙌`,
+          actorId: null,
+          postId,
+          isRead: false,
+        });
+      }
     }
 
-    res.json({ prayCount: updated.prayCount, hasPrayed: true });
+    res.json({ prayCount: newCount, hasPrayed: true });
   }
 });
 
@@ -364,6 +381,18 @@ router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> 
       .update(usersTable)
       .set({ savedScrolls: sql`${usersTable.savedScrolls} + 1` })
       .where(eq(usersTable.id, user.id));
+
+    // Notify the post author that someone saved their post (don't reveal who)
+    if (post.authorId && post.authorId !== user.id) {
+      await db.insert(notificationsTable).values({
+        userId: post.authorId,
+        type: "saved",
+        message: "Someone saved your prayer post to their library.",
+        actorId: null, // intentionally null — saver remains anonymous
+        postId,
+        isRead: false,
+      });
+    }
   }
 
   res.json({ success: true, message: "Post saved" });

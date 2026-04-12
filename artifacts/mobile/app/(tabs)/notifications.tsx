@@ -25,44 +25,52 @@ function timeAgo(date: string | Date): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function notificationTitle(n: Notification): string {
+function notificationTitle(n: Notification & { type: string }): string {
   switch (n.type) {
     case "prayer":
       return n.actorUsername ? `${n.actorUsername} prayed with you` : "Someone prayed with you";
+    case "prayer_milestone":
+      return "Your prayer is spreading";
+    case "saved":
+      return "Someone saved your prayer";
     case "reminder":
       return "Prayer reminder";
     case "category_new":
       return n.category ? `New in library: ${n.category}` : "Library update";
     case "post_approved":
-      return "Prayer approved";
+      return "Prayer approved ✓";
     case "post_declined":
       return "Prayer not approved";
     case "system":
       return "Update";
     default:
-      return "Updates";
+      return "Notification";
   }
 }
 
-function NotificationItem({ item }: { item: Notification }) {
+function NotificationItem({ item }: { item: Notification & { type: string } }) {
   const icon =
-    item.type === "prayer"
+    item.type === "prayer" || item.type === "prayer_milestone"
       ? "flame"
-      : item.type === "reminder"
-        ? "time-outline"
-        : item.type === "post_approved"
-          ? "checkmark-circle"
-          : item.type === "post_declined"
-            ? "alert-circle"
-            : "notifications-outline";
+      : item.type === "saved"
+        ? "bookmark"
+        : item.type === "reminder"
+          ? "time-outline"
+          : item.type === "post_approved"
+            ? "checkmark-circle"
+            : item.type === "post_declined"
+              ? "alert-circle"
+              : "notifications-outline";
   const iconColor =
-    item.type === "prayer"
+    item.type === "prayer" || item.type === "prayer_milestone"
       ? colors.flame
-      : item.type === "post_declined"
-        ? colors.danger
-        : item.type === "post_approved"
-          ? colors.success
-          : colors.accent;
+      : item.type === "saved"
+        ? colors.primary
+        : item.type === "post_declined"
+          ? colors.danger
+          : item.type === "post_approved"
+            ? colors.success
+            : colors.accent;
 
   return (
     <View style={[styles.notifCard, !item.isRead && styles.notifCardUnread]}>

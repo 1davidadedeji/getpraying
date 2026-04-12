@@ -1,4 +1,4 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+﻿import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -6,12 +6,11 @@ import {
   Animated,
   Platform,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { Paths, writeAsStringAsync } from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import { usePrayForPost, useSavePost, useUnsavePost } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
@@ -117,32 +116,25 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
   };
 
   const handleShare = async () => {
-    const ok = await Sharing.isAvailableAsync().catch(() => false);
-    if (!ok) {
-      showAppAlert({
-        title: "Sharing not available",
-        message: "Sharing isn’t available on this device.",
-      });
-      return;
-    }
-
     const authorName = localPost.isAnonymous
       ? "Anonymous"
       : localPost.authorDisplayName ?? localPost.authorUsername ?? "Someone";
-    const text =
-      `Get Praying — shared by ${authorName}\n\n` +
-      `${localPost.content}\n\n` +
-      `${localPost.prayCount} praying`;
+    const message =
+      `"${localPost.content.slice(0, 200)}${localPost.content.length > 200 ? "\u2026" : ""}"\n\n` +
+      `\u2014 shared by ${authorName} on Get Praying\n` +
+      `${localPost.prayCount} ${localPost.prayCount === 1 ? "person" : "people"} praying`;
 
-    const dir = Paths.cache?.uri ?? Paths.document?.uri ?? null;
-    if (!dir) {
-      showAppAlert({ title: "Share failed", message: "Could not access storage." });
-      return;
+    try {
+      Haptics.selectionAsync();
+      await Share.share(
+        Platform.OS === "ios"
+          ? { message, url: "https://getpraying.app" }
+          : { message },
+        { dialogTitle: "Share this prayer" },
+      );
+    } catch {
+      // silently ignore user cancellation
     }
-
-    const path = `${dir}getpraying-share-${localPost.id}.txt`;
-    await writeAsStringAsync(path, text, { encoding: "utf8" });
-    await Sharing.shareAsync(path, { mimeType: "text/plain", dialogTitle: "Share prayer" });
   };
 
   const authorName = localPost.isAnonymous

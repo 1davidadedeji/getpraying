@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+﻿import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
@@ -13,6 +13,28 @@ import {
 } from "../lib/auth";
 
 const router: IRouter = Router();
+
+// In-memory rate limiting for resend (email → { count, resetAt })
+const resendRateLimit = new Map<string, { count: number; nextAllowedAt: number }>();
+const RESEND_COOLDOWNS_MS = [60_000, 120_000, 300_000, 600_000];
+
+function checkResendRateLimit(email: string): { allowed: boolean; waitSecs: number } {
+  const now = Date.now();
+  const entry = resendRateLimit.get(email);
+  if (!entry) return { allowed: true, waitSecs: 0 };
+  if (now < entry.nextAllowedAt) {
+    return { allowed: false, waitSecs: Math.ceil((entry.nextAllowedAt - now) / 1000) };
+  }
+  return { allowed: true, waitSecs: 0 };
+}
+
+function recordResend(email: string): void {
+  const now = Date.now();
+  const entry = resendRateLimit.get(email);
+  const count = entry ? entry.count + 1 : 1;
+  const cooldownMs = RESEND_COOLDOWNS_MS[Math.min(count - 1, RESEND_COOLDOWNS_MS.length - 1)] ?? 600_000;
+  resendRateLimit.set(email, { count, nextAllowedAt: now + cooldownMs });
+}
 
 function createOtp(): string {
   const n = crypto.randomInt(0, 1_000_000);
@@ -188,9 +210,20 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const rl = checkResendRateLimit(normalizedEmail);
+  if (!rl.allowed) {
+    res.status(429).json({
+      error: `Please wait ${rl.waitSecs} seconds before requesting another code.`,
+      waitSecs: rl.waitSecs,
+    });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
   if (!user) {
-    // Don’t leak which emails exist; still return success.
+    recordResend(normalizedEmail);
     res.json({ success: true, message: "If your account exists, a code was sent." });
     return;
   }
@@ -199,6 +232,8 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
     res.json({ success: true, message: "Email already verified" });
     return;
   }
+
+  recordResend(normalizedEmail);
 
   const otp = createOtp();
   const expiresAt = otpExpiresAt(15);

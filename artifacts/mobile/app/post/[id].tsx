@@ -1,8 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Paths, writeAsStringAsync } from "expo-file-system";
 import { useLocalSearchParams } from "expo-router";
-import * as Sharing from "expo-sharing";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,16 +8,14 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useGetPost,
-  useGetPostComments,
-  useCreatePostComment,
   usePrayForPost,
   useSavePost,
   useUnsavePost,
@@ -46,11 +42,8 @@ export default function PostDetailScreen() {
   const insets = useSafeAreaInsets();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<Post | null>(null);
-  const [commentDraft, setCommentDraft] = useState("");
 
   const { data, isLoading } = useGetPost(Number(id));
-  const commentsQuery = useGetPostComments(Number(id));
-  const createComment = useCreatePostComment();
 
   useEffect(() => {
     if (data) setLocalPost(data as any);
@@ -94,32 +87,26 @@ export default function PostDetailScreen() {
 
   const handleShare = async () => {
     if (!post) return;
-    const ok = await Sharing.isAvailableAsync().catch(() => false);
-    if (!ok) {
-      showAppAlert({
-        title: "Sharing not available",
-        message: "Sharing isn’t available on this device.",
-      });
-      return;
-    }
     const authorName = post.isAnonymous
       ? "Anonymous"
       : post.authorDisplayName ?? post.authorUsername ?? "Someone";
-    const text =
-      `Get Praying — shared by ${authorName}\n\n` +
-      `${post.content}\n\n` +
-      `${post.prayCount} praying`;
-    const dir = Paths.cache?.uri ?? Paths.document?.uri ?? null;
-    if (!dir) {
-      showAppAlert({ title: "Share failed", message: "Could not access storage." });
-      return;
-    }
-    const path = `${dir}getpraying-share-${post.id}.txt`;
-    await writeAsStringAsync(path, text, { encoding: "utf8" });
-    Haptics.selectionAsync();
-    await Sharing.shareAsync(path, { mimeType: "text/plain", dialogTitle: "Share prayer" });
-  };
+    const message =
+      `"${post.content.slice(0, 200)}${post.content.length > 200 ? "\u2026" : ""}"\n\n` +
+      `\u2014 shared by ${authorName} on Get Praying\n` +
+      `${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying`;
 
+    try {
+      Haptics.selectionAsync();
+      await Share.share(
+        Platform.OS === "ios"
+          ? { message, url: "https://getpraying.app" }
+          : { message },
+        { dialogTitle: "Share this prayer" },
+      );
+    } catch {
+      // silently ignore user cancellation
+    }
+  };
   if (isLoading || !post) {
     return (
       <View style={styles.centered}>
@@ -199,53 +186,6 @@ export default function PostDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.commentsSection}>
-          <Text style={styles.commentsTitle}>Comments</Text>
-          {commentsQuery.isLoading ? (
-            <ActivityIndicator color={colors.accent} />
-          ) : comments.length === 0 ? (
-            <Text style={styles.commentsEmpty}>
-              Be the first to leave a kind word of support.
-            </Text>
-          ) : (
-            <View style={styles.commentsList}>
-              {comments.map((c: any) => {
-                const name = c.authorDisplayName ?? c.authorUsername ?? "Someone";
-                return (
-                  <View key={String(c.id)} style={styles.commentCard}>
-                    <Text style={styles.commentAuthor}>{name}</Text>
-                    <Text style={styles.commentBody}>{c.content}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          <View style={styles.commentComposer}>
-            <TextInput
-              value={commentDraft}
-              onChangeText={setCommentDraft}
-              placeholder="Write a supportive comment…"
-              placeholderTextColor={colors.muted}
-              style={styles.commentInput}
-              multiline
-              testID="comment-input"
-            />
-            <Pressable
-              onPress={submitComment}
-              disabled={createComment.isPending || commentDraft.trim().length === 0}
-              style={[
-                styles.commentSendBtn,
-                (createComment.isPending || commentDraft.trim().length === 0) && styles.commentSendBtnDisabled,
-              ]}
-              testID="comment-send"
-            >
-              <Text style={styles.commentSendText}>
-                {createComment.isPending ? "Sending…" : "Send"}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
       </ScrollView>
 
       <View style={[styles.actionBar, { paddingBottom: botPad + 12 }]}>
@@ -372,74 +312,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  commentsSection: {
-    marginTop: 22,
-    gap: 10,
-  },
-  commentsTitle: {
-    fontFamily: "NotoSerif_700Bold",
-    fontSize: 18,
-    color: colors.text,
-  },
-  commentsEmpty: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 13,
-    color: colors.muted,
-    lineHeight: 18,
-  },
-  commentsList: {
-    gap: 10,
-  },
-  commentCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 32,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  commentAuthor: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 13,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  commentBody: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  commentComposer: {
-    marginTop: 6,
-    backgroundColor: colors.surface,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 10,
-  },
-  commentInput: {
-    minHeight: 44,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  commentSendBtn: {
-    alignSelf: "flex-end",
-    backgroundColor: colors.primary,
-    borderRadius: 32,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  commentSendBtnDisabled: {
-    opacity: 0.6,
-  },
-  commentSendText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 13,
-    color: colors.surface,
   },
   actionBar: {
     position: "absolute",

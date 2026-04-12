@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Redirect, router, Tabs, type Href } from "expo-router";
+import { Redirect, router, Tabs, usePathname, type Href } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -14,6 +14,9 @@ const TAB_BAR_HEIGHT = Platform.OS === "web" ? 72 : Platform.OS === "ios" ? 52 :
 
 function ComposeFab() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const isFeeds = pathname === "/" || pathname === "/(tabs)" || pathname === "/(tabs)/index" || pathname === "/index";
+  if (!isFeeds) return null;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <Pressable

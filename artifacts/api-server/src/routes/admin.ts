@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db, postsTable, usersTable, postPrayersTable, notificationsTable } from "@workspace/db";
-import { eq, ne, desc, sql, and, isNotNull, inArray } from "drizzle-orm";
+import { eq, ne, desc, sql, and, isNotNull, inArray, notLike } from "drizzle-orm";
+
+const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 
@@ -50,10 +52,22 @@ router.get("/admin/posts/pending", requireModeratorOrAdmin, async (req, res): Pr
 router.get("/admin/posts/moderated", requireAdmin, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "20", 10);
 
+  // Exclude posts authored by seed accounts
+  const seedUserIds = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(sql`${usersTable.email} LIKE ${'%' + SEED_EMAIL_SUFFIX}`);
+  const seedIds = seedUserIds.map((u) => u.id);
+
+  let condition: any = ne(postsTable.status, "pending");
+  if (seedIds.length > 0) {
+    condition = and(condition, sql`${postsTable.authorId} NOT IN (${sql.join(seedIds.map((id) => sql`${id}`), sql`, `)})`);
+  }
+
   const posts = await db
     .select()
     .from(postsTable)
-    .where(ne(postsTable.status, "pending"))
+    .where(condition)
     .orderBy(desc(postsTable.updatedAt))
     .limit(limit + 1);
 
@@ -200,12 +214,15 @@ router.post("/admin/users/:userId/role", requireAdmin, async (req, res): Promise
   const adminUser = (req as any).user;
   const role = req.body?.role;
 
-  if (!["user", "moderator", "admin"].includes(role)) {
+  const validRoles = ["user", "moderator", "admin"] as const;
+  if (!validRoles.includes(role)) {
     res.status(400).json({ error: "role must be user, moderator, or admin" });
     return;
   }
 
-  if (userId === adminUser.id && role !== "admin") {
+  const typedRole = role as "user" | "moderator" | "admin";
+
+  if (userId === adminUser.id && typedRole !== "admin") {
     res.status(400).json({ error: "You cannot remove your own admin access" });
     return;
   }
@@ -216,17 +233,21 @@ router.post("/admin/users/:userId/role", requireAdmin, async (req, res): Promise
     return;
   }
 
-  await db.update(usersTable).set({ role }).where(eq(usersTable.id, userId));
-
-  res.json({ success: true, message: "Role updated", role });
+  try {
+    await db.update(usersTable).set({ role: typedRole }).where(eq(usersTable.id, userId));
+    res.json({ success: true, message: "Role updated", role: typedRole });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed to update role" });
+  }
 });
 
 router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
-  const limit = parseInt((req.query.limit as string) || "30", 10);
+  const limit = Math.min(parseInt((req.query.limit as string) || "30", 10), 500);
 
   const users = await db
     .select()
     .from(usersTable)
+    .where(notLike(usersTable.email, `%${SEED_EMAIL_SUFFIX}`))
     .orderBy(desc(usersTable.createdAt))
     .limit(limit + 1);
 

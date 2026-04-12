@@ -126,11 +126,10 @@ export default function NewPostScreen() {
   const staff = user?.role === "admin" || user?.role === "moderator";
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const { mutate: createPost, isPending } = useCreatePost();
-  const [aiCategory, setAiCategory] = useState<string | null>(null);
+  const [aiCategories, setAiCategories] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiMode, setAiMode] = useState(true);
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
 
@@ -139,9 +138,8 @@ export default function NewPostScreen() {
   React.useEffect(() => {
     let cancelled = false;
     const trimmed = content.trim();
-    if (!aiMode) return;
     if (trimmed.length < 12) {
-      setAiCategory(null);
+      setAiCategories([]);
       return;
     }
 
@@ -160,28 +158,30 @@ export default function NewPostScreen() {
         const data = await res.json().catch(() => null);
         if (cancelled) return;
         if (!res.ok) {
-          setAiCategory(null);
+          setAiCategories([]);
           return;
         }
-        const raw = data?.category;
-        const normalized =
-          typeof raw === "string" && CATEGORIES.includes(raw) ? raw : null;
-        setAiCategory(normalized);
-        if (normalized) {
-          setSelectedCategory(normalized);
+        // Support both array (categories) and single (category) formats
+        const raw: unknown = data?.categories ?? (data?.category ? [data.category] : []);
+        const normalized = (Array.isArray(raw) ? raw : [])
+          .filter((c: unknown) => typeof c === "string" && CATEGORIES.includes(c as any)) as string[];
+        setAiCategories(normalized);
+        if (normalized.length > 0) {
+          // Auto-select all AI suggested categories
+          setSelectedCategories(normalized);
         }
       } catch {
-        if (!cancelled) setAiCategory(null);
+        if (!cancelled) setAiCategories([]);
       } finally {
         if (!cancelled) setAiLoading(false);
       }
-    }, 400);
+    }, 500);
 
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [content, token, aiMode]);
+  }, [content, token]);
 
   const pickImage = async () => {
     if (Platform.OS === "web") {
@@ -317,8 +317,8 @@ export default function NewPostScreen() {
       return;
     }
 
-    const category =
-      (aiMode ? aiCategory ?? selectedCategory : selectedCategory) ?? undefined;
+    // Use first selected category for DB storage (primary)
+    const category = selectedCategories[0] ?? undefined;
 
     let mediaUrl: string | undefined;
     let postMediaType: CreatePostInputMediaType | undefined;
@@ -383,8 +383,8 @@ export default function NewPostScreen() {
                 onPress: () => {
                   setContent("");
                   setIsAnonymous(false);
-                  setSelectedCategory(null);
-                  setAiCategory(null);
+                  setSelectedCategories([]);
+                  setAiCategories([]);
                   setPendingMedia(null);
                   router.replace("/(tabs)");
                 },
@@ -519,45 +519,59 @@ export default function NewPostScreen() {
         <View style={styles.categoryHeader}>
           <Text style={styles.sectionLabel}>Category</Text>
           {aiLoading ? (
-            <Text style={styles.aiHint}>AI thinking…</Text>
-          ) : aiCategory ? (
-            <Pressable
-              onPress={() => setAiMode((v) => !v)}
-              style={[styles.aiPill, aiMode ? styles.aiPillOn : styles.aiPillOff]}
-              testID="ai-toggle"
-            >
-              <Text style={[styles.aiPillText, aiMode && styles.aiPillTextOn]}>
-                AI suggestion: {aiCategory}
+            <View style={styles.aiThinkingRow}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.aiHint}>AI thinking…</Text>
+            </View>
+          ) : aiCategories.length > 0 ? (
+            <View style={[styles.aiPill, styles.aiPillOn]}>
+              <Text style={[styles.aiPillText, styles.aiPillTextOn]}>
+                AI selected {aiCategories.length > 1 ? `${aiCategories.length} categories` : aiCategories[0]}
               </Text>
-            </Pressable>
+            </View>
           ) : (
-            <Text style={styles.aiHint}>Optional</Text>
+            <Text style={styles.aiHint}>Optional — tap to select</Text>
           )}
         </View>
         <View style={styles.categoryGrid}>
-          {CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat}
-              onPress={() => {
-                setAiMode(false);
-                setSelectedCategory(selectedCategory === cat ? null : cat);
-              }}
-              style={[
-                styles.categoryChip,
-                (aiMode ? aiCategory : selectedCategory) === cat && styles.categoryChipSelected,
-              ]}
-            >
-              <Text
+          {CATEGORIES.map((cat) => {
+            const isSelected = selectedCategories.includes(cat);
+            const isAiSuggested = aiCategories.includes(cat);
+            return (
+              <Pressable
+                key={cat}
+                onPress={() => {
+                  setSelectedCategories((prev) =>
+                    prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                  );
+                  // Clear AI suggestions once user manually interacts
+                  if (isAiSuggested) setAiCategories([]);
+                }}
                 style={[
-                  styles.categoryChipText,
-                  (aiMode ? aiCategory : selectedCategory) === cat && styles.categoryChipTextSelected,
+                  styles.categoryChip,
+                  isSelected && styles.categoryChipSelected,
+                  isAiSuggested && !isSelected && styles.categoryChipAi,
                 ]}
               >
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
-              </Text>
-            </Pressable>
-          ))}
+                {isAiSuggested && <Text style={styles.aiDot}>✦ </Text>}
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    isSelected && styles.categoryChipTextSelected,
+                    isAiSuggested && !isSelected && styles.categoryChipTextAi,
+                  ]}
+                >
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+        {selectedCategories.length > 0 && (
+          <Pressable onPress={() => { setSelectedCategories([]); setAiCategories([]); }} style={styles.clearCats}>
+            <Text style={styles.clearCatsText}>Clear selection</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.notice}>
@@ -726,6 +740,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
   },
+  aiThinkingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   aiPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -748,12 +767,18 @@ const styles = StyleSheet.create({
   aiPillTextOn: {
     color: "#21638D",
   },
+  aiDot: {
+    fontSize: 10,
+    color: "#21638D",
+  },
   categoryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   categoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 50,
@@ -765,6 +790,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
+  categoryChipAi: {
+    backgroundColor: "#E3F2FD",
+    borderColor: "#93CDFC",
+    borderWidth: 1.5,
+  },
   categoryChipText: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
@@ -773,6 +803,22 @@ const styles = StyleSheet.create({
   categoryChipTextSelected: {
     color: colors.surface,
     fontFamily: "PlusJakartaSans_600SemiBold",
+  },
+  categoryChipTextAi: {
+    color: "#21638D",
+    fontFamily: "PlusJakartaSans_600SemiBold",
+  },
+  clearCats: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  clearCatsText: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+    textDecorationLine: "underline",
   },
   notice: {
     flexDirection: "row",

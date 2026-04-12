@@ -19,7 +19,7 @@ function isCategory(value: unknown): value is Category {
   return typeof value === "string" && (CATEGORIES as readonly string[]).includes(value);
 }
 
-async function callOpenAIForCategory(content: string): Promise<Category> {
+async function callOpenAIForCategories(content: string): Promise<Category[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not set");
@@ -29,14 +29,14 @@ async function callOpenAIForCategory(content: string): Promise<Category> {
     {
       role: "system",
       content:
-        "You are a classifier for a prayer app. Choose exactly one category from the allowed list and return only strict JSON.",
+        "You are a classifier for a prayer app. Choose 1–3 best-fitting categories from the allowed list and return only strict JSON. Order them by relevance (most relevant first).",
     },
     {
       role: "user",
       content: JSON.stringify({
         allowed_categories: CATEGORIES,
         prayer_text: content,
-        output_format: { category: "<one_of_allowed_categories>" },
+        output_format: { categories: ["<category1>", "<optional_category2>", "<optional_category3>"] },
       }),
     },
   ];
@@ -51,7 +51,7 @@ async function callOpenAIForCategory(content: string): Promise<Category> {
       model: "gpt-4.1-mini",
       input,
       temperature: 0,
-      max_output_tokens: 50,
+      max_output_tokens: 80,
     }),
   });
 
@@ -73,23 +73,36 @@ async function callOpenAIForCategory(content: string): Promise<Category> {
   try {
     parsed = JSON.parse(rawText);
   } catch {
-    // Sometimes models wrap JSON in text; extract first {...}
     const match = rawText.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("OpenAI returned non-JSON output");
     parsed = JSON.parse(match[0]);
   }
 
-  const candidate = parsed?.category;
-  if (!isCategory(candidate)) {
-    throw new Error("OpenAI returned invalid category");
+  // Handle both array and single-category responses
+  const rawCategories = parsed?.categories ?? (parsed?.category ? [parsed.category] : []);
+  const valid = (Array.isArray(rawCategories) ? rawCategories : [rawCategories])
+    .filter(isCategory)
+    .slice(0, 3);
+
+  if (valid.length === 0) {
+    throw new Error("OpenAI returned no valid categories");
   }
 
-  return candidate;
+  return valid;
 }
 
+/** Returns the primary (best) category for storing in the DB. */
 export async function suggestCategory(content: string): Promise<Category | null> {
   const trimmed = content.trim();
   if (trimmed.length < 10) return null;
-  return await callOpenAIForCategory(trimmed);
+  const categories = await callOpenAIForCategories(trimmed);
+  return categories[0] ?? null;
+}
+
+/** Returns all suggested categories (1–3) for the UI to auto-select. */
+export async function suggestCategories(content: string): Promise<Category[]> {
+  const trimmed = content.trim();
+  if (trimmed.length < 10) return [];
+  return await callOpenAIForCategories(trimmed);
 }
 

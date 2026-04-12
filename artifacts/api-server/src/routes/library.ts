@@ -15,18 +15,20 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
     .orderBy(officialPrayersTable.createdAt)
     .limit(limit);
 
-  res.json(prayers.map((p) => ({
-    id: p.id,
-    title: p.title,
-    subtitle: p.subtitle,
-    content: p.content,
-    category: p.category,
-    durationMinutes: p.durationMinutes,
-    scripture: p.scripture,
-    label: p.label,
-    audioVoice: p.audioVoice,
-    createdAt: p.createdAt,
-  })));
+  res.json({
+    prayers: prayers.map((p) => ({
+      id: p.id,
+      title: p.title,
+      subtitle: p.subtitle,
+      content: p.content,
+      category: p.category,
+      durationMinutes: p.durationMinutes,
+      scripture: p.scripture,
+      label: p.label,
+      audioVoice: p.audioVoice,
+      createdAt: p.createdAt,
+    })),
+  });
 });
 
 router.get("/library/saved", requireAuth, async (req, res): Promise<void> => {
@@ -39,14 +41,14 @@ router.get("/library/saved", requireAuth, async (req, res): Promise<void> => {
     .orderBy(desc(savedPostsTable.createdAt));
 
   if (savedRows.length === 0) {
-    res.json([]);
+    res.json({ posts: [] });
     return;
   }
 
   const postIds = savedRows.map((r) => r.postId);
   const posts = await db.select().from(postsTable).where(inArray(postsTable.id, postIds));
   const enriched = await enrichPosts(posts, user.id);
-  res.json(enriched);
+  res.json({ posts: enriched });
 });
 
 router.get("/library/paths", optionalAuth, async (req, res): Promise<void> => {
@@ -69,7 +71,7 @@ router.get("/library/paths", optionalAuth, async (req, res): Promise<void> => {
     })
   );
 
-  res.json(result);
+  res.json({ paths: result });
 });
 
 router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<void> => {

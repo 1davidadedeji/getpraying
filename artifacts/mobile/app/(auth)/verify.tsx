@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router, type Href } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -16,17 +16,50 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 
+// Cooldown schedule: 60s, 120s, 300s, 600s, then always 600s
+const COOLDOWN_STEPS = [60, 120, 300, 600];
+
+function formatCooldown(secs: number): string {
+  if (secs >= 60) return `${Math.ceil(secs / 60)}m`;
+  return `${secs}s`;
+}
+
 export default function VerifyScreen() {
   const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuth();
   const [otp, setOtp] = useState("");
   const verify = useVerifyEmail();
   const resend = useResendVerification();
+  const [cooldown, setCooldown] = useState(0);
+  const [resendCount, setResendCount] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const email = user?.email ?? "";
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  const startCooldown = (count: number) => {
+    const idx = Math.min(count, COOLDOWN_STEPS.length - 1);
+    const secs = COOLDOWN_STEPS[idx] ?? 600;
+    setCooldown(secs);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const onVerify = () => {
     const code = otp.replace(/\D/g, "").slice(0, 6);
@@ -69,6 +102,7 @@ export default function VerifyScreen() {
   };
 
   const onResend = () => {
+    if (cooldown > 0) return;
     if (!email) {
       showAppAlert({
         title: "Session needed",
@@ -80,11 +114,15 @@ export default function VerifyScreen() {
     resend.mutate(
       { data: { email } },
       {
-        onSuccess: () =>
+        onSuccess: () => {
+          const newCount = resendCount + 1;
+          setResendCount(newCount);
+          startCooldown(resendCount);
           showAppAlert({
             title: "Code sent",
             message: "Check your inbox for a new verification code.",
-          }),
+          });
+        },
         onError: (err: any) =>
           showAppAlert({
             title: "Could not resend",
@@ -93,6 +131,8 @@ export default function VerifyScreen() {
       },
     );
   };
+
+  const resendDisabled = resend.isPending || cooldown > 0;
 
   return (
     <View style={[styles.flex, { paddingTop: topPad + 16, paddingBottom: botPad + 24 }]}>
@@ -141,8 +181,14 @@ export default function VerifyScreen() {
             )}
           </Pressable>
 
-          <Pressable onPress={onResend} disabled={resend.isPending} testID="resend-btn">
-            <Text style={styles.linkText}>{resend.isPending ? "Sending…" : "Resend code"}</Text>
+          <Pressable onPress={onResend} disabled={resendDisabled} testID="resend-btn">
+            <Text style={[styles.linkText, resendDisabled && styles.linkTextDisabled]}>
+              {resend.isPending
+                ? "Sending…"
+                : cooldown > 0
+                  ? `Resend in ${formatCooldown(cooldown)}`
+                  : "Resend code"}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -262,5 +308,8 @@ const styles = StyleSheet.create({
     color: colors.accent,
     textAlign: "center",
     paddingVertical: 8,
+  },
+  linkTextDisabled: {
+    color: colors.muted,
   },
 });

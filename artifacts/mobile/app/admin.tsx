@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useNavigation } from "expo-router";
 import { PostMediaBlock } from "@/components/PostMedia";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -540,20 +541,21 @@ function UsersAdminPanel({
   onBack: () => void;
   botPad: number;
 }) {
-  const [users, setUsers] = useState<
+  const [allUsers, setAllUsers] = useState<
     { id: number; username: string; displayName: string | null; role: string }[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/admin/users?limit=80`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/admin/users?limit=200`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json().catch(() => ({}));
-      setUsers(Array.isArray(data.users) ? data.users : []);
+      setAllUsers(Array.isArray(data.users) ? data.users : []);
     } catch {
       showAppAlert({ title: "Could not load users", message: "Check your connection." });
     } finally {
@@ -565,6 +567,16 @@ function UsersAdminPanel({
     void load();
   }, [load]);
 
+  const filteredUsers = search.trim()
+    ? allUsers.filter((u) => {
+        const q = search.trim().toLowerCase();
+        return (
+          u.username.toLowerCase().includes(q) ||
+          (u.displayName ?? "").toLowerCase().includes(q)
+        );
+      })
+    : allUsers;
+
   const changeRole = (userId: number, username: string, role: "user" | "moderator" | "admin") => {
     showAppAlert({
       title: `Set ${username} as ${role}?`,
@@ -575,83 +587,115 @@ function UsersAdminPanel({
           text: "Update",
           onPress: async () => {
             if (!token) return;
-            const res = await fetch(`${getApiBaseUrl()}/api/admin/users/${userId}/role`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ role }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              showAppAlert({ title: "Update failed", message: data?.error ?? "Try again." });
-              return;
+            try {
+              const res = await fetch(`${getApiBaseUrl()}/api/admin/users/${userId}/role`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ role }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                showAppAlert({ title: "Update failed", message: data?.error ?? "Try again." });
+                return;
+              }
+              await load();
+            } catch (e) {
+              showAppAlert({ title: "Update failed", message: "Network error. Try again." });
             }
-            await load();
           },
         },
       ],
     });
   };
 
+  const roleColor = (role: string) => {
+    if (role === "admin") return colors.flame;
+    if (role === "moderator") return colors.accent;
+    return colors.muted;
+  };
+
   return (
-    <View style={[styles.list, { flex: 1, paddingTop: Platform.OS === "web" ? 20 : 8 }]}>
-      <Pressable onPress={onBack} style={styles.usersBackRow}>
-        <Feather name="arrow-left" size={20} color={colors.primary} />
-        <Text style={styles.usersBackText}>Back to moderation</Text>
-      </Pressable>
-      <Text style={styles.sectionTitle}>Users & roles</Text>
-      <Text style={styles.usersHint}>
-        Admins can promote to moderator or admin, or demote with User (regular member).
-      </Text>
-      {loading ? (
-        <ActivityIndicator color={colors.accent} style={styles.loader} />
-      ) : (
-        <FlatList
-          data={users}
-          keyExtractor={(u) => String(u.id)}
-          scrollEnabled={false}
-          renderItem={({ item: u }) => (
-            <View style={styles.userRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.userName}>{u.displayName ?? u.username}</Text>
-                <Text style={styles.userMeta}>@{u.username} · {u.role}</Text>
-              </View>
-              <View style={styles.roleBtns}>
-                <Pressable
-                  style={styles.roleMini}
-                  onPress={() => changeRole(u.id, u.username, "user")}
-                >
-                  <Text style={styles.roleMiniText}>User</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.roleMini}
-                  onPress={() => changeRole(u.id, u.username, "moderator")}
-                >
-                  <Text style={styles.roleMiniText}>Mod</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.roleMini}
-                  onPress={() => changeRole(u.id, u.username, "admin")}
-                >
-                  <Text style={styles.roleMiniText}>Admin</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <Text style={styles.emptySubtitle}>No users returned.</Text>
-          }
-        />
+    <FlatList
+      data={filteredUsers}
+      keyExtractor={(u) => String(u.id)}
+      style={{ flex: 1, backgroundColor: colors.cream }}
+      contentContainerStyle={[styles.list, { paddingBottom: botPad + 40 }]}
+      showsVerticalScrollIndicator={false}
+      ListHeaderComponent={
+        <View style={{ paddingTop: Platform.OS === "web" ? 20 : 8 }}>
+          <Text style={styles.sectionTitle}>Users & roles</Text>
+          <Text style={styles.usersHint}>
+            Admins can promote to moderator or admin, or demote with User (regular member).
+          </Text>
+          <View style={styles.searchRow}>
+            <Feather name="search" size={16} color={colors.muted} style={{ marginRight: 8 }} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search by username or display name…"
+              placeholderTextColor={colors.muted}
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch("")} style={{ padding: 4 }}>
+                <Feather name="x" size={16} color={colors.muted} />
+              </Pressable>
+            )}
+          </View>
+        </View>
+      }
+      renderItem={({ item: u }) => (
+        <View style={styles.userRow}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.userAvatarText}>
+              {(u.displayName ?? u.username)[0]?.toUpperCase() ?? "?"}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>{u.displayName ?? u.username}</Text>
+            <Text style={styles.userMeta}>
+              @{u.username} · <Text style={{ color: roleColor(u.role) }}>{u.role}</Text>
+            </Text>
+          </View>
+          <View style={styles.roleBtns}>
+            {(["user", "moderator", "admin"] as const).map((r) => (
+              <Pressable
+                key={r}
+                style={[styles.roleMini, u.role === r && styles.roleMiniActive]}
+                onPress={() => changeRole(u.id, u.username, r)}
+              >
+                <Text style={[styles.roleMiniText, u.role === r && styles.roleMiniTextActive]}>
+                  {r === "moderator" ? "Mod" : r.charAt(0).toUpperCase() + r.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
       )}
-      <View style={{ height: botPad + 24 }} />
-    </View>
+      ListEmptyComponent={
+        loading ? (
+          <ActivityIndicator color={colors.accent} style={styles.loader} />
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptySubtitle}>
+              {search ? "No users match your search." : "No users returned."}
+            </Text>
+          </View>
+        )
+      }
+    />
   );
 }
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { user, token } = useAuth();
   const isAdmin = user?.role === "admin";
   const isModerator = user?.role === "moderator" || isAdmin;
@@ -659,6 +703,27 @@ export default function AdminScreen() {
   const [usersOpen, setUsersOpen] = useState(false);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  useEffect(() => {
+    if (usersOpen) {
+      navigation.setOptions({
+        title: "Users & Roles",
+        headerLeft: () => (
+          <Pressable
+            onPress={() => setUsersOpen(false)}
+            style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+          >
+            <Feather name="arrow-left" size={22} color={colors.primary} />
+          </Pressable>
+        ),
+      });
+    } else {
+      navigation.setOptions({
+        title: "Admin",
+        headerLeft: undefined,
+      });
+    }
+  }, [usersOpen, navigation]);
 
   const pendingQ = useGetPendingPosts({});
   const { data: statsData } = useGetAdminStats({
@@ -691,9 +756,7 @@ export default function AdminScreen() {
   }
 
   if (isAdmin && usersOpen) {
-    return (
-      <UsersAdminPanel token={token} onBack={() => setUsersOpen(false)} botPad={botPad} />
-    );
+    return <UsersAdminPanel token={token} onBack={() => setUsersOpen(false)} botPad={botPad} />;
   }
 
   const stats = statsData as any;
@@ -1177,6 +1240,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.primary,
   },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.text,
+  },
   userRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1187,6 +1267,20 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  userAvatarText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+    color: colors.accent,
   },
   userName: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -1201,22 +1295,29 @@ const styles = StyleSheet.create({
   },
   roleBtns: {
     flexDirection: "row",
-    gap: 6,
+    gap: 4,
     flexWrap: "wrap",
-    maxWidth: 140,
+    maxWidth: 130,
     justifyContent: "flex-end",
   },
   roleMini: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
     borderRadius: 8,
     backgroundColor: colors.cream,
     borderWidth: 1,
     borderColor: colors.border,
   },
+  roleMiniActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   roleMiniText: {
     fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 11,
+    fontSize: 10,
     color: colors.primary,
+  },
+  roleMiniTextActive: {
+    color: colors.surface,
   },
 });
