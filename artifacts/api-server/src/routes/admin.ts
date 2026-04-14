@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, postsTable, usersTable, postPrayersTable, notificationsTable } from "@workspace/db";
+import { db, postsTable, usersTable, postPrayersTable, notificationsTable, commentsTable, savedPostsTable } from "@workspace/db";
 import { eq, ne, desc, sql, and, isNotNull, inArray, notLike } from "drizzle-orm";
 
 const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
@@ -30,11 +30,15 @@ const router: IRouter = Router();
 
 router.get("/admin/posts/pending", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "20", 10);
+  const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
+
+  let conditions: any = eq(postsTable.status, "pending");
+  if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
 
   const posts = await db
     .select()
     .from(postsTable)
-    .where(eq(postsTable.status, "pending"))
+    .where(conditions)
     .orderBy(postsTable.createdAt)
     .limit(limit + 1);
 
@@ -51,6 +55,7 @@ router.get("/admin/posts/pending", requireModeratorOrAdmin, async (req, res): Pr
 
 router.get("/admin/posts/moderated", requireAdmin, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "20", 10);
+  const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
 
   // Exclude posts authored by seed accounts
   const seedUserIds = await db
@@ -63,6 +68,7 @@ router.get("/admin/posts/moderated", requireAdmin, async (req, res): Promise<voi
   if (seedIds.length > 0) {
     condition = and(condition, sql`${postsTable.authorId} NOT IN (${sql.join(seedIds.map((id) => sql`${id}`), sql`, `)})`);
   }
+  if (cursor) condition = and(condition, sql`${postsTable.id} < ${cursor}`);
 
   const posts = await db
     .select()
@@ -89,7 +95,7 @@ router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req,
 
   const [post] = await db
     .update(postsTable)
-    .set({ status: "approved", moderatedByUserId: mod.id, moderationReason: null })
+    .set({ status: "approved", moderatedByUserId: mod.id, moderationReason: null, flagReason: null })
     .where(eq(postsTable.id, postId))
     .returning();
 
@@ -149,7 +155,10 @@ router.delete("/admin/posts/:postId/remove", requireAdmin, async (req, res): Pro
     return;
   }
 
+  await db.delete(commentsTable).where(eq(commentsTable.postId, postId));
   await db.delete(postPrayersTable).where(eq(postPrayersTable.postId, postId));
+  await db.delete(savedPostsTable).where(eq(savedPostsTable.postId, postId));
+  await db.delete(notificationsTable).where(eq(notificationsTable.postId, postId));
   await db.delete(postsTable).where(eq(postsTable.id, postId));
   res.json({ success: true, message: "Post removed" });
 });
@@ -243,11 +252,15 @@ router.post("/admin/users/:userId/role", requireAdmin, async (req, res): Promise
 
 router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
   const limit = Math.min(parseInt((req.query.limit as string) || "30", 10), 500);
+  const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
+
+  let userCondition: any = notLike(usersTable.email, `%${SEED_EMAIL_SUFFIX}`);
+  if (cursor) userCondition = and(userCondition, sql`${usersTable.id} < ${cursor}`);
 
   const users = await db
     .select()
     .from(usersTable)
-    .where(notLike(usersTable.email, `%${SEED_EMAIL_SUFFIX}`))
+    .where(userCondition)
     .orderBy(desc(usersTable.createdAt))
     .limit(limit + 1);
 

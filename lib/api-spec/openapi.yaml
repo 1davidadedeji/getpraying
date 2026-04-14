@@ -1350,7 +1350,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [prayer, system, category_new, reminder, post_approved, post_declined]
+          enum: [prayer, prayer_milestone, saved, system, category_new, reminder, post_approved, post_declined]
         message:
           type: string
         actorUsername:

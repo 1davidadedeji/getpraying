@@ -1,11 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Platform,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -20,9 +19,10 @@ import { getApiBaseUrl } from "@/lib/apiBase";
 
 const PAGE_SIZE = 20;
 
-export default function FeedScreen() {
+export default function CategoryFeedScreen() {
+  const { name } = useLocalSearchParams<{ name: string }>();
   const insets = useSafeAreaInsets();
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,20 +31,21 @@ export default function FeedScreen() {
   const [error, setError] = useState(false);
   const seenIds = useRef(new Set<number>());
 
-  const fetchPage = useCallback(
-    async (cursor?: number): Promise<{ posts: Post[]; nextCursor: number | null }> => {
-      const base = getApiBaseUrl();
-      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (cursor) params.set("cursor", String(cursor));
+  const categoryDisplay = name ? decodeURIComponent(name).replace(/^\w/, (c) => c.toUpperCase()) : "";
 
-      const res = await fetch(`${base}/api/posts?${params}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return { posts: [], nextCursor: null };
+  const fetchPage = useCallback(
+    async (cursor?: number) => {
+      const base = getApiBaseUrl();
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), category: name ?? "" });
+      if (cursor) params.set("cursor", String(cursor));
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${base}/api/posts?${params}`, { headers });
+      if (!res.ok) return { posts: [] as Post[], nextCursor: null };
       const data = await res.json();
-      return { posts: data.posts ?? [], nextCursor: data.nextCursor ?? null };
+      return { posts: (data.posts ?? []) as Post[], nextCursor: data.nextCursor ?? null };
     },
-    [token],
+    [token, name],
   );
 
   const loadInitial = useCallback(async () => {
@@ -63,7 +64,7 @@ export default function FeedScreen() {
   }, [fetchPage]);
 
   useEffect(() => {
-    loadInitial();
+    void loadInitial();
   }, [loadInitial]);
 
   const handleRefresh = useCallback(async () => {
@@ -73,9 +74,7 @@ export default function FeedScreen() {
       seenIds.current = new Set(result.posts.map((p) => p.id));
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
-    } catch {
-      /* keep current data */
-    } finally {
+    } catch { /* silent */ } finally {
       setRefreshing(false);
     }
   }, [fetchPage]);
@@ -89,43 +88,10 @@ export default function FeedScreen() {
       for (const p of fresh) seenIds.current.add(p.id);
       setPosts((prev) => [...prev, ...fresh]);
       setNextCursor(result.nextCursor);
-    } catch {
-      /* silently fail, user can scroll again */
-    } finally {
+    } catch { /* silent */ } finally {
       setLoadingMore(false);
     }
   }, [nextCursor, loadingMore, fetchPage]);
-
-  const handleUpdated = useCallback((updated: Post) => {
-    setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-  }, []);
-
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-
-  const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: topPad + 4 }]}>
-      <View style={styles.headerTextBlock}>
-        <Text style={styles.greeting}>
-          {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
-        </Text>
-        <Text style={styles.subGreeting}>Your prayer feed</Text>
-      </View>
-      {(user?.role === "admin" || user?.role === "moderator") && (
-        <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
-          <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
-        </Pressable>
-      )}
-    </View>
-  );
-
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator color={colors.flame} />
-      </View>
-    );
-  };
 
   if (loading) {
     return (
@@ -139,13 +105,20 @@ export default function FeedScreen() {
     <FlatList
       data={posts}
       keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => (
-        <PostCard post={item} onUpdated={handleUpdated} />
-      )}
-      numColumns={Platform.OS === "web" ? 2 : 1}
-      columnWrapperStyle={Platform.OS === "web" ? styles.columnWrap : undefined}
-      ListHeaderComponent={renderHeader}
-      ListFooterComponent={renderFooter}
+      renderItem={({ item }) => <PostCard post={item} />}
+      ListHeaderComponent={
+        <View style={styles.header}>
+          <Text style={styles.title}>{categoryDisplay}</Text>
+          <Text style={styles.subtitle}>Prayers in this category</Text>
+        </View>
+      }
+      ListFooterComponent={
+        loadingMore ? (
+          <View style={styles.footerLoader}>
+            <ActivityIndicator color={colors.flame} />
+          </View>
+        ) : null
+      }
       ListEmptyComponent={
         error ? (
           <View style={styles.emptyState}>
@@ -157,20 +130,13 @@ export default function FeedScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="flame-outline" size={48} color={colors.muted} />
             <Text style={styles.emptyTitle}>No prayers yet</Text>
-            <Text style={styles.emptySubtitle}>Be the first to share a prayer</Text>
+            <Text style={styles.emptySubtitle}>Be the first to share a prayer in this category</Text>
           </View>
         )
       }
-      contentContainerStyle={[
-        styles.list,
-        { paddingBottom: 100 },
-      ]}
+      contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
       refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={colors.flame}
-        />
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.flame} />
       }
       onEndReached={handleLoadMore}
       onEndReachedThreshold={0.4}
@@ -190,44 +156,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
     paddingHorizontal: 16,
   },
-  columnWrap: {
-    gap: 12,
-    justifyContent: "space-between",
-  },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
+    paddingTop: Platform.OS === "web" ? 20 : 8,
     paddingBottom: 16,
-    gap: 12,
   },
-  headerTextBlock: {
-    flex: 1,
-  },
-  greeting: {
+  title: {
     fontFamily: "NotoSerif_700Bold",
-    fontSize: 24,
+    fontSize: 22,
     color: colors.primary,
   },
-  subGreeting: {
+  subtitle: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
     color: colors.muted,
     marginTop: 2,
   },
-  adminBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
   emptyState: {
     alignItems: "center",
-    justifyContent: "center",
     paddingVertical: 60,
     gap: 10,
   },

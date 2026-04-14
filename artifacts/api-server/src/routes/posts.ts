@@ -16,10 +16,75 @@ router.post("/posts/suggest-category", requireAuth, async (req, res): Promise<vo
 
   try {
     const categories = await suggestCategories(content);
-    // Return both formats: primary category + full list
     res.json({ category: categories[0] ?? null, categories });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "Failed to suggest category" });
+  }
+});
+
+router.post("/posts/ai-rewrite", requireAuth, async (req, res): Promise<void> => {
+  const { content, tone } = req.body ?? {};
+  if (typeof content !== "string" || !content.trim()) {
+    res.status(400).json({ error: "Content is required" });
+    return;
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ error: "AI service not configured" });
+    return;
+  }
+
+  const toneInstruction = tone === "formal"
+    ? "Rewrite in a more formal, reverent tone."
+    : tone === "casual"
+      ? "Rewrite in a warm, casual conversational tone."
+      : tone === "poetic"
+        ? "Rewrite in a poetic, reflective style."
+        : "Rewrite with more clarity and emotional depth, keeping the same meaning.";
+
+  try {
+    const aiRes = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        input: [
+          {
+            role: "system",
+            content:
+              `You help people write prayer requests and praises for a Christian prayer app. ${toneInstruction} ` +
+              `Keep the output under 2000 characters. Do not add quotes or attribution. ` +
+              `Return ONLY the rewritten text, nothing else.`,
+          },
+          { role: "user", content: content.trim() },
+        ],
+        temperature: 0.7,
+        max_output_tokens: 600,
+      }),
+    });
+
+    if (!aiRes.ok) {
+      res.status(500).json({ error: "AI service is temporarily unavailable. Please try again." });
+      return;
+    }
+
+    const data: any = await aiRes.json();
+    const rewritten: string | undefined =
+      data?.output?.[0]?.content?.find?.((c: any) => c?.type === "output_text")?.text ??
+      data?.output_text;
+
+    if (!rewritten || typeof rewritten !== "string") {
+      res.status(500).json({ error: "AI returned empty response" });
+      return;
+    }
+
+    res.json({ rewritten: rewritten.trim() });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "AI rewrite failed" });
   }
 });
 
@@ -78,46 +143,108 @@ router.get("/posts/trending", optionalAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
-  const limit = parseInt((req.query.limit as string) || "20", 10);
+  const limit = Math.min(parseInt((req.query.limit as string) || "20", 10), 50);
   const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
   const category = req.query.category as string | undefined;
-  const personalize =
-    req.query.personalize === "true" || req.query.personalize === "1" || req.query.personalize === "yes";
   const currentUser = (req as any).user;
 
-  let conditions: any = eq(postsTable.status, "approved");
   if (category) {
-    conditions = and(conditions, eq(postsTable.category, category));
+    let conditions: any = and(eq(postsTable.status, "approved"), eq(postsTable.category, category));
+    if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
+
+    const posts = await db.select().from(postsTable).where(conditions)
+      .orderBy(desc(postsTable.createdAt)).limit(limit + 1);
+    const hasMore = posts.length > limit;
+    const page = posts.slice(0, limit);
+    const enriched = await enrichPosts(page, currentUser?.id);
+    res.json({ posts: enriched, nextCursor: hasMore ? page[page.length - 1]?.id : null, total: page.length });
+    return;
   }
 
-  if (
-    personalize &&
-    currentUser &&
-    Array.isArray(currentUser.preferredCategories) &&
-    currentUser.preferredCategories.length > 0
-  ) {
-    const prefs = currentUser.preferredCategories.filter((c: string) => typeof c === "string" && c.length > 0);
-    if (prefs.length > 0) {
-      conditions = and(conditions, inArray(postsTable.category, prefs));
+  // Engagement-based feed: prioritize categories the user has engaged with
+  // (saves weighted 3x, prayers weighted 1x), then preferred categories, then everything else.
+  // This ensures ALL posts appear — engaged categories first, then the rest.
+  let engagedCategories: string[] = [];
+  let preferredCategories: string[] = [];
+
+  if (currentUser) {
+    const savedCats = await db
+      .select({ category: postsTable.category })
+      .from(savedPostsTable)
+      .innerJoin(postsTable, eq(postsTable.id, savedPostsTable.postId))
+      .where(and(eq(savedPostsTable.userId, currentUser.id), sql`${postsTable.category} IS NOT NULL`))
+      .limit(100);
+
+    const prayedCats = await db
+      .select({ category: postsTable.category })
+      .from(postPrayersTable)
+      .innerJoin(postsTable, eq(postsTable.id, postPrayersTable.postId))
+      .where(and(eq(postPrayersTable.userId, currentUser.id), sql`${postsTable.category} IS NOT NULL`))
+      .limit(200);
+
+    const catScore = new Map<string, number>();
+    for (const r of savedCats) {
+      if (r.category) catScore.set(r.category, (catScore.get(r.category) ?? 0) + 3);
+    }
+    for (const r of prayedCats) {
+      if (r.category) catScore.set(r.category, (catScore.get(r.category) ?? 0) + 1);
+    }
+    engagedCategories = [...catScore.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat]) => cat);
+
+    if (Array.isArray(currentUser.preferredCategories)) {
+      preferredCategories = currentUser.preferredCategories
+        .filter((c: string) => typeof c === "string" && c.length > 0 && !engagedCategories.includes(c));
     }
   }
 
-  const posts = await db
-    .select()
-    .from(postsTable)
-    .where(conditions)
-    .orderBy(desc(postsTable.createdAt))
-    .limit(limit + 1);
+  const boostCategories = [...engagedCategories, ...preferredCategories];
+  const conditions: any = eq(postsTable.status, "approved");
 
-  const hasMore = posts.length > limit;
-  const page = posts.slice(0, limit);
-  const enriched = await enrichPosts(page, currentUser?.id);
+  let orderClause;
+  if (boostCategories.length > 0) {
+    const caseFragments = boostCategories
+      .map((cat, i) => `WHEN ${postsTable.category.name} = '${cat.replace(/'/g, "''")}' THEN ${i + 1}`)
+      .join(" ");
+    orderClause = sql`(CASE ${sql.raw(caseFragments)} ELSE ${boostCategories.length + 1} END) ASC, ${postsTable.createdAt} DESC`;
+  } else {
+    orderClause = desc(postsTable.createdAt);
+  }
 
-  res.json({
-    posts: enriched,
-    nextCursor: hasMore ? page[page.length - 1]?.id : null,
-    total: page.length,
-  });
+  if (boostCategories.length > 0) {
+    // Offset-based pagination for engagement-ranked feed (cursor = offset)
+    const offset = cursor ?? 0;
+    const posts = await db.select().from(postsTable).where(conditions)
+      .orderBy(orderClause).limit(limit + 1).offset(offset);
+
+    const hasMore = posts.length > limit;
+    const page = posts.slice(0, limit);
+    const enriched = await enrichPosts(page, currentUser?.id);
+
+    res.json({
+      posts: enriched,
+      nextCursor: hasMore ? offset + limit : null,
+      total: page.length,
+    });
+  } else {
+    // ID-based cursor pagination for simple chronological feed
+    let chronoConditions = conditions;
+    if (cursor) chronoConditions = and(chronoConditions, sql`${postsTable.id} < ${cursor}`);
+
+    const posts = await db.select().from(postsTable).where(chronoConditions)
+      .orderBy(orderClause).limit(limit + 1);
+
+    const hasMore = posts.length > limit;
+    const page = posts.slice(0, limit);
+    const enriched = await enrichPosts(page, currentUser?.id);
+
+    res.json({
+      posts: enriched,
+      nextCursor: hasMore ? page[page.length - 1]?.id : null,
+      total: page.length,
+    });
+  }
 });
 
 router.post("/posts", requireAuth, async (req, res): Promise<void> => {
@@ -125,6 +252,10 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const { content, mediaUrl, mediaType, category, isAnonymous } = req.body;
 
   const contentTrimmed = typeof content === "string" ? content.trim() : "";
+  if (contentTrimmed.length > 5000) {
+    res.status(400).json({ error: "Content must be under 5000 characters." });
+    return;
+  }
   const mediaUrlStr = typeof mediaUrl === "string" ? mediaUrl.trim() : "";
   const hasMedia = mediaUrlStr.length > 0;
 
@@ -172,7 +303,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
       mediaType: storedMediaType,
       category: detectedCategory,
       isAnonymous: isAnonymous ?? false,
-      status: "pending",
+      status: isStaff ? "approved" : "pending",
       authorId: user.id,
     })
     .returning();
@@ -198,8 +329,51 @@ router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const isAuthor = currentUser && post.authorId === currentUser.id;
+  const isStaff = currentUser && (currentUser.role === "admin" || currentUser.role === "moderator");
+  if (post.status !== "approved" && !isAuthor && !isStaff) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
   const enriched = await enrichPost(post, currentUser?.id);
   res.json(enriched);
+});
+
+router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(rawId, 10);
+  if (Number.isNaN(postId)) {
+    res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const rawReason = (req.body ?? {}).reason;
+  if (typeof rawReason !== "string" || !rawReason.trim()) {
+    res.status(400).json({ error: "Reason is required" });
+    return;
+  }
+  const reason = rawReason.trim();
+
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
+  if (!post) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
+  const currentUser = (req as any).user;
+  if (post.authorId === currentUser.id) {
+    res.status(400).json({ error: "You cannot flag your own post" });
+    return;
+  }
+  if (post.flagReason) {
+    res.status(400).json({ error: "This post has already been reported" });
+    return;
+  }
+
+  await db.update(postsTable).set({ flagReason: reason, status: "pending" }).where(eq(postsTable.id, postId));
+
+  res.json({ success: true, message: "Post reported" });
 });
 
 router.get("/posts/:postId/comments", optionalAuth, async (req, res): Promise<void> => {
@@ -242,6 +416,10 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
     res.status(400).json({ error: "Content is required" });
     return;
   }
+  if (content.length > 2000) {
+    res.status(400).json({ error: "Comment must be under 2000 characters." });
+    return;
+  }
 
   const [created] = await db
     .insert(commentsTable)
@@ -282,6 +460,10 @@ router.delete("/posts/:postId", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
+  await db.delete(commentsTable).where(eq(commentsTable.postId, postId));
+  await db.delete(postPrayersTable).where(eq(postPrayersTable.postId, postId));
+  await db.delete(savedPostsTable).where(eq(savedPostsTable.postId, postId));
+  await db.delete(notificationsTable).where(eq(notificationsTable.postId, postId));
   await db.delete(postsTable).where(eq(postsTable.id, postId));
   res.json({ success: true, message: "Post deleted" });
 });
@@ -300,6 +482,11 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
+  if (post.status !== "approved") {
+    res.status(403).json({ error: "This post is not available for interaction" });
+    return;
+  }
+
   const existing = await db
     .select()
     .from(postPrayersTable)
@@ -312,7 +499,7 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
       .where(and(eq(postPrayersTable.postId, postId), eq(postPrayersTable.userId, user.id)));
     const [updated] = await db
       .update(postsTable)
-      .set({ prayCount: sql`${postsTable.prayCount} - 1` })
+      .set({ prayCount: sql`GREATEST(${postsTable.prayCount} - 1, 0)` })
       .where(eq(postsTable.id, postId))
       .returning();
     res.json({ prayCount: updated.prayCount, hasPrayed: false });
@@ -370,6 +557,11 @@ router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
+  if (post.status !== "approved") {
+    res.status(403).json({ error: "This post is not available for interaction" });
+    return;
+  }
+
   const existing = await db
     .select()
     .from(savedPostsTable)
@@ -403,14 +595,21 @@ router.delete("/posts/:postId/save", requireAuth, async (req, res): Promise<void
   const postId = parseInt(rawId, 10);
   const user = (req as any).user;
 
-  await db
-    .delete(savedPostsTable)
+  const existing = await db
+    .select()
+    .from(savedPostsTable)
     .where(and(eq(savedPostsTable.postId, postId), eq(savedPostsTable.userId, user.id)));
 
-  await db
-    .update(usersTable)
-    .set({ savedScrolls: sql`${usersTable.savedScrolls} - 1` })
-    .where(eq(usersTable.id, user.id));
+  if (existing.length > 0) {
+    await db
+      .delete(savedPostsTable)
+      .where(and(eq(savedPostsTable.postId, postId), eq(savedPostsTable.userId, user.id)));
+
+    await db
+      .update(usersTable)
+      .set({ savedScrolls: sql`GREATEST(${usersTable.savedScrolls} - 1, 0)` })
+      .where(eq(usersTable.id, user.id));
+  }
 
   res.json({ success: true, message: "Post unsaved" });
 });

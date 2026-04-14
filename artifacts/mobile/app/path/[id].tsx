@@ -48,35 +48,35 @@ export default function PathDetailScreen() {
         <View style={styles.heroIcon}>
           <Feather name="compass" size={32} color={colors.surface} />
         </View>
-        <Text style={styles.heroTitle}>{path.title}</Text>
+        <Text style={styles.heroTitle}>{path.name}</Text>
         {path.description && (
           <Text style={styles.heroDesc}>{path.description}</Text>
         )}
         <View style={styles.heroMeta}>
           <Ionicons name="book-outline" size={16} color={colors.accent} />
           <Text style={styles.heroMetaText}>
-            {path.prayers?.length ?? 0} prayers in this path
+            {path.officialPrayers?.length ?? 0} prayers in this path
           </Text>
         </View>
       </View>
 
       <View style={styles.prayersSection}>
         <Text style={styles.sectionTitle}>Prayers in this Path</Text>
-        {(path.prayers ?? []).map((prayer: any, idx: number) => (
+        {(path.officialPrayers ?? []).map((prayer: any, idx: number) => (
           <View key={prayer.id} style={styles.prayerItem}>
             <View style={styles.prayerNumber}>
               <Text style={styles.prayerNumberText}>{idx + 1}</Text>
             </View>
             <View style={styles.prayerContent}>
               <Text style={styles.prayerTitle}>{prayer.title}</Text>
-              {prayer.author && (
-                <Text style={styles.prayerAuthor}>— {prayer.author}</Text>
+              {prayer.subtitle && (
+                <Text style={styles.prayerAuthor}>— {prayer.subtitle}</Text>
               )}
-              <Text style={styles.prayerBody}>{prayer.body}</Text>
+              <Text style={styles.prayerBody}>{prayer.content}</Text>
             </View>
           </View>
         ))}
-        {(path.prayers ?? []).length === 0 && (
+        {(path.officialPrayers ?? []).length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="book-outline" size={36} color={colors.muted} />
             <Text style={styles.emptyText}>No prayers added to this path yet</Text>

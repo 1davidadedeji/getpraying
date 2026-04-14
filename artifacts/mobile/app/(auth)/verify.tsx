@@ -117,7 +117,7 @@ export default function VerifyScreen() {
         onSuccess: () => {
           const newCount = resendCount + 1;
           setResendCount(newCount);
-          startCooldown(resendCount);
+          startCooldown(newCount);
           showAppAlert({
             title: "Code sent",
             message: "Check your inbox for a new verification code.",

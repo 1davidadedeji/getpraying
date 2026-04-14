@@ -155,12 +155,12 @@ router.get("/library/categories", optionalAuth, async (req, res): Promise<void> 
     { name: "Mental Health", icon: "brain" },
   ];
 
-  const countMap = new Map(categoryRows.map((r) => [r.category, Number(r.count)]));
+  const countMap = new Map(categoryRows.map((r) => [(r.category ?? "").toLowerCase(), Number(r.count)]));
 
   res.json(
     categories.map((c) => ({
       name: c.name,
-      count: countMap.get(c.name) ?? 0,
+      count: countMap.get(c.name.toLowerCase()) ?? 0,
       icon: c.icon,
     }))
   );

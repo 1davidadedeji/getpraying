@@ -1,5 +1,5 @@
 import { db, postsTable, usersTable, postPrayersTable, savedPostsTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 export type PostWithMeta = {
   id: number;
@@ -31,23 +31,19 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
   let isSaved = false;
 
   if (userId) {
-    const [prayed] = await db
+    const [prayedRow] = await db
       .select()
       .from(postPrayersTable)
-      .where(eq(postPrayersTable.postId, post.id))
+      .where(and(eq(postPrayersTable.postId, post.id), eq(postPrayersTable.userId, userId)))
       .limit(1);
-    // filter by userId within drizzle
-    const prayedRows = await db
-      .select()
-      .from(postPrayersTable)
-      .where(eq(postPrayersTable.postId, post.id));
-    hasPrayed = prayedRows.some((r) => r.userId === userId);
+    hasPrayed = !!prayedRow;
 
-    const savedRows = await db
+    const [savedRow] = await db
       .select()
       .from(savedPostsTable)
-      .where(eq(savedPostsTable.postId, post.id));
-    isSaved = savedRows.some((r) => r.userId === userId);
+      .where(and(eq(savedPostsTable.postId, post.id), eq(savedPostsTable.userId, userId)))
+      .limit(1);
+    isSaved = !!savedRow;
   }
 
   return {
@@ -86,17 +82,13 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
     const prayedRows = await db
       .select()
       .from(postPrayersTable)
-      .where(inArray(postPrayersTable.postId, postIds));
-    for (const r of prayedRows) {
-      if (r.userId === userId) prayedSet.add(r.postId);
-    }
+      .where(and(inArray(postPrayersTable.postId, postIds), eq(postPrayersTable.userId, userId)));
+    for (const r of prayedRows) prayedSet.add(r.postId);
     const savedRows = await db
       .select()
       .from(savedPostsTable)
-      .where(inArray(savedPostsTable.postId, postIds));
-    for (const r of savedRows) {
-      if (r.userId === userId) savedSet.add(r.postId);
-    }
+      .where(and(inArray(savedPostsTable.postId, postIds), eq(savedPostsTable.userId, userId)));
+    for (const r of savedRows) savedSet.add(r.postId);
   }
 
   return posts.map((post) => {

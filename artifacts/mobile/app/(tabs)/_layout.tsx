@@ -9,6 +9,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useColorSchem
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useRevenueCat } from "@/context/revenuecat";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 72 : Platform.OS === "ios" ? 52 : 58;
 
@@ -175,6 +176,7 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { user, loading } = useAuth();
+  const rc = useRevenueCat();
 
   if (loading) {
     return (
@@ -190,15 +192,14 @@ export default function TabLayout() {
   if (!user.isEmailVerified) {
     return <Redirect href={"/(auth)/verify" as Href} />;
   }
-  // TODO: Re-enable RevenueCat for final milestone — restore paywall redirect for expired trial without entitlement
-  // if (user.role !== "admin" && user.role !== "moderator") {
-  //   const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
-  //   const trialExpired =
-  //     startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
-  //   if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-  //     return <Redirect href={"/(paywall)" as any} />;
-  //   }
-  // }
+  if (user.role !== "admin" && user.role !== "moderator") {
+    const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
+    const trialExpired =
+      startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+    if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
+      return <Redirect href={"/(paywall)" as any} />;
+    }
+  }
 
   // NativeTabs + SF Symbol icons are iOS-only; never use on Android (can crash release builds).
   if (Platform.OS === "ios" && isLiquidGlassAvailable()) {

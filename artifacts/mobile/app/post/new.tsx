@@ -133,6 +133,38 @@ export default function NewPostScreen() {
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
 
+  const [aiRewriting, setAiRewriting] = useState(false);
+
+  const handleAiRewrite = async (tone?: string) => {
+    const trimmed = content.trim();
+    if (trimmed.length < 10 || !token) return;
+    setAiRewriting(true);
+    try {
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/posts/ai-rewrite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content: trimmed, tone }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.rewritten) {
+        setContent(data.rewritten);
+      } else {
+        showAppAlert({
+          title: "AI rewrite failed",
+          message: data?.error ?? "Please try again.",
+        });
+      }
+    } catch {
+      showAppAlert({ title: "AI rewrite failed", message: "Check your connection and try again." });
+    } finally {
+      setAiRewriting(false);
+    }
+  };
+
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   React.useEffect(() => {
@@ -429,6 +461,49 @@ export default function NewPostScreen() {
         />
         <Text style={styles.charCount}>{content.length}/2000</Text>
       </View>
+
+      {content.trim().length >= 10 && (
+        <View style={styles.aiRewriteSection}>
+          <Text style={styles.aiRewriteLabel}>Refine with AI</Text>
+          <View style={styles.aiRewriteRow}>
+            <Pressable
+              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
+              onPress={() => void handleAiRewrite()}
+              disabled={aiRewriting}
+            >
+              {aiRewriting ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <>
+                  <Ionicons name="sparkles" size={16} color={colors.accent} />
+                  <Text style={styles.aiRewriteBtnText}>Enhance</Text>
+                </>
+              )}
+            </Pressable>
+            <Pressable
+              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
+              onPress={() => void handleAiRewrite("formal")}
+              disabled={aiRewriting}
+            >
+              <Text style={styles.aiRewriteBtnText}>Formal</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
+              onPress={() => void handleAiRewrite("casual")}
+              disabled={aiRewriting}
+            >
+              <Text style={styles.aiRewriteBtnText}>Casual</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
+              onPress={() => void handleAiRewrite("poetic")}
+              disabled={aiRewriting}
+            >
+              <Text style={styles.aiRewriteBtnText}>Poetic</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       <View style={styles.imageSection}>
         <Text style={styles.sectionLabel}>
@@ -849,5 +924,37 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.surface,
+  },
+  aiRewriteSection: {
+    gap: 8,
+  },
+  aiRewriteLabel: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  aiRewriteRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  aiRewriteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 50,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  aiRewriteBtnDisabled: {
+    opacity: 0.5,
+  },
+  aiRewriteBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.accent,
   },
 });

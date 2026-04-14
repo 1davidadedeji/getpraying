@@ -32,19 +32,33 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     (async () => {
-      // TODO: Re-enable RevenueCat for final milestone — restore SDK initialization below; remove bypass flags.
-      setEnabled(false);
-      setIsReady(true);
-      return;
-
-      /* Original RevenueCat init (preserved) — use EXPO_PUBLIC_RC_* keys + getPurchases() then configure.
       try {
-        const apiKey = ...;
+        const { Platform } = require("react-native");
+        const iosKey = process.env.EXPO_PUBLIC_RC_IOS_KEY ?? "";
+        const androidKey = process.env.EXPO_PUBLIC_RC_ANDROID_KEY ?? "";
+        const apiKey = Platform.OS === "ios" ? iosKey : androidKey;
+
+        if (!apiKey) {
+          setEnabled(false);
+          setIsReady(true);
+          return;
+        }
+
         const Purchases = getPurchases();
         await Purchases.configure({ apiKey });
-        ...
-      } catch { } finally { setIsReady(true); }
-      */
+        setEnabled(true);
+
+        const [o, info] = await Promise.all([
+          Purchases.getOfferings(),
+          Purchases.getCustomerInfo(),
+        ]);
+        setOfferings(o);
+        setCustomerInfo(info);
+      } catch {
+        setEnabled(false);
+      } finally {
+        setIsReady(true);
+      }
     })();
   }, []);
 
@@ -73,19 +87,22 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     setCustomerInfo(info);
   };
 
+  const isEntitled = enabled
+    ? Object.keys(customerInfo?.entitlements?.active ?? {}).length > 0
+    : false;
+
   const value: RevenueCatState = useMemo(
     () => ({
       enabled,
       isReady,
       offerings,
       customerInfo,
-      // TODO: Re-enable RevenueCat for final milestone — restore: computeEntitled(customerInfo)
-      isEntitled: true,
+      isEntitled,
       refresh,
       purchasePackage,
       restore,
     }),
-    [enabled, isReady, offerings, customerInfo],
+    [enabled, isReady, offerings, customerInfo, isEntitled],
   );
 
   return <RevenueCatContext.Provider value={value}>{children}</RevenueCatContext.Provider>;
@@ -99,8 +116,7 @@ export function useRevenueCat(): RevenueCatState {
       isReady: true,
       offerings: null,
       customerInfo: null,
-      // TODO: Re-enable RevenueCat for final milestone — restore: isEntitled: false
-      isEntitled: true,
+      isEntitled: false,
       refresh: async () => {},
       purchasePackage: async () => {
         throw new Error("RevenueCatProvider missing");

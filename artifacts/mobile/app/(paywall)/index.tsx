@@ -1,4 +1,3 @@
-import { Redirect } from "expo-router";
 import React, { useMemo } from "react";
 import {
   ActivityIndicator,
@@ -10,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PurchasesPackage } from "react-native-purchases";
+import { router } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -20,12 +20,7 @@ function pickPackages(pkgs: PurchasesPackage[]): { monthly?: PurchasesPackage; a
   return { monthly, annual };
 }
 
-// TODO: Re-enable RevenueCat for final milestone — use PaywallScreenContent as the default export instead of Redirect.
 export default function PaywallScreen() {
-  return <Redirect href="/(tabs)" />;
-}
-
-function PaywallScreenContent() {
   const insets = useSafeAreaInsets();
   const rc = useRevenueCat();
 
@@ -42,6 +37,7 @@ function PaywallScreenContent() {
       showAppAlert({
         title: "Subscribed",
         message: "Thank you. Your subscription is now active.",
+        buttons: [{ text: "Continue", onPress: () => router.replace("/(tabs)") }],
       });
     } catch (e: any) {
       const msg = e?.message ?? "Purchase cancelled or failed.";
@@ -52,7 +48,15 @@ function PaywallScreenContent() {
   const onRestore = async () => {
     try {
       await rc.restore();
-      showAppAlert({ title: "Restored", message: "Your purchases have been restored." });
+      if (rc.isEntitled) {
+        showAppAlert({
+          title: "Restored",
+          message: "Your purchases have been restored.",
+          buttons: [{ text: "Continue", onPress: () => router.replace("/(tabs)") }],
+        });
+      } else {
+        showAppAlert({ title: "No active subscription", message: "No previous purchases found. Please subscribe to continue." });
+      }
     } catch (e: any) {
       showAppAlert({ title: "Restore failed", message: e?.message ?? "Please try again." });
     }

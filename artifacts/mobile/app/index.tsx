@@ -14,11 +14,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useRevenueCat } from "@/context/revenuecat";
 import { formatLocalYMD } from "@/lib/date";
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { user, loading } = useAuth();
+  const rc = useRevenueCat();
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
   const { data: dailyWord } = useGetDailyWord(
     { date: todayYmd },
@@ -48,15 +50,13 @@ export default function WelcomeScreen() {
         return;
       }
 
-      // TODO: Re-enable RevenueCat for final milestone — restore trial + entitlement paywall gate
-      // c) trial + RevenueCat entitlement gate (users only)
-      // const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
-      // const trialExpired =
-      //   startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
-      // if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-      //   router.replace("/(paywall)" as any);
-      //   return;
-      // }
+      const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
+      const trialExpired =
+        startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+      if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
+        router.replace("/(paywall)" as any);
+        return;
+      }
 
       if (!user.onboardingComplete) {
         router.replace("/onboarding");

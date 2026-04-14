@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, postsTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { optionalAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 
@@ -43,10 +43,14 @@ router.get("/users/:username/posts", optionalAuth, async (req, res): Promise<voi
     return;
   }
 
-  const conditions = and(
+  let conditions: any = and(
     eq(postsTable.authorId, user.id),
-    eq(postsTable.status, "approved")
+    eq(postsTable.status, "approved"),
   );
+
+  if (cursor) {
+    conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
+  }
 
   const posts = await db
     .select()

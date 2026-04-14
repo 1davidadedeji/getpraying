@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, notificationsTable, usersTable, postsTable } from "@workspace/db";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -60,6 +60,23 @@ router.post("/notifications/read", requireAuth, async (req, res): Promise<void> 
     .where(eq(notificationsTable.userId, user.id));
 
   res.json({ success: true, message: "Notifications marked as read" });
+});
+
+router.post("/notifications/:notificationId/read", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user;
+  const rawId = Array.isArray(req.params.notificationId) ? req.params.notificationId[0] : req.params.notificationId;
+  const notificationId = parseInt(rawId, 10);
+  if (Number.isNaN(notificationId)) {
+    res.status(400).json({ error: "Invalid notification id" });
+    return;
+  }
+
+  await db
+    .update(notificationsTable)
+    .set({ isRead: true })
+    .where(and(eq(notificationsTable.id, notificationId), eq(notificationsTable.userId, user.id)));
+
+  res.json({ success: true });
 });
 
 export default router;

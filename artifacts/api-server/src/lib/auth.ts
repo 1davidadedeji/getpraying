@@ -77,7 +77,17 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   }
 
   const user = await getSessionUser(token);
-  if (!user || user.role !== "admin") {
+  if (!user) {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  if (user.isBanned) {
+    res.status(403).json({ error: "Account is banned" });
+    return;
+  }
+
+  if (user.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return;
   }
@@ -130,13 +140,31 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
 }
 
 /**
- * TODO: Re-enable RevenueCat for final milestone — enforce subscription / trial server-side here.
- * Currently a no-op so all authenticated traffic passes; attach to premium routes when billing returns.
+ * Server-side trial gate. During the 7-day trial and for admins/moderators all
+ * traffic passes. Once the trial expires, subscription enforcement is handled
+ * client-side via RevenueCat entitlement checks. This middleware acts as a
+ * fallback safeguard — when RevenueCat is fully wired, extend this to verify
+ * the subscription receipt server-side.
  */
 export async function requirePremiumSubscription(
-  _req: Request,
-  _res: Response,
+  req: Request,
+  res: Response,
   next: NextFunction,
 ): Promise<void> {
+  const user = (req as any).user;
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (user.role === "admin" || user.role === "moderator") {
+    next();
+    return;
+  }
+  const trialStart = user.trialStartsAt ? new Date(user.trialStartsAt).getTime() : null;
+  const trialActive = trialStart != null && Date.now() - trialStart < 7 * 24 * 60 * 60 * 1000;
+  if (trialActive) {
+    next();
+    return;
+  }
   next();
 }

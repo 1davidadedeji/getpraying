@@ -5,6 +5,8 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import type { Request, Response, NextFunction } from "express";
 import { requireAuth, requireModeratorOrAdmin } from "../lib/auth";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
@@ -51,7 +53,7 @@ const uploadAudio = multer({
 });
 
 function handleMulterError(
-  upload: ReturnType<typeof multer.single>,
+  upload: ReturnType<multer.Multer["single"]>,
   req: Request,
   res: Response,
   next: NextFunction,
@@ -92,6 +94,37 @@ router.post(
     await writeFile(path.join(dir, filename), file.buffer);
 
     res.status(201).json({ url: `/api/static/uploads/${filename}`, mediaType: "image" });
+  },
+);
+
+router.post(
+  "/uploads/avatar",
+  requireAuth,
+  (req, res, next) => handleMulterError(uploadImage.single("file"), req, res, next),
+  async (req, res): Promise<void> => {
+    const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
+    if (!file?.buffer?.length) {
+      res.status(400).json({ error: "No image file provided" });
+      return;
+    }
+
+    const dir = getUploadDir();
+    await mkdir(dir, { recursive: true });
+
+    const ext =
+      file.mimetype === "image/png"
+        ? "png"
+        : file.mimetype === "image/webp"
+          ? "webp"
+          : "jpg";
+    const filename = `avatar-${randomUUID()}.${ext}`;
+    await writeFile(path.join(dir, filename), file.buffer);
+
+    const avatarUrl = `/api/static/uploads/${filename}`;
+    const user = (req as any).user;
+    await db.update(usersTable).set({ avatarUrl }).where(eq(usersTable.id, user.id));
+
+    res.status(201).json({ avatarUrl });
   },
 );
 

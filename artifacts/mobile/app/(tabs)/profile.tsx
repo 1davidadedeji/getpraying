@@ -1,20 +1,26 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
+  Image,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import type { Post } from "@workspace/api-client-react";
+import PostCard from "@/components/PostCard";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { getApiBaseUrl } from "@/lib/apiBase";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
@@ -27,7 +33,38 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser, token } = useAuth();
+  const [myPosts, setMyPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+
+  const { data: freshUser } = useGetMe({
+    query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
+  });
+
+  useEffect(() => {
+    if (freshUser) refreshUser(freshUser as any);
+  }, [freshUser]);
+
+  const loadMyPosts = useCallback(async () => {
+    if (!user?.username || !token) return;
+    setLoadingPosts(true);
+    try {
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/users/${user.username}/posts?limit=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyPosts(data.posts ?? []);
+      }
+    } catch { /* silent */ } finally {
+      setLoadingPosts(false);
+    }
+  }, [user?.username, token]);
+
+  useEffect(() => {
+    void loadMyPosts();
+  }, [loadMyPosts]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -35,7 +72,7 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     showAppAlert({
       title: "Sign out",
-      message: "You’ll need to sign in again to view your feed.",
+      message: "You'll need to sign in again to view your feed.",
       buttons: [
         { text: "Cancel", style: "cancel" },
         {
@@ -65,20 +102,17 @@ export default function ProfileScreen() {
   const initials = displayName.slice(0, 2).toUpperCase();
   const joinYear = new Date(user.createdAt).getFullYear();
 
-  return (
-    <ScrollView
-      style={styles.flex}
-      contentContainerStyle={[
-        styles.container,
-        { paddingTop: topPad + 8, paddingBottom: botPad + 60 },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
+  const profileHeader = (
+    <View style={[styles.headerContainer, { paddingTop: topPad + 8 }]}>
       <View style={styles.profileHero}>
         <View style={styles.avatarRing}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          {user.avatarUrl ? (
+            <Image source={{ uri: resolveMediaUrl(user.avatarUrl)! }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
         </View>
         <Text style={styles.displayName}>{displayName}</Text>
         <Text style={styles.username}>@{user.username}</Text>
@@ -89,7 +123,7 @@ export default function ProfileScreen() {
       <View style={styles.statsRow}>
         <StatCard label="Prayers Shared" value={user.prayersShared} />
         <StatCard label="Prayed For" value={user.prayedFor} />
-        <StatCard label="Saved" value={user.savedScrolls} />
+        <StatCard label="Saved Scrolls" value={user.savedScrolls} />
       </View>
 
       {user.preferredCategories.length > 0 && (
@@ -132,16 +166,49 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </View>
-    </ScrollView>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>My Prayer History</Text>
+        {loadingPosts && (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 12 }} />
+        )}
+      </View>
+    </View>
+  );
+
+  return (
+    <FlatList
+      data={loadingPosts ? [] : myPosts}
+      keyExtractor={(item) => String(item.id)}
+      renderItem={({ item }) => (
+        <View style={{ paddingHorizontal: 20 }}>
+          <PostCard post={item} />
+        </View>
+      )}
+      ListHeaderComponent={profileHeader}
+      ListEmptyComponent={
+        !loadingPosts ? (
+          <View style={styles.emptyHistory}>
+            <Ionicons name="flame-outline" size={36} color={colors.muted} />
+            <Text style={styles.emptyHistoryText}>No prayers shared yet</Text>
+            <Text style={styles.emptyHistorySubtext}>Your shared prayers will appear here</Text>
+          </View>
+        ) : null
+      }
+      contentContainerStyle={{ paddingBottom: botPad + 100 }}
+      style={styles.flex}
+      showsVerticalScrollIndicator={false}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
-  container: {
+  headerContainer: {
     paddingHorizontal: 20,
     gap: 24,
+    paddingBottom: 8,
   },
   profileHero: {
     alignItems: "center",
@@ -267,5 +334,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     flex: 1,
+  },
+  emptyHistory: {
+    alignItems: "center",
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyHistoryText: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 16,
+    color: colors.primary,
+  },
+  emptyHistorySubtext: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.muted,
   },
 });

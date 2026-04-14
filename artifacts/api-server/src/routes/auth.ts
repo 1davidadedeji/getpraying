@@ -87,7 +87,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  const [existingEmail] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+  const [existingEmail] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
   if (existingEmail) {
     res.status(400).json({ error: "Email already registered" });
     return;
@@ -111,7 +113,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const [user] = await db
     .insert(usersTable)
     .values({
-      email,
+      email: normalizedEmail,
       username,
       displayName: finalDisplayName,
       passwordHash,
@@ -125,7 +127,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     })
     .returning();
 
-  await sendVerificationEmail({ to: email, otp, expiresAt });
+  await sendVerificationEmail({ to: normalizedEmail, otp, expiresAt });
 
   const token = await createSession(user.id);
   res.cookie("session", token, {
@@ -254,7 +256,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
   if (!user) {
     res.status(401).json({ error: "Invalid credentials" });
     return;

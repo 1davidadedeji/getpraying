@@ -11,6 +11,8 @@ export type NotificationType =
 
 export const NotificationType = {
   prayer: "prayer",
+  prayer_milestone: "prayer_milestone",
+  saved: "saved",
   system: "system",
   category_new: "category_new",
   reminder: "reminder",

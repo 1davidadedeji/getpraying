@@ -1,16 +1,18 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  FlatList,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,11 +23,29 @@ import {
   useUnsavePost,
 } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
-import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
+import { showAppAlert } from "@/components/AppAlert";
+import { useAuth } from "@/context/auth";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
 const ENGAGE_ICON = 24;
+
+type CommentRow = {
+  id: number;
+  postId: number;
+  authorId: number;
+  content: string;
+  createdAt: string;
+  authorUsername: string | null;
+  authorDisplayName: string | null;
+};
+
+function buildFetchHeaders(token: string | null, extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { ...extra };
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -39,9 +59,16 @@ function timeAgo(dateStr: string): string {
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const postId = Number(id);
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
+  const base = getApiBaseUrl();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<Post | null>(null);
+  const [comments, setComments] = useState<CommentRow[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   const { data, isLoading } = useGetPost(Number(id));
 
@@ -56,6 +83,32 @@ export default function PostDetailScreen() {
   const { mutate: unsave } = useUnsavePost();
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const actionBarHeight = 12 + 48 + botPad + 12;
+  const listBottomPad = actionBarHeight + 24;
+
+  const loadComments = useCallback(async () => {
+    if (!post?.id) return;
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(`${base}/api/posts/${post.id}/comments`, {
+        headers: buildFetchHeaders(token),
+      });
+      if (!res.ok) {
+        setComments([]);
+        return;
+      }
+      const dataJson = await res.json();
+      setComments((dataJson.comments ?? []) as CommentRow[]);
+    } catch {
+      setComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [base, post?.id, token]);
+
+  useEffect(() => {
+    if (post?.id) void loadComments();
+  }, [post?.id, loadComments]);
 
   const handlePray = () => {
     if (!post) return;
@@ -107,6 +160,88 @@ export default function PostDetailScreen() {
       // silently ignore user cancellation
     }
   };
+
+  const handleReportFlag = () => {
+    if (!post) return;
+    Haptics.selectionAsync();
+    showAppAlert({
+      title: "Report this prayer?",
+      message: "Our team will review this content.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await fetch(`${base}/api/posts/${post.id}/flag`, {
+                method: "POST",
+                headers: buildFetchHeaders(token, { "Content-Type": "application/json" }),
+                body: JSON.stringify({ reason: "inappropriate" }),
+              });
+              if (res.ok) {
+                showAppAlert({ title: "Report submitted", message: "Thank you for helping keep the community safe." });
+              } else {
+                const err = await res.json().catch(() => ({}));
+                showAppAlert({
+                  title: "Could not submit report",
+                  message: typeof (err as any).error === "string" ? (err as any).error : "Please try again later.",
+                });
+              }
+            } catch {
+              showAppAlert({ title: "Could not submit report", message: "Check your connection and try again." });
+            }
+          },
+        },
+      ],
+    });
+  };
+
+  const submitComment = async () => {
+    if (!post || !commentDraft.trim()) return;
+    if (!token) {
+      showAppAlert({ title: "Sign in required", message: "Please sign in to leave a comment." });
+      return;
+    }
+    setCommentSubmitting(true);
+    try {
+      const res = await fetch(`${base}/api/posts/${post.id}/comments`, {
+        method: "POST",
+        headers: buildFetchHeaders(token, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ content: commentDraft.trim() }),
+      });
+      if (res.status === 401) {
+        showAppAlert({ title: "Sign in required", message: "Please sign in to leave a comment." });
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showAppAlert({
+          title: "Comment failed",
+          message: typeof (err as any).error === "string" ? (err as any).error : "Please try again.",
+        });
+        return;
+      }
+      const dataJson = await res.json();
+      const created = dataJson.comment as CommentRow | undefined;
+      if (created) setComments((prev) => [...prev, created]);
+      setCommentDraft("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      showAppAlert({ title: "Comment failed", message: "Check your connection and try again." });
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  if (Number.isNaN(postId)) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.emptyComments}>Invalid prayer link</Text>
+      </View>
+    );
+  }
+
   if (isLoading || !post) {
     return (
       <View style={styles.centered}>
@@ -119,36 +254,18 @@ export default function PostDetailScreen() {
     ? "Anonymous"
     : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
 
-  const comments = (commentsQuery.data as any)?.comments ?? [];
-
-  const submitComment = () => {
-    const content = commentDraft.trim();
-    if (!content) return;
-    createComment.mutate(
-      { postId: Number(id), data: { content } },
-      {
-        onSuccess: () => {
-          setCommentDraft("");
-          commentsQuery.refetch();
-        },
-        onError: (err: any) => {
-          showAppAlert({
-            title: "Could not post comment",
-            message: err?.data?.error ?? err?.message ?? "Try again.",
-          });
-        },
-      },
-    );
-  };
-
-  return (
-    <View style={styles.flex}>
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={[styles.content, { paddingBottom: botPad + 100 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.authorRow}>
+  const listHeader = (
+    <>
+      <View style={styles.authorRow}>
+        <Pressable
+          onPress={() => {
+            if (!post.isAnonymous && post.authorUsername) {
+                router.push(`/user/${post.authorUsername}` as never);
+            }
+          }}
+          disabled={post.isAnonymous || !post.authorUsername}
+          style={styles.authorPressable}
+        >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
               {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
@@ -158,6 +275,8 @@ export default function PostDetailScreen() {
             <Text style={styles.authorName}>{authorName}</Text>
             <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
           </View>
+        </Pressable>
+        <View style={styles.authorRowRight}>
           {post.category && (
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryText}>
@@ -165,28 +284,119 @@ export default function PostDetailScreen() {
               </Text>
             </View>
           )}
+          <Pressable
+            onPress={handleReportFlag}
+            style={styles.flagBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Report prayer"
+          >
+            <Ionicons name="flag-outline" size={18} color={colors.muted} />
+          </Pressable>
         </View>
+      </View>
 
-        <PostMediaBlock
-          mediaUrl={post.mediaUrl}
-          mediaType={post.mediaType}
-          style={styles.postImage}
-        />
+      <PostMediaBlock
+        mediaUrl={post.mediaUrl}
+        mediaType={post.mediaType}
+        style={styles.postImage}
+      />
 
-        <Text style={styles.prayerContent}>{post.content}</Text>
+      <Text style={styles.prayerContent}>{post.content}</Text>
 
-        <View style={styles.divider} />
+      <View style={styles.divider} />
 
-        <View style={styles.reactionsRow}>
-          <View style={styles.prayCount}>
-            <Ionicons name="flame-outline" size={18} color={colors.flame} />
-            <Text style={styles.prayCountText}>
-              {post.prayCount} {post.prayCount === 1 ? "person" : "people"} praying
+      <View style={styles.reactionsRow}>
+        <View style={styles.prayCount}>
+          <Ionicons name="flame-outline" size={18} color={colors.flame} />
+          <Text style={styles.prayCountText}>
+            {post.prayCount} {post.prayCount === 1 ? "person" : "people"} praying
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.commentsSectionTitle}>Comments</Text>
+      {commentsLoading && (
+        <View style={styles.commentsLoadingRow}>
+          <ActivityIndicator color={colors.flame} size="small" />
+        </View>
+      )}
+    </>
+  );
+
+  const commentInputFooter = (
+    <View style={styles.commentComposerCard}>
+      <TextInput
+        style={styles.commentInput}
+        placeholder={token ? "Write a comment…" : "Sign in to comment"}
+        placeholderTextColor={colors.muted}
+        value={commentDraft}
+        onChangeText={setCommentDraft}
+        multiline
+        maxLength={2000}
+        editable={!!token && !commentSubmitting}
+        textAlignVertical="top"
+      />
+      <Pressable
+        onPress={() => void submitComment()}
+        style={[styles.commentSendBtn, (!commentDraft.trim() || commentSubmitting || !token) && styles.commentSendBtnDisabled]}
+        disabled={!commentDraft.trim() || commentSubmitting || !token}
+        accessibilityRole="button"
+        accessibilityLabel="Post comment"
+      >
+        {commentSubmitting ? (
+          <ActivityIndicator color={colors.surface} size="small" />
+        ) : (
+          <Text style={styles.commentSendBtnText}>Post</Text>
+        )}
+      </Pressable>
+    </View>
+  );
+
+  const renderComment = ({ item }: { item: CommentRow }) => {
+    const name = item.authorDisplayName ?? item.authorUsername ?? "User";
+    const initial = (name[0] ?? "?").toUpperCase();
+    return (
+      <View style={styles.commentCard}>
+        <View style={styles.commentAvatar}>
+          <Text style={styles.commentAvatarText}>{initial}</Text>
+        </View>
+        <View style={styles.commentBody}>
+          <View style={styles.commentMetaRow}>
+            <Text style={styles.commentAuthorName} numberOfLines={1}>
+              {name}
             </Text>
+            <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
           </View>
+          <Text style={styles.commentContent}>{item.content}</Text>
         </View>
+      </View>
+    );
+  };
 
-      </ScrollView>
+  return (
+    <View style={styles.flex}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 56 : 0}
+      >
+        <FlatList
+          data={commentsLoading ? [] : comments}
+          keyExtractor={(c) => String(c.id)}
+          renderItem={renderComment}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            !commentsLoading ? (
+              <Text style={styles.emptyComments}>No comments yet</Text>
+            ) : null
+          }
+          ListFooterComponent={commentInputFooter}
+          contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPad }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        />
+      </KeyboardAvoidingView>
 
       <View style={[styles.actionBar, { paddingBottom: botPad + 12 }]}>
         <Pressable
@@ -239,7 +449,7 @@ export default function PostDetailScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
-  content: {
+  listContent: {
     padding: 20,
   },
   authorRow: {
@@ -247,6 +457,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     marginBottom: 20,
+  },
+  authorPressable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  authorRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  flagBtn: {
+    padding: 4,
+    justifyContent: "center",
+    alignItems: "center",
   },
   avatar: {
     width: 44,
@@ -273,7 +500,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   categoryBadge: {
-    marginLeft: "auto",
     backgroundColor: colors.flameDim,
     borderRadius: 8,
     paddingHorizontal: 10,
@@ -302,6 +528,7 @@ const styles = StyleSheet.create({
   reactionsRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 20,
   },
   prayCount: {
     flexDirection: "row",
@@ -312,6 +539,106 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  commentsSectionTitle: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 18,
+    color: colors.text,
+    marginBottom: 12,
+  },
+  commentsLoadingRow: {
+    alignItems: "center",
+    paddingVertical: 16,
+    marginBottom: 8,
+  },
+  emptyComments: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 15,
+    color: colors.muted,
+    marginBottom: 16,
+  },
+  commentCard: {
+    flexDirection: "row",
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 32,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  commentAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  commentAvatarText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 16,
+    color: colors.accent,
+  },
+  commentBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  commentMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  commentAuthorName: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    color: colors.text,
+    flexShrink: 1,
+  },
+  commentTime: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+  },
+  commentContent: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  commentComposerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 32,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  commentInput: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 15,
+    color: colors.text,
+    minHeight: 72,
+    maxHeight: 160,
+    padding: 0,
+  },
+  commentSendBtn: {
+    alignSelf: "flex-end",
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 32,
+  },
+  commentSendBtnDisabled: {
+    opacity: 0.45,
+  },
+  commentSendBtnText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+    color: colors.surface,
   },
   actionBar: {
     position: "absolute",

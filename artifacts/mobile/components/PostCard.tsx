@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Image,
   Platform,
   Pressable,
   Share,
@@ -15,6 +16,9 @@ import { usePrayForPost, useSavePost, useUnsavePost } from "@workspace/api-clien
 import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
+import { useAuth } from "@/context/auth";
+import { getApiBaseUrl } from "@/lib/apiBase";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { PostMediaBlock } from "@/components/PostMedia";
 
 interface PostCardProps {
@@ -70,6 +74,8 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
     post.mediaUrl,
     post.mediaType,
   ]);
+
+  const { token } = useAuth();
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -146,21 +152,36 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
   return (
     <View style={styles.card}>
       <Pressable
-        onPress={() => router.push(`/post/${localPost.id}`)}
+        onPress={() => router.push(`/post/${localPost.id}` as any)}
         style={({ pressed }) => [styles.cardBody, pressed && styles.cardBodyPressed]}
         accessibilityRole="button"
         accessibilityLabel={`Open prayer from ${authorName}`}
       >
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {localPost.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.authorName}>{authorName}</Text>
-            <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
-          </View>
+          <Pressable
+            onPress={(e) => {
+              if (!localPost.isAnonymous && localPost.authorUsername) {
+                e.stopPropagation?.();
+                router.push(`/user/${localPost.authorUsername}` as any);
+              }
+            }}
+            disabled={localPost.isAnonymous || !localPost.authorUsername}
+            style={styles.authorPressable}
+          >
+            {!localPost.isAnonymous && localPost.authorAvatarUrl ? (
+              <Image source={{ uri: resolveMediaUrl(localPost.authorAvatarUrl)! }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {localPost.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.headerInfo}>
+              <Text style={styles.authorName}>{authorName}</Text>
+              <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
+            </View>
+          </Pressable>
           {localPost.category && CATEGORIES[localPost.category] && (
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryText}>{CATEGORIES[localPost.category]}</Text>
@@ -200,6 +221,18 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
         </Pressable>
 
         <Pressable
+          onPress={(e) => {
+            e.stopPropagation?.();
+            router.push(`/post/${localPost.id}` as any);
+          }}
+          style={styles.actionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Comments"
+        >
+          <Ionicons name="chatbubble-outline" size={ICON_SIZE - 2} color={colors.muted} />
+        </Pressable>
+
+        <Pressable
           onPress={handleSave}
           style={styles.actionBtn}
           testID="save-btn"
@@ -221,6 +254,49 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
           accessibilityLabel="Share prayer"
         >
           <Feather name="share-2" size={ICON_SIZE - 2} color={colors.muted} />
+        </Pressable>
+
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation?.();
+            Haptics.selectionAsync();
+            showAppAlert({
+              title: "Report this prayer?",
+              message: "Our team will review this content.",
+              buttons: [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Report",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      const base = getApiBaseUrl();
+                      const headers: Record<string, string> = { "Content-Type": "application/json" };
+                      if (token) headers.Authorization = `Bearer ${token}`;
+                      const res = await fetch(`${base}/api/posts/${localPost.id}/flag`, {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify({ reason: "inappropriate" }),
+                      });
+                      if (res.ok) {
+                        showAppAlert({ title: "Report submitted", message: "Thank you for helping keep the community safe." });
+                      } else {
+                        const err = await res.json().catch(() => ({}));
+                        showAppAlert({ title: "Could not submit report", message: (err as any).error ?? "Please try again." });
+                      }
+                    } catch {
+                      showAppAlert({ title: "Could not submit report", message: "Check your connection." });
+                    }
+                  },
+                },
+              ],
+            });
+          }}
+          style={styles.actionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Report prayer"
+        >
+          <Ionicons name="flag-outline" size={ICON_SIZE - 2} color={colors.muted} />
         </Pressable>
       </View>
     </View>
@@ -254,6 +330,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 10,
   },
+  authorPressable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
   avatar: {
     width: 38,
     height: 38,
@@ -261,6 +343,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
   },
   avatarText: {
     color: colors.accent,

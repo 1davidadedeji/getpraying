@@ -542,7 +542,7 @@ function UsersAdminPanel({
   botPad: number;
 }) {
   const [allUsers, setAllUsers] = useState<
-    { id: number; username: string; displayName: string | null; role: string }[]
+    { id: number; username: string; displayName: string | null; role: string; isBanned?: boolean }[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -604,6 +604,41 @@ function UsersAdminPanel({
               await load();
             } catch (e) {
               showAppAlert({ title: "Update failed", message: "Network error. Try again." });
+            }
+          },
+        },
+      ],
+    });
+  };
+
+  const handleBanToggle = (userId: number, username: string, currentlyBanned: boolean) => {
+    const action = currentlyBanned ? "unban" : "ban";
+    showAppAlert({
+      title: `${currentlyBanned ? "Unban" : "Ban"} ${username}?`,
+      message: currentlyBanned
+        ? "This user will regain access to the app."
+        : "This user will be blocked from using the app.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: currentlyBanned ? "Unban" : "Ban",
+          style: currentlyBanned ? "default" : "destructive",
+          onPress: async () => {
+            if (!token) return;
+            try {
+              const res = await fetch(`${getApiBaseUrl()}/api/admin/users/${userId}/${action}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                showAppAlert({ title: `${action} failed`, message: data?.error ?? "Try again." });
+                return;
+              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              await load();
+            } catch {
+              showAppAlert({ title: `${action} failed`, message: "Network error. Try again." });
             }
           },
         },
@@ -675,6 +710,14 @@ function UsersAdminPanel({
                 </Text>
               </Pressable>
             ))}
+            <Pressable
+              style={[styles.roleMini, (u as any).isBanned && styles.banBtnActive]}
+              onPress={() => handleBanToggle(u.id, u.username, !!(u as any).isBanned)}
+            >
+              <Text style={[styles.roleMiniText, (u as any).isBanned && styles.banBtnActiveText]}>
+                {(u as any).isBanned ? "Unban" : "Ban"}
+              </Text>
+            </Pressable>
           </View>
         </View>
       )}
@@ -1318,6 +1361,13 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   roleMiniTextActive: {
+    color: colors.surface,
+  },
+  banBtnActive: {
+    backgroundColor: colors.danger,
+    borderColor: colors.danger,
+  },
+  banBtnActiveText: {
     color: colors.surface,
   },
 });
