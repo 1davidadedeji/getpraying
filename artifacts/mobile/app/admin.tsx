@@ -34,8 +34,8 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { formatLocalYMD } from "@/lib/date";
 import { getApiErrorMessage } from "@/lib/apiErrors";
-import { getApiBaseUrl } from "@/lib/apiBase";
 import { useAuth } from "@/context/auth";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 function StatBadge({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -424,8 +424,8 @@ function ModActivityCard({ token }: { token: string | null }) {
     if (!token) return;
     (async () => {
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/admin/moderators/activity`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(apiUrl("/admin/moderators/activity"), {
+          headers: authHeaders(token),
         });
         const data = await res.json().catch(() => ({}));
         setRows(Array.isArray(data.moderators) ? data.moderators : []);
@@ -471,9 +471,9 @@ function ReviewedPostCard({
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/admin/posts/${post.id}/requeue`, {
+      const res = await fetch(apiUrl(`/admin/posts/${post.id}/requeue`), {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders(token),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -551,8 +551,8 @@ function UsersAdminPanel({
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/admin/users?limit=200`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(apiUrl("/admin/users?limit=200"), {
+        headers: authHeaders(token),
       });
       const data = await res.json().catch(() => ({}));
       setAllUsers(Array.isArray(data.users) ? data.users : []);
@@ -588,12 +588,9 @@ function UsersAdminPanel({
           onPress: async () => {
             if (!token) return;
             try {
-              const res = await fetch(`${getApiBaseUrl()}/api/admin/users/${userId}/role`, {
+              const res = await fetch(apiUrl(`/admin/users/${userId}/role`), {
                 method: "POST",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Content-Type": "application/json",
-                },
+                headers: authHeaders(token, { "Content-Type": "application/json" }),
                 body: JSON.stringify({ role }),
               });
               const data = await res.json().catch(() => ({}));
@@ -626,9 +623,9 @@ function UsersAdminPanel({
           onPress: async () => {
             if (!token) return;
             try {
-              const res = await fetch(`${getApiBaseUrl()}/api/admin/users/${userId}/${action}`, {
+              const res = await fetch(apiUrl(`/admin/users/${userId}/${action}`), {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
+                headers: authHeaders(token),
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {

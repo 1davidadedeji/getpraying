@@ -1,10 +1,13 @@
 import { Router, type IRouter } from "express";
 import { db, postsTable, postPrayersTable, savedPostsTable, usersTable, notificationsTable, commentsTable } from "@workspace/db";
-import { eq, and, desc, sql, asc, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, asc } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
+import { RateLimiter } from "../lib/rateLimit";
+
+const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
 const router: IRouter = Router();
 
@@ -24,9 +27,16 @@ router.post("/posts/suggest-category", requireAuth, async (req, res): Promise<vo
 });
 
 router.post("/posts/ai-rewrite", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user;
   const { content } = req.body ?? {};
   if (typeof content !== "string" || !content.trim()) {
     res.status(400).json({ error: "Content is required" });
+    return;
+  }
+
+  const key = String(user.id);
+  if (!rewriteLimiter.tryHit(key)) {
+    res.status(429).json({ error: "You've used all rewrites for now. Try again in a bit." });
     return;
   }
 

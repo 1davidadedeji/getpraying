@@ -17,9 +17,11 @@ import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { PostMediaBlock } from "@/components/PostMedia";
+import { timeAgo } from "@/lib/timeAgo";
+import { CATEGORY_LABELS } from "@/lib/categories";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 interface PostCardProps {
   post: Post;
@@ -27,40 +29,6 @@ interface PostCardProps {
   /** When true, navigations replace the current screen instead of pushing (prevents deep stacking) */
   replaceNav?: boolean;
 }
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
-}
-
-const CATEGORIES: Record<string, string> = {
-  anxiety: "Anxiety",
-  gratitude: "Gratitude",
-  healing: "Healing",
-  guidance: "Guidance",
-  relationships: "Relationships",
-  protection: "Protection",
-  provision: "Provision",
-  grief: "Grief",
-  hope: "Hope",
-  praise: "Praise",
-  wisdom: "Wisdom",
-  peace: "Peace",
-  family: "Family",
-  health: "Health",
-  "work/career": "Work/Career",
-  finances: "Finances",
-  sleep: "Sleep",
-  "growth/purpose": "Growth/Purpose",
-  forgiveness: "Forgiveness",
-  "mental health": "Mental Health",
-};
 
 const ICON_SIZE = 22;
 
@@ -193,9 +161,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
               <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
             </View>
           </Pressable>
-          {localPost.category && CATEGORIES[localPost.category] && (
+          {localPost.category && CATEGORY_LABELS[localPost.category] && (
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{CATEGORIES[localPost.category]}</Text>
+              <Text style={styles.categoryText}>{CATEGORY_LABELS[localPost.category]}</Text>
             </View>
           )}
         </View>
@@ -289,12 +257,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
                   style: "destructive",
                   onPress: async () => {
                     try {
-                      const base = getApiBaseUrl();
-                      const headers: Record<string, string> = { "Content-Type": "application/json" };
-                      if (token) headers.Authorization = `Bearer ${token}`;
-                      const res = await fetch(`${base}/api/posts/${localPost.id}/flag`, {
+                      const res = await fetch(apiUrl(`/posts/${localPost.id}/flag`), {
                         method: "POST",
-                        headers,
+                        headers: authHeaders(token, { "Content-Type": "application/json" }),
                         body: JSON.stringify({ reason: "inappropriate" }),
                       });
                       if (res.ok) {

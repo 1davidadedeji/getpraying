@@ -16,19 +16,11 @@ import { useGetNotifications, useMarkAllNotificationsRead } from "@workspace/api
 import type { Notification } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { timeAgo } from "@/lib/timeAgo";
+import { apiUrl, authHeaders } from "@/lib/api";
 
-function timeAgo(date: string | Date): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function notificationTitle(n: Notification & { type: string }): string {
+type NotifType = string;
+function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }): string {
   switch (n.type) {
     case "prayer":
       return n.actorUsername ? `${n.actorUsername} prayed with you` : "Someone prayed with you";
@@ -55,29 +47,30 @@ function NotificationItem({
   item,
   onPress,
 }: {
-  item: Notification & { type: string };
+  item: Omit<Notification, "type"> & { type: NotifType };
   onPress: () => void;
 }) {
+  const t = item.type;
   const icon =
-    item.type === "prayer" || item.type === "prayer_milestone"
+    t === "prayer" || t === "prayer_milestone"
       ? "flame"
-      : item.type === "saved"
+      : t === "saved"
         ? "bookmark"
-        : item.type === "reminder"
+        : t === "reminder"
           ? "time-outline"
-          : item.type === "post_approved"
+          : t === "post_approved"
             ? "checkmark-circle"
-            : item.type === "post_declined"
+            : t === "post_declined"
               ? "alert-circle"
               : "notifications-outline";
   const iconColor =
-    item.type === "prayer" || item.type === "prayer_milestone"
+    t === "prayer" || t === "prayer_milestone"
       ? colors.flame
-      : item.type === "saved"
+      : t === "saved"
         ? colors.primary
-        : item.type === "post_declined"
+        : t === "post_declined"
           ? colors.danger
-          : item.type === "post_approved"
+          : t === "post_approved"
             ? colors.success
             : colors.accent;
 
@@ -125,10 +118,9 @@ export default function NotificationsScreen() {
 
   const handlePress = (item: Notification) => {
     if (!item.isRead && token) {
-      const base = getApiBaseUrl();
-      fetch(`${base}/api/notifications/${item.id}/read`, {
+      fetch(apiUrl(`/notifications/${item.id}/read`), {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders(token),
       }).catch(() => {});
     }
     if (item.postId) {

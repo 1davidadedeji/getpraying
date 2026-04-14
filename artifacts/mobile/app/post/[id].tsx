@@ -28,8 +28,9 @@ import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { timeAgo } from "@/lib/timeAgo";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 const ENGAGE_ICON = 24;
 
@@ -43,28 +44,11 @@ type CommentRow = {
   authorDisplayName: string | null;
 };
 
-function buildFetchHeaders(token: string | null, extra?: Record<string, string>): Record<string, string> {
-  const h: Record<string, string> = { ...extra };
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)} days ago`;
-}
-
 export default function PostDetailScreen() {
   const { id, focusComment } = useLocalSearchParams<{ id: string; focusComment?: string }>();
   const postId = Number(id);
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
-  const base = getApiBaseUrl();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<CommentRow[]>([]);
@@ -93,8 +77,8 @@ export default function PostDetailScreen() {
     if (!post?.id) return;
     setCommentsLoading(true);
     try {
-      const res = await fetch(`${base}/api/posts/${post.id}/comments`, {
-        headers: buildFetchHeaders(token),
+      const res = await fetch(apiUrl(`/posts/${post.id}/comments`), {
+        headers: authHeaders(token),
       });
       if (!res.ok) {
         setComments([]);
@@ -107,7 +91,7 @@ export default function PostDetailScreen() {
     } finally {
       setCommentsLoading(false);
     }
-  }, [base, post?.id, token]);
+  }, [post?.id, token]);
 
   useEffect(() => {
     if (post?.id) void loadComments();
@@ -185,9 +169,9 @@ export default function PostDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const res = await fetch(`${base}/api/posts/${post.id}/flag`, {
+              const res = await fetch(apiUrl(`/posts/${post.id}/flag`), {
                 method: "POST",
-                headers: buildFetchHeaders(token, { "Content-Type": "application/json" }),
+                headers: authHeaders(token, { "Content-Type": "application/json" }),
                 body: JSON.stringify({ reason: "inappropriate" }),
               });
               if (res.ok) {
@@ -216,9 +200,9 @@ export default function PostDetailScreen() {
     }
     setCommentSubmitting(true);
     try {
-      const res = await fetch(`${base}/api/posts/${post.id}/comments`, {
+      const res = await fetch(apiUrl(`/posts/${post.id}/comments`), {
         method: "POST",
-        headers: buildFetchHeaders(token, { "Content-Type": "application/json" }),
+        headers: authHeaders(token, { "Content-Type": "application/json" }),
         body: JSON.stringify({ content: commentDraft.trim() }),
       });
       if (res.status === 401) {

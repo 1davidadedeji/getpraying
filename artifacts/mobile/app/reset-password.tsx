@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { apiUrl } from "@/lib/api";
 
 const OTP_LENGTH = 6;
 
@@ -137,7 +137,7 @@ export default function ResetPasswordScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/verify-reset-otp`, {
+      const res = await fetch(apiUrl("/auth/verify-reset-otp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: e, otp: code }),
@@ -170,7 +170,7 @@ export default function ResetPasswordScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/reset-password`, {
+      const res = await fetch(apiUrl("/auth/reset-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

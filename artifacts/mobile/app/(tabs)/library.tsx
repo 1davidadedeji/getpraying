@@ -19,7 +19,7 @@ import {
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 type Tab = "categories" | "saved";
 
@@ -60,10 +60,7 @@ export default function LibraryScreen() {
   const loadCategories = useCallback(async () => {
     setLoadingCats(true);
     try {
-      const base = getApiBaseUrl();
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${base}/api/library/categories`, { headers });
+      const res = await fetch(apiUrl("/library/categories"), { headers: authHeaders(token) });
       if (res.ok) {
         const data = await res.json();
         setCategories(Array.isArray(data) ? data : []);

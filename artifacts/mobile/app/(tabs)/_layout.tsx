@@ -143,7 +143,7 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
             style={tabBarStyles.tab}
           >
             {isIOS ? (
-              <SymbolView name={tab.iosSymbol} tintColor={tint} size={24} />
+              <SymbolView name={tab.iosSymbol as any} tintColor={tint} size={24} />
             ) : tab.iconSet === "ionicons" ? (
               <Ionicons name={tab.androidIcon as any} size={24} color={tint} />
             ) : (

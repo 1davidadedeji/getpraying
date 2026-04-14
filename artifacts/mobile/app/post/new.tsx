@@ -23,30 +23,8 @@ import { CreatePostInputMediaType, useCreatePost } from "@workspace/api-client-r
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
-
-const CATEGORIES = [
-  "anxiety",
-  "gratitude",
-  "healing",
-  "guidance",
-  "relationships",
-  "protection",
-  "provision",
-  "grief",
-  "hope",
-  "praise",
-  "wisdom",
-  "peace",
-  "family",
-  "health",
-  "work/career",
-  "finances",
-  "sleep",
-  "growth/purpose",
-  "forgiveness",
-  "mental health",
-];
+import { CATEGORY_SLUGS } from "@/lib/categories";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
@@ -70,9 +48,9 @@ async function uploadMultipart(
     name: fileName,
     type: mimeType,
   } as unknown as Blob);
-  const res = await fetch(`${getApiBaseUrl()}/api/uploads/${route}`, {
+  const res = await fetch(apiUrl(`/uploads/${route}`), {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeaders(token),
     body: form,
   });
   const data = await res.json().catch(() => ({}));
@@ -113,9 +91,9 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
     name: "prayer.jpg",
     type: "image/jpeg",
   } as unknown as Blob);
-  const res = await fetch(`${getApiBaseUrl()}/api/uploads/post-image`, {
+  const res = await fetch(apiUrl("/uploads/post-image"), {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeaders(token),
     body: form,
   });
   const data = await res.json().catch(() => ({}));
@@ -142,30 +120,23 @@ export default function NewPostScreen() {
   const [uploadBusy, setUploadBusy] = useState(false);
 
   const [aiRewriting, setAiRewriting] = useState(false);
-  const [rewriteCount, setRewriteCount] = useState(0);
-  const MAX_REWRITES = 3;
 
   const handleAiRewrite = async () => {
     const trimmed = content.trim();
-    if (trimmed.length < 10 || !token || rewriteCount >= MAX_REWRITES) return;
+    if (trimmed.length < 10 || !token) return;
     setAiRewriting(true);
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/posts/ai-rewrite`, {
+      const res = await fetch(apiUrl("/posts/ai-rewrite"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: authHeaders(token, { "Content-Type": "application/json" }),
         body: JSON.stringify({ content: trimmed }),
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.rewritten) {
         setContent(data.rewritten);
-        setRewriteCount((c) => c + 1);
       } else {
         showAppAlert({
-          title: "AI rewrite failed",
+          title: res.status === 429 ? "Rewrite limit reached" : "AI rewrite failed",
           message: data?.error ?? "Please try again.",
         });
       }
@@ -189,13 +160,9 @@ export default function NewPostScreen() {
     const t = setTimeout(async () => {
       try {
         setAiLoading(true);
-        const base = getApiBaseUrl();
-        const res = await fetch(`${base}/api/posts/suggest-category`, {
+        const res = await fetch(apiUrl("/posts/suggest-category"), {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+          headers: authHeaders(token, { "Content-Type": "application/json" }),
           body: JSON.stringify({ content: trimmed }),
         });
         const data = await res.json().catch(() => null);
@@ -207,7 +174,7 @@ export default function NewPostScreen() {
         // Support both array (categories) and single (category) formats
         const raw: unknown = data?.categories ?? (data?.category ? [data.category] : []);
         const normalized = (Array.isArray(raw) ? raw : [])
-          .filter((c: unknown) => typeof c === "string" && CATEGORIES.includes(c as any)) as string[];
+          .filter((c: unknown) => typeof c === "string" && (CATEGORY_SLUGS as readonly string[]).includes(c as string)) as string[];
         setAiCategories(normalized);
         if (normalized.length > 0) {
           // Auto-select all AI suggested categories
@@ -432,7 +399,6 @@ export default function NewPostScreen() {
                   setSelectedCategories([]);
                   setAiCategories([]);
                   setPendingMedia(null);
-                  setRewriteCount(0);
                   router.replace("/(tabs)");
                 },
               },
@@ -477,20 +443,18 @@ export default function NewPostScreen() {
         <Text style={styles.charCount}>{content.length}/2000</Text>
       </View>
 
-      {content.trim().length >= 10 && rewriteCount < MAX_REWRITES && (
+      {content.trim().length >= 10 && (
         <Pressable
-          style={[styles.aiRewriteBtn, (aiRewriting || rewriteCount >= MAX_REWRITES) && styles.aiRewriteBtnDisabled]}
+          style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
           onPress={() => void handleAiRewrite()}
-          disabled={aiRewriting || rewriteCount >= MAX_REWRITES}
+          disabled={aiRewriting}
         >
           {aiRewriting ? (
             <ActivityIndicator size="small" color={colors.accent} />
           ) : (
             <>
               <Ionicons name="sparkles" size={16} color={colors.accent} />
-              <Text style={styles.aiRewriteBtnText}>
-                Rewrite with AI{rewriteCount > 0 ? ` (${MAX_REWRITES - rewriteCount} left)` : ""}
-              </Text>
+              <Text style={styles.aiRewriteBtnText}>Rewrite with AI</Text>
             </>
           )}
         </Pressable>
@@ -600,7 +564,7 @@ export default function NewPostScreen() {
           )}
         </View>
         <View style={styles.categoryGrid}>
-          {CATEGORIES.map((cat) => {
+          {CATEGORY_SLUGS.map((cat) => {
             const isSelected = selectedCategories.includes(cat);
             const isAiSuggested = aiCategories.includes(cat);
             return (
@@ -820,10 +784,6 @@ const styles = StyleSheet.create({
   aiPillOn: {
     backgroundColor: "#E3F2FD",
     borderColor: "#93CDFC",
-  },
-  aiPillOff: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
   },
   aiPillText: {
     fontFamily: "PlusJakartaSans_600SemiBold",

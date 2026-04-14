@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { apiUrl } from "@/lib/api";
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
@@ -33,7 +33,7 @@ export default function ForgotPasswordScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/forgot-password`, {
+      const res = await fetch(apiUrl("/auth/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: e }),

@@ -13,9 +13,9 @@ import {
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
-import { getApiBaseUrl } from "@/lib/apiBase";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 interface UserProfile {
   id: number;
@@ -51,24 +51,23 @@ export default function UserProfileScreen() {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const seenIds = useRef(new Set<number>());
 
-  const base = getApiBaseUrl();
-  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  const headers = authHeaders(token);
 
   const fetchProfile = useCallback(async () => {
-    const res = await fetch(`${base}/api/users/${username}`, { headers });
+    const res = await fetch(apiUrl(`/users/${username}`), { headers });
     if (res.ok) setProfile(await res.json());
-  }, [base, username, token]);
+  }, [username, token]);
 
   const fetchPosts = useCallback(
     async (cursor?: number) => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("cursor", String(cursor));
-      const res = await fetch(`${base}/api/users/${username}/posts?${params}`, { headers });
+      const res = await fetch(apiUrl(`/users/${username}/posts?${params}`), { headers });
       if (!res.ok) return { posts: [] as Post[], nextCursor: null };
       const data = await res.json();
       return { posts: (data.posts ?? []) as Post[], nextCursor: data.nextCursor ?? null };
     },
-    [base, username, token],
+    [username, token],
   );
 
   const loadInitial = useCallback(async () => {

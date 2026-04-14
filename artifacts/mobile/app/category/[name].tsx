@@ -3,7 +3,6 @@ import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Platform,
   RefreshControl,
@@ -16,7 +15,7 @@ import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
@@ -36,12 +35,9 @@ export default function CategoryFeedScreen() {
 
   const fetchPage = useCallback(
     async (cursor?: number) => {
-      const base = getApiBaseUrl();
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), category: name ?? "" });
       if (cursor) params.set("cursor", String(cursor));
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${base}/api/posts?${params}`, { headers });
+      const res = await fetch(apiUrl(`/posts?${params}`), { headers: authHeaders(token) });
       if (!res.ok) return { posts: [] as Post[], nextCursor: null };
       const data = await res.json();
       return { posts: (data.posts ?? []) as Post[], nextCursor: data.nextCursor ?? null };

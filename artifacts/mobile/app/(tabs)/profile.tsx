@@ -21,8 +21,8 @@ import PostCard from "@/components/PostCard";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
@@ -72,7 +72,6 @@ export default function ProfileScreen() {
 
       setUploadingAvatar(true);
       const asset = result.assets[0];
-      const base = getApiBaseUrl();
       const formData = new FormData();
       const uri = asset.uri;
       const filename = uri.split("/").pop() ?? "avatar.jpg";
@@ -80,9 +79,9 @@ export default function ProfileScreen() {
       const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
       formData.append("file", { uri, name: filename, type: mimeType } as any);
 
-      const res = await fetch(`${base}/api/uploads/avatar`, {
+      const res = await fetch(apiUrl("/uploads/avatar"), {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders(token),
         body: formData,
       });
       if (res.ok) {
@@ -106,10 +105,9 @@ export default function ProfileScreen() {
     if (!token || !user) return;
     setSavingBio(true);
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/auth/update-profile`, {
+      const res = await fetch(apiUrl("/auth/update-profile"), {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: authHeaders(token, { "Content-Type": "application/json" }),
         body: JSON.stringify({ bio: bioText.trim() }),
       });
       if (res.ok) {
@@ -130,9 +128,8 @@ export default function ProfileScreen() {
     if (!user?.username || !token) return;
     setLoadingPosts(true);
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/users/${user.username}/posts?limit=50`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(apiUrl(`/users/${user.username}/posts?limit=50`), {
+        headers: authHeaders(token),
       });
       if (res.ok) {
         const data = await res.json();

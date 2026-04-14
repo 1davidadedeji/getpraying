@@ -1,3 +1,11 @@
+import {
+  NANO_MODEL,
+  OPENAI_RESPONSES_URL,
+  getOpenAIKey,
+  openAIHeaders,
+  extractOutputText,
+} from "./openai";
+
 const CATEGORIES = [
   "anxiety",
   "gratitude",
@@ -28,36 +36,29 @@ function isCategory(value: unknown): value is Category {
 }
 
 async function callOpenAIForCategories(content: string): Promise<Category[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
-  const input = [
-    {
-      role: "system",
-      content:
-        "You are a classifier for a prayer app. Choose 1–3 best-fitting categories from the allowed list and return only strict JSON. Order them by relevance (most relevant first).",
-    },
-    {
-      role: "user",
-      content: JSON.stringify({
-        allowed_categories: CATEGORIES,
-        prayer_text: content,
-        output_format: { categories: ["<category1>", "<optional_category2>", "<optional_category3>"] },
-      }),
-    },
-  ];
-
-  const res = await fetch("https://api.openai.com/v1/responses", {
+  const res = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: openAIHeaders(apiKey),
     body: JSON.stringify({
-      model: "gpt-4.1-nano",
-      input,
+      model: NANO_MODEL,
+      input: [
+        {
+          role: "system",
+          content:
+            "You are a classifier for a prayer app. Choose 1–3 best-fitting categories from the allowed list and return only strict JSON. Order them by relevance (most relevant first).",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            allowed_categories: CATEGORIES,
+            prayer_text: content,
+            output_format: { categories: ["<category1>", "<optional_category2>", "<optional_category3>"] },
+          }),
+        },
+      ],
       temperature: 0,
       max_output_tokens: 80,
     }),
@@ -68,11 +69,7 @@ async function callOpenAIForCategories(content: string): Promise<Category[]> {
     throw new Error(`OpenAI error: HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ""}`);
   }
 
-  const data: any = await res.json();
-  const rawText: string | undefined =
-    data?.output?.[0]?.content?.find?.((c: any) => c?.type === "output_text")?.text ??
-    data?.output_text;
-
+  const rawText = extractOutputText(await res.json());
   if (!rawText || typeof rawText !== "string") {
     throw new Error("OpenAI response missing output text");
   }
@@ -86,16 +83,12 @@ async function callOpenAIForCategories(content: string): Promise<Category[]> {
     parsed = JSON.parse(match[0]);
   }
 
-  // Handle both array and single-category responses
   const rawCategories = parsed?.categories ?? (parsed?.category ? [parsed.category] : []);
   const valid = (Array.isArray(rawCategories) ? rawCategories : [rawCategories])
     .filter(isCategory)
     .slice(0, 3);
 
-  if (valid.length === 0) {
-    throw new Error("OpenAI returned no valid categories");
-  }
-
+  if (valid.length === 0) throw new Error("OpenAI returned no valid categories");
   return valid;
 }
 

@@ -18,8 +18,8 @@ import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { getApiBaseUrl } from "@/lib/apiBase";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
+import { apiUrl, authHeaders } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_POLL_MS = 30_000;
@@ -44,12 +44,11 @@ export default function FeedScreen() {
 
   const fetchPage = useCallback(
     async (cursor?: number): Promise<{ posts: Post[]; nextCursor: number | null }> => {
-      const base = getApiBaseUrl();
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("cursor", String(cursor));
 
-      const res = await fetch(`${base}/api/posts?${params}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      const res = await fetch(apiUrl(`/posts?${params}`), {
+        headers: authHeaders(token),
       });
       if (!res.ok) return { posts: [], nextCursor: null };
       const data = await res.json();
@@ -88,10 +87,9 @@ export default function FeedScreen() {
     const interval = setInterval(async () => {
       if (!latestPostId.current) return;
       try {
-        const base = getApiBaseUrl();
         const res = await fetch(
-          `${base}/api/posts/new-count?sinceId=${latestPostId.current}`,
-          { headers: { Authorization: `Bearer ${token}` } },
+          apiUrl(`/posts/new-count?sinceId=${latestPostId.current}`),
+          { headers: authHeaders(token) },
         );
         if (!res.ok) return;
         const data = await res.json();
