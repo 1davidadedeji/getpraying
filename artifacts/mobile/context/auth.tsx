@@ -12,7 +12,7 @@ interface AuthContextValue {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (email: string, username: string, password: string, displayName?: string) => Promise<User>;
+  register: (email: string, username: string, password: string, displayName?: string, bio?: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: (updated: User) => void;
 }
@@ -56,8 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return u;
   }, []);
 
-  const register = useCallback(async (email: string, username: string, password: string, displayName?: string): Promise<User> => {
-    const res = await apiRegister({ email, username, password, displayName });
+  const register = useCallback(async (email: string, username: string, password: string, displayName?: string, bio?: string): Promise<User> => {
+    const res = await apiRegister({ email, username, password, displayName, bio });
     const tok = res.token;
     const u = res.user;
     await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);

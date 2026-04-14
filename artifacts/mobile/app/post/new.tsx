@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -38,6 +38,14 @@ const CATEGORIES = [
   "praise",
   "wisdom",
   "peace",
+  "family",
+  "health",
+  "work/career",
+  "finances",
+  "sleep",
+  "growth/purpose",
+  "forgiveness",
+  "mental health",
 ];
 
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;

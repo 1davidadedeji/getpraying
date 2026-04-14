@@ -16,13 +16,100 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 
-// Cooldown schedule: 60s, 120s, 300s, 600s, then always 600s
 const COOLDOWN_STEPS = [60, 120, 300, 600];
+const OTP_LENGTH = 6;
 
 function formatCooldown(secs: number): string {
   if (secs >= 60) return `${Math.ceil(secs / 60)}m`;
   return `${secs}s`;
 }
+
+function OtpBoxInput({
+  value,
+  onChange,
+  onComplete,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onComplete?: () => void;
+}) {
+  const refs = useRef<(TextInput | null)[]>([]);
+  const digits = value.padEnd(OTP_LENGTH, "").split("").slice(0, OTP_LENGTH);
+
+  const handleChange = (text: string, index: number) => {
+    const cleaned = text.replace(/\D/g, "");
+    if (cleaned.length > 1) {
+      const pasted = cleaned.slice(0, OTP_LENGTH);
+      onChange(pasted);
+      const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
+      refs.current[focusIdx]?.focus();
+      if (pasted.length === OTP_LENGTH) onComplete?.();
+      return;
+    }
+    const arr = digits.slice();
+    arr[index] = cleaned;
+    const newVal = arr.join("").replace(/\s/g, "");
+    onChange(newVal);
+    if (cleaned && index < OTP_LENGTH - 1) {
+      refs.current[index + 1]?.focus();
+    }
+    if (newVal.length === OTP_LENGTH) onComplete?.();
+  };
+
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === "Backspace" && !digits[index]?.trim() && index > 0) {
+      refs.current[index - 1]?.focus();
+      const arr = digits.slice();
+      arr[index - 1] = "";
+      onChange(arr.join("").replace(/\s/g, ""));
+    }
+  };
+
+  return (
+    <View style={otpStyles.row}>
+      {Array.from({ length: OTP_LENGTH }).map((_, i) => (
+        <TextInput
+          key={i}
+          ref={(r) => { refs.current[i] = r; }}
+          style={[otpStyles.box, digits[i]?.trim() ? otpStyles.boxFilled : null]}
+          value={digits[i]?.trim() ?? ""}
+          onChangeText={(t) => handleChange(t, i)}
+          onKeyPress={(e) => handleKeyPress(e, i)}
+          keyboardType="number-pad"
+          maxLength={OTP_LENGTH}
+          textContentType="oneTimeCode"
+          autoComplete="one-time-code"
+          selectTextOnFocus
+          testID={`otp-box-${i}`}
+        />
+      ))}
+    </View>
+  );
+}
+
+const otpStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  box: {
+    width: 48,
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    textAlign: "center",
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 22,
+    color: colors.text,
+  },
+  boxFilled: {
+    borderColor: colors.primary,
+    backgroundColor: colors.cream,
+  },
+});
 
 export default function VerifyScreen() {
   const insets = useSafeAreaInsets();
@@ -150,23 +237,12 @@ export default function VerifyScreen() {
 
         <View style={styles.card}>
           <Text style={styles.label}>Verification code</Text>
-          <View style={styles.codeRow}>
-            <TextInput
-              value={otp}
-              onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
-              placeholder="000000"
-              placeholderTextColor={colors.muted}
-              keyboardType="number-pad"
-              returnKeyType="done"
-              onSubmitEditing={onVerify}
-              style={styles.codeInput}
-              maxLength={6}
-              testID="otp-input"
-            />
-            <Pressable onPress={() => setOtp("")} style={styles.clearBtn} testID="clear-otp">
-              <Feather name="x" size={16} color={colors.muted} />
-            </Pressable>
-          </View>
+
+          <OtpBoxInput
+            value={otp}
+            onChange={setOtp}
+            onComplete={() => {}}
+          />
 
           <Pressable
             style={[styles.primaryBtn, (verify.isPending || otp.length !== 6) && styles.btnDisabled]}
@@ -245,7 +321,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 12,
+    gap: 16,
     shadowColor: colors.primary,
     shadowOpacity: 0.06,
     shadowRadius: 20,
@@ -258,34 +334,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: "uppercase",
     color: colors.textSecondary,
-  },
-  codeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  codeInput: {
-    flex: 1,
-    backgroundColor: colors.cream,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 18,
-    letterSpacing: 6,
-    color: colors.text,
-  },
-  clearBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.cream,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
+    textAlign: "center",
   },
   primaryBtn: {
     backgroundColor: colors.primary,

@@ -14,7 +14,6 @@ import {
 
 const router: IRouter = Router();
 
-// In-memory rate limiting for resend (email → { count, resetAt })
 const resendRateLimit = new Map<string, { count: number; nextAllowedAt: number }>();
 const RESEND_COOLDOWNS_MS = [60_000, 120_000, 300_000, 600_000];
 
@@ -54,7 +53,6 @@ async function sendVerificationEmail(args: {
   const from = process.env.SENDGRID_FROM_EMAIL;
 
   if (!apiKey || !from) {
-    // Local/dev fallback: do not fail registration if SendGrid isn't configured.
     console.log(
       `[email-verification] OTP for ${args.to}: ${args.otp} (expires ${args.expiresAt.toISOString()})`,
     );
@@ -76,12 +74,42 @@ async function sendVerificationEmail(args: {
       `Welcome to GetPraying.\n\n` +
       `Your verification code is: ${args.otp}\n\n` +
       `It expires in about ${minutesLeft} minutes.\n\n` +
-      `If you didn’t request this, you can ignore this email.\n`,
+      `If you didn't request this, you can ignore this email.\n`,
+  });
+}
+
+async function sendPasswordResetEmail(args: {
+  to: string;
+  otp: string;
+  expiresAt: Date;
+}): Promise<void> {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = process.env.SENDGRID_FROM_EMAIL;
+
+  if (!apiKey || !from) {
+    console.log(
+      `[password-reset] OTP for ${args.to}: ${args.otp} (expires ${args.expiresAt.toISOString()})`,
+    );
+    return;
+  }
+
+  sendgrid.setApiKey(apiKey);
+  const minutesLeft = Math.max(1, Math.round((args.expiresAt.getTime() - Date.now()) / 60_000));
+
+  await sendgrid.send({
+    to: args.to,
+    from,
+    subject: "Your GetPraying password reset code",
+    text:
+      `You asked to reset your password.\n\n` +
+      `Your reset code is: ${args.otp}\n\n` +
+      `It expires in about ${minutesLeft} minutes.\n\n` +
+      `If you didn't request this, you can ignore this email.\n`,
   });
 }
 
 router.post("/auth/register", async (req, res): Promise<void> => {
-  const { email, username, password, displayName } = req.body;
+  const { email, username, password, displayName, bio } = req.body;
   if (!email || !username || !password) {
     res.status(400).json({ error: "Email, username, and password are required" });
     return;
@@ -106,6 +134,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     typeof displayName === "string" && displayName.trim() !== ""
       ? displayName.trim()
       : String(username).trim();
+  const finalBio =
+    typeof bio === "string" && bio.trim() !== "" ? bio.trim() : null;
 
   const otp = createOtp();
   const expiresAt = otpExpiresAt(15);
@@ -116,6 +146,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       email: normalizedEmail,
       username,
       displayName: finalDisplayName,
+      bio: finalBio,
       passwordHash,
       isBanned: false,
       preferredCategories: [],
@@ -352,65 +383,80 @@ router.post("/auth/preferences", requireAuth, async (req, res): Promise<void> =>
   res.json({ success: true, message: "Preferences saved" });
 });
 
-function createPasswordResetToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
-
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const emailRaw =
     typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
 
-  res.json({
-    success: true,
-    message: "If an account exists for that email, you will receive reset instructions shortly.",
-  });
-
-  if (!emailRaw) return;
-
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailRaw));
-  if (!user) return;
-
-  const token = createPasswordResetToken();
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-
-  await db
-    .update(usersTable)
-    .set({ passwordResetToken: token, passwordResetExpiresAt: expiresAt })
-    .where(eq(usersTable.id, user.id));
-
-  const deepLinkBase = process.env.PASSWORD_RESET_DEEP_LINK_BASE ?? "getpraying://reset-password";
-  const deepLink = `${deepLinkBase}?email=${encodeURIComponent(emailRaw)}&token=${token}`;
-
-  const apiKey = process.env.SENDGRID_API_KEY;
-  const from = process.env.SENDGRID_FROM_EMAIL;
-
-  if (!apiKey || !from) {
-    console.log(
-      `[password-reset] ${emailRaw} — open app or visit reset screen with token (1h):\n${deepLink}\n`,
-    );
+  if (!emailRaw) {
+    res.json({
+      success: true,
+      message: "If an account exists for that email, a reset code has been sent.",
+    });
     return;
   }
 
-  sendgrid.setApiKey(apiKey);
-  await sendgrid.send({
-    to: emailRaw,
-    from,
-    subject: "Reset your Get Praying password",
-    text:
-      `You asked to reset your password.\n\n` +
-      `Open this link on your phone (Get Praying app):\n${deepLink}\n\n` +
-      `This link expires in about one hour. If you didn’t request this, you can ignore this email.\n`,
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailRaw));
+  if (!user) {
+    res.json({
+      success: true,
+      message: "If an account exists for that email, a reset code has been sent.",
+    });
+    return;
+  }
+
+  const otp = createOtp();
+  const expiresAt = otpExpiresAt(15);
+
+  await db
+    .update(usersTable)
+    .set({ passwordResetToken: otp, passwordResetExpiresAt: expiresAt })
+    .where(eq(usersTable.id, user.id));
+
+  await sendPasswordResetEmail({ to: emailRaw, otp, expiresAt });
+
+  res.json({
+    success: true,
+    message: "If an account exists for that email, a reset code has been sent.",
   });
+});
+
+router.post("/auth/verify-reset-otp", async (req, res): Promise<void> => {
+  const emailRaw =
+    typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : "";
+
+  if (!emailRaw || !otp) {
+    res.status(400).json({ error: "Email and code are required" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailRaw));
+  if (!user || !user.passwordResetToken || !user.passwordResetExpiresAt) {
+    res.status(400).json({ error: "Invalid or expired code" });
+    return;
+  }
+
+  if (user.passwordResetToken !== otp) {
+    res.status(400).json({ error: "Invalid code" });
+    return;
+  }
+
+  if (new Date(user.passwordResetExpiresAt).getTime() < Date.now()) {
+    res.status(400).json({ error: "Code has expired. Request a new one." });
+    return;
+  }
+
+  res.json({ success: true, message: "Code verified" });
 });
 
 router.post("/auth/reset-password", async (req, res): Promise<void> => {
   const emailRaw =
     typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
-  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+  const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : "";
   const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
 
-  if (!emailRaw || !token || newPassword.length < 6) {
-    res.status(400).json({ error: "Email, token, and a new password (6+ characters) are required" });
+  if (!emailRaw || !otp || newPassword.length < 6) {
+    res.status(400).json({ error: "Email, code, and a new password (6+ characters) are required" });
     return;
   }
 
@@ -418,15 +464,15 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
   if (
     !user ||
     !user.passwordResetToken ||
-    user.passwordResetToken !== token ||
+    user.passwordResetToken !== otp ||
     !user.passwordResetExpiresAt
   ) {
-    res.status(400).json({ error: "Invalid or expired reset link" });
+    res.status(400).json({ error: "Invalid or expired code" });
     return;
   }
 
   if (new Date(user.passwordResetExpiresAt).getTime() < Date.now()) {
-    res.status(400).json({ error: "Reset link has expired. Request a new one." });
+    res.status(400).json({ error: "Code has expired. Request a new one." });
     return;
   }
 
@@ -441,6 +487,26 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     .where(eq(usersTable.id, user.id));
 
   res.json({ success: true, message: "Password updated. You can sign in now." });
+});
+
+router.post("/auth/update-profile", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user;
+  const updates: Record<string, any> = {};
+
+  if (typeof req.body?.bio === "string") {
+    updates.bio = req.body.bio.trim() || null;
+  }
+  if (typeof req.body?.displayName === "string" && req.body.displayName.trim()) {
+    updates.displayName = req.body.displayName.trim();
+  }
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No valid fields to update" });
+    return;
+  }
+
+  await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
+  res.json({ success: true, message: "Profile updated" });
 });
 
 export default router;

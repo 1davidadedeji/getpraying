@@ -29,6 +29,14 @@ const CATEGORIES = [
   "praise",
   "wisdom",
   "peace",
+  "family",
+  "health",
+  "work/career",
+  "finances",
+  "sleep",
+  "growth/purpose",
+  "forgiveness",
+  "mental health",
 ] as const;
 
 type Category = (typeof CATEGORIES)[number];
@@ -179,6 +187,70 @@ const PRAYER_TEMPLATES: { template: string; category: Category }[] = [
   { category: "peace", template: "In the middle of conflict about {situation}. Pray I can be a peacemaker, not a peacekeeper." },
   { category: "peace", template: "Pray for peace in my home — {situation} has everyone on edge. We need God's calm." },
   { category: "peace", template: "I'm at war with myself over {situation}. Pray I surrender to God and find stillness." },
+
+  { category: "family", template: "Pray for our marriage as we navigate {situation}. We want to love each other the way Christ loves the church." },
+  { category: "family", template: "Our kids are struggling with {situation}. Pray for patience for us and peace for them." },
+  { category: "family", template: "Single parent here — asking God for strength with {situation} and wisdom for every conversation." },
+  { category: "family", template: "Pray for my {relation} and me to reconnect after tension over {situation}. Family is worth fighting for." },
+  { category: "family", template: "Blended family dynamics around {event} are exhausting. Pray we choose grace over grudges." },
+  { category: "family", template: "Pray for my aging {relation} as they face {situation}. I want to honor them well." },
+  { category: "family", template: "Hoping to grow our family through adoption. Pray through {situation} and for the children God may place with us." },
+
+  { category: "health", template: "Waiting on {event} for {situation}. Pray for good news and steady nerves." },
+  { category: "health", template: "Managing a chronic condition alongside {situation}. Pray for endurance and wise care." },
+  { category: "health", template: "My {relation}'s health has declined. Pray for healing, comfort, and the right medical team." },
+  { category: "health", template: "Trying to build better habits around sleep, food, and movement while juggling {situation}. Pray for discipline." },
+  { category: "health", template: "Recovery from {event} is slower than I hoped. Pray my body responds and I don't lose heart." },
+  { category: "health", template: "Wellness feels out of reach with {situation} on my plate. Pray I can take small faithful steps." },
+  { category: "health", template: "Pray for protection from illness in our home before {event} — we can't afford to be sidelined." },
+
+  { category: "work/career", template: "Feeling stuck in my career with {situation}. Pray God opens a door or reshapes my heart where I am." },
+  { category: "work/career", template: "Starting {event} at a new job. Pray I learn fast, build trust, and keep my integrity." },
+  { category: "work/career", template: "Workplace conflict over {situation} is draining. Pray for wisdom and a path toward peace." },
+  { category: "work/career", template: "Considering a pivot because of {situation}. Pray for clarity between ambition and calling." },
+  { category: "work/career", template: "My {relation} was laid off. Pray for provision and for the right next role." },
+  { category: "work/career", template: "Leading through {situation} at work — I need courage to speak up and humility to listen." },
+  { category: "work/career", template: "Burnout is real with {situation}. Pray I set boundaries without fear and trust God with outcomes." },
+
+  { category: "finances", template: "Debt from {situation} feels crushing. Pray for a plan, extra income, and freedom from shame." },
+  { category: "finances", template: "Pray for faithful stewardship as we decide about {situation} — we want to honor God with every dollar." },
+  { category: "finances", template: "Unexpected bills after {event}. Pray for provision and for peace while we sort it out." },
+  { category: "finances", template: "Supporting my {relation} through {situation} has stretched our budget. Pray God multiplies what we have." },
+  { category: "finances", template: "Pray for wisdom about giving, saving, and spending while facing {situation}." },
+  { category: "finances", template: "Housing costs and {situation} don't add up on paper. Pray God makes a way we can't see yet." },
+  { category: "finances", template: "Thankful for a small breakthrough with {situation}. Pray we stay generous and grounded." },
+
+  { category: "sleep", template: "Insomnia again — my mind replays {situation}. Pray I can cast it on God and actually rest." },
+  { category: "sleep", template: "Nightmares and anxiety after {event}. Pray for peaceful nights and restored sleep." },
+  { category: "sleep", template: "Shift work is destroying my sleep rhythm with {situation}. Pray for protection and recovery." },
+  { category: "sleep", template: "Pray I stop scrolling and surrender {situation} to God so my body can wind down." },
+  { category: "sleep", template: "Little ones waking all night plus {situation} — I'm running on fumes. Pray for strength and sleep when I can get it." },
+  { category: "sleep", template: "Asking for calm evenings before {event} so I can sleep without dread." },
+  { category: "sleep", template: "Pray for deep, restorative rest; {situation} has left me wired and exhausted at the same time." },
+
+  { category: "growth/purpose", template: "Feeling directionless with {situation}. Pray God shows me the next faithful step." },
+  { category: "growth/purpose", template: "Want to go deeper spiritually but {situation} keeps crowding out time with God. Pray for hunger and rhythm." },
+  { category: "growth/purpose", template: "Pray I discover how my gifts fit into {situation} for God's glory, not just my résumé." },
+  { category: "growth/purpose", template: "After {event}, I'm asking who God made me to be. Pray for clarity and courage." },
+  { category: "growth/purpose", template: "Discipleship with my {relation} around {situation} — pray we both grow in truth and love." },
+  { category: "growth/purpose", template: "Pray I stop comparing my path to others and trust God's purpose in {situation}." },
+  { category: "growth/purpose", template: "Serving in {situation} feels mundane. Pray God renews my sense of mission." },
+
+  { category: "forgiveness", template: "Struggling to forgive my {relation} for {situation}. Pray God softens my heart without excusing harm." },
+  { category: "forgiveness", template: "I need to seek forgiveness after {situation}. Pray for humility and the right words." },
+  { category: "forgiveness", template: "Old resentment from {event} keeps resurfacing. Pray I release it to God again and again." },
+  { category: "forgiveness", template: "Pray I can forgive myself for {situation} and receive God's mercy as real." },
+  { category: "forgiveness", template: "Church hurt around {situation} is hard to untangle. Pray for healing and honest reconciliation where possible." },
+  { category: "forgiveness", template: "My {relation} asked for forgiveness after {situation}. Pray I respond with wisdom and grace." },
+  { category: "forgiveness", template: "Pray for freedom from bitterness about {situation} — I don't want it to define my future." },
+
+  { category: "mental health", template: "Depression has been heavy with {situation}. Pray for light, for good care, and for people who show up." },
+  { category: "mental health", template: "Starting therapy for {situation}. Pray it's a safe space and that God works through it." },
+  { category: "mental health", template: "Managing anxiety and depression alongside {situation} — not the same as everyday worry. Pray for steady ground." },
+  { category: "mental health", template: "Medication adjustments after {event} have been rough. Pray for stability and patience with the process." },
+  { category: "mental health", template: "Pray for my {relation} facing {situation} — they deserve compassion, not judgment." },
+  { category: "mental health", template: "Isolation is feeding dark thoughts about {situation}. Pray I reach out and accept help." },
+  { category: "mental health", template: "Grief and low mood after {situation} won't lift overnight. Pray I keep choosing hope one day at a time." },
 ];
 
 const SITUATIONS = [
@@ -513,6 +585,13 @@ async function main(): Promise<void> {
     const uid = userIdByUsername.get(username);
     if (uid == null) continue;
     await db.update(usersTable).set({ prayersShared: count }).where(eq(usersTable.id, uid));
+  }
+
+  // Update prayedFor counts randomly
+  console.log("[seed] Updating prayedFor counts on users…");
+  for (const u of insertedUsers) {
+    const prayedFor = randInt(5, 180);
+    await db.update(usersTable).set({ prayedFor }).where(eq(usersTable.id, u.id));
   }
 
   console.log("[seed] Done.");

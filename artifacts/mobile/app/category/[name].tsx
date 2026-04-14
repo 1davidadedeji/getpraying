@@ -3,6 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Platform,
   RefreshControl,
@@ -155,6 +156,9 @@ const styles = StyleSheet.create({
   list: {
     backgroundColor: colors.cream,
     paddingHorizontal: 16,
+    maxWidth: 680,
+    alignSelf: "center" as const,
+    width: "100%",
   },
   header: {
     paddingTop: Platform.OS === "web" ? 20 : 8,

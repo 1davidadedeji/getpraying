@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -38,15 +38,8 @@ export default function ForgotPasswordScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: e }),
       });
-      const data = await res.json().catch(() => ({}));
-      showAppAlert({
-        title: "Check your email",
-        message:
-          typeof data?.message === "string"
-            ? data.message
-            : "If an account exists, we sent reset instructions. Open the link on your phone.",
-        buttons: [{ text: "OK", onPress: () => router.back() }],
-      });
+      await res.json().catch(() => ({}));
+      router.push(`/reset-password?email=${encodeURIComponent(e)}` as Href);
     } catch {
       showAppAlert({
         title: "Request failed",
@@ -77,8 +70,7 @@ export default function ForgotPasswordScreen() {
           <Ionicons name="mail-outline" size={40} color={colors.accent} />
           <Text style={styles.title}>Forgot password</Text>
           <Text style={styles.subtitle}>
-            We’ll email you a secure link to reset your password (or show instructions in the server
-            log during development).
+            We'll send a 6-digit code to your email to reset your password.
           </Text>
         </View>
 
@@ -101,7 +93,7 @@ export default function ForgotPasswordScreen() {
           {loading ? (
             <ActivityIndicator color={colors.surface} />
           ) : (
-            <Text style={styles.primaryBtnText}>Send reset link</Text>
+            <Text style={styles.primaryBtnText}>Send reset code</Text>
           )}
         </Pressable>
       </ScrollView>

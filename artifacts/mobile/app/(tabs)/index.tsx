@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Platform,
   Pressable,
@@ -17,12 +19,15 @@ import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { getApiBaseUrl } from "@/lib/apiBase";
+import { useTabBarVisibility } from "@/context/tabBarVisibility";
 
 const PAGE_SIZE = 20;
+const NEW_POSTS_POLL_MS = 30_000;
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
+  const { onScroll: onScrollHideBar } = useTabBarVisibility();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,6 +35,12 @@ export default function FeedScreen() {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [error, setError] = useState(false);
   const seenIds = useRef(new Set<number>());
+  const listRef = useRef<FlatList>(null);
+
+  const [newPostCount, setNewPostCount] = useState(0);
+  const pillAnim = useRef(new Animated.Value(0)).current;
+  const latestPostId = useRef<number | null>(null);
+  const hasScrolledDown = useRef(false);
 
   const fetchPage = useCallback(
     async (cursor?: number): Promise<{ posts: Post[]; nextCursor: number | null }> => {
@@ -55,6 +66,11 @@ export default function FeedScreen() {
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
       setError(false);
+      if (result.posts.length > 0) {
+        latestPostId.current = Math.max(...result.posts.map((p) => p.id));
+      }
+      setNewPostCount(0);
+      hasScrolledDown.current = false;
     } catch {
       setError(true);
     } finally {
@@ -66,13 +82,81 @@ export default function FeedScreen() {
     loadInitial();
   }, [loadInitial]);
 
+  // Poll for new posts in the background
+  useEffect(() => {
+    if (!token || loading) return;
+    const interval = setInterval(async () => {
+      if (!latestPostId.current) return;
+      try {
+        const base = getApiBaseUrl();
+        const res = await fetch(
+          `${base}/api/posts/new-count?sinceId=${latestPostId.current}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const count = typeof data.count === "number" ? data.count : 0;
+        if (count > 0 && hasScrolledDown.current) {
+          setNewPostCount(count);
+        }
+      } catch {
+        /* silent */
+      }
+    }, NEW_POSTS_POLL_MS);
+    return () => clearInterval(interval);
+  }, [token, loading]);
+
+  // Animate the pill in/out
+  useEffect(() => {
+    Animated.spring(pillAnim, {
+      toValue: newPostCount > 0 ? 1 : 0,
+      useNativeDriver: true,
+      tension: 60,
+      friction: 10,
+    }).start();
+  }, [newPostCount, pillAnim]);
+
+  const handleNewPostsTap = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setNewPostCount(0);
+    setRefreshing(true);
+    try {
+      const result = await fetchPage();
+      const fresh = result.posts.filter((p) => !seenIds.current.has(p.id));
+      for (const p of fresh) seenIds.current.add(p.id);
+
+      if (fresh.length > 0) {
+        setPosts((prev) => [...fresh, ...prev]);
+      } else {
+        seenIds.current = new Set(result.posts.map((p) => p.id));
+        setPosts(result.posts);
+      }
+      setNextCursor(result.nextCursor);
+      if (result.posts.length > 0) {
+        latestPostId.current = Math.max(...result.posts.map((p) => p.id));
+      }
+      hasScrolledDown.current = false;
+
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    } catch {
+      /* silent */
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchPage]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    setNewPostCount(0);
     try {
       const result = await fetchPage();
       seenIds.current = new Set(result.posts.map((p) => p.id));
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
+      if (result.posts.length > 0) {
+        latestPostId.current = Math.max(...result.posts.map((p) => p.id));
+      }
+      hasScrolledDown.current = false;
     } catch {
       /* keep current data */
     } finally {
@@ -99,6 +183,17 @@ export default function FeedScreen() {
   const handleUpdated = useCallback((updated: Post) => {
     setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   }, []);
+
+  const handleScroll = useCallback(
+    (event: any) => {
+      onScrollHideBar(event);
+      const offsetY = event.nativeEvent.contentOffset.y;
+      if (offsetY > 400) {
+        hasScrolledDown.current = true;
+      }
+    },
+    [onScrollHideBar],
+  );
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -135,51 +230,88 @@ export default function FeedScreen() {
     );
   }
 
+  const pillTranslateY = pillAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-60, 0],
+  });
+  const pillOpacity = pillAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 0.8, 1],
+  });
+
   return (
-    <FlatList
-      data={posts}
-      keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => (
-        <PostCard post={item} onUpdated={handleUpdated} />
-      )}
-      numColumns={Platform.OS === "web" ? 2 : 1}
-      columnWrapperStyle={Platform.OS === "web" ? styles.columnWrap : undefined}
-      ListHeaderComponent={renderHeader}
-      ListFooterComponent={renderFooter}
-      ListEmptyComponent={
-        error ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="cloud-offline-outline" size={48} color={colors.muted} />
-            <Text style={styles.emptyTitle}>Connection issue</Text>
-            <Text style={styles.emptySubtitle}>Pull down to try again</Text>
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="flame-outline" size={48} color={colors.muted} />
-            <Text style={styles.emptyTitle}>No prayers yet</Text>
-            <Text style={styles.emptySubtitle}>Be the first to share a prayer</Text>
-          </View>
-        )
-      }
-      contentContainerStyle={[
-        styles.list,
-        { paddingBottom: 100 },
-      ]}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={colors.flame}
-        />
-      }
-      onEndReached={handleLoadMore}
-      onEndReachedThreshold={0.4}
-      showsVerticalScrollIndicator={false}
-    />
+    <View style={styles.flex}>
+      <FlatList
+        ref={listRef}
+        data={posts}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={({ item }) => (
+          <PostCard post={item} onUpdated={handleUpdated} />
+        )}
+        numColumns={Platform.OS === "web" ? 2 : 1}
+        columnWrapperStyle={Platform.OS === "web" ? styles.columnWrap : undefined}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={
+          error ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cloud-offline-outline" size={48} color={colors.muted} />
+              <Text style={styles.emptyTitle}>Connection issue</Text>
+              <Text style={styles.emptySubtitle}>Pull down to try again</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="flame-outline" size={48} color={colors.muted} />
+              <Text style={styles.emptyTitle}>No prayers yet</Text>
+              <Text style={styles.emptySubtitle}>Be the first to share a prayer</Text>
+            </View>
+          )
+        }
+        contentContainerStyle={[
+          styles.list,
+          { paddingBottom: 100 },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.flame}
+          />
+        }
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.4}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* "New Posts" floating pill */}
+      <Animated.View
+        pointerEvents={newPostCount > 0 ? "auto" : "none"}
+        style={[
+          styles.newPostsPillWrap,
+          { top: topPad + 60, transform: [{ translateY: pillTranslateY }], opacity: pillOpacity },
+        ]}
+      >
+        <Pressable
+          onPress={() => void handleNewPostsTap()}
+          style={({ pressed }) => [styles.newPostsPill, pressed && styles.newPostsPillPressed]}
+        >
+          <Ionicons name="arrow-up" size={16} color={colors.surface} />
+          <Text style={styles.newPostsPillText}>
+            {newPostCount >= 99 ? "99+" : newPostCount} new {newPostCount === 1 ? "post" : "posts"}
+          </Text>
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: colors.cream,
+  },
   centered: {
     flex: 1,
     backgroundColor: colors.cream,
@@ -244,5 +376,34 @@ const styles = StyleSheet.create({
   footerLoader: {
     paddingVertical: 20,
     alignItems: "center",
+  },
+  newPostsPillWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  newPostsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  newPostsPillPressed: {
+    opacity: 0.88,
+  },
+  newPostsPillText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+    color: colors.surface,
   },
 });

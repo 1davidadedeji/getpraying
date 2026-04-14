@@ -5,21 +5,26 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
+import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarVisibility";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 72 : Platform.OS === "ios" ? 52 : 58;
 
 function ComposeFab() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const { translateY } = useTabBarVisibility();
   const isFeeds = pathname === "/" || pathname === "/(tabs)" || pathname === "/(tabs)/index" || pathname === "/index";
   if (!isFeeds) return null;
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    <Animated.View
+      pointerEvents="box-none"
+      style={[StyleSheet.absoluteFill, { transform: [{ translateY }] }]}
+    >
       <Pressable
         onPress={() => router.push("/post/new")}
         style={({ pressed }) => [
@@ -33,7 +38,7 @@ function ComposeFab() {
       >
         <Ionicons name="add" size={28} color={colors.surface} />
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -83,91 +88,112 @@ function NativeTabLayout() {
   );
 }
 
-function ClassicTabLayout() {
-  const isDark = useColorScheme() === "dark";
+const TAB_ITEMS = [
+  { name: "index", title: "Feeds", iosSymbol: "flame.fill", androidIcon: "flame" as const, iconSet: "ionicons" as const },
+  { name: "library", title: "Library", iosSymbol: "books.vertical.fill", androidIcon: "book-open" as const, iconSet: "feather" as const },
+  { name: "notifications", title: "Alerts", iosSymbol: "bell.fill", androidIcon: "bell" as const, iconSet: "feather" as const },
+  { name: "profile", title: "Profile", iosSymbol: "person.fill", androidIcon: "user" as const, iconSet: "feather" as const },
+];
+
+function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
+  const insets = useSafeAreaInsets();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const isDark = useColorScheme() === "dark";
+  const { translateY } = useTabBarVisibility();
 
+  const bgColor = isIOS ? "transparent" : isDark ? "#1A1F36" : colors.surface;
+  const barHeight = isWeb ? 84 : undefined;
+
+  return (
+    <Animated.View
+      style={[
+        tabBarStyles.container,
+        {
+          backgroundColor: bgColor,
+          paddingBottom: insets.bottom,
+          borderTopWidth: isWeb ? 1 : 0,
+          borderTopColor: colors.border,
+          transform: [{ translateY }],
+          ...(barHeight ? { height: barHeight } : {}),
+        },
+      ]}
+    >
+      {isIOS && (
+        <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+      )}
+      {isWeb && !isIOS && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
+      )}
+      {TAB_ITEMS.map((tab, index) => {
+        const focused = state.index === index;
+        const tint = focused ? colors.flame : colors.muted;
+        return (
+          <Pressable
+            key={tab.name}
+            accessibilityRole="button"
+            accessibilityState={{ selected: focused }}
+            onPress={() => {
+              const route = state.routes[index];
+              const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+              if (!focused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            }}
+            style={tabBarStyles.tab}
+          >
+            {isIOS ? (
+              <SymbolView name={tab.iosSymbol} tintColor={tint} size={24} />
+            ) : tab.iconSet === "ionicons" ? (
+              <Ionicons name={tab.androidIcon as any} size={24} color={tint} />
+            ) : (
+              <Feather name={tab.androidIcon as any} size={22} color={tint} />
+            )}
+            <Text style={[tabBarStyles.label, { color: tint }]}>{tab.title}</Text>
+          </Pressable>
+        );
+      })}
+    </Animated.View>
+  );
+}
+
+const tabBarStyles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    elevation: 0,
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    gap: 2,
+  },
+  label: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 11,
+  },
+});
+
+function ClassicTabLayout() {
   return (
     <View style={{ flex: 1 }}>
     <Tabs
+      tabBar={(props) => <CustomTabBar state={props.state} navigation={props.navigation} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.flame,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : isDark ? "#1A1F36" : colors.surface,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
-        },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={80}
-              tint="light"
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
-          ) : null,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: {
-          fontFamily: "PlusJakartaSans_600SemiBold",
-          fontSize: 11,
-        },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Feeds",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="flame.fill" tintColor={color} size={24} />
-            ) : (
-              <Ionicons name="flame" size={24} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="library"
-        options={{
-          title: "Library",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="books.vertical.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="book-open" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          title: "Alerts",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="bell.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="bell" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="user" size={22} color={color} />
-            ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Feeds" }} />
+      <Tabs.Screen name="library" options={{ title: "Library" }} />
+      <Tabs.Screen name="notifications" options={{ title: "Alerts" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
     <ComposeFab />
     </View>
@@ -203,7 +229,15 @@ export default function TabLayout() {
 
   // NativeTabs + SF Symbol icons are iOS-only; never use on Android (can crash release builds).
   if (Platform.OS === "ios" && isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
+    return (
+      <TabBarVisibilityProvider>
+        <NativeTabLayout />
+      </TabBarVisibilityProvider>
+    );
   }
-  return <ClassicTabLayout />;
+  return (
+    <TabBarVisibilityProvider>
+      <ClassicTabLayout />
+    </TabBarVisibilityProvider>
+  );
 }

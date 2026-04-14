@@ -163,7 +163,7 @@ export default function UserProfileScreen() {
     <FlatList
       data={posts}
       keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => <PostCard post={item} onUpdated={handleUpdated} />}
+      renderItem={({ item }) => <PostCard post={item} onUpdated={handleUpdated} replaceNav />}
       ListHeaderComponent={renderHeader}
       ListEmptyComponent={
         <View style={styles.emptyState}>
@@ -191,7 +191,7 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
-  list: { backgroundColor: colors.cream, paddingHorizontal: 16, paddingBottom: 100 },
+  list: { backgroundColor: colors.cream, paddingHorizontal: 16, paddingBottom: 100, maxWidth: 680, alignSelf: "center" as const, width: "100%" },
   profileSection: { alignItems: "center", gap: 6, paddingTop: 12, paddingBottom: 20 },
   avatarRing: {
     width: 80,

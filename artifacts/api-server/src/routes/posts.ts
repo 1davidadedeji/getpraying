@@ -142,6 +142,19 @@ router.get("/posts/trending", optionalAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
+router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => {
+  const sinceId = parseInt(req.query.sinceId as string, 10);
+  if (!sinceId || Number.isNaN(sinceId)) {
+    res.json({ count: 0 });
+    return;
+  }
+  const [row] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(postsTable)
+    .where(and(eq(postsTable.status, "approved"), sql`${postsTable.id} > ${sinceId}`));
+  res.json({ count: Math.min(Number(row?.count ?? 0), 99) });
+});
+
 router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const limit = Math.min(parseInt((req.query.limit as string) || "20", 10), 50);
   const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;

@@ -13,4 +13,6 @@ export interface RegisterInput {
   /** @minLength 6 */
   password: string;
   displayName?: string;
+  /** @maxLength 160 */
+  bio?: string;
 }

@@ -24,6 +24,8 @@ import { PostMediaBlock } from "@/components/PostMedia";
 interface PostCardProps {
   post: Post;
   onUpdated?: (post: Post) => void;
+  /** When true, navigations replace the current screen instead of pushing (prevents deep stacking) */
+  replaceNav?: boolean;
 }
 
 function timeAgo(dateStr: string): string {
@@ -50,11 +52,20 @@ const CATEGORIES: Record<string, string> = {
   praise: "Praise",
   wisdom: "Wisdom",
   peace: "Peace",
+  family: "Family",
+  health: "Health",
+  "work/career": "Work/Career",
+  finances: "Finances",
+  sleep: "Sleep",
+  "growth/purpose": "Growth/Purpose",
+  forgiveness: "Forgiveness",
+  "mental health": "Mental Health",
 };
 
 const ICON_SIZE = 22;
 
-export default function PostCard({ post, onUpdated }: PostCardProps) {
+export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps) {
+  const navigate = replaceNav ? router.replace : router.push;
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState(post);
 
@@ -152,7 +163,7 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
   return (
     <View style={styles.card}>
       <Pressable
-        onPress={() => router.push(`/post/${localPost.id}` as any)}
+        onPress={() => navigate(`/post/${localPost.id}` as any)}
         style={({ pressed }) => [styles.cardBody, pressed && styles.cardBodyPressed]}
         accessibilityRole="button"
         accessibilityLabel={`Open prayer from ${authorName}`}
@@ -162,7 +173,7 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
             onPress={(e) => {
               if (!localPost.isAnonymous && localPost.authorUsername) {
                 e.stopPropagation?.();
-                router.push(`/user/${localPost.authorUsername}` as any);
+                navigate(`/user/${localPost.authorUsername}` as any);
               }
             }}
             disabled={localPost.isAnonymous || !localPost.authorUsername}
@@ -223,13 +234,16 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
         <Pressable
           onPress={(e) => {
             e.stopPropagation?.();
-            router.push(`/post/${localPost.id}` as any);
+            navigate(`/post/${localPost.id}?focusComment=1` as any);
           }}
           style={styles.actionBtn}
           accessibilityRole="button"
           accessibilityLabel="Comments"
         >
           <Ionicons name="chatbubble-outline" size={ICON_SIZE - 2} color={colors.muted} />
+          {(localPost as any).commentCount > 0 && (
+            <Text style={styles.actionCount}>{(localPost as any).commentCount}</Text>
+          )}
         </Pressable>
 
         <Pressable
@@ -244,6 +258,11 @@ export default function PostCard({ post, onUpdated }: PostCardProps) {
             size={ICON_SIZE}
             color={bookmarkColor}
           />
+          {(localPost as any).saveCount > 0 && (
+            <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
+              {(localPost as any).saveCount}
+            </Text>
+          )}
         </Pressable>
 
         <Pressable
@@ -316,6 +335,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     overflow: "hidden",
+    maxWidth: 640,
+    alignSelf: "center" as const,
+    width: "100%",
   },
   cardBody: {
     padding: 16,
@@ -415,5 +437,8 @@ const styles = StyleSheet.create({
   },
   actionCountActive: {
     color: colors.flame,
+  },
+  actionCountSaved: {
+    color: colors.primary,
   },
 });

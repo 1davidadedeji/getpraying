@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -28,6 +29,7 @@ import { PostMediaBlock } from "@/components/PostMedia";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import { getApiBaseUrl } from "@/lib/apiBase";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 const ENGAGE_ICON = 24;
 
@@ -58,7 +60,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function PostDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, focusComment } = useLocalSearchParams<{ id: string; focusComment?: string }>();
   const postId = Number(id);
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
@@ -69,6 +71,7 @@ export default function PostDetailScreen() {
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const commentInputRef = useRef<TextInput>(null);
 
   const { data, isLoading } = useGetPost(Number(id));
 
@@ -109,6 +112,14 @@ export default function PostDetailScreen() {
   useEffect(() => {
     if (post?.id) void loadComments();
   }, [post?.id, loadComments]);
+
+  useEffect(() => {
+    if (focusComment === "1" && post && !commentsLoading) {
+      setTimeout(() => {
+        commentInputRef.current?.focus();
+      }, 400);
+    }
+  }, [focusComment, post, commentsLoading]);
 
   const handlePray = () => {
     if (!post) return;
@@ -260,17 +271,21 @@ export default function PostDetailScreen() {
         <Pressable
           onPress={() => {
             if (!post.isAnonymous && post.authorUsername) {
-                router.push(`/user/${post.authorUsername}` as never);
+                router.replace(`/user/${post.authorUsername}` as never);
             }
           }}
           disabled={post.isAnonymous || !post.authorUsername}
           style={styles.authorPressable}
         >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
-            </Text>
-          </View>
+          {!post.isAnonymous && post.authorAvatarUrl ? (
+            <Image source={{ uri: resolveMediaUrl(post.authorAvatarUrl)! }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
+              </Text>
+            </View>
+          )}
           <View>
             <Text style={styles.authorName}>{authorName}</Text>
             <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
@@ -327,6 +342,7 @@ export default function PostDetailScreen() {
   const commentInputFooter = (
     <View style={styles.commentComposerCard}>
       <TextInput
+        ref={commentInputRef}
         style={styles.commentInput}
         placeholder={token ? "Write a comment…" : "Sign in to comment"}
         placeholderTextColor={colors.muted}
@@ -451,6 +467,9 @@ const styles = StyleSheet.create({
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
   listContent: {
     padding: 20,
+    maxWidth: 680,
+    alignSelf: "center" as const,
+    width: "100%",
   },
   authorRow: {
     flexDirection: "row",
@@ -482,6 +501,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   avatarText: {
     fontFamily: "PlusJakartaSans_700Bold",

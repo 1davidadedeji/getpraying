@@ -3,31 +3,25 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  useGetOfficialPrayers,
-  useGetPaths,
   useGetSavedPrayers,
 } from "@workspace/api-client-react";
-import type { OfficialPrayer } from "@workspace/api-client-react";
-import PathCard from "@/components/PathCard";
-import PrayerCard from "@/components/PrayerCard";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { getApiBaseUrl } from "@/lib/apiBase";
 
-type Tab = "official" | "paths" | "categories" | "saved";
+type Tab = "categories" | "saved";
 
 type CategoryItem = { name: string; count: number; icon: string };
 
@@ -45,64 +39,22 @@ const FEATHER_ICON_MAP: Record<string, string> = {
   "hand-heart": "heart",
   heart: "heart",
   brain: "cpu",
+  shield: "shield",
+  leaf: "feather",
+  cloud: "cloud",
+  star: "star",
+  music: "music",
+  "help-circle": "help-circle",
+  zap: "zap",
 };
-
-function PrayerDetailModal({
-  prayer,
-  visible,
-  onClose,
-}: {
-  prayer: OfficialPrayer | null;
-  visible: boolean;
-  onClose: () => void;
-}) {
-  if (!prayer) return null;
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.modalRoot}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{prayer.title}</Text>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.modalCloseBtn}>
-            <Feather name="x" size={22} color={colors.primary} />
-          </Pressable>
-        </View>
-        {prayer.subtitle && (
-          <Text style={styles.modalSubtitle}>{prayer.subtitle}</Text>
-        )}
-        {prayer.category && (
-          <View style={styles.modalCatBadge}>
-            <Feather name="tag" size={11} color={colors.accent} />
-            <Text style={styles.modalCatText}>{prayer.category}</Text>
-          </View>
-        )}
-        <ScrollView
-          style={styles.modalScrollBody}
-          contentContainerStyle={styles.modalScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.modalPrayerBody}>{prayer.content}</Text>
-          {prayer.scripture && (
-            <View style={styles.scriptureBlock}>
-              <Ionicons name="book-outline" size={16} color={colors.accent} />
-              <Text style={styles.scriptureText}>{prayer.scripture}</Text>
-            </View>
-          )}
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-}
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>("official");
-  const [selectedPrayer, setSelectedPrayer] = useState<OfficialPrayer | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("categories");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
 
-  const { data: officialData, isLoading: loadingOfficial } = useGetOfficialPrayers({});
-  const { data: pathsData, isLoading: loadingPaths } = useGetPaths();
   const { data: savedData, isLoading: loadingSaved } = useGetSavedPrayers();
 
   const loadCategories = useCallback(async () => {
@@ -128,22 +80,21 @@ export default function LibraryScreen() {
   }, [activeTab, categories.length, loadCategories]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const screenWidth = Dimensions.get("window").width;
+  const isTablet = screenWidth >= 768;
+  const numColumns = isTablet ? 3 : 2;
+  const cardGap = 10;
+  const horizontalPad = 16;
+  const totalGaps = (numColumns - 1) * cardGap;
+  const cardWidth = (screenWidth - horizontalPad * 2 - totalGaps) / numColumns;
 
-  const tabs: { key: Tab; label: string; icon: "book-open" | "compass" | "grid" | "bookmark" }[] = [
-    { key: "official", label: "Prayers", icon: "book-open" },
-    { key: "paths", label: "Paths", icon: "compass" },
+  const tabs: { key: Tab; label: string; icon: "grid" | "bookmark" }[] = [
     { key: "categories", label: "Explore", icon: "grid" },
     { key: "saved", label: "Saved", icon: "bookmark" },
   ];
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
-      <PrayerDetailModal
-        prayer={selectedPrayer}
-        visible={!!selectedPrayer}
-        onClose={() => setSelectedPrayer(null)}
-      />
-
       <View style={styles.header}>
         <Text style={styles.title}>Prayer Library</Text>
         <Text style={styles.subtitle}>Curated for your walk</Text>
@@ -151,7 +102,7 @@ export default function LibraryScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
         {tabs.map((t) => (
-          <TouchableOpacity
+          <Pressable
             key={t.key}
             style={[styles.tab, activeTab === t.key && styles.tabActive]}
             onPress={() => setActiveTab(t.key)}
@@ -164,49 +115,9 @@ export default function LibraryScreen() {
             <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
               {t.label}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </ScrollView>
-
-      {activeTab === "official" && (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
-        >
-          {loadingOfficial ? (
-            <ActivityIndicator color={colors.accent} style={styles.loader} />
-          ) : (officialData as any)?.prayers?.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="book-outline" size={40} color={colors.muted} />
-              <Text style={styles.emptyText}>No official prayers yet</Text>
-            </View>
-          ) : (
-            ((officialData as any)?.prayers ?? []).map((p: any) => (
-              <PrayerCard key={p.id} prayer={p} onPress={() => setSelectedPrayer(p)} />
-            ))
-          )}
-        </ScrollView>
-      )}
-
-      {activeTab === "paths" && (
-        <FlatList
-          data={(pathsData as any)?.paths ?? []}
-          keyExtractor={(item: any) => String(item.id)}
-          renderItem={({ item }: any) => <PathCard path={item} />}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            loadingPaths ? (
-              <ActivityIndicator color={colors.accent} style={styles.loader} />
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="compass-outline" size={40} color={colors.muted} />
-                <Text style={styles.emptyText}>No prayer paths yet</Text>
-              </View>
-            )
-          }
-        />
-      )}
 
       {activeTab === "categories" && (
         <ScrollView
@@ -225,7 +136,11 @@ export default function LibraryScreen() {
               {categories.map((cat) => (
                 <Pressable
                   key={cat.name}
-                  style={({ pressed }) => [styles.catCard, pressed && styles.catCardPressed]}
+                  style={({ pressed }) => [
+                    styles.catCard,
+                    { width: cardWidth },
+                    pressed && styles.catCardPressed,
+                  ]}
                   onPress={() => router.push(`/category/${encodeURIComponent(cat.name.toLowerCase())}` as never)}
                 >
                   <View style={styles.catIconBg}>
@@ -235,8 +150,7 @@ export default function LibraryScreen() {
                       color={colors.surface}
                     />
                   </View>
-                  <Text style={styles.catName}>{cat.name}</Text>
-                  <Text style={styles.catCount}>{cat.count} prayers</Text>
+                  <Text style={styles.catName} numberOfLines={2}>{cat.name}</Text>
                 </Pressable>
               ))}
             </View>
@@ -340,96 +254,12 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: "center",
   },
-  modalRoot: {
-    flex: 1,
-    backgroundColor: colors.cream,
-    padding: 20,
-    paddingTop: 16,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  modalTitle: {
-    fontFamily: "NotoSerif_700Bold",
-    fontSize: 22,
-    color: colors.primary,
-    flex: 1,
-    marginRight: 12,
-  },
-  modalCloseBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalSubtitle: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.muted,
-    fontStyle: "italic",
-    marginBottom: 8,
-  },
-  modalCatBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-    backgroundColor: colors.flameDim,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: 16,
-  },
-  modalCatText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 12,
-    color: colors.accent,
-    textTransform: "capitalize",
-  },
-  modalScrollBody: {
-    flex: 1,
-  },
-  modalScrollContent: {
-    paddingBottom: 40,
-  },
-  modalPrayerBody: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 17,
-    color: colors.text,
-    lineHeight: 28,
-  },
-  scriptureBlock: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    marginTop: 20,
-    padding: 14,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  scriptureText: {
-    fontFamily: "NotoSerif_700Bold",
-    fontSize: 14,
-    color: colors.primary,
-    flex: 1,
-    lineHeight: 22,
-  },
   catGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
   catCard: {
-    width: "47%",
     backgroundColor: colors.surface,
     borderRadius: 32,
     padding: 16,
@@ -454,10 +284,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     textAlign: "center",
-  },
-  catCount: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    color: colors.muted,
   },
 });

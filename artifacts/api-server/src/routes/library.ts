@@ -153,6 +153,13 @@ router.get("/library/categories", optionalAuth, async (req, res): Promise<void> 
     { name: "Forgiveness", icon: "hand-heart" },
     { name: "Relationships", icon: "heart" },
     { name: "Mental Health", icon: "brain" },
+    { name: "Protection", icon: "shield" },
+    { name: "Provision", icon: "leaf" },
+    { name: "Grief", icon: "cloud" },
+    { name: "Hope", icon: "star" },
+    { name: "Praise", icon: "music" },
+    { name: "Wisdom", icon: "help-circle" },
+    { name: "Peace", icon: "cloud" },
   ];
 
   const countMap = new Map(categoryRows.map((r) => [(r.category ?? "").toLowerCase(), Number(r.count)]));

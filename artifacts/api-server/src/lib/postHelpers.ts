@@ -1,5 +1,5 @@
-import { db, postsTable, usersTable, postPrayersTable, savedPostsTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { db, postsTable, usersTable, postPrayersTable, savedPostsTable, commentsTable } from "@workspace/db";
+import { eq, and, inArray, sql } from "drizzle-orm";
 
 export type PostWithMeta = {
   id: number;
@@ -11,6 +11,8 @@ export type PostWithMeta = {
   status: string;
   flagReason: string | null;
   prayCount: number;
+  commentCount: number;
+  saveCount: number;
   hasPrayed: boolean;
   isSaved: boolean;
   authorId: number | null;
@@ -46,6 +48,18 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     isSaved = !!savedRow;
   }
 
+  const [commentRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(commentsTable)
+    .where(eq(commentsTable.postId, post.id));
+  const commentCount = Number(commentRow?.count ?? 0);
+
+  const [saveRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(savedPostsTable)
+    .where(eq(savedPostsTable.postId, post.id));
+  const saveCount = Number(saveRow?.count ?? 0);
+
   return {
     id: post.id,
     content: post.content,
@@ -56,6 +70,8 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     status: post.status,
     flagReason: post.flagReason ?? null,
     prayCount: post.prayCount,
+    commentCount,
+    saveCount,
     hasPrayed,
     isSaved,
     authorId: post.isAnonymous ? null : (post.authorId ?? null),
@@ -77,8 +93,9 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
 
   let prayedSet = new Set<number>();
   let savedSet = new Set<number>();
+  const postIds = posts.map((p) => p.id);
+
   if (userId && posts.length > 0) {
-    const postIds = posts.map((p) => p.id);
     const prayedRows = await db
       .select()
       .from(postPrayersTable)
@@ -89,6 +106,24 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       .from(savedPostsTable)
       .where(and(inArray(savedPostsTable.postId, postIds), eq(savedPostsTable.userId, userId)));
     for (const r of savedRows) savedSet.add(r.postId);
+  }
+
+  const commentCountMap = new Map<number, number>();
+  const saveCountMap = new Map<number, number>();
+  if (postIds.length > 0) {
+    const commentCounts = await db
+      .select({ postId: commentsTable.postId, count: sql<number>`count(*)` })
+      .from(commentsTable)
+      .where(inArray(commentsTable.postId, postIds))
+      .groupBy(commentsTable.postId);
+    for (const r of commentCounts) commentCountMap.set(r.postId, Number(r.count));
+
+    const saveCounts = await db
+      .select({ postId: savedPostsTable.postId, count: sql<number>`count(*)` })
+      .from(savedPostsTable)
+      .where(inArray(savedPostsTable.postId, postIds))
+      .groupBy(savedPostsTable.postId);
+    for (const r of saveCounts) saveCountMap.set(r.postId, Number(r.count));
   }
 
   return posts.map((post) => {
@@ -103,6 +138,8 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       status: post.status,
       flagReason: post.flagReason ?? null,
       prayCount: post.prayCount,
+      commentCount: commentCountMap.get(post.id) ?? 0,
+      saveCount: saveCountMap.get(post.id) ?? 0,
       hasPrayed: prayedSet.has(post.id),
       isSaved: savedSet.has(post.id),
       authorId: post.isAnonymous ? null : (post.authorId ?? null),

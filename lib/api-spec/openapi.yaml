@@ -889,6 +889,9 @@ components:
           minLength: 6
         displayName:
           type: string
+        bio:
+          type: string
+          maxLength: 160
       required:
         - email
         - username
