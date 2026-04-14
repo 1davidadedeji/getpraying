@@ -12,6 +12,7 @@ export const postsTable = pgTable("posts", {
   isAnonymous: boolean("is_anonymous").notNull().default(false),
   status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'declined'
   flagReason: text("flag_reason"),
+  flagCount: integer("flag_count").notNull().default(0),
   /** Shown to the author when a moderator declines the post (also copied into notifications). */
   moderationReason: text("moderation_reason"),
   prayCount: integer("pray_count").notNull().default(0),

@@ -142,10 +142,12 @@ export default function NewPostScreen() {
   const [uploadBusy, setUploadBusy] = useState(false);
 
   const [aiRewriting, setAiRewriting] = useState(false);
+  const [rewriteCount, setRewriteCount] = useState(0);
+  const MAX_REWRITES = 3;
 
-  const handleAiRewrite = async (tone?: string) => {
+  const handleAiRewrite = async () => {
     const trimmed = content.trim();
-    if (trimmed.length < 10 || !token) return;
+    if (trimmed.length < 10 || !token || rewriteCount >= MAX_REWRITES) return;
     setAiRewriting(true);
     try {
       const base = getApiBaseUrl();
@@ -155,11 +157,12 @@ export default function NewPostScreen() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ content: trimmed, tone }),
+        body: JSON.stringify({ content: trimmed }),
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.rewritten) {
         setContent(data.rewritten);
+        setRewriteCount((c) => c + 1);
       } else {
         showAppAlert({
           title: "AI rewrite failed",
@@ -412,11 +415,14 @@ export default function NewPostScreen() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (res: any) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          const isApproved = res?.status === "approved";
           showAppAlert({
-            title: "Prayer submitted",
-            message: "Your prayer is in review and will appear in the feed once approved.",
+            title: isApproved ? "Prayer posted!" : "Prayer submitted",
+            message: isApproved
+              ? "Your prayer is now live in the feed."
+              : "Your prayer is in review and will appear in the feed shortly.",
             buttons: [
               {
                 text: "OK",
@@ -426,6 +432,7 @@ export default function NewPostScreen() {
                   setSelectedCategories([]);
                   setAiCategories([]);
                   setPendingMedia(null);
+                  setRewriteCount(0);
                   router.replace("/(tabs)");
                 },
               },
@@ -470,47 +477,23 @@ export default function NewPostScreen() {
         <Text style={styles.charCount}>{content.length}/2000</Text>
       </View>
 
-      {content.trim().length >= 10 && (
-        <View style={styles.aiRewriteSection}>
-          <Text style={styles.aiRewriteLabel}>Refine with AI</Text>
-          <View style={styles.aiRewriteRow}>
-            <Pressable
-              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
-              onPress={() => void handleAiRewrite()}
-              disabled={aiRewriting}
-            >
-              {aiRewriting ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : (
-                <>
-                  <Ionicons name="sparkles" size={16} color={colors.accent} />
-                  <Text style={styles.aiRewriteBtnText}>Enhance</Text>
-                </>
-              )}
-            </Pressable>
-            <Pressable
-              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
-              onPress={() => void handleAiRewrite("formal")}
-              disabled={aiRewriting}
-            >
-              <Text style={styles.aiRewriteBtnText}>Formal</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
-              onPress={() => void handleAiRewrite("casual")}
-              disabled={aiRewriting}
-            >
-              <Text style={styles.aiRewriteBtnText}>Casual</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
-              onPress={() => void handleAiRewrite("poetic")}
-              disabled={aiRewriting}
-            >
-              <Text style={styles.aiRewriteBtnText}>Poetic</Text>
-            </Pressable>
-          </View>
-        </View>
+      {content.trim().length >= 10 && rewriteCount < MAX_REWRITES && (
+        <Pressable
+          style={[styles.aiRewriteBtn, (aiRewriting || rewriteCount >= MAX_REWRITES) && styles.aiRewriteBtnDisabled]}
+          onPress={() => void handleAiRewrite()}
+          disabled={aiRewriting || rewriteCount >= MAX_REWRITES}
+        >
+          {aiRewriting ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <>
+              <Ionicons name="sparkles" size={16} color={colors.accent} />
+              <Text style={styles.aiRewriteBtnText}>
+                Rewrite with AI{rewriteCount > 0 ? ` (${MAX_REWRITES - rewriteCount} left)` : ""}
+              </Text>
+            </>
+          )}
+        </Pressable>
       )}
 
       <View style={styles.imageSection}>
@@ -932,19 +915,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.surface,
-  },
-  aiRewriteSection: {
-    gap: 8,
-  },
-  aiRewriteLabel: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  aiRewriteRow: {
-    flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap",
   },
   aiRewriteBtn: {
     flexDirection: "row",

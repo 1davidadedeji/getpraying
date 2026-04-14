@@ -11,6 +11,14 @@ const CATEGORIES = [
   "praise",
   "wisdom",
   "peace",
+  "family",
+  "health",
+  "work/career",
+  "finances",
+  "sleep",
+  "growth/purpose",
+  "forgiveness",
+  "mental health",
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
@@ -48,7 +56,7 @@ async function callOpenAIForCategories(content: string): Promise<Category[]> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
+      model: "gpt-4.1-nano",
       input,
       temperature: 0,
       max_output_tokens: 80,

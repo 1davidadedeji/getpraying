@@ -4,6 +4,7 @@ import { eq, and, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
+import { moderatePost, aiRewrite } from "../lib/aiModeration";
 
 const router: IRouter = Router();
 
@@ -23,66 +24,15 @@ router.post("/posts/suggest-category", requireAuth, async (req, res): Promise<vo
 });
 
 router.post("/posts/ai-rewrite", requireAuth, async (req, res): Promise<void> => {
-  const { content, tone } = req.body ?? {};
+  const { content } = req.body ?? {};
   if (typeof content !== "string" || !content.trim()) {
     res.status(400).json({ error: "Content is required" });
     return;
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    res.status(500).json({ error: "AI service not configured" });
-    return;
-  }
-
-  const toneInstruction = tone === "formal"
-    ? "Rewrite in a more formal, reverent tone."
-    : tone === "casual"
-      ? "Rewrite in a warm, casual conversational tone."
-      : tone === "poetic"
-        ? "Rewrite in a poetic, reflective style."
-        : "Rewrite with more clarity and emotional depth, keeping the same meaning.";
-
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        input: [
-          {
-            role: "system",
-            content:
-              `You help people write prayer requests and praises for a Christian prayer app. ${toneInstruction} ` +
-              `Keep the output under 2000 characters. Do not add quotes or attribution. ` +
-              `Return ONLY the rewritten text, nothing else.`,
-          },
-          { role: "user", content: content.trim() },
-        ],
-        temperature: 0.7,
-        max_output_tokens: 600,
-      }),
-    });
-
-    if (!aiRes.ok) {
-      res.status(500).json({ error: "AI service is temporarily unavailable. Please try again." });
-      return;
-    }
-
-    const data: any = await aiRes.json();
-    const rewritten: string | undefined =
-      data?.output?.[0]?.content?.find?.((c: any) => c?.type === "output_text")?.text ??
-      data?.output_text;
-
-    if (!rewritten || typeof rewritten !== "string") {
-      res.status(500).json({ error: "AI returned empty response" });
-      return;
-    }
-
-    res.json({ rewritten: rewritten.trim() });
+    const rewritten = await aiRewrite(content);
+    res.json({ rewritten });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "AI rewrite failed" });
   }
@@ -308,6 +258,30 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // AI moderation pipeline (staff bypass)
+  let postStatus: "approved" | "pending" | "declined" = "pending";
+  let moderationReason: string | null = null;
+
+  if (isStaff) {
+    postStatus = "approved";
+  } else if (storedContent && storedContent !== "(Image)") {
+    const modResult = await moderatePost(storedContent);
+    if (modResult.outcome === "approved") {
+      postStatus = "approved";
+    } else if (modResult.outcome === "rejected") {
+      postStatus = "declined";
+      moderationReason = modResult.reason;
+    } else {
+      postStatus = "pending";
+      moderationReason = modResult.reason;
+    }
+  }
+
+  if (postStatus === "declined") {
+    res.status(400).json({ error: moderationReason ?? "Your post was not approved." });
+    return;
+  }
+
   const [post] = await db
     .insert(postsTable)
     .values({
@@ -316,12 +290,12 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
       mediaType: storedMediaType,
       category: detectedCategory,
       isAnonymous: isAnonymous ?? false,
-      status: isStaff ? "approved" : "pending",
+      status: postStatus,
+      moderationReason,
       authorId: user.id,
     })
     .returning();
 
-  // Increment user prayers shared
   await db
     .update(usersTable)
     .set({ prayersShared: sql`${usersTable.prayersShared} + 1` })
@@ -353,6 +327,8 @@ router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
+const FLAG_THRESHOLD = 3;
+
 router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
@@ -379,14 +355,25 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
     res.status(400).json({ error: "You cannot flag your own post" });
     return;
   }
-  if (post.flagReason) {
-    res.status(400).json({ error: "This post has already been reported" });
-    return;
-  }
 
-  await db.update(postsTable).set({ flagReason: reason, status: "pending" }).where(eq(postsTable.id, postId));
+  const newFlagCount = (post.flagCount ?? 0) + 1;
+  const shouldQueue = newFlagCount >= FLAG_THRESHOLD && post.status === "approved";
 
-  res.json({ success: true, message: "Post reported" });
+  await db
+    .update(postsTable)
+    .set({
+      flagCount: newFlagCount,
+      flagReason: post.flagReason ? `${post.flagReason}; ${reason}` : reason,
+      ...(shouldQueue ? { status: "pending" } : {}),
+    })
+    .where(eq(postsTable.id, postId));
+
+  res.json({
+    success: true,
+    message: shouldQueue
+      ? "Post reported and queued for moderator review."
+      : "Report submitted. Thank you for helping keep the community safe.",
+  });
 });
 
 router.get("/posts/:postId/comments", optionalAuth, async (req, res): Promise<void> => {
