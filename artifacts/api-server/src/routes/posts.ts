@@ -35,13 +35,14 @@ router.post("/posts/ai-rewrite", requireAuth, async (req, res): Promise<void> =>
   }
 
   const key = String(user.id);
-  if (!rewriteLimiter.tryHit(key)) {
+  if (rewriteLimiter.remaining(key) <= 0) {
     res.status(429).json({ error: "You've used all rewrites for now. Try again in a bit." });
     return;
   }
 
   try {
     const rewritten = await aiRewrite(content);
+    rewriteLimiter.tryHit(key);
     res.json({ rewritten });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "AI rewrite failed" });
@@ -121,103 +122,22 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const category = req.query.category as string | undefined;
   const currentUser = (req as any).user;
 
-  if (category) {
-    let conditions: any = and(eq(postsTable.status, "approved"), eq(postsTable.category, category));
-    if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
+  let conditions: any = eq(postsTable.status, "approved");
+  if (category) conditions = and(conditions, eq(postsTable.category, category));
+  if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
 
-    const posts = await db.select().from(postsTable).where(conditions)
-      .orderBy(desc(postsTable.createdAt)).limit(limit + 1);
-    const hasMore = posts.length > limit;
-    const page = posts.slice(0, limit);
-    const enriched = await enrichPosts(page, currentUser?.id);
-    res.json({ posts: enriched, nextCursor: hasMore ? page[page.length - 1]?.id : null, total: page.length });
-    return;
-  }
+  const posts = await db.select().from(postsTable).where(conditions)
+    .orderBy(desc(postsTable.id)).limit(limit + 1);
 
-  // Engagement-based feed: prioritize categories the user has engaged with
-  // (saves weighted 3x, prayers weighted 1x), then preferred categories, then everything else.
-  // This ensures ALL posts appear — engaged categories first, then the rest.
-  let engagedCategories: string[] = [];
-  let preferredCategories: string[] = [];
+  const hasMore = posts.length > limit;
+  const page = posts.slice(0, limit);
+  const enriched = await enrichPosts(page, currentUser?.id);
 
-  if (currentUser) {
-    const savedCats = await db
-      .select({ category: postsTable.category })
-      .from(savedPostsTable)
-      .innerJoin(postsTable, eq(postsTable.id, savedPostsTable.postId))
-      .where(and(eq(savedPostsTable.userId, currentUser.id), sql`${postsTable.category} IS NOT NULL`))
-      .limit(100);
-
-    const prayedCats = await db
-      .select({ category: postsTable.category })
-      .from(postPrayersTable)
-      .innerJoin(postsTable, eq(postsTable.id, postPrayersTable.postId))
-      .where(and(eq(postPrayersTable.userId, currentUser.id), sql`${postsTable.category} IS NOT NULL`))
-      .limit(200);
-
-    const catScore = new Map<string, number>();
-    for (const r of savedCats) {
-      if (r.category) catScore.set(r.category, (catScore.get(r.category) ?? 0) + 3);
-    }
-    for (const r of prayedCats) {
-      if (r.category) catScore.set(r.category, (catScore.get(r.category) ?? 0) + 1);
-    }
-    engagedCategories = [...catScore.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([cat]) => cat);
-
-    if (Array.isArray(currentUser.preferredCategories)) {
-      preferredCategories = currentUser.preferredCategories
-        .filter((c: string) => typeof c === "string" && c.length > 0 && !engagedCategories.includes(c));
-    }
-  }
-
-  const boostCategories = [...engagedCategories, ...preferredCategories];
-  const conditions: any = eq(postsTable.status, "approved");
-
-  let orderClause;
-  if (boostCategories.length > 0) {
-    const caseFragments = boostCategories
-      .map((cat, i) => `WHEN ${postsTable.category.name} = '${cat.replace(/'/g, "''")}' THEN ${i + 1}`)
-      .join(" ");
-    orderClause = sql`(CASE ${sql.raw(caseFragments)} ELSE ${boostCategories.length + 1} END) ASC, ${postsTable.createdAt} DESC`;
-  } else {
-    orderClause = desc(postsTable.createdAt);
-  }
-
-  if (boostCategories.length > 0) {
-    // Offset-based pagination for engagement-ranked feed (cursor = offset)
-    const offset = cursor ?? 0;
-    const posts = await db.select().from(postsTable).where(conditions)
-      .orderBy(orderClause).limit(limit + 1).offset(offset);
-
-    const hasMore = posts.length > limit;
-    const page = posts.slice(0, limit);
-    const enriched = await enrichPosts(page, currentUser?.id);
-
-    res.json({
-      posts: enriched,
-      nextCursor: hasMore ? offset + limit : null,
-      total: page.length,
-    });
-  } else {
-    // ID-based cursor pagination for simple chronological feed
-    let chronoConditions = conditions;
-    if (cursor) chronoConditions = and(chronoConditions, sql`${postsTable.id} < ${cursor}`);
-
-    const posts = await db.select().from(postsTable).where(chronoConditions)
-      .orderBy(orderClause).limit(limit + 1);
-
-    const hasMore = posts.length > limit;
-    const page = posts.slice(0, limit);
-    const enriched = await enrichPosts(page, currentUser?.id);
-
-    res.json({
-      posts: enriched,
-      nextCursor: hasMore ? page[page.length - 1]?.id : null,
-      total: page.length,
-    });
-  }
+  res.json({
+    posts: enriched,
+    nextCursor: hasMore ? page[page.length - 1]?.id : null,
+    total: page.length,
+  });
 });
 
 router.post("/posts", requireAuth, async (req, res): Promise<void> => {
@@ -366,17 +286,19 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
-  const newFlagCount = (post.flagCount ?? 0) + 1;
-  const shouldQueue = newFlagCount >= FLAG_THRESHOLD && post.status === "approved";
-
-  await db
+  const [updated] = await db
     .update(postsTable)
     .set({
-      flagCount: newFlagCount,
-      flagReason: post.flagReason ? `${post.flagReason}; ${reason}` : reason,
-      ...(shouldQueue ? { status: "pending" } : {}),
+      flagCount: sql`COALESCE(${postsTable.flagCount}, 0) + 1`,
+      flagReason: post.flagReason ? sql`${postsTable.flagReason} || '; ' || ${reason}` : reason,
     })
-    .where(eq(postsTable.id, postId));
+    .where(eq(postsTable.id, postId))
+    .returning();
+
+  const shouldQueue = (updated.flagCount ?? 0) >= FLAG_THRESHOLD && post.status === "approved";
+  if (shouldQueue) {
+    await db.update(postsTable).set({ status: "pending" }).where(eq(postsTable.id, postId));
+  }
 
   res.json({
     success: true,
@@ -391,6 +313,15 @@ router.get("/posts/:postId/comments", optionalAuth, async (req, res): Promise<vo
   const postId = parseInt(rawId, 10);
   if (Number.isNaN(postId)) {
     res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
+  const currentUser = (req as any).user;
+  const isAuthor = currentUser && post?.authorId === currentUser.id;
+  const isStaff = currentUser && (currentUser.role === "admin" || currentUser.role === "moderator");
+  if (!post || (post.status !== "approved" && !isAuthor && !isStaff)) {
+    res.status(404).json({ error: "Post not found" });
     return;
   }
 
@@ -417,6 +348,12 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
   const postId = parseInt(rawId, 10);
   if (Number.isNaN(postId)) {
     res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
+  if (!post || post.status !== "approved") {
+    res.status(404).json({ error: "Post not found" });
     return;
   }
 
@@ -497,63 +434,77 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
-  const existing = await db
-    .select()
-    .from(postPrayersTable)
-    .where(and(eq(postPrayersTable.postId, postId), eq(postPrayersTable.userId, user.id)));
-
-  if (existing.length > 0) {
-    // toggle off
-    await db
-      .delete(postPrayersTable)
+  const result = await db.transaction(async (tx) => {
+    const existing = await tx
+      .select()
+      .from(postPrayersTable)
       .where(and(eq(postPrayersTable.postId, postId), eq(postPrayersTable.userId, user.id)));
-    const [updated] = await db
-      .update(postsTable)
-      .set({ prayCount: sql`GREATEST(${postsTable.prayCount} - 1, 0)` })
-      .where(eq(postsTable.id, postId))
-      .returning();
-    res.json({ prayCount: updated.prayCount, hasPrayed: false });
-  } else {
-    await db.insert(postPrayersTable).values({ postId, userId: user.id });
-    const [updated] = await db
-      .update(postsTable)
-      .set({ prayCount: sql`${postsTable.prayCount} + 1` })
-      .where(eq(postsTable.id, postId))
-      .returning();
 
-    const newCount = updated.prayCount ?? 0;
+    if (existing.length > 0) {
+      const deleted = await tx
+        .delete(postPrayersTable)
+        .where(and(eq(postPrayersTable.postId, postId), eq(postPrayersTable.userId, user.id)))
+        .returning({ id: postPrayersTable.id });
+      if (deleted.length === 0) {
+        const [p] = await tx.select({ prayCount: postsTable.prayCount }).from(postsTable).where(eq(postsTable.id, postId));
+        return { prayCount: Number(p?.prayCount ?? 0), hasPrayed: false } as const;
+      }
+      const [updated] = await tx
+        .update(postsTable)
+        .set({ prayCount: sql`GREATEST(${postsTable.prayCount} - 1, 0)` })
+        .where(eq(postsTable.id, postId))
+        .returning();
+      return { prayCount: updated.prayCount, hasPrayed: false } as const;
+    } else {
+      const inserted = await tx
+        .insert(postPrayersTable)
+        .values({ postId, userId: user.id })
+        .onConflictDoNothing({ target: [postPrayersTable.postId, postPrayersTable.userId] })
+        .returning({ id: postPrayersTable.id });
+      if (inserted.length === 0) {
+        const [p] = await tx.select({ prayCount: postsTable.prayCount }).from(postsTable).where(eq(postsTable.id, postId));
+        return { prayCount: Number(p?.prayCount ?? 0), hasPrayed: true } as const;
+      }
+      const [updated] = await tx
+        .update(postsTable)
+        .set({ prayCount: sql`${postsTable.prayCount} + 1` })
+        .where(eq(postsTable.id, postId))
+        .returning();
 
-    if (post.authorId && post.authorId !== user.id) {
-      await db
-        .update(usersTable)
-        .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
-        .where(eq(usersTable.id, post.authorId));
+      const newCount = updated.prayCount ?? 0;
 
-      // Individual pray notification
-      await db.insert(notificationsTable).values({
-        userId: post.authorId,
-        type: "prayer",
-        message: `prayed for your post`,
-        actorId: user.id,
-        postId,
-        isRead: false,
-      });
+      if (post.authorId && post.authorId !== user.id) {
+        await tx
+          .update(usersTable)
+          .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
+          .where(eq(usersTable.id, post.authorId));
 
-      // Milestone notifications (e.g., "10 people are now praying for your post!")
-      if (PRAYER_MILESTONES.includes(newCount)) {
-        await db.insert(notificationsTable).values({
+        await tx.insert(notificationsTable).values({
           userId: post.authorId,
-          type: "prayer_milestone",
-          message: `${newCount} people are now praying for your post! 🙌`,
-          actorId: null,
+          type: "prayer",
+          message: `prayed for your post`,
+          actorId: user.id,
           postId,
           isRead: false,
         });
-      }
-    }
 
-    res.json({ prayCount: newCount, hasPrayed: true });
-  }
+        if (PRAYER_MILESTONES.includes(newCount)) {
+          await tx.insert(notificationsTable).values({
+            userId: post.authorId,
+            type: "prayer_milestone",
+            message: `${newCount} people are now praying for your post! 🙌`,
+            actorId: null,
+            postId,
+            isRead: false,
+          });
+        }
+      }
+
+      return { prayCount: newCount, hasPrayed: true } as const;
+    }
+  });
+
+  res.json(result);
 });
 
 router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> => {
@@ -572,30 +523,37 @@ router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
-  const existing = await db
-    .select()
-    .from(savedPostsTable)
-    .where(and(eq(savedPostsTable.postId, postId), eq(savedPostsTable.userId, user.id)));
+  await db.transaction(async (tx) => {
+    const existing = await tx
+      .select()
+      .from(savedPostsTable)
+      .where(and(eq(savedPostsTable.postId, postId), eq(savedPostsTable.userId, user.id)));
 
-  if (existing.length === 0) {
-    await db.insert(savedPostsTable).values({ postId, userId: user.id });
-    await db
-      .update(usersTable)
-      .set({ savedScrolls: sql`${usersTable.savedScrolls} + 1` })
-      .where(eq(usersTable.id, user.id));
+    if (existing.length === 0) {
+      const inserted = await tx
+        .insert(savedPostsTable)
+        .values({ postId, userId: user.id })
+        .onConflictDoNothing({ target: [savedPostsTable.postId, savedPostsTable.userId] })
+        .returning({ id: savedPostsTable.id });
+      if (inserted.length === 0) return;
 
-    // Notify the post author that someone saved their post (don't reveal who)
-    if (post.authorId && post.authorId !== user.id) {
-      await db.insert(notificationsTable).values({
-        userId: post.authorId,
-        type: "saved",
-        message: "Someone saved your prayer post to their library.",
-        actorId: null, // intentionally null — saver remains anonymous
-        postId,
-        isRead: false,
-      });
+      await tx
+        .update(usersTable)
+        .set({ savedScrolls: sql`${usersTable.savedScrolls} + 1` })
+        .where(eq(usersTable.id, user.id));
+
+      if (post.authorId && post.authorId !== user.id) {
+        await tx.insert(notificationsTable).values({
+          userId: post.authorId,
+          type: "saved",
+          message: "Someone saved your prayer post to their library.",
+          actorId: null,
+          postId,
+          isRead: false,
+        });
+      }
     }
-  }
+  });
 
   res.json({ success: true, message: "Post saved" });
 });

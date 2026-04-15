@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -34,13 +34,11 @@ export default function FeedScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [error, setError] = useState(false);
-  const seenIds = useRef(new Set<number>());
   const listRef = useRef<FlatList>(null);
 
   const [newPostCount, setNewPostCount] = useState(0);
   const pillAnim = useRef(new Animated.Value(0)).current;
-  const latestPostId = useRef<number | null>(null);
-  const hasScrolledDown = useRef(false);
+  const topPostId = useRef<number | null>(null);
 
   const fetchPage = useCallback(
     async (cursor?: number): Promise<{ posts: Post[]; nextCursor: number | null }> => {
@@ -57,54 +55,54 @@ export default function FeedScreen() {
     [token],
   );
 
-  const loadInitial = useCallback(async () => {
-    setLoading(true);
+  const loadFresh = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const result = await fetchPage();
-      seenIds.current = new Set(result.posts.map((p) => p.id));
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
       setError(false);
       if (result.posts.length > 0) {
-        latestPostId.current = Math.max(...result.posts.map((p) => p.id));
+        topPostId.current = result.posts[0].id;
       }
       setNewPostCount(0);
-      hasScrolledDown.current = false;
     } catch {
-      setError(true);
+      if (!opts?.silent) setError(true);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [fetchPage]);
 
   useEffect(() => {
-    loadInitial();
-  }, [loadInitial]);
+    loadFresh();
+  }, [loadFresh]);
 
-  // Poll for new posts in the background
+  useFocusEffect(
+    useCallback(() => {
+      if (!loading) {
+        loadFresh({ silent: true });
+      }
+    }, [loading, loadFresh]),
+  );
+
   useEffect(() => {
     if (!token || loading) return;
     const interval = setInterval(async () => {
-      if (!latestPostId.current) return;
+      if (!topPostId.current) return;
       try {
         const res = await fetch(
-          apiUrl(`/posts/new-count?sinceId=${latestPostId.current}`),
+          apiUrl(`/posts/new-count?sinceId=${topPostId.current}`),
           { headers: authHeaders(token) },
         );
         if (!res.ok) return;
         const data = await res.json();
         const count = typeof data.count === "number" ? data.count : 0;
-        if (count > 0 && hasScrolledDown.current) {
-          setNewPostCount(count);
-        }
-      } catch {
-        /* silent */
-      }
+        if (count > 0) setNewPostCount(count);
+      } catch { /* silent */ }
     }, NEW_POSTS_POLL_MS);
     return () => clearInterval(interval);
   }, [token, loading]);
 
-  // Animate the pill in/out
   useEffect(() => {
     Animated.spring(pillAnim, {
       toValue: newPostCount > 0 ? 1 : 0,
@@ -120,25 +118,13 @@ export default function FeedScreen() {
     setRefreshing(true);
     try {
       const result = await fetchPage();
-      const fresh = result.posts.filter((p) => !seenIds.current.has(p.id));
-      for (const p of fresh) seenIds.current.add(p.id);
-
-      if (fresh.length > 0) {
-        setPosts((prev) => [...fresh, ...prev]);
-      } else {
-        seenIds.current = new Set(result.posts.map((p) => p.id));
-        setPosts(result.posts);
-      }
+      setPosts(result.posts);
       setNextCursor(result.nextCursor);
       if (result.posts.length > 0) {
-        latestPostId.current = Math.max(...result.posts.map((p) => p.id));
+        topPostId.current = result.posts[0].id;
       }
-      hasScrolledDown.current = false;
-
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
-    } catch {
-      /* silent */
-    } finally {
+    } catch { /* silent */ } finally {
       setRefreshing(false);
     }
   }, [fetchPage]);
@@ -148,16 +134,12 @@ export default function FeedScreen() {
     setNewPostCount(0);
     try {
       const result = await fetchPage();
-      seenIds.current = new Set(result.posts.map((p) => p.id));
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
       if (result.posts.length > 0) {
-        latestPostId.current = Math.max(...result.posts.map((p) => p.id));
+        topPostId.current = result.posts[0].id;
       }
-      hasScrolledDown.current = false;
-    } catch {
-      /* keep current data */
-    } finally {
+    } catch { /* keep current data */ } finally {
       setRefreshing(false);
     }
   }, [fetchPage]);
@@ -167,13 +149,9 @@ export default function FeedScreen() {
     setLoadingMore(true);
     try {
       const result = await fetchPage(nextCursor);
-      const fresh = result.posts.filter((p) => !seenIds.current.has(p.id));
-      for (const p of fresh) seenIds.current.add(p.id);
-      setPosts((prev) => [...prev, ...fresh]);
+      setPosts((prev) => [...prev, ...result.posts]);
       setNextCursor(result.nextCursor);
-    } catch {
-      /* silently fail, user can scroll again */
-    } finally {
+    } catch { /* silently fail */ } finally {
       setLoadingMore(false);
     }
   }, [nextCursor, loadingMore, fetchPage]);
@@ -185,10 +163,6 @@ export default function FeedScreen() {
   const handleScroll = useCallback(
     (event: any) => {
       onScrollHideBar(event);
-      const offsetY = event.nativeEvent.contentOffset.y;
-      if (offsetY > 400) {
-        hasScrolledDown.current = true;
-      }
     },
     [onScrollHideBar],
   );

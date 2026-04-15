@@ -1,13 +1,13 @@
 import { Router, type IRouter } from "express";
 import { db, officialPrayersTable, prayerPathsTable, postsTable, savedPostsTable } from "@workspace/db";
-import { eq, inArray, sql, desc } from "drizzle-orm";
+import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 
 const router: IRouter = Router();
 
 router.get("/library/official", optionalAuth, async (req, res): Promise<void> => {
-  const limit = parseInt((req.query.limit as string) || "20", 10);
+  const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 50);
 
   const prayers = await db
     .select()
@@ -48,28 +48,31 @@ router.get("/library/saved", requireAuth, async (req, res): Promise<void> => {
   const postIds = savedRows.map((r) => r.postId);
   const posts = await db.select().from(postsTable).where(inArray(postsTable.id, postIds));
   const enriched = await enrichPosts(posts, user.id);
+  const idOrder = new Map(postIds.map((id, i) => [id, i]));
+  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
   res.json({ posts: enriched });
 });
 
 router.get("/library/paths", optionalAuth, async (req, res): Promise<void> => {
   const paths = await db.select().from(prayerPathsTable).orderBy(prayerPathsTable.createdAt);
-
-  const result = await Promise.all(
-    paths.map(async (path) => {
-      const prayerCount = await db
-        .select({ count: sql<number>`count(*)` })
+  const pathIds = paths.map(p => p.id);
+  const counts = pathIds.length > 0
+    ? await db
+        .select({ pathId: officialPrayersTable.pathId, count: sql<number>`count(*)` })
         .from(officialPrayersTable)
-        .where(eq(officialPrayersTable.pathId, path.id));
-      return {
-        id: path.id,
-        name: path.name,
-        description: path.description,
-        category: path.category,
-        tagline: path.tagline,
-        prayerCount: Number(prayerCount[0]?.count ?? 0),
-      };
-    })
-  );
+        .where(inArray(officialPrayersTable.pathId, pathIds))
+        .groupBy(officialPrayersTable.pathId)
+    : [];
+  const countMap = new Map(counts.map(r => [r.pathId, Number(r.count)]));
+
+  const result = paths.map(path => ({
+    id: path.id,
+    name: path.name,
+    description: path.description,
+    category: path.category,
+    tagline: path.tagline,
+    prayerCount: countMap.get(path.id) ?? 0,
+  }));
 
   res.json({ paths: result });
 });
@@ -103,7 +106,7 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
       const posts = await db
         .select()
         .from(postsTable)
-        .where(inArray(postsTable.id, postIds))
+        .where(and(inArray(postsTable.id, postIds), eq(postsTable.category, path.category)))
         .limit(5);
       savedPosts = await enrichPosts(posts, currentUser.id);
     }

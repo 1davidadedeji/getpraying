@@ -14,6 +14,16 @@ export class RateLimiter {
   constructor(windowMs: number, maxHits: number) {
     this.windowMs = windowMs;
     this.maxHits = maxHits;
+    setInterval(() => this.cleanup(), 5 * 60 * 1000);
+  }
+
+  private cleanup(): void {
+    const now = Date.now();
+    const cutoff = now - this.windowMs;
+    for (const [key, entry] of this.store) {
+      entry.timestamps = entry.timestamps.filter(t => t > cutoff);
+      if (entry.timestamps.length === 0) this.store.delete(key);
+    }
   }
 
   /** Returns true if the action is allowed (and records the hit). */

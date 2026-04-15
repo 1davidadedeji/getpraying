@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useGetSavedPrayers,
+  getGetSavedPrayersQueryKey,
 } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
@@ -51,11 +53,18 @@ const FEATHER_ICON_MAP: Record<string, string> = {
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("categories");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
 
   const { data: savedData, isLoading: loadingSaved } = useGetSavedPrayers();
+
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
+    }, [queryClient]),
+  );
 
   const loadCategories = useCallback(async () => {
     setLoadingCats(true);
@@ -97,7 +106,7 @@ export default function LibraryScreen() {
         <Text style={styles.subtitle}>Curated for your walk</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+      <View style={styles.tabRow}>
         {tabs.map((t) => (
           <Pressable
             key={t.key}
@@ -106,7 +115,7 @@ export default function LibraryScreen() {
           >
             <Feather
               name={t.icon}
-              size={15}
+              size={14}
               color={activeTab === t.key ? colors.surface : colors.muted}
             />
             <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
@@ -114,7 +123,7 @@ export default function LibraryScreen() {
             </Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       {activeTab === "categories" && (
         <ScrollView
@@ -201,6 +210,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   tabRow: {
+    flexDirection: "row",
     paddingHorizontal: 20,
     gap: 8,
     marginBottom: 16,
@@ -208,10 +218,11 @@ const styles = StyleSheet.create({
   tab: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 50,
+    paddingHorizontal: 16,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,

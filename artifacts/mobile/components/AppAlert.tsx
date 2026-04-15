@@ -53,16 +53,14 @@ export function AppAlertHost() {
 
   const dismiss = useCallback(() => {
     setVisible(false);
-    setCfg(null);
+    setTimeout(() => setCfg(null), 350);
   }, []);
 
   const onPressBtn = useCallback(
     (btn: AppAlertButton) => {
       const fn = btn.onPress;
       dismiss();
-      queueMicrotask(() => {
-        void fn?.();
-      });
+      setTimeout(() => { void fn?.(); }, 100);
     },
     [dismiss],
   );

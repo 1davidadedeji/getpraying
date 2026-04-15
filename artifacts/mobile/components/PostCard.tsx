@@ -12,7 +12,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { usePrayForPost, useSavePost, useUnsavePost } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePrayForPost, useSavePost, useUnsavePost, getGetSavedPrayersQueryKey, getGetMeQueryKey } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
@@ -22,6 +23,8 @@ import { PostMediaBlock } from "@/components/PostMedia";
 import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
+
+type PostWithCounts = Post & { commentCount?: number; saveCount?: number };
 
 interface PostCardProps {
   post: Post;
@@ -34,8 +37,9 @@ const ICON_SIZE = 22;
 
 export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps) {
   const navigate = replaceNav ? router.replace : router.push;
+  const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
-  const [localPost, setLocalPost] = useState(post);
+  const [localPost, setLocalPost] = useState<PostWithCounts>(post);
 
   useEffect(() => {
     setLocalPost(post);
@@ -60,11 +64,6 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
   const { mutate: save } = useSavePost();
   const { mutate: unsave } = useUnsavePost();
 
-  const merge = (next: Post) => {
-    setLocalPost(next);
-    onUpdated?.(next);
-  };
-
   const handlePray = () => {
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.4, useNativeDriver: true }),
@@ -75,10 +74,10 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
       { postId: localPost.id },
       {
         onSuccess: (res) => {
-          merge({
-            ...localPost,
-            hasPrayed: res.hasPrayed,
-            prayCount: res.prayCount,
+          setLocalPost((prev) => {
+            const next = { ...prev, hasPrayed: res.hasPrayed, prayCount: res.prayCount };
+            onUpdated?.(next);
+            return next;
           });
         },
       },
@@ -87,15 +86,37 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const invalidateSaved = () => {
+      queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+    };
     if (localPost.isSaved) {
       unsave(
         { postId: localPost.id },
-        { onSuccess: () => merge({ ...localPost, isSaved: false }) },
+        {
+          onSuccess: () => {
+            setLocalPost((prev) => {
+              const next = { ...prev, isSaved: false };
+              onUpdated?.(next);
+              return next;
+            });
+            invalidateSaved();
+          },
+        },
       );
     } else {
       save(
         { postId: localPost.id },
-        { onSuccess: () => merge({ ...localPost, isSaved: true }) },
+        {
+          onSuccess: () => {
+            setLocalPost((prev) => {
+              const next = { ...prev, isSaved: true };
+              onUpdated?.(next);
+              return next;
+            });
+            invalidateSaved();
+          },
+        },
       );
     }
   };
@@ -209,8 +230,8 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
           accessibilityLabel="Comments"
         >
           <Ionicons name="chatbubble-outline" size={ICON_SIZE - 2} color={colors.muted} />
-          {(localPost as any).commentCount > 0 && (
-            <Text style={styles.actionCount}>{(localPost as any).commentCount}</Text>
+          {localPost.commentCount != null && localPost.commentCount > 0 && (
+            <Text style={styles.actionCount}>{localPost.commentCount}</Text>
           )}
         </Pressable>
 
@@ -226,9 +247,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
             size={ICON_SIZE}
             color={bookmarkColor}
           />
-          {(localPost as any).saveCount > 0 && (
+          {localPost.saveCount != null && localPost.saveCount > 0 && (
             <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
-              {(localPost as any).saveCount}
+              {localPost.saveCount}
             </Text>
           )}
         </Pressable>

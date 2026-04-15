@@ -154,6 +154,7 @@ export default function NewPostScreen() {
     const trimmed = content.trim();
     if (trimmed.length < 12) {
       setAiCategories([]);
+      setAiLoading(false);
       return;
     }
 
@@ -177,8 +178,15 @@ export default function NewPostScreen() {
           .filter((c: unknown) => typeof c === "string" && (CATEGORY_SLUGS as readonly string[]).includes(c as string)) as string[];
         setAiCategories(normalized);
         if (normalized.length > 0) {
-          // Auto-select all AI suggested categories
-          setSelectedCategories(normalized);
+          setSelectedCategories((prev) => {
+            const allowed = CATEGORY_SLUGS as readonly string[];
+            if (prev.length === 0) return normalized.filter((c) => allowed.includes(c));
+            const merged = [...prev];
+            for (const c of normalized) {
+              if (allowed.includes(c) && !merged.includes(c)) merged.push(c);
+            }
+            return merged;
+          });
         }
       } catch {
         if (!cancelled) setAiCategories([]);

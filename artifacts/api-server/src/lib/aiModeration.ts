@@ -12,9 +12,13 @@ export type ModerationResult =
   | { outcome: "rejected"; reason: string }
   | { outcome: "queue"; reason: string };
 
+/** Thrown to `moderatePost` catch — distinct handling from transient HTTP failures */
+export const MOD_ERR_NO_OPENAI_KEY = "MOD_ERR_NO_OPENAI_KEY";
+export const MOD_ERR_HTTP = "MOD_ERR_HTTP";
+
 async function checkModeration(content: string): Promise<{ flagged: boolean; categories: string[] }> {
   const apiKey = getOpenAIKey();
-  if (!apiKey) return { flagged: false, categories: [] };
+  if (!apiKey) throw new Error(MOD_ERR_NO_OPENAI_KEY);
 
   const res = await fetch(OPENAI_MODERATION_URL, {
     method: "POST",
@@ -22,7 +26,7 @@ async function checkModeration(content: string): Promise<{ flagged: boolean; cat
     body: JSON.stringify({ input: content }),
   });
 
-  if (!res.ok) return { flagged: false, categories: [] };
+  if (!res.ok) throw new Error(MOD_ERR_HTTP);
 
   const data: any = await res.json();
   const result = data?.results?.[0];
@@ -39,7 +43,7 @@ async function checkModeration(content: string): Promise<{ flagged: boolean; cat
 
 async function checkIsPrayer(content: string): Promise<"approve" | "reject"> {
   const apiKey = getOpenAIKey();
-  if (!apiKey) return "approve";
+  if (!apiKey) throw new Error(MOD_ERR_NO_OPENAI_KEY);
 
   const res = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
@@ -60,7 +64,7 @@ async function checkIsPrayer(content: string): Promise<"approve" | "reject"> {
     }),
   });
 
-  if (!res.ok) return "approve";
+  if (!res.ok) throw new Error(MOD_ERR_HTTP);
 
   const text = (extractOutputText(await res.json()) ?? "").trim().toLowerCase();
   return text.startsWith("reject") ? "reject" : "approve";
@@ -78,8 +82,24 @@ export async function moderatePost(content: string): Promise<ModerationResult> {
     }
 
     return { outcome: "approved", category: null };
-  } catch {
-    return { outcome: "queue", reason: "AI moderation unavailable — queued for review." };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === MOD_ERR_NO_OPENAI_KEY) {
+      return {
+        outcome: "queue",
+        reason: "AI moderation is not configured on the server — your post was queued for human review.",
+      };
+    }
+    if (msg === MOD_ERR_HTTP) {
+      return {
+        outcome: "queue",
+        reason: "The moderation service is temporarily unavailable — your post was queued for review.",
+      };
+    }
+    return {
+      outcome: "queue",
+      reason: "AI moderation encountered an error — your post was queued for review.",
+    };
   }
 }
 

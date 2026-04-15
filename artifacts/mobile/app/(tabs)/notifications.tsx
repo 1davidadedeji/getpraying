@@ -12,14 +12,26 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useGetNotifications, useMarkAllNotificationsRead } from "@workspace/api-client-react";
+import { useGetNotifications, useMarkAllNotificationsRead, getGetNotificationsQueryKey } from "@workspace/api-client-react";
 import type { Notification } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
 
 type NotifType = string;
+type NotifRow = Omit<Notification, "type"> & { type: string };
+
+function normalizeNotificationsPayload(data: unknown): NotifRow[] {
+  if (Array.isArray(data)) return data as NotifRow[];
+  if (data && typeof data === "object" && "notifications" in data) {
+    const raw = (data as { notifications?: unknown }).notifications;
+    if (Array.isArray(raw)) return raw as NotifRow[];
+  }
+  return [];
+}
+
 function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }): string {
   switch (n.type) {
     case "prayer":
@@ -108,20 +120,44 @@ function NotificationItem({
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { data, isLoading, refetch, isFetching } = useGetNotifications();
-  const { mutate: markAll } = useMarkAllNotificationsRead();
-  const notifications: Notification[] = (data as any)?.notifications ?? [];
+  const { mutate: markAll } = useMarkAllNotificationsRead({
+    mutation: {
+      onMutate: () => {
+        queryClient.setQueryData<NotifRow[]>(getGetNotificationsQueryKey(), (old) => {
+          const list = normalizeNotificationsPayload(old);
+          return list.map((n) => ({ ...n, isRead: true }));
+        });
+      },
+      onError: () => {
+        queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
+      },
+    },
+  });
+  const notifications: NotifRow[] = normalizeNotificationsPayload(data);
   const { token } = useAuth();
-  const unreadCount = notifications.filter((n: Notification) => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const handlePress = (item: Notification) => {
+  const handlePress = (item: NotifRow) => {
     if (!item.isRead && token) {
+      queryClient.setQueryData<NotifRow[]>(getGetNotificationsQueryKey(), (old) => {
+        const list = normalizeNotificationsPayload(old);
+        return list.map((n) => (n.id === item.id ? { ...n, isRead: true } : n));
+      });
       fetch(apiUrl(`/notifications/${item.id}/read`), {
         method: "POST",
         headers: authHeaders(token),
-      }).catch(() => {});
+      })
+        .then(() => queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() }))
+        .catch(() => {
+          queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
+        });
     }
     if (item.postId) {
       router.push(`/post/${item.postId}`);
@@ -144,10 +180,7 @@ export default function NotificationsScreen() {
             )}
           </View>
           {unreadCount > 0 && (
-            <Pressable
-              onPress={() => markAll()}
-              style={styles.markReadBtn}
-            >
+            <Pressable onPress={() => markAll()} style={styles.markReadBtn}>
               <Feather name="check-circle" size={16} color={colors.accent} />
               <Text style={styles.markReadText}>Mark all read</Text>
             </Pressable>

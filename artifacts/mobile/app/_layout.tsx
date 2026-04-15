@@ -41,7 +41,8 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30000 },
+    queries: { retry: 1, staleTime: 30000, throwOnError: false },
+    mutations: { throwOnError: false },
   },
 });
 
@@ -99,20 +100,20 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <RevenueCatProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppAlertHost />
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <RevenueCatProvider>
                 <KeyboardProvider>
-                  <AppAlertHost />
                   <RootLayoutNav />
                 </KeyboardProvider>
-              </GestureHandlerRootView>
-            </RevenueCatProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
+              </RevenueCatProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </GestureHandlerRootView>
     </SafeAreaProvider>
   );
 }

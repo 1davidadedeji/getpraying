@@ -1,7 +1,8 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -36,6 +37,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, refreshUser, token } = useAuth();
+  const queryClient = useQueryClient();
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -43,13 +45,19 @@ export default function ProfileScreen() {
   const [bioText, setBioText] = useState(user?.bio ?? "");
   const [savingBio, setSavingBio] = useState(false);
 
-  const { data: freshUser } = useGetMe({
+  const { data: freshUser, refetch: refetchMe } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
   });
 
   useEffect(() => {
     if (freshUser) refreshUser(freshUser as any);
   }, [freshUser]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (token) refetchMe();
+    }, [token, refetchMe]),
+  );
 
   useEffect(() => {
     if (user?.bio !== undefined) setBioText(user.bio ?? "");
@@ -158,10 +166,8 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            queryClient.clear();
             await logout();
-            requestAnimationFrame(() => {
-              router.replace("/");
-            });
           },
         },
       ],
@@ -241,16 +247,16 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.statsRow}>
-        <StatCard label="Prayers Shared" value={user.prayersShared} />
-        <StatCard label="Prayed For" value={user.prayedFor} />
-        <StatCard label="Saved Scrolls" value={user.savedScrolls} />
+        <StatCard label="Prayers Shared" value={user.prayersShared ?? 0} />
+        <StatCard label="Prayed For" value={user.prayedFor ?? 0} />
+        <StatCard label="Saved Scrolls" value={user.savedScrolls ?? 0} />
       </View>
 
-      {user.preferredCategories.length > 0 && (
+      {(user.preferredCategories ?? []).length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My Prayer Categories</Text>
           <View style={styles.chips}>
-            {user.preferredCategories.map((cat) => (
+            {(user.preferredCategories ?? []).map((cat) => (
               <View key={cat} style={styles.chip}>
                 <Text style={styles.chipText}>
                   {cat.charAt(0).toUpperCase() + cat.slice(1)}

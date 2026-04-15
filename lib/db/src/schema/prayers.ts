@@ -1,24 +1,32 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
 import { postsTable } from "./posts";
 
 // Stores prayer reactions (like "likes" but prayers)
-export const postPrayersTable = pgTable("post_prayers", {
-  id: serial("id").primaryKey(),
-  postId: integer("post_id").notNull().references(() => postsTable.id),
-  userId: integer("user_id").notNull().references(() => usersTable.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const postPrayersTable = pgTable(
+  "post_prayers",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id").notNull().references(() => postsTable.id),
+    userId: integer("user_id").notNull().references(() => usersTable.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("post_prayers_post_id_user_id_uidx").on(t.postId, t.userId)],
+);
 
 // Saves/bookmarks
-export const savedPostsTable = pgTable("saved_posts", {
-  id: serial("id").primaryKey(),
-  postId: integer("post_id").notNull().references(() => postsTable.id),
-  userId: integer("user_id").notNull().references(() => usersTable.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const savedPostsTable = pgTable(
+  "saved_posts",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id").notNull().references(() => postsTable.id),
+    userId: integer("user_id").notNull().references(() => usersTable.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("saved_posts_post_id_user_id_uidx").on(t.postId, t.userId)],
+);
 
 // Official curated prayers
 export const officialPrayersTable = pgTable("official_prayers", {

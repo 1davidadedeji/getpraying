@@ -31,7 +31,9 @@ export async function getSessionUser(token: string) {
   if (!session) return null;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
-  return user ?? null;
+  if (!user) return null;
+  const { passwordHash: _, ...safeUser } = user;
+  return safeUser;
 }
 
 export async function deleteSession(token: string): Promise<void> {
@@ -166,5 +168,22 @@ export async function requirePremiumSubscription(
     next();
     return;
   }
-  next();
+
+  const enforce = process.env.API_ENFORCE_SUBSCRIPTION_AFTER_TRIAL === "true";
+  if (!enforce) {
+    next();
+    return;
+  }
+
+  const tier = String(user.subscription ?? "").toLowerCase();
+  const subscribed = ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);
+  if (subscribed) {
+    next();
+    return;
+  }
+
+  res.status(402).json({
+    error: "An active subscription is required to use this feature.",
+    code: "SUBSCRIPTION_REQUIRED",
+  });
 }

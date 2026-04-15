@@ -44,8 +44,8 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     if (!user || prefsLoaded) return;
-    if (user.preferredCategories.length > 0) {
-      setSelected([...user.preferredCategories]);
+    if ((user.preferredCategories ?? []).length > 0) {
+      setSelected([...(user.preferredCategories ?? [])]);
     }
     setPrefsLoaded(true);
   }, [user, prefsLoaded]);

@@ -1,4 +1,4 @@
-﻿import { Router, type IRouter } from "express";
+﻿import { Router, type IRouter, type Request } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
@@ -11,8 +11,21 @@ import {
   getToken,
   requireAuth,
 } from "../lib/auth";
+import { FailureWindowLimiter, HitWindowLimiter, clientIp } from "../lib/authRateLimit";
+import { filterAllowedCategories } from "../lib/categoriesAllowlist";
 
 const router: IRouter = Router();
+
+const verifyOtpAttempts = new Map<string, { count: number; blockedUntil: number }>();
+const MAX_VERIFY_ATTEMPTS = 5;
+const VERIFY_BLOCK_MS = 15 * 60 * 1000;
+
+const loginFailByIp = new FailureWindowLimiter(20);
+const forgotPasswordHitByIp = new HitWindowLimiter(10, 60 * 60 * 1000);
+const verifyResetOtpFailByKey = new FailureWindowLimiter(20);
+const resetPasswordFailByKey = new FailureWindowLimiter(20);
+const verifyEmailHitByIp = new HitWindowLimiter(120);
+const verifyEmailWrongByIp = new FailureWindowLimiter(40);
 
 const resendRateLimit = new Map<string, { count: number; nextAllowedAt: number }>();
 const RESEND_COOLDOWNS_MS = [60_000, 120_000, 300_000, 600_000];
@@ -198,7 +211,22 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const ip = clientIp(req as Request);
+  if (!verifyEmailHitByIp.recordHit(`verify-email-req:${ip}`)) {
+    res.status(429).json({ error: "Too many requests from this network. Try again in a few minutes." });
+    return;
+  }
+
+  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+  const attemptKey = normalizedEmail;
+  const attempt = verifyOtpAttempts.get(attemptKey);
+  if (attempt && attempt.blockedUntil > Date.now()) {
+    res.status(429).json({ error: "Too many attempts. Try again later." });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
   if (!user) {
     res.status(400).json({ error: "Invalid code" });
     return;
@@ -215,6 +243,21 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
   }
 
   if (user.verificationToken !== otp) {
+    const ipFail = verifyEmailWrongByIp.recordFailure(`verify-email-wrong:${ip}`);
+    if (ipFail.blocked) {
+      res.status(429).json({
+        error: "Too many incorrect attempts from this network. Try again later.",
+        retryAfterSec: ipFail.retryAfterSec,
+      });
+      return;
+    }
+    const current = verifyOtpAttempts.get(attemptKey) ?? { count: 0, blockedUntil: 0 };
+    current.count += 1;
+    if (current.count >= MAX_VERIFY_ATTEMPTS) {
+      current.blockedUntil = Date.now() + VERIFY_BLOCK_MS;
+      current.count = 0;
+    }
+    verifyOtpAttempts.set(attemptKey, current);
     res.status(400).json({ error: "Invalid code" });
     return;
   }
@@ -233,6 +276,8 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
     })
     .where(eq(usersTable.id, user.id));
 
+  verifyOtpAttempts.delete(attemptKey);
+  verifyEmailWrongByIp.reset(`verify-email-wrong:${ip}`);
   res.json({ success: true, message: "Email verified" });
 });
 
@@ -287,18 +332,37 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
+  const ip = clientIp(req as Request);
   const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
   if (!user) {
+    const f = loginFailByIp.recordFailure(`login:${ip}`);
+    if (f.blocked) {
+      res.status(429).json({
+        error: "Too many failed sign-in attempts. Try again later.",
+        retryAfterSec: f.retryAfterSec,
+      });
+      return;
+    }
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
+    const f = loginFailByIp.recordFailure(`login:${ip}`);
+    if (f.blocked) {
+      res.status(429).json({
+        error: "Too many failed sign-in attempts. Try again later.",
+        retryAfterSec: f.retryAfterSec,
+      });
+      return;
+    }
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
+
+  loginFailByIp.reset(`login:${ip}`);
 
   if (user.isBanned) {
     res.status(403).json({ error: "Account is banned" });
@@ -356,6 +420,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     avatarUrl: user.avatarUrl,
     role: user.role,
     isBanned: user.isBanned,
+    subscription: user.subscription,
     trialStartsAt: user.trialStartsAt,
     isEmailVerified: user.isEmailVerified,
     preferredCategories: user.preferredCategories,
@@ -375,9 +440,18 @@ router.post("/auth/preferences", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
+  const cleaned = filterAllowedCategories(categories);
+  const hasAnyString = categories.some(
+    (c: unknown) => typeof c === "string" && String(c).trim().length > 0,
+  );
+  if (hasAnyString && cleaned.length === 0) {
+    res.status(400).json({ error: "No valid categories were provided" });
+    return;
+  }
+
   await db
     .update(usersTable)
-    .set({ preferredCategories: categories, onboardingComplete: true })
+    .set({ preferredCategories: cleaned, onboardingComplete: true })
     .where(eq(usersTable.id, user.id));
 
   res.json({ success: true, message: "Preferences saved" });
@@ -392,6 +466,12 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
       success: true,
       message: "If an account exists for that email, a reset code has been sent.",
     });
+    return;
+  }
+
+  const ip = clientIp(req as Request);
+  if (!forgotPasswordHitByIp.recordHit(`forgot-pw:${ip}`)) {
+    res.status(429).json({ error: "Too many password reset requests. Try again in an hour." });
     return;
   }
 
@@ -430,13 +510,26 @@ router.post("/auth/verify-reset-otp", async (req, res): Promise<void> => {
     return;
   }
 
+  const ip = clientIp(req as Request);
+  const failKey = `verify-reset:${ip}:${emailRaw}`;
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailRaw));
   if (!user || !user.passwordResetToken || !user.passwordResetExpiresAt) {
+    const f = verifyResetOtpFailByKey.recordFailure(failKey);
+    if (f.blocked) {
+      res.status(429).json({ error: "Too many attempts. Try again later.", retryAfterSec: f.retryAfterSec });
+      return;
+    }
     res.status(400).json({ error: "Invalid or expired code" });
     return;
   }
 
   if (user.passwordResetToken !== otp) {
+    const f = verifyResetOtpFailByKey.recordFailure(failKey);
+    if (f.blocked) {
+      res.status(429).json({ error: "Too many attempts. Try again later.", retryAfterSec: f.retryAfterSec });
+      return;
+    }
     res.status(400).json({ error: "Invalid code" });
     return;
   }
@@ -446,6 +539,7 @@ router.post("/auth/verify-reset-otp", async (req, res): Promise<void> => {
     return;
   }
 
+  verifyResetOtpFailByKey.reset(failKey);
   res.json({ success: true, message: "Code verified" });
 });
 
@@ -460,6 +554,9 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     return;
   }
 
+  const ip = clientIp(req as Request);
+  const resetFailKey = `reset-pw-submit:${ip}:${emailRaw}`;
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailRaw));
   if (
     !user ||
@@ -467,6 +564,11 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     user.passwordResetToken !== otp ||
     !user.passwordResetExpiresAt
   ) {
+    const f = resetPasswordFailByKey.recordFailure(resetFailKey);
+    if (f.blocked) {
+      res.status(429).json({ error: "Too many attempts. Try again later.", retryAfterSec: f.retryAfterSec });
+      return;
+    }
     res.status(400).json({ error: "Invalid or expired code" });
     return;
   }
@@ -486,18 +588,32 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     })
     .where(eq(usersTable.id, user.id));
 
+  resetPasswordFailByKey.reset(resetFailKey);
   res.json({ success: true, message: "Password updated. You can sign in now." });
 });
 
+const MAX_BIO_LEN = 2000;
+const MAX_DISPLAY_NAME_LEN = 120;
+
 router.post("/auth/update-profile", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
-  const updates: Record<string, any> = {};
+  const updates: Record<string, unknown> = {};
 
   if (typeof req.body?.bio === "string") {
-    updates.bio = req.body.bio.trim() || null;
+    const t = req.body.bio.trim();
+    if (t.length > MAX_BIO_LEN) {
+      res.status(400).json({ error: `Bio must be at most ${MAX_BIO_LEN} characters` });
+      return;
+    }
+    updates.bio = t || null;
   }
   if (typeof req.body?.displayName === "string" && req.body.displayName.trim()) {
-    updates.displayName = req.body.displayName.trim();
+    const t = req.body.displayName.trim();
+    if (t.length > MAX_DISPLAY_NAME_LEN) {
+      res.status(400).json({ error: `Display name must be at most ${MAX_DISPLAY_NAME_LEN} characters` });
+      return;
+    }
+    updates.displayName = t;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -505,7 +621,7 @@ router.post("/auth/update-profile", requireAuth, async (req, res): Promise<void>
     return;
   }
 
-  await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
+  await db.update(usersTable).set(updates as any).where(eq(usersTable.id, user.id));
   res.json({ success: true, message: "Profile updated" });
 });
 
