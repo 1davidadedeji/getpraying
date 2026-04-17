@@ -57,49 +57,6 @@ const FIRST_NAMES = [
 
 const LAST_INITIALS = "ABCDEFGHJKLMNPRSTUVWXYZ";
 
-const BIOS = [
-  "Mom of two, learning to trust God one day at a time.",
-  "Serving at our local church; here to pray with you.",
-  "Nurse. Grateful for every answered prayer.",
-  "Teacher. Asking God for wisdom daily.",
-  "Walking through grief with faith.",
-  "Husband and father. God is faithful.",
-  "College student — seeking direction.",
-  "Here to encourage others on the journey.",
-  "Finding hope after a difficult season.",
-  "Worship leader. Music is my prayer language.",
-  "Small business owner trusting God with finances.",
-  "Retired pastor still on mission.",
-  "Single mom — God is my provider.",
-  "Seminary student exploring deeper faith.",
-  "Veteran finding peace after service.",
-  "Missionary kid now building my own faith story.",
-  "Youth group leader pouring into the next generation.",
-  "Living with chronic illness; choosing praise anyway.",
-  "Newlywed figuring life out with Jesus.",
-  "Recovering addict saved by grace.",
-  "Grandmother praying for her whole family.",
-  "Working in healthcare; I see miracles daily.",
-  "High schooler learning what faith looks like.",
-  "Chaplain serving those who serve others.",
-  "Just trying to be a faithful friend.",
-  "Running the race with endurance.",
-  "Empty nester rediscovering purpose.",
-  "Foster parent trusting God for every placement.",
-  "Entrepreneur building something for God's glory.",
-  "Counselor helping others find God's peace.",
-  "First-generation believer. Everything is new.",
-  "Bible study addict. Always learning.",
-  "Artist expressing faith through creativity.",
-  "Engineer by trade, intercessor by calling.",
-  "Stay-at-home dad embracing my role.",
-  "Grieving a loss but not without hope.",
-  "Farmer. God controls the harvest.",
-  "Doctor who prays for every patient.",
-  "College athlete trusting God with my future.",
-  "Church planter believing for the impossible.",
-];
-
 // ─── Prayer content templates (high quality, varied) ──────────────────────
 const PRAYER_TEMPLATES: { template: string; category: Category }[] = [
   { category: "anxiety", template: "Please pray for calm as I face {situation}. My mind keeps racing, but I know God holds every moment." },
@@ -338,7 +295,6 @@ interface MockUser {
   username: string;
   localPart: string;
   displayName: string;
-  bio: string;
   categories: string[];
   avatarUrl: string;
 }
@@ -364,7 +320,6 @@ function generateUsers(count: number): MockUser[] {
       username,
       localPart: `${first.toLowerCase()}.${lastInit.toLowerCase()}${suffix}`,
       displayName: `${first} ${lastInit}.`,
-      bio: pick(BIOS),
       categories: pickN(CATEGORIES as unknown as string[], randInt(2, 4)) as string[],
       avatarUrl,
     });
@@ -496,7 +451,7 @@ async function main(): Promise<void> {
           email: `${u.localPart}${SEED_EMAIL_SUFFIX}`,
           username: u.username,
           displayName: u.displayName,
-          bio: u.bio,
+          bio: null,
           avatarUrl: u.avatarUrl,
           passwordHash,
           role: "user" as const,

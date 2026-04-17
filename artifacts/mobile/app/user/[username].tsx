@@ -21,7 +21,6 @@ interface UserProfile {
   id: number;
   username: string;
   displayName: string | null;
-  bio: string | null;
   avatarUrl: string | null;
   prayersShared: number;
   prayedFor: number;
@@ -146,7 +145,6 @@ export default function UserProfileScreen() {
       </View>
       <Text style={styles.displayName}>{displayName}</Text>
       <Text style={styles.username}>@{profile?.username ?? username}</Text>
-      {profile?.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
       {joinYear ? <Text style={styles.joinDate}>Member since {joinYear}</Text> : null}
 
       <View style={styles.statsRow}>
@@ -211,14 +209,6 @@ const styles = StyleSheet.create({
   avatarText: { fontFamily: "PlusJakartaSans_700Bold", fontSize: 26, color: colors.accent },
   displayName: { fontFamily: "NotoSerif_700Bold", fontSize: 20, color: colors.primary },
   username: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 14, color: colors.muted },
-  bio: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-    paddingHorizontal: 20,
-  },
   joinDate: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 12, color: colors.muted, marginTop: 2 },
   statsRow: { flexDirection: "row", gap: 10, width: "100%", marginTop: 12 },
   statCard: {

@@ -20,24 +20,30 @@ function ComposeFab() {
   const { translateY } = useTabBarVisibility();
   const isFeeds = pathname === "/" || pathname === "/(tabs)" || pathname === "/(tabs)/index" || pathname === "/index";
   if (!isFeeds) return null;
+  /** Keep the + above the safe area when the tab bar slides off-screen (don’t translate the FAB with the bar). */
+  const fabBottom = translateY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [insets.bottom + TAB_BAR_HEIGHT + 10, insets.bottom + 10],
+  });
   return (
-    <Animated.View
-      pointerEvents="box-none"
-      style={[StyleSheet.absoluteFill, { transform: [{ translateY }] }]}
-    >
-      <Pressable
-        onPress={() => router.push("/post/new")}
-        style={({ pressed }) => [
-          fabStyles.fab,
-          { bottom: insets.bottom + TAB_BAR_HEIGHT + 10, right: 20 },
-          pressed && fabStyles.fabPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Share a prayer"
-        testID="compose-fab"
+    <Animated.View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <Animated.View
+        style={{
+          position: "absolute",
+          right: 20,
+          bottom: fabBottom,
+        }}
       >
-        <Ionicons name="add" size={28} color={colors.surface} />
-      </Pressable>
+        <Pressable
+          onPress={() => router.push("/post/new")}
+          style={({ pressed }) => [fabStyles.fab, pressed && fabStyles.fabPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Share a prayer"
+          testID="compose-fab"
+        >
+          <Ionicons name="add" size={28} color={colors.surface} />
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }

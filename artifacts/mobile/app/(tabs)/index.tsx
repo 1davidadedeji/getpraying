@@ -20,6 +20,7 @@ import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_POLL_MS = 30_000;
@@ -159,6 +160,13 @@ export default function FeedScreen() {
   const handleUpdated = useCallback((updated: Post) => {
     setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   }, []);
+
+  const handleTabPressScroll = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    void loadFresh({ silent: true });
+  }, [loadFresh]);
+
+  useTabScrollToTop(handleTabPressScroll);
 
   const handleScroll = useCallback(
     (event: any) => {

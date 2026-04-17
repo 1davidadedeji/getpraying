@@ -1,4 +1,4 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -27,6 +27,7 @@ import type { Post } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { showAppAlert } from "@/components/AppAlert";
+import FeedActionIcon from "@/components/FeedActionIcon";
 import { useAuth } from "@/context/auth";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { timeAgo } from "@/lib/timeAgo";
@@ -56,6 +57,7 @@ export default function PostDetailScreen() {
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList>(null);
 
   const { data, isLoading } = useGetPost(Number(id));
 
@@ -305,14 +307,14 @@ export default function PostDetailScreen() {
 
       <View style={styles.divider} />
 
-      <View style={styles.reactionsRow}>
-        <View style={styles.prayCount}>
-          <Ionicons name="flame-outline" size={18} color={colors.flame} />
-          <Text style={styles.prayCountText}>
-            {post.prayCount} {post.prayCount === 1 ? "person" : "people"} praying
-          </Text>
+        <View style={styles.reactionsRow}>
+          <View style={styles.prayCount}>
+            <FeedActionIcon kind="pray" active={!!post.hasPrayed} size={20} />
+            <Text style={styles.prayCountText}>
+              {post.prayCount} {post.prayCount === 1 ? "person" : "people"} praying
+            </Text>
+          </View>
         </View>
-      </View>
 
       <Text style={styles.commentsSectionTitle}>Comments</Text>
       {commentsLoading && (
@@ -382,6 +384,7 @@ export default function PostDetailScreen() {
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 56 : 0}
       >
         <FlatList
+          ref={listRef}
           data={commentsLoading ? [] : comments}
           keyExtractor={(c) => String(c.id)}
           renderItem={renderComment}
@@ -407,15 +410,29 @@ export default function PostDetailScreen() {
           accessibilityLabel={post.hasPrayed ? "Praying" : "Pray for this"}
         >
           <Animated.View style={{ transform: [{ scale: flameScale }] }}>
-            <Ionicons
-              name={post.hasPrayed ? "flame" : "flame-outline"}
+            <FeedActionIcon
+              kind="pray"
+              active={!!post.hasPrayed}
               size={ENGAGE_ICON}
-              color={post.hasPrayed ? colors.surface : colors.flame}
+              prayActiveOnWarmBackground
             />
           </Animated.View>
           <Text style={[styles.prayBtnText, post.hasPrayed && styles.prayBtnTextActive]}>
             {post.hasPrayed ? "Praying" : "Pray for this"}
           </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync();
+            listRef.current?.scrollToEnd({ animated: true });
+            setTimeout(() => commentInputRef.current?.focus(), 300);
+          }}
+          style={styles.iconCircleBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Comment"
+        >
+          <FeedActionIcon kind="comment" active={comments.length > 0} size={ENGAGE_ICON} />
         </Pressable>
 
         <Pressable
@@ -425,10 +442,11 @@ export default function PostDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
         >
-          <Ionicons
-            name={post.isSaved ? "bookmark" : "bookmark-outline"}
-            size={ENGAGE_ICON}
-            color={post.isSaved ? colors.surface : colors.primary}
+          <FeedActionIcon
+            kind="save"
+            active={!!post.isSaved}
+            size={ENGAGE_ICON + 1}
+            saveActiveOnPrimaryBackground
           />
         </Pressable>
 
@@ -439,7 +457,7 @@ export default function PostDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel="Share prayer"
         >
-          <Feather name="share-2" size={ENGAGE_ICON - 2} color={colors.primary} />
+          <FeedActionIcon kind="share" active={false} size={ENGAGE_ICON} />
         </Pressable>
       </View>
     </View>

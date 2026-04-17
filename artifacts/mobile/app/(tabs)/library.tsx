@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -22,6 +22,7 @@ import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type Tab = "categories" | "saved";
 
@@ -54,6 +55,8 @@ export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
   const queryClient = useQueryClient();
+  const categoriesScrollRef = useRef<ScrollView>(null);
+  const savedListRef = useRef<FlatList>(null);
   const [activeTab, setActiveTab] = useState<Tab>("categories");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
@@ -65,6 +68,16 @@ export default function LibraryScreen() {
       queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
     }, [queryClient]),
   );
+
+  const scrollLibraryToTop = useCallback(() => {
+    if (activeTab === "categories") {
+      categoriesScrollRef.current?.scrollTo({ y: 0, animated: true });
+    } else {
+      savedListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [activeTab]);
+
+  useTabScrollToTop(scrollLibraryToTop);
 
   const loadCategories = useCallback(async () => {
     setLoadingCats(true);
@@ -127,6 +140,7 @@ export default function LibraryScreen() {
 
       {activeTab === "categories" && (
         <ScrollView
+          ref={categoriesScrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
         >
@@ -166,6 +180,7 @@ export default function LibraryScreen() {
 
       {activeTab === "saved" && (
         <FlatList
+          ref={savedListRef}
           data={(savedData as any)?.posts ?? []}
           keyExtractor={(item: any) => String(item.id)}
           renderItem={({ item }: any) => <PostCard post={item} />}

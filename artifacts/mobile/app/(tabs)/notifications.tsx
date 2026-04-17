@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -19,6 +19,7 @@ import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type NotifType = string;
 type NotifRow = Omit<Notification, "type"> & { type: string };
@@ -120,6 +121,7 @@ function NotificationItem({
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
   const { data, isLoading, refetch, isFetching } = useGetNotifications();
   const { mutate: markAll } = useMarkAllNotificationsRead({
@@ -144,6 +146,12 @@ export default function NotificationsScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
+  const scrollNotifsToTop = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
+
+  useTabScrollToTop(scrollNotifsToTop);
+
   const handlePress = (item: NotifRow) => {
     if (!item.isRead && token) {
       queryClient.setQueryData<NotifRow[]>(getGetNotificationsQueryKey(), (old) => {
@@ -166,6 +174,7 @@ export default function NotificationsScreen() {
 
   return (
     <FlatList
+      ref={listRef}
       data={notifications}
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => (

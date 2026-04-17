@@ -1,6 +1,15 @@
 ﻿import { Router, type IRouter, type Request } from "express";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  db,
+  usersTable,
+  sessionsTable,
+  postsTable,
+  commentsTable,
+  postPrayersTable,
+  savedPostsTable,
+  notificationsTable,
+} from "@workspace/db";
+import { eq, inArray, or } from "drizzle-orm";
 import crypto from "crypto";
 import sendgrid from "@sendgrid/mail";
 import {
@@ -122,7 +131,7 @@ async function sendPasswordResetEmail(args: {
 }
 
 router.post("/auth/register", async (req, res): Promise<void> => {
-  const { email, username, password, displayName, bio } = req.body;
+  const { email, username, password, displayName } = req.body;
   if (!email || !username || !password) {
     res.status(400).json({ error: "Email, username, and password are required" });
     return;
@@ -147,9 +156,6 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     typeof displayName === "string" && displayName.trim() !== ""
       ? displayName.trim()
       : String(username).trim();
-  const finalBio =
-    typeof bio === "string" && bio.trim() !== "" ? bio.trim() : null;
-
   const otp = createOtp();
   const expiresAt = otpExpiresAt(15);
 
@@ -159,7 +165,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       email: normalizedEmail,
       username,
       displayName: finalDisplayName,
-      bio: finalBio,
+      bio: null,
       passwordHash,
       isBanned: false,
       preferredCategories: [],
@@ -186,7 +192,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       email: user.email,
       username: user.username,
       displayName: user.displayName,
-      bio: user.bio,
+      bio: null,
       avatarUrl: user.avatarUrl,
       role: user.role,
       isBanned: user.isBanned,
@@ -382,7 +388,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       email: user.email,
       username: user.username,
       displayName: user.displayName,
-      bio: user.bio,
+      bio: null,
       avatarUrl: user.avatarUrl,
       role: user.role,
       isBanned: user.isBanned,
@@ -416,7 +422,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     email: user.email,
     username: user.username,
     displayName: user.displayName,
-    bio: user.bio,
+    bio: null,
     avatarUrl: user.avatarUrl,
     role: user.role,
     isBanned: user.isBanned,
@@ -430,6 +436,34 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     savedScrolls: user.savedScrolls,
     createdAt: user.createdAt,
   });
+});
+
+router.delete("/auth/account", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const userId = user.id;
+
+  await db.transaction(async (tx) => {
+    const owned = await tx.select({ id: postsTable.id }).from(postsTable).where(eq(postsTable.authorId, userId));
+    const postIds = owned.map((r) => r.id);
+
+    if (postIds.length > 0) {
+      await tx.delete(postPrayersTable).where(inArray(postPrayersTable.postId, postIds));
+      await tx.delete(savedPostsTable).where(inArray(savedPostsTable.postId, postIds));
+      await tx.delete(notificationsTable).where(inArray(notificationsTable.postId, postIds));
+      await tx.delete(postsTable).where(inArray(postsTable.id, postIds));
+    }
+
+    await tx.delete(postPrayersTable).where(eq(postPrayersTable.userId, userId));
+    await tx.delete(savedPostsTable).where(eq(savedPostsTable.userId, userId));
+    await tx.delete(commentsTable).where(eq(commentsTable.authorId, userId));
+    await tx
+      .delete(notificationsTable)
+      .where(or(eq(notificationsTable.userId, userId), eq(notificationsTable.actorId, userId)));
+    await tx.delete(sessionsTable).where(eq(sessionsTable.userId, userId));
+    await tx.delete(usersTable).where(eq(usersTable.id, userId));
+  });
+
+  res.json({ success: true });
 });
 
 router.post("/auth/preferences", requireAuth, async (req, res): Promise<void> => {
@@ -592,21 +626,12 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
   res.json({ success: true, message: "Password updated. You can sign in now." });
 });
 
-const MAX_BIO_LEN = 2000;
 const MAX_DISPLAY_NAME_LEN = 120;
 
 router.post("/auth/update-profile", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
   const updates: Record<string, unknown> = {};
 
-  if (typeof req.body?.bio === "string") {
-    const t = req.body.bio.trim();
-    if (t.length > MAX_BIO_LEN) {
-      res.status(400).json({ error: `Bio must be at most ${MAX_BIO_LEN} characters` });
-      return;
-    }
-    updates.bio = t || null;
-  }
   if (typeof req.body?.displayName === "string" && req.body.displayName.trim()) {
     const t = req.body.displayName.trim();
     if (t.length > MAX_DISPLAY_NAME_LEN) {

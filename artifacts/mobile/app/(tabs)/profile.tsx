@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,7 +12,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +23,7 @@ import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
@@ -38,12 +38,11 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, refreshUser, token } = useAuth();
   const queryClient = useQueryClient();
+  const listRef = useRef<FlatList>(null);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [editingBio, setEditingBio] = useState(false);
-  const [bioText, setBioText] = useState(user?.bio ?? "");
-  const [savingBio, setSavingBio] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const { data: freshUser, refetch: refetchMe } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
@@ -58,10 +57,6 @@ export default function ProfileScreen() {
       if (token) refetchMe();
     }, [token, refetchMe]),
   );
-
-  useEffect(() => {
-    if (user?.bio !== undefined) setBioText(user.bio ?? "");
-  }, [user?.bio]);
 
   const pickAndUploadAvatar = async () => {
     try {
@@ -109,29 +104,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const saveBio = async () => {
-    if (!token || !user) return;
-    setSavingBio(true);
-    try {
-      const res = await fetch(apiUrl("/auth/update-profile"), {
-        method: "POST",
-        headers: authHeaders(token, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ bio: bioText.trim() }),
-      });
-      if (res.ok) {
-        refreshUser({ ...user, bio: bioText.trim() || null } as any);
-        setEditingBio(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        showAppAlert({ title: "Save failed", message: "Please try again." });
-      }
-    } catch {
-      showAppAlert({ title: "Save failed", message: "Check your connection." });
-    } finally {
-      setSavingBio(false);
-    }
-  };
-
   const loadMyPosts = useCallback(async () => {
     if (!user?.username || !token) return;
     setLoadingPosts(true);
@@ -152,8 +124,53 @@ export default function ProfileScreen() {
     void loadMyPosts();
   }, [loadMyPosts]);
 
+  const scrollProfileToTop = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
+
+  useTabScrollToTop(scrollProfileToTop);
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const handleDeleteAccount = () => {
+    showAppAlert({
+      title: "Delete account?",
+      message:
+        "This permanently removes your profile, prayers, and saved items. This cannot be undone.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!token) return;
+            setDeletingAccount(true);
+            try {
+              const res = await fetch(apiUrl("/auth/account"), {
+                method: "DELETE",
+                headers: authHeaders(token),
+              });
+              if (res.ok) {
+                queryClient.clear();
+                await logout();
+              } else {
+                const err = await res.json().catch(() => ({}));
+                showAppAlert({
+                  title: "Could not delete account",
+                  message: (err as { error?: string }).error ?? "Please try again.",
+                });
+              }
+            } catch {
+              showAppAlert({ title: "Could not delete account", message: "Check your connection." });
+            } finally {
+              setDeletingAccount(false);
+            }
+          },
+        },
+      ],
+    });
+  };
 
   const handleLogout = () => {
     showAppAlert({
@@ -208,41 +225,6 @@ export default function ProfileScreen() {
         <Text style={styles.displayName}>{displayName}</Text>
         <Text style={styles.username}>@{user.username}</Text>
 
-        {editingBio ? (
-          <View style={styles.bioEditContainer}>
-            <TextInput
-              style={styles.bioEditInput}
-              value={bioText}
-              onChangeText={setBioText}
-              placeholder="Tell others about yourself..."
-              placeholderTextColor={colors.muted}
-              multiline
-              maxLength={160}
-              autoFocus
-            />
-            <View style={styles.bioEditActions}>
-              <Pressable onPress={() => { setEditingBio(false); setBioText(user.bio ?? ""); }} style={styles.bioEditCancel}>
-                <Text style={styles.bioEditCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable onPress={saveBio} style={styles.bioEditSave} disabled={savingBio}>
-                {savingBio ? (
-                  <ActivityIndicator color={colors.surface} size="small" />
-                ) : (
-                  <Text style={styles.bioEditSaveText}>Save</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Pressable onPress={() => setEditingBio(true)}>
-            {user.bio ? (
-              <Text style={styles.bio}>{user.bio}</Text>
-            ) : (
-              <Text style={styles.bioPlaceholder}>Tap to add a bio</Text>
-            )}
-          </Pressable>
-        )}
-
         <Text style={styles.joinDate}>Member since {joinYear}</Text>
       </View>
 
@@ -251,6 +233,9 @@ export default function ProfileScreen() {
         <StatCard label="Prayed For" value={user.prayedFor ?? 0} />
         <StatCard label="Saved Scrolls" value={user.savedScrolls ?? 0} />
       </View>
+      <Text style={styles.statLegend}>
+        Prayed For goes up when someone else prays on your posts (not when you pray on your own).
+      </Text>
 
       {(user.preferredCategories ?? []).length > 0 && (
         <View style={styles.section}>
@@ -286,6 +271,17 @@ export default function ProfileScreen() {
             </Pressable>
           )}
 
+          <Pressable
+            style={styles.menuItem}
+            onPress={handleDeleteAccount}
+            disabled={deletingAccount}
+          >
+            <Feather name="trash-2" size={18} color={colors.danger} />
+            <Text style={[styles.menuItemText, { color: colors.danger }]}>
+              {deletingAccount ? "Deleting…" : "Delete account"}
+            </Text>
+          </Pressable>
+
           <Pressable style={[styles.menuItem, styles.menuItemLast]} onPress={handleLogout}>
             <Feather name="log-out" size={18} color={colors.danger} />
             <Text style={[styles.menuItemText, { color: colors.danger }]}>Sign Out</Text>
@@ -304,6 +300,7 @@ export default function ProfileScreen() {
 
   return (
     <FlatList
+      ref={listRef}
       data={loadingPosts ? [] : myPosts}
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => (
@@ -385,65 +382,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.cream,
   },
-  bio: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  bioPlaceholder: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.muted,
-    textAlign: "center",
-    fontStyle: "italic",
-  },
-  bioEditContainer: {
-    width: "100%",
-    gap: 8,
-  },
-  bioEditInput: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.text,
-    minHeight: 60,
-    textAlignVertical: "top",
-  },
-  bioEditActions: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-  },
-  bioEditCancel: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  bioEditCancelText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 13,
-    color: colors.muted,
-  },
-  bioEditSave: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-  },
-  bioEditSaveText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 13,
-    color: colors.surface,
-  },
   joinDate: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
@@ -453,6 +391,13 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     gap: 10,
+  },
+  statLegend: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 11,
+    color: colors.muted,
+    lineHeight: 16,
+    marginTop: -4,
   },
   statCard: {
     flex: 1,

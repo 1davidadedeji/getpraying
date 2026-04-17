@@ -23,12 +23,10 @@ export default function RegisterScreen() {
   const { register } = useAuth();
   const usernameRef = useRef<TextInput | null>(null);
   const displayNameRef = useRef<TextInput | null>(null);
-  const bioRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [bio, setBio] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,7 +49,7 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      await register(email.trim(), username.trim(), password, displayName.trim() || undefined, bio.trim() || undefined);
+      await register(email.trim(), username.trim(), password, displayName.trim() || undefined);
       router.replace("/(auth)/verify" as Href);
     } catch (err: unknown) {
       showAppAlert({ title: "Sign up failed", message: getApiErrorMessage(err, "Registration failed") });
@@ -132,26 +130,8 @@ export default function RegisterScreen() {
               placeholderTextColor={colors.muted}
               returnKeyType="next"
               blurOnSubmit={false}
-              onSubmitEditing={() => bioRef.current?.focus()}
-              testID="displayname-input"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>About You (optional)</Text>
-            <TextInput
-              ref={bioRef}
-              style={[styles.input, styles.bioInput]}
-              value={bio}
-              onChangeText={setBio}
-              placeholder="e.g. Counselor helping others find God's peace."
-              placeholderTextColor={colors.muted}
-              multiline
-              maxLength={160}
-              returnKeyType="next"
-              blurOnSubmit={true}
               onSubmitEditing={() => passwordRef.current?.focus()}
-              testID="bio-input"
+              testID="displayname-input"
             />
           </View>
 
@@ -251,11 +231,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 15,
     color: colors.text,
-  },
-  bioInput: {
-    minHeight: 60,
-    textAlignVertical: "top",
-    paddingTop: 14,
   },
   passwordRow: {
     position: "relative",

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, type Href } from "expo-router";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
   ActivityIndicator,
@@ -21,6 +21,8 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { user, loading } = useAuth();
   const rc = useRevenueCat();
+  /** Avoid re-running `router.replace("/(tabs)")` on every `user` object refresh (that was resetting navigation to Home). */
+  const didRouteAuthedUser = useRef(false);
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
   const { data: dailyWord } = useGetDailyWord(
     { date: todayYmd },
@@ -33,38 +35,44 @@ export default function WelcomeScreen() {
   );
 
   useEffect(() => {
-    if (!loading && user) {
-      // b) Email verification gate
-      if (!user.isEmailVerified) {
-        router.replace("/(auth)/verify" as Href);
-        return;
-      }
+    if (loading) return;
+    if (!user) {
+      didRouteAuthedUser.current = false;
+      return;
+    }
+    if (didRouteAuthedUser.current) return;
+    didRouteAuthedUser.current = true;
 
-      // d) moderator/admin always bypass paywall
-      if (user.role === "admin" || user.role === "moderator") {
-        if (!user.onboardingComplete) {
-          router.replace("/onboarding");
-        } else {
-          router.replace("/(tabs)");
-        }
-        return;
-      }
+    // b) Email verification gate
+    if (!user.isEmailVerified) {
+      router.replace("/(auth)/verify" as Href);
+      return;
+    }
 
-      const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
-      const trialExpired =
-        startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
-      if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-        router.replace("/(paywall)" as any);
-        return;
-      }
-
+    // d) moderator/admin always bypass paywall
+    if (user.role === "admin" || user.role === "moderator") {
       if (!user.onboardingComplete) {
         router.replace("/onboarding");
       } else {
         router.replace("/(tabs)");
       }
+      return;
     }
-  }, [loading, user]);
+
+    const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
+    const trialExpired =
+      startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+    if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
+      router.replace("/(paywall)" as any);
+      return;
+    }
+
+    if (!user.onboardingComplete) {
+      router.replace("/onboarding");
+    } else {
+      router.replace("/(tabs)");
+    }
+  }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled]);
 
   if (loading) {
     return (

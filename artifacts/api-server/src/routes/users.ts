@@ -20,7 +20,7 @@ router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => 
     id: user.id,
     username: user.username,
     displayName: user.displayName,
-    bio: user.bio,
+    bio: null,
     avatarUrl: user.avatarUrl,
     prayersShared: user.prayersShared,
     prayedFor: user.prayedFor,

@@ -15,6 +15,11 @@
         "EXPO_PUBLIC_RC_APPLE_KEY": "test_AIJjrRzCVKiEadmgBwlqKSUVkhJ",
         "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_WaVmpcWZydnXUsCQXGMPGrihOtm"
       }
-    } 
+    },
+    "simulator": {
+      "ios": {
+        "simulator": true
+      }
+    }
   }
 }
