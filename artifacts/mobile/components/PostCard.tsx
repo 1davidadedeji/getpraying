@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+﻿import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -20,7 +20,6 @@ import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { PostMediaBlock } from "@/components/PostMedia";
-import FeedActionIcon from "@/components/FeedActionIcon";
 import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -148,7 +147,8 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
     ? "Anonymous"
     : localPost.authorDisplayName ?? localPost.authorUsername ?? "Unknown";
 
-  const hasComments = (localPost.commentCount ?? 0) > 0;
+  const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
+  const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
   return (
     <View style={styles.card}>
       <Pressable
@@ -209,7 +209,11 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
           accessibilityLabel={localPost.hasPrayed ? "Praying" : "Pray for this post"}
         >
           <Animated.View style={{ transform: [{ scale: flameScale }] }}>
-            <FeedActionIcon kind="pray" active={!!localPost.hasPrayed} size={ICON_SIZE} />
+            <Ionicons
+              name={localPost.hasPrayed ? "flame" : "flame-outline"}
+              size={ICON_SIZE}
+              color={prayColor}
+            />
           </Animated.View>
           <Text style={[styles.actionCount, localPost.hasPrayed && styles.actionCountActive]}>
             {localPost.prayCount}
@@ -225,9 +229,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
           accessibilityRole="button"
           accessibilityLabel="Comments"
         >
-          <FeedActionIcon kind="comment" active={hasComments} size={ICON_SIZE + 1} />
+          <Ionicons name="chatbubble-outline" size={ICON_SIZE - 2} color={colors.muted} />
           {localPost.commentCount != null && localPost.commentCount > 0 && (
-            <Text style={[styles.actionCount, styles.actionCountComment]}>{localPost.commentCount}</Text>
+            <Text style={styles.actionCount}>{localPost.commentCount}</Text>
           )}
         </Pressable>
 
@@ -238,7 +242,11 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
           accessibilityRole="button"
           accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
         >
-          <FeedActionIcon kind="save" active={!!localPost.isSaved} size={ICON_SIZE + 2} />
+          <Ionicons
+            name={localPost.isSaved ? "bookmark" : "bookmark-outline"}
+            size={ICON_SIZE}
+            color={bookmarkColor}
+          />
           {localPost.saveCount != null && localPost.saveCount > 0 && (
             <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
               {localPost.saveCount}
@@ -253,7 +261,7 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
           accessibilityRole="button"
           accessibilityLabel="Share prayer"
         >
-          <FeedActionIcon kind="share" active={false} size={ICON_SIZE + 1} />
+          <Feather name="share-2" size={ICON_SIZE - 2} color={colors.muted} />
         </Pressable>
 
         <Pressable
@@ -417,9 +425,6 @@ const styles = StyleSheet.create({
     color: colors.flame,
   },
   actionCountSaved: {
-    color: colors.primary,
-  },
-  actionCountComment: {
     color: colors.primary,
   },
 });
