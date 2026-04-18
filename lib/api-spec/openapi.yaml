@@ -210,6 +210,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /users/{username}/follow:
+    post:
+      operationId: followUser
+      tags: [users]
+      summary: Follow a user
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Now following
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  following:
+                    type: boolean
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: unfollowUser
+      tags: [users]
+      summary: Unfollow a user
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Unfollowed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  following:
+                    type: boolean
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /users/{username}/posts:
     get:
       operationId: getUserPosts
@@ -1033,6 +1091,13 @@ components:
           type: integer
         savedScrolls:
           type: integer
+        followerCount:
+          type: integer
+        followingCount:
+          type: integer
+        isFollowing:
+          type: boolean
+          description: Present when the viewer is authenticated and not viewing their own profile
         createdAt:
           type: string
           format: date-time
@@ -1042,6 +1107,8 @@ components:
         - prayersShared
         - prayedFor
         - savedScrolls
+        - followerCount
+        - followingCount
         - createdAt
 
     Post:
@@ -1075,7 +1142,13 @@ components:
           description: Shown to the author when a moderator declines the post
         prayCount:
           type: integer
+        commentCount:
+          type: integer
+        saveCount:
+          type: integer
         hasPrayed:
+          type: boolean
+        hasCommented:
           type: boolean
         isSaved:
           type: boolean
@@ -1100,7 +1173,10 @@ components:
         - isAnonymous
         - status
         - prayCount
+        - commentCount
+        - saveCount
         - hasPrayed
+        - hasCommented
         - isSaved
         - createdAt
 

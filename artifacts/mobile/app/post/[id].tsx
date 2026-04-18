@@ -140,7 +140,7 @@ export default function PostDetailScreen() {
       : post.authorDisplayName ?? post.authorUsername ?? "Someone";
     const message =
       `"${post.content.slice(0, 200)}${post.content.length > 200 ? "\u2026" : ""}"\n\n` +
-      `\u2014 shared by ${authorName} on Get Praying\n` +
+      `\u2014 shared by ${authorName} on GetPraying\n` +
       `${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying`;
 
     try {

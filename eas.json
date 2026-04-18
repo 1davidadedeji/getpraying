@@ -19,6 +19,14 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com"
       }
+    },
+    "simulator": {
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com"
+      }
     }
   },
   "submit": {

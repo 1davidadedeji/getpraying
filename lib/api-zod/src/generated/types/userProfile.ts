@@ -15,5 +15,9 @@ export interface UserProfile {
   prayersShared: number;
   prayedFor: number;
   savedScrolls: number;
+  followerCount: number;
+  followingCount: number;
+  /** Present when the viewer is authenticated and not viewing their own profile */
+  isFollowing?: boolean;
   createdAt: Date;
 }

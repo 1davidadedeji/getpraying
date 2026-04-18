@@ -3,7 +3,7 @@ import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Redirect, router, Tabs, usePathname, type Href } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -71,7 +71,7 @@ function NativeTabLayout() {
         <Label>Feeds</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="library">
-        <Icon sf={{ default: "books.vertical", selected: "books.vertical.fill" }} />
+        <Icon sf={{ default: "square.stack.3d.up", selected: "square.stack.3d.up.fill" }} />
         <Label>Library</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="notifications">
@@ -90,7 +90,13 @@ function NativeTabLayout() {
 
 const TAB_ITEMS = [
   { name: "index", title: "Feeds", iosSymbol: "flame.fill", androidIcon: "flame" as const, iconSet: "ionicons" as const },
-  { name: "library", title: "Library", iosSymbol: "books.vertical.fill", androidIcon: "book-open" as const, iconSet: "feather" as const },
+  {
+    name: "library",
+    title: "Library",
+    iosSymbol: "square.stack.3d.up.fill",
+    androidIcon: "stairs" as const,
+    iconSet: "mci" as const,
+  },
   { name: "notifications", title: "Alerts", iosSymbol: "bell.fill", androidIcon: "bell" as const, iconSet: "feather" as const },
   { name: "profile", title: "Profile", iosSymbol: "person.fill", androidIcon: "user" as const, iconSet: "feather" as const },
 ];
@@ -146,6 +152,8 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
               <SymbolView name={tab.iosSymbol as any} tintColor={tint} size={24} />
             ) : tab.iconSet === "ionicons" ? (
               <Ionicons name={tab.androidIcon as any} size={24} color={tint} />
+            ) : tab.iconSet === "mci" ? (
+              <MaterialCommunityIcons name={tab.androidIcon as any} size={24} color={tint} />
             ) : (
               <Feather name={tab.androidIcon as any} size={22} color={tint} />
             )}

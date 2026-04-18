@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, officialPrayersTable, prayerPathsTable, postsTable, savedPostsTable } from "@workspace/db";
+import { db, officialPrayersTable, prayerPathsTable, postsTable, savedPostsTable, usersTable } from "@workspace/db";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
@@ -10,8 +10,26 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
   const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 50);
 
   const prayers = await db
-    .select()
+    .select({
+      id: officialPrayersTable.id,
+      title: officialPrayersTable.title,
+      subtitle: officialPrayersTable.subtitle,
+      content: officialPrayersTable.content,
+      category: officialPrayersTable.category,
+      durationMinutes: officialPrayersTable.durationMinutes,
+      scripture: officialPrayersTable.scripture,
+      label: officialPrayersTable.label,
+      audioVoice: officialPrayersTable.audioVoice,
+      audioUrl: officialPrayersTable.audioUrl,
+      pathId: officialPrayersTable.pathId,
+      uploadedByUserId: officialPrayersTable.uploadedByUserId,
+      scheduleSlot: officialPrayersTable.scheduleSlot,
+      createdAt: officialPrayersTable.createdAt,
+      uploaderUsername: usersTable.username,
+      uploaderDisplayName: usersTable.displayName,
+    })
     .from(officialPrayersTable)
+    .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id))
     .orderBy(officialPrayersTable.createdAt)
     .limit(limit);
 
@@ -26,6 +44,11 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
       scripture: p.scripture,
       label: p.label,
       audioVoice: p.audioVoice,
+      audioUrl: p.audioUrl,
+      pathId: p.pathId,
+      scheduleSlot: p.scheduleSlot,
+      uploadedByUsername: p.uploaderUsername ?? null,
+      uploadedByDisplayName: p.uploaderDisplayName ?? null,
       createdAt: p.createdAt,
     })),
   });

@@ -1,6 +1,18 @@
 import { Router, type IRouter } from "express";
-import { db, postsTable, usersTable, postPrayersTable, notificationsTable, commentsTable, savedPostsTable } from "@workspace/db";
-import { eq, ne, desc, sql, and, isNotNull, inArray, notLike } from "drizzle-orm";
+import {
+  db,
+  postsTable,
+  usersTable,
+  postPrayersTable,
+  notificationsTable,
+  commentsTable,
+  savedPostsTable,
+  officialPrayersTable,
+  prayerPathsTable,
+  sessionsTable,
+  userFollowsTable,
+} from "@workspace/db";
+import { eq, ne, desc, sql, and, or, isNotNull, inArray, notLike } from "drizzle-orm";
 
 const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
@@ -364,6 +376,116 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
     bannedUsers: Number(bannedUsers?.count ?? 0),
     prayersToday: Number(prayersToday?.count ?? 0),
   });
+});
+
+router.delete("/admin/users/:userId", requireAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const userId = parseInt(rawId, 10);
+  const adminUser = (req as any).user;
+  if (Number.isNaN(userId)) {
+    res.status(400).json({ error: "Invalid user id" });
+    return;
+  }
+  if (userId === adminUser.id) {
+    res.status(400).json({ error: "You cannot delete your own account from here" });
+    return;
+  }
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(userFollowsTable)
+      .where(or(eq(userFollowsTable.followerId, userId), eq(userFollowsTable.followingId, userId)));
+    await tx.delete(sessionsTable).where(eq(sessionsTable.userId, userId));
+    await tx.delete(notificationsTable).where(eq(notificationsTable.userId, userId));
+    await tx.delete(notificationsTable).where(eq(notificationsTable.actorId, userId));
+
+    const authored = await tx.select({ id: postsTable.id }).from(postsTable).where(eq(postsTable.authorId, userId));
+    for (const p of authored) {
+      await tx.delete(commentsTable).where(eq(commentsTable.postId, p.id));
+      await tx.delete(postPrayersTable).where(eq(postPrayersTable.postId, p.id));
+      await tx.delete(savedPostsTable).where(eq(savedPostsTable.postId, p.id));
+      await tx.delete(notificationsTable).where(eq(notificationsTable.postId, p.id));
+    }
+    await tx.delete(postsTable).where(eq(postsTable.authorId, userId));
+
+    await tx.delete(commentsTable).where(eq(commentsTable.authorId, userId));
+    await tx.delete(postPrayersTable).where(eq(postPrayersTable.userId, userId));
+    await tx.delete(savedPostsTable).where(eq(savedPostsTable.userId, userId));
+    await tx.delete(usersTable).where(eq(usersTable.id, userId));
+  });
+
+  res.json({ success: true, message: "User account removed" });
+});
+
+router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const mod = (req as any).user;
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  if (!title || !content) {
+    res.status(400).json({ error: "title and content are required" });
+    return;
+  }
+  const category = typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
+  const [row] = await db
+    .insert(officialPrayersTable)
+    .values({
+      title,
+      content,
+      category,
+      subtitle: typeof req.body?.subtitle === "string" ? req.body.subtitle : null,
+      pathId: typeof req.body?.pathId === "number" ? req.body.pathId : null,
+      audioUrl: typeof req.body?.audioUrl === "string" ? req.body.audioUrl.trim() : null,
+      scheduleSlot:
+        typeof req.body?.scheduleSlot === "string" && ["morning", "evening"].includes(req.body.scheduleSlot)
+          ? req.body.scheduleSlot
+          : null,
+      label: typeof req.body?.label === "string" ? req.body.label : null,
+      uploadedByUserId: mod.id,
+    })
+    .returning();
+
+  res.status(201).json(row);
+});
+
+router.delete("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.prayerId) ? req.params.prayerId[0] : req.params.prayerId;
+  const prayerId = parseInt(rawId, 10);
+  if (Number.isNaN(prayerId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [del] = await db.delete(officialPrayersTable).where(eq(officialPrayersTable.id, prayerId)).returning();
+  if (!del) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json({ success: true });
+});
+
+router.post("/admin/prayer-paths", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+  const category = typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
+  if (!name || !description) {
+    res.status(400).json({ error: "name and description are required" });
+    return;
+  }
+  const [row] = await db
+    .insert(prayerPathsTable)
+    .values({
+      name,
+      description,
+      category,
+      tagline: typeof req.body?.tagline === "string" ? req.body.tagline : null,
+    })
+    .returning();
+  res.status(201).json(row);
 });
 
 export default router;

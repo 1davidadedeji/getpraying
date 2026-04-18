@@ -28,6 +28,7 @@ import type {
   DeclinePostInput,
   ErrorResponse,
   FeedStats,
+  FollowUser200,
   GetAdminUsersParams,
   GetDailyWordParams,
   GetModeratedPostsParams,
@@ -51,6 +52,7 @@ import type {
   ResendVerificationInput,
   SetDailyWordOverrideInput,
   SuccessResponse,
+  UnfollowUser200,
   User,
   UserProfile,
   UsersPage,
@@ -802,6 +804,174 @@ export function useGetUserProfile<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Follow a user
+ */
+export const getFollowUserUrl = (username: string) => {
+  return `/api/users/${username}/follow`;
+};
+
+export const followUser = async (
+  username: string,
+  options?: RequestInit,
+): Promise<FollowUser200> => {
+  return customFetch<FollowUser200>(getFollowUserUrl(username), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getFollowUserMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof followUser>>,
+    TError,
+    { username: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof followUser>>,
+  TError,
+  { username: string },
+  TContext
+> => {
+  const mutationKey = ["followUser"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof followUser>>,
+    { username: string }
+  > = (props) => {
+    const { username } = props ?? {};
+
+    return followUser(username, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FollowUserMutationResult = NonNullable<
+  Awaited<ReturnType<typeof followUser>>
+>;
+
+export type FollowUserMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Follow a user
+ */
+export const useFollowUser = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof followUser>>,
+    TError,
+    { username: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof followUser>>,
+  TError,
+  { username: string },
+  TContext
+> => {
+  return useMutation(getFollowUserMutationOptions(options));
+};
+
+/**
+ * @summary Unfollow a user
+ */
+export const getUnfollowUserUrl = (username: string) => {
+  return `/api/users/${username}/follow`;
+};
+
+export const unfollowUser = async (
+  username: string,
+  options?: RequestInit,
+): Promise<UnfollowUser200> => {
+  return customFetch<UnfollowUser200>(getUnfollowUserUrl(username), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getUnfollowUserMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unfollowUser>>,
+    TError,
+    { username: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unfollowUser>>,
+  TError,
+  { username: string },
+  TContext
+> => {
+  const mutationKey = ["unfollowUser"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unfollowUser>>,
+    { username: string }
+  > = (props) => {
+    const { username } = props ?? {};
+
+    return unfollowUser(username, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnfollowUserMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unfollowUser>>
+>;
+
+export type UnfollowUserMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Unfollow a user
+ */
+export const useUnfollowUser = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unfollowUser>>,
+    TError,
+    { username: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unfollowUser>>,
+  TError,
+  { username: string },
+  TContext
+> => {
+  return useMutation(getUnfollowUserMutationOptions(options));
+};
 
 /**
  * @summary Get posts by a specific user

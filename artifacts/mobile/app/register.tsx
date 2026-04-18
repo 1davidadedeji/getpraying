@@ -165,7 +165,7 @@ export default function RegisterScreen() {
             {loading ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
-              <Text style={styles.submitBtnText}>Join Get Praying</Text>
+              <Text style={styles.submitBtnText}>Join GetPraying</Text>
             )}
           </Pressable>
         </View>

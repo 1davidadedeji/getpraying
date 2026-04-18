@@ -25,6 +25,8 @@ export interface RegisterInput {
   /** @minLength 6 */
   password: string;
   displayName?: string;
+  /** @maxLength 160 */
+  bio?: string;
 }
 
 export interface LoginInput {
@@ -91,6 +93,10 @@ export interface UserProfile {
   prayersShared: number;
   prayedFor: number;
   savedScrolls: number;
+  followerCount: number;
+  followingCount: number;
+  /** Present when the viewer is authenticated and not viewing their own profile */
+  isFollowing?: boolean;
   createdAt: string;
 }
 
@@ -124,7 +130,10 @@ export interface Post {
   /** Shown to the author when a moderator declines the post */
   moderationReason?: string | null;
   prayCount: number;
+  commentCount: number;
+  saveCount: number;
   hasPrayed: boolean;
+  hasCommented: boolean;
   isSaved: boolean;
   authorId?: number | null;
   authorUsername?: string | null;
@@ -250,6 +259,8 @@ export type NotificationType =
 
 export const NotificationType = {
   prayer: "prayer",
+  prayer_milestone: "prayer_milestone",
+  saved: "saved",
   system: "system",
   category_new: "category_new",
   reminder: "reminder",
@@ -307,6 +318,16 @@ export interface SetDailyWordOverrideInput {
   quoteText: string;
   reference: string;
 }
+
+export type FollowUser200 = {
+  success?: boolean;
+  following?: boolean;
+};
+
+export type UnfollowUser200 = {
+  success?: boolean;
+  following?: boolean;
+};
 
 export type GetUserPostsParams = {
   cursor?: number;

@@ -29,6 +29,20 @@
       "when": 1775050552681,
       "tag": "0005_create-daily-word-overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775200000000,
+      "tag": "0010_user_follows",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775200000001,
+      "tag": "0011_official_prayers_admin_fields",
+      "breakpoints": true
     }
   ]
 }

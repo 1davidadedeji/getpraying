@@ -21,11 +21,14 @@ export const registerBodyUsernameMin = 3;
 
 export const registerBodyPasswordMin = 6;
 
+export const registerBodyBioMax = 160;
+
 export const RegisterBody = zod.object({
   email: zod.string().email(),
   username: zod.string().min(registerBodyUsernameMin),
   password: zod.string().min(registerBodyPasswordMin),
   displayName: zod.string().optional(),
+  bio: zod.string().max(registerBodyBioMax).optional(),
 });
 
 /**
@@ -145,7 +148,39 @@ export const GetUserProfileResponse = zod.object({
   prayersShared: zod.number(),
   prayedFor: zod.number(),
   savedScrolls: zod.number(),
+  followerCount: zod.number(),
+  followingCount: zod.number(),
+  isFollowing: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Present when the viewer is authenticated and not viewing their own profile",
+    ),
   createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Follow a user
+ */
+export const FollowUserParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const FollowUserResponse = zod.object({
+  success: zod.boolean().optional(),
+  following: zod.boolean().optional(),
+});
+
+/**
+ * @summary Unfollow a user
+ */
+export const UnfollowUserParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const UnfollowUserResponse = zod.object({
+  success: zod.boolean().optional(),
+  following: zod.boolean().optional(),
 });
 
 /**
@@ -178,7 +213,10 @@ export const GetUserPostsResponse = zod.object({
         .nullish()
         .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
+      commentCount: zod.number(),
+      saveCount: zod.number(),
       hasPrayed: zod.boolean(),
+      hasCommented: zod.boolean(),
       isSaved: zod.boolean(),
       authorId: zod.number().nullish(),
       authorUsername: zod.string().nullish(),
@@ -224,7 +262,10 @@ export const GetPostsResponse = zod.object({
         .nullish()
         .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
+      commentCount: zod.number(),
+      saveCount: zod.number(),
       hasPrayed: zod.boolean(),
+      hasCommented: zod.boolean(),
       isSaved: zod.boolean(),
       authorId: zod.number().nullish(),
       authorUsername: zod.string().nullish(),
@@ -276,7 +317,10 @@ export const GetTrendingPostsResponseItem = zod.object({
     .nullish()
     .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
+  commentCount: zod.number(),
+  saveCount: zod.number(),
   hasPrayed: zod.boolean(),
+  hasCommented: zod.boolean(),
   isSaved: zod.boolean(),
   authorId: zod.number().nullish(),
   authorUsername: zod.string().nullish(),
@@ -322,7 +366,10 @@ export const GetPostResponse = zod.object({
     .nullish()
     .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
+  commentCount: zod.number(),
+  saveCount: zod.number(),
   hasPrayed: zod.boolean(),
+  hasCommented: zod.boolean(),
   isSaved: zod.boolean(),
   authorId: zod.number().nullish(),
   authorUsername: zod.string().nullish(),
@@ -453,7 +500,10 @@ export const GetSavedPrayersResponseItem = zod.object({
     .nullish()
     .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
+  commentCount: zod.number(),
+  saveCount: zod.number(),
   hasPrayed: zod.boolean(),
+  hasCommented: zod.boolean(),
   isSaved: zod.boolean(),
   authorId: zod.number().nullish(),
   authorUsername: zod.string().nullish(),
@@ -518,7 +568,10 @@ export const GetPathResponse = zod.object({
         .nullish()
         .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
+      commentCount: zod.number(),
+      saveCount: zod.number(),
       hasPrayed: zod.boolean(),
+      hasCommented: zod.boolean(),
       isSaved: zod.boolean(),
       authorId: zod.number().nullish(),
       authorUsername: zod.string().nullish(),
@@ -566,6 +619,8 @@ export const GetNotificationsResponseItem = zod.object({
   id: zod.number(),
   type: zod.enum([
     "prayer",
+    "prayer_milestone",
+    "saved",
     "system",
     "category_new",
     "reminder",
@@ -617,7 +672,10 @@ export const GetPendingPostsResponse = zod.object({
         .nullish()
         .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
+      commentCount: zod.number(),
+      saveCount: zod.number(),
       hasPrayed: zod.boolean(),
+      hasCommented: zod.boolean(),
       isSaved: zod.boolean(),
       authorId: zod.number().nullish(),
       authorUsername: zod.string().nullish(),
@@ -656,7 +714,10 @@ export const GetModeratedPostsResponse = zod.object({
         .nullish()
         .describe("Shown to the author when a moderator declines the post"),
       prayCount: zod.number(),
+      commentCount: zod.number(),
+      saveCount: zod.number(),
       hasPrayed: zod.boolean(),
+      hasCommented: zod.boolean(),
       isSaved: zod.boolean(),
       authorId: zod.number().nullish(),
       authorUsername: zod.string().nullish(),
@@ -690,7 +751,10 @@ export const ApprovePostResponse = zod.object({
     .nullish()
     .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
+  commentCount: zod.number(),
+  saveCount: zod.number(),
   hasPrayed: zod.boolean(),
+  hasCommented: zod.boolean(),
   isSaved: zod.boolean(),
   authorId: zod.number().nullish(),
   authorUsername: zod.string().nullish(),
@@ -731,7 +795,10 @@ export const DeclinePostResponse = zod.object({
     .nullish()
     .describe("Shown to the author when a moderator declines the post"),
   prayCount: zod.number(),
+  commentCount: zod.number(),
+  saveCount: zod.number(),
   hasPrayed: zod.boolean(),
+  hasCommented: zod.boolean(),
   isSaved: zod.boolean(),
   authorId: zod.number().nullish(),
   authorUsername: zod.string().nullish(),

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,900&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error": "#ba1a1a",
+              "surface-container-low": "#f4f3f2",
+              "on-primary-container": "#34729c",
+              "on-primary-fixed": "#001e30",
+              "tertiary-container": "#ffefc9",
+              "surface-bright": "#faf9f8",
+              "secondary-fixed": "#e4e4cc",
+              "surface": "#faf9f8",
+              "inverse-on-surface": "#f1f0f0",
+              "tertiary-fixed-dim": "#e9c349",
+              "on-primary": "#ffffff",
+              "on-surface-variant": "#43474a",
+              "on-error": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-secondary-fixed": "#1b1d0e",
+              "on-secondary-fixed-variant": "#474836",
+              "on-tertiary-fixed-variant": "#574500",
+              "on-primary-fixed-variant": "#004b71",
+              "secondary-container": "#e1e1c9",
+              "surface-variant": "#e3e2e1",
+              "surface-dim": "#dadad9",
+              "inverse-surface": "#2f3130",
+              "on-tertiary": "#ffffff",
+              "tertiary": "#735c00",
+              "primary": "#21638d",
+              "outline": "#73787b",
+              "inverse-primary": "#93cdfc",
+              "on-tertiary-container": "#856a00",
+              "surface-container": "#eeeeed",
+              "on-background": "#1a1c1c",
+              "outline-variant": "#c3c7cb",
+              "surface-container-high": "#e9e8e7",
+              "primary-container": "#e5f1ff",
+              "primary-fixed-dim": "#93cdfc",
+              "primary-fixed": "#cbe6ff",
+              "on-tertiary-fixed": "#241a00",
+              "on-error-container": "#93000a",
+              "surface-tint": "#21638d",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#1a1c1c",
+              "tertiary-fixed": "#ffe088",
+              "background": "#faf9f8",
+              "on-secondary": "#ffffff",
+              "secondary": "#5e604d",
+              "secondary-fixed-dim": "#c8c8b0",
+              "on-secondary-container": "#636451",
+              "surface-container-highest": "#e3e2e1"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .ethereal-gradient {
+            background: radial-gradient(circle at top right, #e5f1ff 0%, transparent 40%),
+                        radial-gradient(circle at bottom left, #ffe088 0%, transparent 40%),
+                        #faf9f8;
+        }
+        .aura-glow {
+            box-shadow: 0 20px 60px rgba(33, 99, 141, 0.08);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+<!-- Main Canvas -->
+<main class="relative h-screen w-full flex flex-col ethereal-gradient overflow-hidden">
+<!-- Subtle Top Lighting -->
+<div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-primary-container/30 to-transparent pointer-events-none"></div>
+<!-- Content Shell (Mobile Focused) -->
+<div class="relative z-10 flex flex-col items-center justify-between h-full w-full px-8 pt-24 pb-16">
+<!-- Hero Branding Section -->
+<div class="flex flex-col items-center text-center space-y-6">
+<!-- Decorative Iconography -->
+<div class="w-20 h-20 rounded-xl bg-surface-container-lowest aura-glow flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<div class="space-y-3">
+<h1 class="font-headline font-black italic text-5xl tracking-tight text-primary">
+                        GetPraying
+                    </h1>
+<p class="font-body text-lg text-on-surface-variant font-medium tracking-wide">
+                        Share your prayers. Find support.
+                    </p>
+</div>
+</div>
+<!-- Central Visual Anchor (Asymmetric Bento-like Card) -->
+<div class="w-full max-w-sm">
+<div class="relative group">
+<!-- Glassmorphism Container -->
+<div class="bg-surface-container-lowest/40 backdrop-blur-2xl rounded-xl p-8 aura-glow border border-surface-container-lowest/50">
+<div class="space-y-6">
+<div class="flex items-center space-x-4">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-surface-container-high">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Soft portrait of a woman in natural light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgzxM7uGABIQaKTbY1nb4787jBlWJxT1aNrl5G7VTyBtKGgket4pxvGr7uw88hmbw3D6H6pROpUjqOY-vuC7gj_rUGtOmGZPNCKWkxjr2IcxtWk_OBNGb4dSiYHdtGmlPc-E03elvO0unsLeQPPx_ADBn9F84SyivMAAx6FjO-YRo9S2wvtbRs3E5yY1f3mb8IWqxkrv_cnY6r25u2O--tTxeuwH8v32mFQYfEBrvu8TCpWwWUH95WcFVV4oq7mES0seGNGioN3rY"/>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-primary">Daily Word</span>
+<span class="text-xs text-on-surface-variant">2 minutes ago</span>
+</div>
+</div>
+<blockquote class="font-headline italic text-xl leading-relaxed text-on-surface">
+                                "Be still, and know that I am here with you in every breath."
+                            </blockquote>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-fixed-dim fill-1" data-icon="favorite" style="font-variation-settings: 'FILL' 1;">favorite</span>
+<span class="text-sm font-medium text-on-surface-variant">128 others are praying with you</span>
+</div>
+</div>
+</div>
+<!-- Floating Accent -->
+<div class="absolute -top-4 -right-4 w-24 h-24 bg-tertiary-fixed rounded-full blur-3xl opacity-30"></div>
+</div>
+</div>
+<!-- Action Cluster -->
+<div class="w-full max-w-sm space-y-4">
+<button class="w-full bg-primary text-on-primary py-5 rounded-full font-bold text-lg aura-glow hover:opacity-90 active:scale-95 transition-all duration-300">
+                    Sign Up
+                </button>
+<button class="w-full bg-surface-container-lowest/60 text-primary py-5 rounded-full font-bold text-lg backdrop-blur-md hover:bg-surface-container-lowest transition-all active:scale-95 duration-300">
+                    Login
+                </button>
+<!-- Legal/Secondary Action -->
+<p class="text-center text-xs text-on-surface-variant/60 font-medium px-4 leading-relaxed">
+                    By joining, you agree to our <span class="underline">Terms</span> and <span class="underline">Privacy Policy</span>. Create your sanctuary today.
+                </p>
+</div>
+</div>
+<!-- Bottom Ambient Shadow -->
+<div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-surface to-transparent pointer-events-none"></div>
+</main>
+<!-- Background Decorative Elements -->
+<div class="fixed top-[20%] -left-20 w-64 h-64 bg-primary-container rounded-full blur-[100px] opacity-40 pointer-events-none"></div>
+<div class="fixed bottom-[10%] -right-20 w-80 h-80 bg-tertiary-container rounded-full blur-[120px] opacity-40 pointer-events-none"></div>
+</body></html>

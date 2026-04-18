@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;0,900;1,900&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error": "#ba1a1a",
+              "surface-container-low": "#f4f3f2",
+              "on-primary-container": "#34729c",
+              "on-primary-fixed": "#001e30",
+              "tertiary-container": "#ffefc9",
+              "surface-bright": "#faf9f8",
+              "secondary-fixed": "#e4e4cc",
+              "surface": "#faf9f8",
+              "inverse-on-surface": "#f1f0f0",
+              "tertiary-fixed-dim": "#e9c349",
+              "on-primary": "#ffffff",
+              "on-surface-variant": "#43474a",
+              "on-error": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-secondary-fixed": "#1b1d0e",
+              "on-secondary-fixed-variant": "#474836",
+              "on-tertiary-fixed-variant": "#574500",
+              "on-primary-fixed-variant": "#004b71",
+              "secondary-container": "#e1e1c9",
+              "surface-variant": "#e3e2e1",
+              "surface-dim": "#dadad9",
+              "inverse-surface": "#2f3130",
+              "on-tertiary": "#ffffff",
+              "tertiary": "#735c00",
+              "primary": "#21638d",
+              "outline": "#73787b",
+              "inverse-primary": "#93cdfc",
+              "on-tertiary-container": "#856a00",
+              "surface-container": "#eeeeed",
+              "on-background": "#1a1c1c",
+              "outline-variant": "#c3c7cb",
+              "surface-container-high": "#e9e8e7",
+              "primary-container": "#e5f1ff",
+              "primary-fixed-dim": "#93cdfc",
+              "primary-fixed": "#cbe6ff",
+              "on-tertiary-fixed": "#241a00",
+              "on-error-container": "#93000a",
+              "surface-tint": "#21638d",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#1a1c1c",
+              "tertiary-fixed": "#ffe088",
+              "background": "#faf9f8",
+              "on-secondary": "#ffffff",
+              "secondary": "#5e604d",
+              "secondary-fixed-dim": "#c8c8b0",
+              "on-secondary-container": "#636451",
+              "surface-container-highest": "#e3e2e1"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .bg-aura {
+            background: radial-gradient(circle at 50% -20%, #e5f1ff 0%, #faf9f8 60%);
+        }
+        .chip-active {
+            background-color: #21638d;
+            color: #ffffff;
+            box-shadow: 0 10px 20px rgba(33, 99, 141, 0.15);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface min-h-screen flex flex-col antialiased bg-aura">
+<!-- Top Navigation Anchor -->
+<header class="flex justify-between items-center w-full px-6 py-4 fixed top-0 bg-[#faf9f8] dark:bg-stone-950 z-50">
+<div class="flex items-center gap-4">
+<button class="text-[#21638d] dark:text-blue-400 hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<div class="font-['Noto_Serif'] font-black italic text-[#21638d] dark:text-blue-400 text-2xl tracking-tight">
+            GetPraying
+        </div>
+<div class="w-8 h-8 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Minimalist user profile avatar portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGW1Daa5C2Qy6US_ZsQMEEG_W-58hHkn_iX43EQ0wj7h7ZVCrT18PGfgAr2Jxjb2NjpMUZw5RoNH4G6JtVK_SE_YTmUqwZJoE51Db9j9PCkBeTiHFfDsbjFdBN5H-j4PUMTnbrott3WL6hsaNnlsm65xsiS40xMQoiGr0i2DhEo9KOyLemhOAVAJjqYPAdwV1Wd-viQb2Mu0YKzr6EXz3daV2Yag7D8mqTXI9Z1QWqdrKW6FJ9g-L56cEEyLk5YI2ihAaT_3QWB_U"/>
+</div>
+</header>
+<main class="flex-1 px-6 pt-32 pb-32 max-w-lg mx-auto w-full">
+<!-- Progress Indicator -->
+<div class="flex gap-1 mb-10 w-32">
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+<div class="h-1 flex-1 bg-surface-container-highest rounded-full"></div>
+<div class="h-1 flex-1 bg-surface-container-highest rounded-full"></div>
+</div>
+<!-- Editorial Header -->
+<section class="mb-12">
+<h1 class="font-headline font-bold text-4xl text-on-surface leading-tight mb-4">
+                What prayers matter to you?
+            </h1>
+<p class="text-on-surface-variant text-lg leading-relaxed">
+                Choose the areas of your life where you seek connection and peace. We’ll curate your daily journey based on your selection.
+            </p>
+</section>
+<!-- Category Grid / Cloud -->
+<div class="flex flex-wrap gap-3 mb-12">
+<!-- Selected State (Anxiety / Stress) -->
+<button class="px-6 py-4 rounded-xl text-lg font-medium transition-all duration-300 chip-active flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="check">check</span>
+                Anxiety / Stress
+            </button>
+<!-- Default States -->
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Gratitude
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Relationships
+            </button>
+<!-- Selected State (Mental Health) -->
+<button class="px-6 py-4 rounded-xl text-lg font-medium transition-all duration-300 chip-active flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="check">check</span>
+                Mental Health
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Family
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Health
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Work / Career
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Finances
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Sleep
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Growth / Purpose
+            </button>
+<button class="px-6 py-4 rounded-xl text-lg font-medium bg-surface-container-lowest text-on-surface border-none shadow-sm hover:bg-surface-container transition-all duration-300">
+                Forgiveness
+            </button>
+</div>
+<!-- Secondary Affirmation -->
+<div class="p-6 rounded-lg bg-primary-container/30 flex gap-4 items-start">
+<span class="material-symbols-outlined text-primary" data-icon="auto_awesome">auto_awesome</span>
+<p class="text-sm text-on-primary-container leading-relaxed italic">
+                "Be anxious for nothing, but in everything by prayer and supplication, with thanksgiving, let your requests be made known to God."
+            </p>
+</div>
+</main>
+<!-- Fixed Action Bar -->
+<footer class="fixed bottom-0 w-full p-6 bg-[#faf9f8]/80 backdrop-blur-xl z-50">
+<div class="max-w-lg mx-auto">
+<button class="w-full bg-primary text-on-primary py-5 rounded-full text-lg font-semibold shadow-xl hover:opacity-90 active:scale-95 transition-all flex justify-center items-center gap-2">
+                Continue
+                <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</footer>
+<!-- Decorative Aura Element -->
+<div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] pointer-events-none -z-10 opacity-40">
+<div class="w-full h-full bg-gradient-to-tr from-primary-container/20 to-tertiary-container/20 blur-[120px] rounded-full"></div>
+</div>
+</body></html>

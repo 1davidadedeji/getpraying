@@ -1,5 +1,14 @@
 import { Router, type IRouter } from "express";
-import { db, postsTable, postPrayersTable, savedPostsTable, usersTable, notificationsTable, commentsTable } from "@workspace/db";
+import {
+  db,
+  postsTable,
+  postPrayersTable,
+  savedPostsTable,
+  usersTable,
+  notificationsTable,
+  commentsTable,
+  userFollowsTable,
+} from "@workspace/db";
 import { eq, and, desc, sql, asc } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
@@ -120,14 +129,36 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const limit = Math.min(parseInt((req.query.limit as string) || "20", 10), 50);
   const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
   const category = req.query.category as string | undefined;
-  const currentUser = (req as any).user;
+  const currentUser = (req as any).user as { id: number } | undefined;
+
+  let followIds: number[] = [];
+  if (currentUser?.id) {
+    const rows = await db
+      .select({ followingId: userFollowsTable.followingId })
+      .from(userFollowsTable)
+      .where(eq(userFollowsTable.followerId, currentUser.id));
+    followIds = rows.map((r) => r.followingId);
+  }
 
   let conditions: any = eq(postsTable.status, "approved");
   if (category) conditions = and(conditions, eq(postsTable.category, category));
   if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
 
-  const posts = await db.select().from(postsTable).where(conditions)
-    .orderBy(desc(postsTable.id)).limit(limit + 1);
+  const posts =
+    followIds.length > 0
+      ? await db
+          .select()
+          .from(postsTable)
+          .where(conditions)
+          .orderBy(
+            sql`(CASE WHEN ${postsTable.authorId} IN (${sql.join(
+              followIds.map((id) => sql`${id}`),
+              sql`, `,
+            )}) THEN 1 ELSE 0 END) DESC`,
+            desc(postsTable.id),
+          )
+          .limit(limit + 1)
+      : await db.select().from(postsTable).where(conditions).orderBy(desc(postsTable.id)).limit(limit + 1);
 
   const hasMore = posts.length > limit;
   const page = posts.slice(0, limit);
@@ -164,15 +195,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const isStaff = user.role === "admin" || user.role === "moderator";
   let storedMediaType: string | null = null;
   if (hasMedia) {
-    if (!isStaff) {
-      if (rawMediaType === "video" || rawMediaType === "audio") {
-        res.status(403).json({
-          error: "Video and audio posts are only available to moderators and admins.",
-        });
-        return;
-      }
-      storedMediaType = "image";
-    } else if (rawMediaType && ["image", "video", "audio"].includes(rawMediaType)) {
+    if (rawMediaType && ["image", "video", "audio"].includes(rawMediaType)) {
       storedMediaType = rawMediaType;
     } else {
       storedMediaType = "image";
@@ -188,12 +211,23 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  // AI moderation pipeline (staff bypass)
+  // AI moderation: text-only posts can be auto-approved/declined. Any media requires manual review (never auto-approved).
   let postStatus: "approved" | "pending" | "declined" = "pending";
   let moderationReason: string | null = null;
 
   if (isStaff) {
     postStatus = "approved";
+  } else if (hasMedia) {
+    postStatus = "pending";
+    if (storedContent && storedContent !== "(Image)") {
+      const modResult = await moderatePost(storedContent);
+      if (modResult.outcome === "rejected") {
+        postStatus = "declined";
+        moderationReason = modResult.reason;
+      } else if (modResult.outcome === "queue" && modResult.reason) {
+        moderationReason = modResult.reason;
+      }
+    }
   } else if (storedContent && storedContent !== "(Image)") {
     const modResult = await moderatePost(storedContent);
     if (modResult.outcome === "approved") {
@@ -295,6 +329,17 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
     .where(eq(postsTable.id, postId))
     .returning();
 
+  if (post.authorId) {
+    await db.insert(notificationsTable).values({
+      userId: post.authorId,
+      type: "post_reported",
+      message: `Your prayer was reported: ${reason}`,
+      actorId: currentUser.id,
+      postId,
+      isRead: false,
+    });
+  }
+
   const shouldQueue = (updated.flagCount ?? 0) >= FLAG_THRESHOLD && post.status === "approved";
   if (shouldQueue) {
     await db.update(postsTable).set({ status: "pending" }).where(eq(postsTable.id, postId));
@@ -372,6 +417,17 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
     .insert(commentsTable)
     .values({ postId, authorId: user.id, content })
     .returning();
+
+  if (post.authorId && post.authorId !== user.id) {
+    await db.insert(notificationsTable).values({
+      userId: post.authorId,
+      type: "comment",
+      message: "commented on your prayer",
+      actorId: user.id,
+      postId,
+      isRead: false,
+    });
+  }
 
   const [author] = await db
     .select({ username: usersTable.username, displayName: usersTable.displayName })
@@ -546,8 +602,8 @@ router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> 
         await tx.insert(notificationsTable).values({
           userId: post.authorId,
           type: "saved",
-          message: "Someone saved your prayer post to their library.",
-          actorId: null,
+          message: "saved your prayer to their library.",
+          actorId: user.id,
           postId,
           isRead: false,
         });

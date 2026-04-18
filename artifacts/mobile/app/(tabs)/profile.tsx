@@ -15,24 +15,19 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useGetMe, getGetMeQueryKey, useGetSavedPrayers, getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
+import { PreferredCategoriesContent } from "@/components/PreferredCategoriesContent";
+import { StatCard } from "@/components/StatCard";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
+import { PROFILE_MAIN_TABS } from "@/constants/profileTabs";
+import { SAVED_POSTS_EMPTY } from "@/constants/savedList";
 import { useAuth } from "@/context/auth";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -43,6 +38,7 @@ export default function ProfileScreen() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [profileTab, setProfileTab] = useState<"my" | "saved" | "categories">("my");
 
   const { data: freshUser, refetch: refetchMe } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
@@ -57,6 +53,13 @@ export default function ProfileScreen() {
       if (token) refetchMe();
     }, [token, refetchMe]),
   );
+
+  const { data: savedPrayersData, isLoading: loadingSavedTab } = useGetSavedPrayers({
+    query: {
+      queryKey: getGetSavedPrayersQueryKey(),
+      enabled: !!token && profileTab === "saved",
+    },
+  });
 
   const pickAndUploadAvatar = async () => {
     try {
@@ -237,20 +240,19 @@ export default function ProfileScreen() {
         Prayed For goes up when someone else prays on your posts (not when you pray on your own).
       </Text>
 
-      {(user.preferredCategories ?? []).length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Prayer Categories</Text>
-          <View style={styles.chips}>
-            {(user.preferredCategories ?? []).map((cat) => (
-              <View key={cat} style={styles.chip}>
-                <Text style={styles.chipText}>
-                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
+      <View style={styles.profileTabRow}>
+        {PROFILE_MAIN_TABS.map(({ key, label }) => (
+          <Pressable
+            key={key}
+            style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
+            onPress={() => setProfileTab(key)}
+          >
+            <Text style={[styles.profileTabText, profileTab === key && styles.profileTabTextActive]}>
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
@@ -289,19 +291,23 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>My Prayer History</Text>
-        {loadingPosts && (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: 12 }} />
-        )}
-      </View>
     </View>
   );
+
+  const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
+  const listData =
+    profileTab === "my"
+      ? myPosts
+      : profileTab === "saved"
+        ? savedPosts
+        : [];
+  const listLoading =
+    profileTab === "my" ? loadingPosts : profileTab === "saved" ? loadingSavedTab : false;
 
   return (
     <FlatList
       ref={listRef}
-      data={loadingPosts ? [] : myPosts}
+      data={profileTab === "categories" ? [] : listLoading ? [] : listData}
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => (
         <View style={{ paddingHorizontal: 20 }}>
@@ -310,13 +316,28 @@ export default function ProfileScreen() {
       )}
       ListHeaderComponent={profileHeader}
       ListEmptyComponent={
-        !loadingPosts ? (
+        listLoading ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+        ) : profileTab === "categories" ? (
+          <View style={styles.categoriesTabEmpty}>
+            <PreferredCategoriesContent
+              preferredCategories={user.preferredCategories ?? []}
+              onOpenPreferences={() => router.push("/onboarding")}
+            />
+          </View>
+        ) : profileTab === "my" ? (
           <View style={styles.emptyHistory}>
             <Ionicons name="flame-outline" size={36} color={colors.muted} />
             <Text style={styles.emptyHistoryText}>No prayers shared yet</Text>
             <Text style={styles.emptyHistorySubtext}>Your shared prayers will appear here</Text>
           </View>
-        ) : null
+        ) : (
+          <View style={styles.emptyHistory}>
+            <Ionicons name="bookmark-outline" size={36} color={colors.muted} />
+            <Text style={styles.emptyHistoryText}>{SAVED_POSTS_EMPTY.title}</Text>
+            <Text style={styles.emptyHistorySubtext}>{SAVED_POSTS_EMPTY.subtitle}</Text>
+          </View>
+        )
       }
       contentContainerStyle={{ paddingBottom: botPad + 100 }}
       style={styles.flex}
@@ -399,26 +420,35 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: -4,
   },
-  statCard: {
+  profileTabRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 6,
+    marginTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 2,
+  },
+  profileTab: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 32,
-    padding: 14,
+    paddingVertical: 10,
     alignItems: "center",
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
-  statValue: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 22,
-    color: colors.primary,
+  profileTabActive: {
+    borderBottomColor: colors.primary,
   },
-  statLabel: {
-    fontFamily: "PlusJakartaSans_400Regular",
+  profileTabText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
     color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
     textAlign: "center",
+  },
+  profileTabTextActive: {
+    color: colors.primary,
   },
   section: {
     gap: 10,
@@ -429,22 +459,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.8,
-  },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 50,
-    backgroundColor: colors.flameDim,
-  },
-  chipText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 12,
-    color: colors.flame,
   },
   menuCard: {
     backgroundColor: colors.surface,
@@ -470,6 +484,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     flex: 1,
+  },
+  categoriesTabEmpty: {
+    width: "100%",
+    paddingVertical: 40,
   },
   emptyHistory: {
     alignItems: "center",

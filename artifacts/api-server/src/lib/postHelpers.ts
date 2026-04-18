@@ -14,6 +14,7 @@ export type PostWithMeta = {
   commentCount: number;
   saveCount: number;
   hasPrayed: boolean;
+  hasCommented: boolean;
   isSaved: boolean;
   authorId: number | null;
   authorUsername: string | null;
@@ -32,6 +33,7 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
   let hasPrayed = false;
   let isSaved = false;
 
+  let hasCommented = false;
   if (userId) {
     const [prayedRow] = await db
       .select()
@@ -46,6 +48,13 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
       .where(and(eq(savedPostsTable.postId, post.id), eq(savedPostsTable.userId, userId)))
       .limit(1);
     isSaved = !!savedRow;
+
+    const [commentRow] = await db
+      .select()
+      .from(commentsTable)
+      .where(and(eq(commentsTable.postId, post.id), eq(commentsTable.authorId, userId)))
+      .limit(1);
+    hasCommented = !!commentRow;
   }
 
   const [commentRow] = await db
@@ -73,6 +82,7 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     commentCount,
     saveCount,
     hasPrayed,
+    hasCommented,
     isSaved,
     authorId: post.isAnonymous ? null : (post.authorId ?? null),
     authorUsername: post.isAnonymous ? null : (author?.username ?? null),
@@ -93,6 +103,7 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
 
   let prayedSet = new Set<number>();
   let savedSet = new Set<number>();
+  let commentedSet = new Set<number>();
   const postIds = posts.map((p) => p.id);
 
   if (userId && posts.length > 0) {
@@ -106,6 +117,11 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       .from(savedPostsTable)
       .where(and(inArray(savedPostsTable.postId, postIds), eq(savedPostsTable.userId, userId)));
     for (const r of savedRows) savedSet.add(r.postId);
+    const commentRows = await db
+      .select({ postId: commentsTable.postId })
+      .from(commentsTable)
+      .where(and(inArray(commentsTable.postId, postIds), eq(commentsTable.authorId, userId)));
+    for (const r of commentRows) commentedSet.add(r.postId);
   }
 
   const commentCountMap = new Map<number, number>();
@@ -141,6 +157,7 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       commentCount: commentCountMap.get(post.id) ?? 0,
       saveCount: saveCountMap.get(post.id) ?? 0,
       hasPrayed: prayedSet.has(post.id),
+      hasCommented: commentedSet.has(post.id),
       isSaved: savedSet.has(post.id),
       authorId: post.isAnonymous ? null : (post.authorId ?? null),
       authorUsername: author?.username ?? null,

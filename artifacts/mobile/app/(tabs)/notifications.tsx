@@ -40,7 +40,13 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
     case "prayer_milestone":
       return "Your prayer is spreading";
     case "saved":
-      return "Someone saved your prayer";
+      return n.actorUsername ? `${n.actorUsername} saved your prayer` : "Someone saved your prayer";
+    case "comment":
+      return n.actorUsername ? `${n.actorUsername} commented` : "New comment on your prayer";
+    case "follow":
+      return n.actorUsername ? `${n.actorUsername} followed you` : "New follower";
+    case "post_reported":
+      return "Your prayer was reported";
     case "reminder":
       return "Prayer reminder";
     case "category_new":
@@ -69,23 +75,35 @@ function NotificationItem({
       ? "flame"
       : t === "saved"
         ? "bookmark"
-        : t === "reminder"
-          ? "time-outline"
-          : t === "post_approved"
-            ? "checkmark-circle"
-            : t === "post_declined"
-              ? "alert-circle"
-              : "notifications-outline";
+        : t === "comment"
+          ? "chatbubble"
+          : t === "follow"
+            ? "person-add"
+            : t === "post_reported"
+              ? "flag"
+              : t === "reminder"
+                ? "time-outline"
+                : t === "post_approved"
+                  ? "checkmark-circle"
+                  : t === "post_declined"
+                    ? "alert-circle"
+                    : "notifications-outline";
   const iconColor =
     t === "prayer" || t === "prayer_milestone"
       ? colors.flame
       : t === "saved"
         ? colors.primary
-        : t === "post_declined"
-          ? colors.danger
-          : t === "post_approved"
-            ? colors.success
-            : colors.accent;
+        : t === "comment"
+          ? colors.primary
+          : t === "follow"
+            ? colors.accent
+            : t === "post_reported"
+              ? colors.danger
+              : t === "post_declined"
+                ? colors.danger
+                : t === "post_approved"
+                  ? colors.success
+                  : colors.accent;
 
   return (
     <Pressable
@@ -112,7 +130,7 @@ function NotificationItem({
         <Text style={styles.notifTime}>{timeAgo(item.createdAt)}</Text>
       </View>
       {!item.isRead && <View style={styles.unreadDot} />}
-      {item.postId && (
+      {(item.postId || item.type === "follow") && item.actorUsername && (
         <Ionicons name="chevron-forward" size={14} color={colors.muted} style={styles.chevron} />
       )}
     </Pressable>
@@ -166,6 +184,10 @@ export default function NotificationsScreen() {
         .catch(() => {
           queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
         });
+    }
+    if (item.type === "follow" && item.actorUsername) {
+      router.push(`/user/${item.actorUsername}` as any);
+      return;
     }
     if (item.postId) {
       router.push(`/post/${item.postId}`);

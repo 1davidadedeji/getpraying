@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GetPraying - Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,900&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error": "#ba1a1a",
+              "surface-container-low": "#f4f3f2",
+              "on-primary-container": "#34729c",
+              "on-primary-fixed": "#001e30",
+              "tertiary-container": "#ffefc9",
+              "surface-bright": "#faf9f8",
+              "secondary-fixed": "#e4e4cc",
+              "surface": "#faf9f8",
+              "inverse-on-surface": "#f1f0f0",
+              "tertiary-fixed-dim": "#e9c349",
+              "on-primary": "#ffffff",
+              "on-surface-variant": "#43474a",
+              "on-error": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-secondary-fixed": "#1b1d0e",
+              "on-secondary-fixed-variant": "#474836",
+              "on-tertiary-fixed-variant": "#574500",
+              "on-primary-fixed-variant": "#004b71",
+              "secondary-container": "#e1e1c9",
+              "surface-variant": "#e3e2e1",
+              "surface-dim": "#dadad9",
+              "inverse-surface": "#2f3130",
+              "on-tertiary": "#ffffff",
+              "tertiary": "#735c00",
+              "primary": "#21638d",
+              "outline": "#73787b",
+              "inverse-primary": "#93cdfc",
+              "on-tertiary-container": "#856a00",
+              "surface-container": "#eeeeed",
+              "on-background": "#1a1c1c",
+              "outline-variant": "#c3c7cb",
+              "surface-container-high": "#e9e8e7",
+              "primary-container": "#e5f1ff",
+              "primary-fixed-dim": "#93cdfc",
+              "primary-fixed": "#cbe6ff",
+              "on-tertiary-fixed": "#241a00",
+              "on-error-container": "#93000a",
+              "surface-tint": "#21638d",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#1a1c1c",
+              "tertiary-fixed": "#ffe088",
+              "background": "#faf9f8",
+              "on-secondary": "#ffffff",
+              "secondary": "#5e604d",
+              "secondary-fixed-dim": "#c8c8b0",
+              "on-secondary-container": "#636451",
+              "surface-container-highest": "#e3e2e1"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .noto-serif {
+        font-family: 'Noto Serif', serif;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-[#faf9f8] dark:bg-stone-950 flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-3">
+<button class="text-[#21638d] dark:text-blue-400 hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined" data-icon="menu_open">menu_open</span>
+</button>
+<h1 class="font-['Noto_Serif'] font-black italic text-[#21638d] dark:text-blue-400 text-2xl tracking-tight">GetPraying</h1>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="Portrait of a smiling young man" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMfpkkzPtocR-6vM2B66aPlF8tRESwEz-UlsDuhi6QeMQnVzVownGefIbyzANhL-0EN9-gcpxLe91PVRX61-UhpzUa-Xg0blHK0m-MbgZ8kLopLoL1a6PrzbVu2BJccU1jMNDByhkZDrfJoeCuhdCrAakK1aIYcPMYq3v6sEoi0-xzukw51ZXutli4kzi65lRjEp5L9yCKx3Bt2zPEAFQW8ejLWvKxf5N3p0MV_qQ1vNvcq-7DiFO2PydOc6qKrrlMoDsPTxuI5rA"/>
+</div>
+</header>
+<main class="pt-24 pb-32 px-4 max-w-2xl mx-auto space-y-6">
+<!-- Welcome Section (Bento Style) -->
+<section class="grid grid-cols-1 gap-4">
+<div class="bg-primary-container p-8 rounded-xl relative overflow-hidden group">
+<div class="relative z-10">
+<p class="text-on-primary-container font-medium text-sm mb-2 uppercase tracking-widest">Morning Reflection</p>
+<h2 class="font-headline text-3xl text-primary leading-tight font-bold italic">“Be still, and know that I am God.”</h2>
+<p class="text-on-primary-container mt-4 text-sm opacity-80">Join 1,240 others praying right now.</p>
+</div>
+<div class="absolute -right-8 -bottom-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
+<span class="material-symbols-outlined text-[120px]" data-icon="auto_awesome">auto_awesome</span>
+</div>
+</div>
+</section>
+<!-- Inline Create Prayer Area -->
+<section class="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_24px_rgba(0,0,0,0.02)] border border-surface-container transition-all hover:shadow-[0_8px_32px_rgba(33,99,141,0.04)]">
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high flex-shrink-0">
+<img alt="Your avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMfpkkzPtocR-6vM2B66aPlF8tRESwEz-UlsDuhi6QeMQnVzVownGefIbyzANhL-0EN9-gcpxLe91PVRX61-UhpzUa-Xg0blHK0m-MbgZ8kLopLoL1a6PrzbVu2BJccU1jMNDByhkZDrfJoeCuhdCrAakK1aIYcPMYq3v6sEoi0-xzukw51ZXutli4kzi65lRjEp5L9yCKx3Bt2zPEAFQW8ejLWvKxf5N3p0MV_qQ1vNvcq-7DiFO2PydOc6qKrrlMoDsPTxuI5rA"/>
+</div>
+<div class="flex-grow space-y-3">
+<textarea class="w-full bg-transparent border-none p-0 focus:ring-0 text-on-surface-variant placeholder:text-outline/50 noto-serif text-lg resize-none min-h-[60px]" placeholder="What's on your heart?" rows="2"></textarea>
+<div class="flex justify-end pt-2">
+<button class="bg-primary text-on-primary px-6 py-2 rounded-full text-sm font-semibold hover:opacity-90 transition-all active:scale-95 shadow-sm shadow-primary/20">
+                            Pray
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Feed of Prayer Cards -->
+<div class="space-y-8">
+<!-- Prayer Card 1 -->
+<article class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] border-none transition-all duration-300 hover:shadow-[0_10px_40px_rgba(33,99,141,0.06)] relative"><button class="absolute top-2 left-2 p-1.5 text-primary/30 hover:text-error/60 transition-colors rounded-full" title="Report Prayer">
+<span class="material-symbols-outlined text-[18px]" data-icon="flag">flag</span>
+</button>
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden">
+<img alt="Sarah J." class="w-full h-full object-cover" data-alt="Woman profile photo smiling" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwOhg5rLW86S_2iZSo-OvSyEkj0ZyYelD7hgR_MpSnDof6N8RGm1Z_D36MLW6hgyXmHDcLe1xB-5WK-2vUgo9rwfFURFA5K6d2_TenLDaR7hNcBIc8v-7LjCEJ1n6a6Y5-6FLqpYVKqMnHBWWGUGAV0L3JNalMkOHOaXGQnv219d9ouznBoY28yjoAr9BCBti5L7WDJVrQ6SqON1qNArGR7aZBDNS2CWOeTBHD0uP-3spjW7SKfUWhKe-f1l6Hj-71UfA69fXeulg"/>
+</div>
+<div>
+<h3 class="font-bold text-sm text-on-surface">Sarah J.</h3>
+<p class="text-xs text-outline opacity-70">2 hours ago</p>
+</div>
+</div>
+<span class="bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase">Healing</span>
+</div>
+<div class="mb-8">
+<p class="noto-serif text-xl md:text-2xl leading-relaxed text-on-surface-variant font-medium">
+                        Asking for strength as my mother undergoes surgery today. May the hands of the surgeons be steady and her recovery be swift. Amen.
+                    </p>
+</div>
+<div class="flex flex-wrap items-center justify-between pt-6 border-t border-surface-container-low">
+<div class="flex items-center gap-6">
+<button class="flex items-center gap-2 text-primary hover:opacity-70 transition-opacity">
+<span class="text-xl">🙏</span>
+<span class="text-sm font-semibold tracking-tight">12</span>
+</button>
+<button class="flex items-center gap-2 text-stone-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">chat_bubble</span>
+<span class="text-sm font-medium">4</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-stone-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all flex items-center justify-center"><img alt="Ladder icon" class="h-5 w-auto opacity-70 group-hover:opacity-100 transition-opacity" src="https://lh3.googleusercontent.com/aida/ADBb0uiSOjvjZ48lash5vOKXmZ8r0jTLqrKTSic6t3YWLAKJUmvP_XdMsHz-MZ03aWRYxBGTlS2yjO6nuE6xjvFwzcFcNHisfKhBdTSqjUMEN5OJUduKhOh2dO0IBxmmQmzhvRMp_vRtCLAUboG8DHsRkeWShn7TpMjPu9cJa3TJJlaLmIkkqLhi8bCN1KlPW89aFIAvVkV8wzhbvhQvh9ENv2YoGoHP6HJ0UhpwvlHrRHOTTBaz5ncc0efT7ld7sHsSijYqyOG76mLfyg"/></button>
+<button class="p-2 text-stone-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+<span class="material-symbols-outlined text-xl">ios_share</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Prayer Card 2 (Anonymous) -->
+<article class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] border-none transition-all duration-300 relative"><button class="absolute top-2 left-2 p-1.5 text-primary/30 hover:text-error/60 transition-colors rounded-full" title="Report Prayer">
+<span class="material-symbols-outlined text-[18px]" data-icon="flag">flag</span>
+</button>
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-outline" data-icon="visibility_off">visibility_off</span>
+</div>
+<div>
+<h3 class="font-bold text-sm text-on-surface">Anonymous</h3>
+<p class="text-xs text-outline opacity-70">4 hours ago</p>
+</div>
+</div>
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase">Guidance</span>
+</div>
+<div class="mb-8">
+<p class="noto-serif text-xl md:text-2xl leading-relaxed text-on-surface-variant font-medium">
+                        I am at a crossroads with my career and feel overwhelmed. Praying for clarity and the courage to follow the path meant for me.
+                    </p>
+</div>
+<div class="flex flex-wrap items-center justify-between pt-6 border-t border-surface-container-low">
+<div class="flex items-center gap-6">
+<button class="flex items-center gap-2 text-primary hover:opacity-70 transition-opacity">
+<span class="text-xl">🙏</span>
+<span class="text-sm font-semibold tracking-tight">8</span>
+</button>
+<button class="flex items-center gap-2 text-stone-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">chat_bubble</span>
+<span class="text-sm font-medium">2</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-stone-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all flex items-center justify-center"><img alt="Ladder icon" class="h-5 w-auto opacity-70 group-hover:opacity-100 transition-opacity" src="https://lh3.googleusercontent.com/aida/ADBb0uiSOjvjZ48lash5vOKXmZ8r0jTLqrKTSic6t3YWLAKJUmvP_XdMsHz-MZ03aWRYxBGTlS2yjO6nuE6xjvFwzcFcNHisfKhBdTSqjUMEN5OJUduKhOh2dO0IBxmmQmzhvRMp_vRtCLAUboG8DHsRkeWShn7TpMjPu9cJa3TJJlaLmIkkqLhi8bCN1KlPW89aFIAvVkV8wzhbvhQvh9ENv2YoGoHP6HJ0UhpwvlHrRHOTTBaz5ncc0efT7ld7sHsSijYqyOG76mLfyg"/></button>
+<button class="p-2 text-stone-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+<span class="material-symbols-outlined text-xl">ios_share</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Prayer Card 3 -->
+<article class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] border-none transition-all duration-300 relative"><button class="absolute top-2 left-2 p-1.5 text-primary/30 hover:text-error/60 transition-colors rounded-full" title="Report Prayer">
+<span class="material-symbols-outlined text-[18px]" data-icon="flag">flag</span>
+</button>
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center overflow-hidden">
+<img alt="Mark T." class="w-full h-full object-cover" data-alt="Middle aged man with glasses" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCL2oqO4C-T3t29D8lJVt8Y25CAanxnw6IMEJTqxnuBfpa9p5hYkJ9Bv5YPoChhfvmT4kBZxRVtcGKuOmsMGHfElm9s23cusr7WOH9hXfWnnddFZKoMmk0FGou02_0nVPIKWAWELH21jG_F9qQ7w1mugtsSS8YUaIq-wWKeB-D-qtmT7QczTG2CpQkELKFaqKhEdY2I1M6Vhy42W_w2LvDxhqJK4rq8LrV1j4SizMOQugpsiJNR4ts_N5_7T3WlZ8mUB1R98mNKMwQ"/>
+</div>
+<div>
+<h3 class="font-bold text-sm text-on-surface">Mark T.</h3>
+<p class="text-xs text-outline opacity-70">6 hours ago</p>
+</div>
+</div>
+<span class="bg-primary-container text-on-primary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase">Gratitude</span>
+</div>
+<div class="mb-8">
+<p class="noto-serif text-xl md:text-2xl leading-relaxed text-on-surface-variant font-medium">
+                        Woke up today feeling immense peace. Grateful for the small blessings—the morning air, the coffee, and a healthy family.
+                    </p>
+</div>
+<div class="flex flex-wrap items-center justify-between pt-6 border-t border-surface-container-low">
+<div class="flex items-center gap-6">
+<button class="flex items-center gap-2 text-primary hover:opacity-70 transition-opacity">
+<span class="text-xl">🙏</span>
+<span class="text-sm font-semibold tracking-tight">24</span>
+</button>
+<button class="flex items-center gap-2 text-stone-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">chat_bubble</span>
+<span class="text-sm font-medium">5</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-stone-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all flex items-center justify-center"><img alt="Ladder icon" class="h-5 w-auto opacity-70 group-hover:opacity-100 transition-opacity" src="https://lh3.googleusercontent.com/aida/ADBb0uiSOjvjZ48lash5vOKXmZ8r0jTLqrKTSic6t3YWLAKJUmvP_XdMsHz-MZ03aWRYxBGTlS2yjO6nuE6xjvFwzcFcNHisfKhBdTSqjUMEN5OJUduKhOh2dO0IBxmmQmzhvRMp_vRtCLAUboG8DHsRkeWShn7TpMjPu9cJa3TJJlaLmIkkqLhi8bCN1KlPW89aFIAvVkV8wzhbvhQvh9ENv2YoGoHP6HJ0UhpwvlHrRHOTTBaz5ncc0efT7ld7sHsSijYqyOG76mLfyg"/></button>
+<button class="p-2 text-stone-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+<span class="material-symbols-outlined text-xl">ios_share</span>
+</button>
+</div>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-[#faf9f8]/80 dark:bg-stone-950/80 backdrop-blur-xl rounded-t-[3rem] shadow-[0_-10px_40px_rgba(33,99,141,0.06)]">
+<!-- Home (Active) -->
+<a class="flex flex-col items-center justify-center bg-[#e5f1ff] dark:bg-blue-900/30 text-[#21638d] dark:text-blue-200 rounded-full px-5 py-2 scale-95 transition-transform duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" data-icon="home_max" style="font-variation-settings: 'FILL' 1;">home_max</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-bold tracking-wide mt-0.5">Home</span>
+</a>
+<!-- Post -->
+<a class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-5 py-2 hover:text-[#21638d] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-medium tracking-wide mt-0.5">Post</span>
+</a>
+<!-- Library -->
+<a class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-5 py-2 hover:text-[#21638d] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-medium tracking-wide mt-0.5">Library</span>
+</a>
+<!-- Alerts -->
+<a class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-5 py-2 hover:text-[#21638d] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-medium tracking-wide mt-0.5">Alerts</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-5 py-2 hover:text-[#21638d] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-medium tracking-wide mt-0.5">Profile</span>
+</a>
+</nav>
+</body></html>

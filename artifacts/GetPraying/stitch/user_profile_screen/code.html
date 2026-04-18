@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profile - GetPraying</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400;1,700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "secondary": "#5e604d",
+              "primary-container": "#e5f1ff",
+              "on-tertiary-fixed": "#241a00",
+              "surface-container-low": "#f4f3f2",
+              "inverse-primary": "#93cdfc",
+              "surface-tint": "#21638d",
+              "inverse-on-surface": "#f1f0f0",
+              "surface-container-lowest": "#ffffff",
+              "on-primary-container": "#34729c",
+              "surface-container-high": "#e9e8e7",
+              "on-primary-fixed-variant": "#004b71",
+              "on-primary-fixed": "#001e30",
+              "on-surface": "#1a1c1c",
+              "surface-dim": "#dadad9",
+              "secondary-fixed": "#e4e4cc",
+              "on-tertiary": "#ffffff",
+              "on-background": "#1a1c1c",
+              "on-tertiary-container": "#856a00",
+              "surface-container-highest": "#e3e2e1",
+              "on-surface-variant": "#43474a",
+              "on-tertiary-fixed-variant": "#574500",
+              "on-secondary-fixed": "#1b1d0e",
+              "outline-variant": "#c3c7cb",
+              "tertiary": "#735c00",
+              "primary": "#21638d",
+              "error": "#ba1a1a",
+              "on-primary": "#ffffff",
+              "on-secondary": "#ffffff",
+              "primary-fixed-dim": "#93cdfc",
+              "surface-variant": "#e3e2e1",
+              "on-secondary-fixed-variant": "#474836",
+              "on-error-container": "#93000a",
+              "surface-bright": "#faf9f8",
+              "surface": "#faf9f8",
+              "secondary-fixed-dim": "#c8c8b0",
+              "on-error": "#ffffff",
+              "secondary-container": "#e1e1c9",
+              "surface-container": "#eeeeed",
+              "background": "#faf9f8",
+              "on-secondary-container": "#636451",
+              "inverse-surface": "#2f3130",
+              "tertiary-fixed-dim": "#e9c349",
+              "tertiary-fixed": "#ffe088",
+              "primary-fixed": "#cbe6ff",
+              "tertiary-container": "#ffefc9",
+              "outline": "#73787b",
+              "error-container": "#ffdad6"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #faf9f8;
+        }
+        .noto-serif { font-family: 'Noto Serif', serif; }
+        .plus-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-[#faf9f8] dark:bg-slate-900 z-40">
+<div class="flex justify-between items-center px-6 py-4 w-full">
+<button class="p-2 rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#21638d] dark:text-blue-400">menu</span>
+</button>
+<h1 class="font-noto-serif font-bold text-[#21638d] dark:text-blue-300 italic text-2xl tracking-tight">GetPraying</h1>
+<button class="p-2 rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#21638d] dark:text-blue-400">settings</span>
+</button>
+</div>
+</header>
+<main class="max-w-2xl mx-auto px-6 pt-8 space-y-10">
+<!-- Profile Header Section -->
+<section class="flex flex-col items-center text-center space-y-4">
+<div class="relative">
+<div class="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-primary to-primary-fixed shadow-xl">
+<img alt="Sarah's Profile" class="w-full h-full rounded-full object-cover border-4 border-surface" data-alt="Portrait of a woman with a gentle expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBY86GPhBp0X4faWJdlb25WsK-JMetEiALFN7PSF3DjUXGsQxsc_FdEtjL7masow60MuvJ7Xv6pTvEkHNPheP51p9pC2TEnPlqVOvCw5fNKRYPLKRrfQyBerWeYFFg1uduAZ_Idfo4aQ04Jvjf_N2JmKhnQYsOxPydcDvczqtlVIeiuQABDG271jfUPNJAZwQR1GG1kSOrurh4F6OvFLFTSHtbVQcZcPhWFNH6MkvK0ZfKniFFiDoMl3dVl4ZOC4NtIvYied6yOq6I"/>
+</div>
+<div class="absolute bottom-1 right-1 bg-tertiary-fixed text-on-tertiary-fixed p-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">eco</span>
+</div>
+</div>
+<div class="space-y-1">
+<h2 class="text-2xl font-bold font-headline text-on-surface">@sarah_j</h2>
+<p class="text-on-surface-variant font-body italic">Seeking peace in the everyday. 🌿</p>
+</div>
+</section>
+<!-- Stats Section (Tonal Layering) -->
+<section class="grid grid-cols-3 gap-2 p-1 bg-surface-container-low rounded-xl">
+<div class="bg-surface-container-lowest rounded-lg py-4 px-2 text-center shadow-sm">
+<span class="block text-xl font-bold text-primary font-headline">142</span>
+<span class="block text-[10px] uppercase tracking-wider text-outline font-label">Prayers Shared</span>
+</div>
+<div class="bg-surface-container-lowest rounded-lg py-4 px-2 text-center shadow-sm">
+<span class="block text-xl font-bold text-primary font-headline">850</span>
+<span class="block text-[10px] uppercase tracking-wider text-outline font-label">Prayed For</span>
+</div>
+<div class="bg-surface-container-lowest rounded-lg py-4 px-2 text-center shadow-sm">
+<span class="block text-xl font-bold text-primary font-headline">24</span>
+<span class="block text-[10px] uppercase tracking-wider text-outline font-label">Saved Scrolls</span>
+</div>
+</section>
+<!-- Tabs Section -->
+<section class="space-y-6">
+<nav class="flex justify-between border-b border-surface-container-high pb-2">
+<button class="flex-1 text-center pb-3 text-primary font-semibold border-b-2 border-primary">
+<span class="text-sm font-label uppercase tracking-widest">My Prayers</span>
+</button>
+<button class="flex-1 text-center pb-3 text-outline font-medium hover:text-on-surface transition-colors">
+<span class="text-sm font-label uppercase tracking-widest">Saved</span>
+</button>
+<button class="flex-1 text-center pb-3 text-outline font-medium hover:text-on-surface transition-colors">
+<span class="text-sm font-label uppercase tracking-widest">Categories</span>
+</button>
+</nav>
+<!-- Active Content: My Prayers -->
+<div class="space-y-6">
+<!-- Prayer Card 1 -->
+<article class="bg-surface-container-low p-6 rounded-lg space-y-4 relative overflow-hidden group hover:bg-surface-container shadow-sm transition-all">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary opacity-20"></div>
+<p class="noto-serif text-lg leading-relaxed text-on-surface">
+                        "Finding stillness in the morning light today. Thankful for the quiet moments before the world wakes up."
+                    </p>
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<span class="text-xs font-label text-outline uppercase tracking-tighter">2 hours ago</span>
+<div class="flex items-center bg-primary-container px-3 py-1 rounded-full space-x-1.5">
+<span class="text-xs">🙏</span>
+<span class="text-xs font-bold text-on-primary-container">42</span>
+</div>
+</div>
+<button class="text-outline hover:text-primary transition-colors">
+<img alt="Library icon" class="w-5 h-5 opacity-70 group-hover:opacity-100" data-alt="Minimalist vertical ladder icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24px' viewBox='0 -960 960 960' width='24px' fill='%2373787b'%3E%3Cpath d='M280-80q-33 0-56.5-23.5T200-160v-640q0-33 23.5-56.5T280-880h400q33 0 56.5 23.5T760-800v640q0 33-23.5 56.5T680-80H280Zm0-80h400v-640H280v640Zm80-80h240v-80H360v80Zm0-160h240v-80H360v80Zm0-160h240v-80H360v80Zm-80 400v-640 640Z'/%3E%3C/svg%3E"/>
+</button>
+</div>
+</article>
+<!-- Prayer Card 2 -->
+<article class="bg-surface-container-low p-6 rounded-lg space-y-4 relative overflow-hidden group hover:bg-surface-container shadow-sm transition-all">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary opacity-20"></div>
+<p class="noto-serif text-lg leading-relaxed text-on-surface">
+                        "For those struggling with heavy hearts tonight, may you feel the gentle embrace of peace that surpasses understanding."
+                    </p>
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<span class="text-xs font-label text-outline uppercase tracking-tighter">Yesterday</span>
+<div class="flex items-center bg-primary-container px-3 py-1 rounded-full space-x-1.5">
+<span class="text-xs">🙏</span>
+<span class="text-xs font-bold text-on-primary-container">128</span>
+</div>
+</div>
+<button class="text-outline hover:text-primary transition-colors">
+<img alt="Library icon" class="w-5 h-5 opacity-70 group-hover:opacity-100" data-alt="Minimalist vertical ladder icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24px' viewBox='0 -960 960 960' width='24px' fill='%2373787b'%3E%3Cpath d='M280-80q-33 0-56.5-23.5T200-160v-640q0-33 23.5-56.5T280-880h400q33 0 56.5 23.5T760-800v640q0 33-23.5 56.5T680-80H280Zm0-80h400v-640H280v640Zm80-80h240v-80H360v80Zm0-160h240v-80H360v80Zm0-160h240v-80H360v80Zm-80 400v-640 640Z'/%3E%3C/svg%3E"/>
+</button>
+</div>
+</article>
+<!-- Prayer Card 3 (Editorial moment) -->
+<article class="bg-surface-container-low p-6 rounded-lg space-y-4 relative overflow-hidden group hover:bg-surface-container shadow-sm transition-all">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary opacity-20"></div>
+<p class="noto-serif text-lg leading-relaxed text-on-surface italic">
+                        "Grant me the patience to listen before I speak, and the grace to love before I judge."
+                    </p>
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<span class="text-xs font-label text-outline uppercase tracking-tighter">Oct 12</span>
+<div class="flex items-center bg-primary-container px-3 py-1 rounded-full space-x-1.5">
+<span class="text-xs">🙏</span>
+<span class="text-xs font-bold text-on-primary-container">89</span>
+</div>
+</div>
+<button class="text-outline hover:text-primary transition-colors">
+<img alt="Library icon" class="w-5 h-5 opacity-70 group-hover:opacity-100" data-alt="Minimalist vertical ladder icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24px' viewBox='0 -960 960 960' width='24px' fill='%2373787b'%3E%3Cpath d='M280-80q-33 0-56.5-23.5T200-160v-640q0-33 23.5-56.5T280-880h400q33 0 56.5 23.5T760-800v640q0 33-23.5 56.5T680-80H280Zm0-80h400v-640H280v640Zm80-80h240v-80H360v80Zm0-160h240v-80H360v80Zm0-160h240v-80H360v80Zm-80 400v-640 640Z'/%3E%3C/svg%3E"/>
+</button>
+</div>
+</article>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-[#faf9f8]/90 dark:bg-slate-900/90 backdrop-blur-md rounded-t-[3rem] z-50 shadow-[0_-4px_40px_rgba(33,99,141,0.06)]">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-[#21638d] dark:hover:text-blue-300 transition-all active:scale-90 duration-300 ease-out">
+<span class="material-symbols-outlined mb-1">spa</span>
+<span class="font-plus-jakarta text-[11px] font-medium tracking-wide uppercase">Sanctuary</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-[#21638d] dark:hover:text-blue-300 transition-all active:scale-90 duration-300 ease-out">
+<span class="material-symbols-outlined mb-1">map</span>
+<span class="font-plus-jakarta text-[11px] font-medium tracking-wide uppercase">Paths</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-[#21638d] dark:hover:text-blue-300 transition-all active:scale-90 duration-300 ease-out">
+<span class="material-symbols-outlined mb-1">auto_stories</span>
+<span class="font-plus-jakarta text-[11px] font-medium tracking-wide uppercase">Library</span>
+</div>
+<!-- ACTIVE TAB: Profile -->
+<div class="flex flex-col items-center justify-center bg-[#e5f1ff] dark:bg-blue-900/30 text-[#21638d] dark:text-blue-200 rounded-full px-5 py-2 active:scale-90 duration-300 ease-out">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-plus-jakarta text-[11px] font-medium tracking-wide uppercase">Profile</span>
+</div>
+</nav>
+</body></html>

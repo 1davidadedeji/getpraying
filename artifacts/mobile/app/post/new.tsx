@@ -9,6 +9,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -26,13 +27,14 @@ import { useAuth } from "@/context/auth";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
 
-const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_DURATION_SEC = 10;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 
 type PendingMedia =
   | { kind: "image"; uri: string }
-  | { kind: "video"; uri: string; mimeType: string; fileName: string }
+  | { kind: "video"; uri: string; mimeType: string; fileName: string; durationSec: number }
   | { kind: "audio"; uri: string; mimeType: string; name: string };
 
 async function uploadMultipart(
@@ -41,6 +43,7 @@ async function uploadMultipart(
   route: string,
   fileName: string,
   mimeType: string,
+  opts?: { durationSec?: number },
 ): Promise<{ url: string; mediaType: string }> {
   const form = new FormData();
   form.append("file", {
@@ -48,6 +51,9 @@ async function uploadMultipart(
     name: fileName,
     type: mimeType,
   } as unknown as Blob);
+  if (opts?.durationSec != null && Number.isFinite(opts.durationSec)) {
+    form.append("durationSec", String(opts.durationSec));
+  }
   const res = await fetch(apiUrl(`/uploads/${route}`), {
     method: "POST",
     headers: authHeaders(token),
@@ -108,8 +114,7 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
 
 export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
-  const { token, user } = useAuth();
-  const staff = user?.role === "admin" || user?.role === "moderator";
+  const { token } = useAuth();
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -246,12 +251,10 @@ export default function NewPostScreen() {
   };
 
   const pickVideo = async () => {
-    if (!staff || Platform.OS === "web") {
+    if (Platform.OS === "web") {
       showAppAlert({
         title: "Video",
-        message: staff
-          ? "Video attach works on the mobile app."
-          : "Only moderators and admins can attach video.",
+        message: "Video attach works on the iOS or Android app.",
       });
       return;
     }
@@ -273,7 +276,21 @@ export default function NewPostScreen() {
     if (asset.fileSize != null && asset.fileSize > MAX_VIDEO_BYTES) {
       showAppAlert({
         title: "Video too large",
-        message: "Choose a clip under 40MB.",
+        message: "Choose a shorter clip (under 12MB).",
+      });
+      return;
+    }
+    const rawDur =
+      "duration" in asset && typeof (asset as { duration?: number }).duration === "number"
+        ? (asset as { duration: number }).duration
+        : null;
+    // expo-image-picker returns duration in milliseconds on many platforms
+    const durSec =
+      rawDur == null ? null : rawDur > 1000 ? rawDur / 1000 : rawDur;
+    if (durSec == null || durSec <= 0 || durSec > MAX_VIDEO_DURATION_SEC) {
+      showAppAlert({
+        title: "Video too long",
+        message: `Choose a clip of ${MAX_VIDEO_DURATION_SEC} seconds or less.`,
       });
       return;
     }
@@ -282,16 +299,20 @@ export default function NewPostScreen() {
         ? (asset as { mimeType: string }).mimeType
         : "video/mp4";
     const fileName = mime.includes("quicktime") ? "clip.mov" : "clip.mp4";
-    setPendingMedia({ kind: "video", uri: asset.uri, mimeType: mime, fileName });
+    setPendingMedia({
+      kind: "video",
+      uri: asset.uri,
+      mimeType: mime,
+      fileName,
+      durationSec: durSec,
+    });
   };
 
   const pickAudio = async () => {
-    if (!staff || Platform.OS === "web") {
+    if (Platform.OS === "web") {
       showAppAlert({
         title: "Audio",
-        message: staff
-          ? "Audio attach works on the mobile app."
-          : "Only moderators and admins can attach audio.",
+        message: "Audio attach works on the iOS or Android app.",
       });
       return;
     }
@@ -354,6 +375,7 @@ export default function NewPostScreen() {
             "post-video",
             pendingMedia.fileName,
             pendingMedia.mimeType,
+            { durationSec: pendingMedia.durationSec },
           );
           mediaUrl = r.url;
           postMediaType = CreatePostInputMediaType.video;
@@ -424,15 +446,20 @@ export default function NewPostScreen() {
   };
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.flex}
-      contentContainerStyle={[
-        styles.container,
-        { paddingTop: 12, paddingBottom: botPad + 40 },
-      ]}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
     >
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.container,
+          { paddingTop: 12, paddingBottom: botPad + 32 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       <Text style={styles.lead}>Speak your heart. We’ll hold space.</Text>
 
       <View style={styles.card}>
@@ -450,6 +477,22 @@ export default function NewPostScreen() {
         />
         <Text style={styles.charCount}>{content.length}/2000</Text>
       </View>
+
+      <Pressable
+        style={[styles.submitBtn, (busy || !canSubmit) && styles.submitBtnDisabled]}
+        onPress={() => void handleSubmit()}
+        disabled={busy || !canSubmit}
+        testID="submit-prayer-btn"
+      >
+        {busy ? (
+          <ActivityIndicator color={colors.surface} />
+        ) : (
+          <>
+            <Ionicons name="send" size={18} color={colors.surface} />
+            <Text style={styles.submitBtnText}>Submit Prayer</Text>
+          </>
+        )}
+      </Pressable>
 
       {content.trim().length >= 10 && (
         <Pressable
@@ -470,8 +513,8 @@ export default function NewPostScreen() {
 
       <View style={styles.imageSection}>
         <Text style={styles.sectionLabel}>
-          Media (optional) — photos max ~2MB after resize
-          {staff ? ". Mods: video max 40MB, audio max 15MB." : ""}
+          Media (optional) — photos max 1MB after resize. Video max {MAX_VIDEO_DURATION_SEC}s / 12MB. Audio max 15MB. Media
+          is reviewed before publishing.
         </Text>
         {pendingMedia ? (
           <View style={styles.imagePreviewWrap}>
@@ -512,26 +555,22 @@ export default function NewPostScreen() {
                 </>
               )}
             </Pressable>
-            {staff ? (
-              <>
-                <Pressable
-                  style={[styles.addPhotoBtn, uploadBusy && styles.addPhotoBtnDisabled]}
-                  onPress={pickVideo}
-                  disabled={uploadBusy}
-                >
-                  <Ionicons name="videocam-outline" size={22} color={colors.primary} />
-                  <Text style={styles.addPhotoText}>Video</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.addPhotoBtn, uploadBusy && styles.addPhotoBtnDisabled]}
-                  onPress={pickAudio}
-                  disabled={uploadBusy}
-                >
-                  <Ionicons name="mic-outline" size={22} color={colors.primary} />
-                  <Text style={styles.addPhotoText}>Audio</Text>
-                </Pressable>
-              </>
-            ) : null}
+            <Pressable
+              style={[styles.addPhotoBtn, uploadBusy && styles.addPhotoBtnDisabled]}
+              onPress={pickVideo}
+              disabled={uploadBusy}
+            >
+              <Ionicons name="videocam-outline" size={22} color={colors.primary} />
+              <Text style={styles.addPhotoText}>Video</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.addPhotoBtn, uploadBusy && styles.addPhotoBtnDisabled]}
+              onPress={pickAudio}
+              disabled={uploadBusy}
+            >
+              <Ionicons name="mic-outline" size={22} color={colors.primary} />
+              <Text style={styles.addPhotoText}>Audio</Text>
+            </Pressable>
           </View>
         )}
       </View>
@@ -616,23 +655,8 @@ export default function NewPostScreen() {
         <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
         <Text style={styles.noticeText}>Prayers are reviewed before appearing in the feed.</Text>
       </View>
-
-      <Pressable
-        style={[styles.submitBtn, (busy || !canSubmit) && styles.submitBtnDisabled]}
-        onPress={() => void handleSubmit()}
-        disabled={busy || !canSubmit}
-        testID="submit-prayer-btn"
-      >
-        {busy ? (
-          <ActivityIndicator color={colors.surface} />
-        ) : (
-          <>
-            <Ionicons name="send" size={18} color={colors.surface} />
-            <Text style={styles.submitBtnText}>Submit Prayer</Text>
-          </>
-        )}
-      </Pressable>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

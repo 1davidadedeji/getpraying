@@ -532,6 +532,105 @@ function ReviewedPostCard({
   );
 }
 
+function OfficialGuideCmsCard({ token }: { token: string | null }) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState("guidance");
+  const [scheduleSlot, setScheduleSlot] = useState<"" | "morning" | "evening">("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!token || !title.trim() || !content.trim()) {
+      showAppAlert({ title: "Missing fields", message: "Add a title and body for the guide." });
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(apiUrl("/admin/official-prayers"), {
+        method: "POST",
+        headers: authHeaders(token, { "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          title: title.trim(),
+          content: content.trim(),
+          category: category.trim(),
+          scheduleSlot: scheduleSlot || undefined,
+          label: "Official Guide",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showAppAlert({ title: "Could not save", message: (data as { error?: string }).error ?? "Try again." });
+        return;
+      }
+      setTitle("");
+      setContent("");
+      setScheduleSlot("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAppAlert({
+        title: "Guide added",
+        message: "It will show under Official Guides in the Prayer Library.",
+      });
+    } catch {
+      showAppAlert({ title: "Could not save", message: "Network error." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.cmsCard}>
+      <Text style={styles.sectionTitle}>Official Guides (CMS)</Text>
+      <Text style={styles.usersHint}>
+        Add a curated guide with optional morning/evening slot. Media posts are still moderated separately.
+      </Text>
+      <TextInput
+        value={title}
+        onChangeText={setTitle}
+        placeholder="Title"
+        placeholderTextColor={colors.muted}
+        style={styles.cmsInput}
+      />
+      <TextInput
+        value={content}
+        onChangeText={setContent}
+        placeholder="Description / prayer text"
+        placeholderTextColor={colors.muted}
+        style={[styles.cmsInput, styles.cmsInputMultiline]}
+        multiline
+        textAlignVertical="top"
+      />
+      <TextInput
+        value={category}
+        onChangeText={setCategory}
+        placeholder="Category slug (e.g. guidance)"
+        placeholderTextColor={colors.muted}
+        style={styles.cmsInput}
+        autoCapitalize="none"
+      />
+      <View style={styles.cmsSlotRow}>
+        {(["", "morning", "evening"] as const).map((s) => (
+          <Pressable
+            key={s || "none"}
+            style={[styles.cmsSlotBtn, scheduleSlot === s && styles.cmsSlotBtnOn]}
+            onPress={() => setScheduleSlot(s)}
+          >
+            <Text style={[styles.cmsSlotBtnText, scheduleSlot === s && styles.cmsSlotBtnTextOn]}>
+              {s === "" ? "Any time" : s}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Pressable style={[styles.manageUsersBtn, busy && styles.btnDisabledInline]} onPress={() => void submit()} disabled={busy}>
+        {busy ? (
+          <ActivityIndicator color={colors.surface} />
+        ) : (
+          <Text style={styles.manageUsersBtnText}>Publish guide</Text>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
 function UsersAdminPanel({
   token,
   onBack,
@@ -541,6 +640,7 @@ function UsersAdminPanel({
   onBack: () => void;
   botPad: number;
 }) {
+  const { user: me } = useAuth();
   const [allUsers, setAllUsers] = useState<
     { id: number; username: string; displayName: string | null; role: string; isBanned?: boolean }[]
   >([]);
@@ -601,6 +701,39 @@ function UsersAdminPanel({
               await load();
             } catch (e) {
               showAppAlert({ title: "Update failed", message: "Network error. Try again." });
+            }
+          },
+        },
+      ],
+    });
+  };
+
+  const handleDeleteUser = (userId: number, username: string) => {
+    if (me?.id === userId) return;
+    showAppAlert({
+      title: `Delete ${username}?`,
+      message: "This permanently removes the account and associated content.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete account",
+          style: "destructive",
+          onPress: async () => {
+            if (!token) return;
+            try {
+              const res = await fetch(apiUrl(`/admin/users/${userId}`), {
+                method: "DELETE",
+                headers: authHeaders(token),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                showAppAlert({ title: "Delete failed", message: (data as { error?: string }).error ?? "Try again." });
+                return;
+              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              await load();
+            } catch {
+              showAppAlert({ title: "Delete failed", message: "Network error." });
             }
           },
         },
@@ -715,6 +848,11 @@ function UsersAdminPanel({
                 {(u as any).isBanned ? "Unban" : "Ban"}
               </Text>
             </Pressable>
+            {me?.id !== u.id ? (
+              <Pressable style={[styles.roleMini, styles.deleteBtn]} onPress={() => handleDeleteUser(u.id, u.username)}>
+                <Text style={[styles.roleMiniText, styles.deleteBtnText]}>Delete</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       )}
@@ -904,6 +1042,7 @@ export default function AdminScreen() {
           tintColor={colors.accent}
         />
       }
+      ListFooterComponent={isAdmin ? <OfficialGuideCmsCard token={token} /> : null}
       showsVerticalScrollIndicator={false}
     />
   );
@@ -1337,7 +1476,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 4,
     flexWrap: "wrap",
-    maxWidth: 130,
+    maxWidth: 220,
     justifyContent: "flex-end",
   },
   roleMini: {
@@ -1365,6 +1504,61 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
   },
   banBtnActiveText: {
+    color: colors.surface,
+  },
+  deleteBtn: {
+    backgroundColor: `${colors.danger}12`,
+    borderColor: `${colors.danger}50`,
+  },
+  deleteBtnText: {
+    color: colors.danger,
+  },
+  cmsCard: {
+    marginTop: 24,
+    marginBottom: 32,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 10,
+  },
+  cmsInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.text,
+    backgroundColor: colors.cream,
+  },
+  cmsInputMultiline: {
+    minHeight: 100,
+  },
+  cmsSlotRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  cmsSlotBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cream,
+  },
+  cmsSlotBtnOn: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  cmsSlotBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: colors.primary,
+  },
+  cmsSlotBtnTextOn: {
     color: colors.surface,
   },
 });

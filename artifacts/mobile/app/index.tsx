@@ -96,7 +96,7 @@ export default function WelcomeScreen() {
           <View style={styles.logoRing}>
             <Ionicons name="flame" size={48} color={colors.accent} />
           </View>
-          <Text style={styles.appName}>Get Praying</Text>
+          <Text style={styles.appName}>GetPraying</Text>
           <Text style={styles.tagline}>A sanctuary for your{"\n"}daily walk with God</Text>
         </View>
 

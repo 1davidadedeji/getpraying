@@ -1,0 +1,23 @@
+/** Map API category icon keys to Feather icon names */
+export const FEATHER_ICON_MAP: Record<string, string> = {
+  waves: "wind",
+  sun: "sun",
+  "heart-pulse": "heart",
+  compass: "compass",
+  users: "users",
+  stethoscope: "activity",
+  briefcase: "briefcase",
+  "dollar-sign": "dollar-sign",
+  moon: "moon",
+  sprout: "trending-up",
+  "hand-heart": "heart",
+  heart: "heart",
+  brain: "cpu",
+  shield: "shield",
+  leaf: "feather",
+  cloud: "cloud",
+  star: "star",
+  music: "music",
+  "help-circle": "help-circle",
+  zap: "zap",
+};

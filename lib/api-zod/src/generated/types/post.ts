@@ -20,7 +20,10 @@ export interface Post {
   /** Shown to the author when a moderator declines the post */
   moderationReason?: string | null;
   prayCount: number;
+  commentCount: number;
+  saveCount: number;
   hasPrayed: boolean;
+  hasCommented: boolean;
   isSaved: boolean;
   authorId?: number | null;
   authorUsername?: string | null;

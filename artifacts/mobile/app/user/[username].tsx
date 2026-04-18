@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import {
 } from "react-native";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
+import { StatCard } from "@/components/StatCard";
 import colors from "@/constants/colors";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
@@ -25,23 +27,18 @@ interface UserProfile {
   prayersShared: number;
   prayedFor: number;
   savedScrolls: number;
+  followerCount?: number;
+  followingCount?: number;
+  isFollowing?: boolean;
   createdAt: string;
 }
 
 const PAGE_SIZE = 20;
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
 export default function UserProfileScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
-  const { token } = useAuth();
+  const { token, user: me } = useAuth();
+  const [followBusy, setFollowBusy] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,9 +145,50 @@ export default function UserProfileScreen() {
       {joinYear ? <Text style={styles.joinDate}>Member since {joinYear}</Text> : null}
 
       <View style={styles.statsRow}>
-        <StatCard label="Prayers Shared" value={profile?.prayersShared ?? 0} />
-        <StatCard label="Prayed For" value={profile?.prayedFor ?? 0} />
+        <StatCard compact label="Prayers Shared" value={profile?.prayersShared ?? 0} />
+        <StatCard compact label="Prayed For" value={profile?.prayedFor ?? 0} />
+        <StatCard compact label="Saved Scrolls" value={profile?.savedScrolls ?? 0} />
       </View>
+
+      {profile && me && me.username !== profile.username && token && profile.isFollowing !== undefined && (
+        <Pressable
+          style={[styles.followBtn, profile.isFollowing && styles.followBtnOutline]}
+          disabled={followBusy}
+          onPress={() => {
+            if (!profile || !token) return;
+            const next = !profile.isFollowing;
+            setFollowBusy(true);
+            void (async () => {
+              try {
+                const res = await fetch(apiUrl(`/users/${profile.username}/follow`), {
+                  method: next ? "POST" : "DELETE",
+                  headers: authHeaders(token),
+                });
+                if (res.ok) {
+                  setProfile((p) =>
+                    p
+                      ? {
+                          ...p,
+                          isFollowing: next,
+                          followerCount: Math.max(
+                            0,
+                            (p.followerCount ?? 0) + (next ? 1 : -1),
+                          ),
+                        }
+                      : p,
+                  );
+                }
+              } finally {
+                setFollowBusy(false);
+              }
+            })();
+          }}
+        >
+          <Text style={[styles.followBtnText, profile.isFollowing && styles.followBtnTextOutline]}>
+            {profile.isFollowing ? "Following" : "Follow"}
+          </Text>
+        </Pressable>
+      )}
 
       <Text style={styles.postsTitle}>Prayers</Text>
     </View>
@@ -211,18 +249,6 @@ const styles = StyleSheet.create({
   username: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 14, color: colors.muted },
   joinDate: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 12, color: colors.muted, marginTop: 2 },
   statsRow: { flexDirection: "row", gap: 10, width: "100%", marginTop: 12 },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 32,
-    padding: 14,
-    alignItems: "center",
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statValue: { fontFamily: "PlusJakartaSans_700Bold", fontSize: 20, color: colors.primary },
-  statLabel: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 11, color: colors.muted, textAlign: "center" },
   postsTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
@@ -231,6 +257,27 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     alignSelf: "flex-start",
     marginTop: 16,
+  },
+  followBtn: {
+    marginTop: 14,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  followBtnOutline: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+  },
+  followBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 15,
+    color: colors.surface,
+  },
+  followBtnTextOutline: {
+    color: colors.primary,
   },
   emptyState: { alignItems: "center", paddingVertical: 40, gap: 8 },
   emptyText: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 14, color: colors.muted },

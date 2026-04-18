@@ -39,7 +39,12 @@ export const officialPrayersTable = pgTable("official_prayers", {
   scripture: text("scripture"),
   label: text("label"),
   audioVoice: text("audio_voice"),
+  /** URL to uploaded audio file (admin CMS) */
+  audioUrl: text("audio_url"),
   pathId: integer("path_id"),
+  uploadedByUserId: integer("uploaded_by_user_id").references(() => usersTable.id),
+  /** morning | evening — featured slot for daily prayers */
+  scheduleSlot: text("schedule_slot"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

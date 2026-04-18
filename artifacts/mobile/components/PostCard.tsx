@@ -24,7 +24,7 @@ import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
 
-type PostWithCounts = Post & { commentCount?: number; saveCount?: number };
+type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCommented?: boolean };
 
 interface PostCardProps {
   post: Post;
@@ -56,6 +56,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
     post.authorUsername,
     post.mediaUrl,
     post.mediaType,
+    (post as PostWithCounts).hasCommented,
+    (post as PostWithCounts).commentCount,
+    (post as PostWithCounts).saveCount,
   ]);
 
   const { token } = useAuth();
@@ -127,7 +130,7 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
       : localPost.authorDisplayName ?? localPost.authorUsername ?? "Someone";
     const message =
       `"${localPost.content.slice(0, 200)}${localPost.content.length > 200 ? "\u2026" : ""}"\n\n` +
-      `\u2014 shared by ${authorName} on Get Praying\n` +
+      `\u2014 shared by ${authorName} on GetPraying\n` +
       `${localPost.prayCount} ${localPost.prayCount === 1 ? "person" : "people"} praying`;
 
     try {
@@ -201,108 +204,119 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
       </Pressable>
 
       <View style={styles.actions}>
-        <Pressable
-          onPress={handlePray}
-          style={styles.actionBtn}
-          testID="pray-btn"
-          accessibilityRole="button"
-          accessibilityLabel={localPost.hasPrayed ? "Praying" : "Pray for this post"}
-        >
-          <Animated.View style={{ transform: [{ scale: flameScale }] }}>
-            <Ionicons
-              name={localPost.hasPrayed ? "flame" : "flame-outline"}
-              size={ICON_SIZE}
-              color={prayColor}
-            />
-          </Animated.View>
-          <Text style={[styles.actionCount, localPost.hasPrayed && styles.actionCountActive]}>
-            {localPost.prayCount}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation?.();
-            navigate(`/post/${localPost.id}?focusComment=1` as any);
-          }}
-          style={styles.actionBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Comments"
-        >
-          <Ionicons name="chatbubble-outline" size={ICON_SIZE - 2} color={colors.muted} />
-          {localPost.commentCount != null && localPost.commentCount > 0 && (
-            <Text style={styles.actionCount}>{localPost.commentCount}</Text>
-          )}
-        </Pressable>
-
-        <Pressable
-          onPress={handleSave}
-          style={styles.actionBtn}
-          testID="save-btn"
-          accessibilityRole="button"
-          accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
-        >
-          <Ionicons
-            name={localPost.isSaved ? "bookmark" : "bookmark-outline"}
-            size={ICON_SIZE}
-            color={bookmarkColor}
-          />
-          {localPost.saveCount != null && localPost.saveCount > 0 && (
-            <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
-              {localPost.saveCount}
+        <View style={styles.actionsPrimary}>
+          <Pressable
+            onPress={handlePray}
+            style={styles.actionBtn}
+            testID="pray-btn"
+            accessibilityRole="button"
+            accessibilityLabel={localPost.hasPrayed ? "Praying" : "Pray for this post"}
+          >
+            <Animated.View style={{ transform: [{ scale: flameScale }] }}>
+              <Ionicons
+                name={localPost.hasPrayed ? "flame" : "flame-outline"}
+                size={ICON_SIZE}
+                color={prayColor}
+              />
+            </Animated.View>
+            <Text style={[styles.actionCount, localPost.hasPrayed && styles.actionCountActive]}>
+              {localPost.prayCount}
             </Text>
-          )}
-        </Pressable>
+          </Pressable>
 
-        <Pressable
-          onPress={handleShare}
-          style={styles.actionBtn}
-          testID="share-btn"
-          accessibilityRole="button"
-          accessibilityLabel="Share prayer"
-        >
-          <Feather name="share-2" size={ICON_SIZE - 2} color={colors.muted} />
-        </Pressable>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              navigate(`/post/${localPost.id}?focusComment=1` as any);
+            }}
+            style={styles.actionBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Comments"
+          >
+            <Ionicons
+              name={(localPost as PostWithCounts).hasCommented ? "chatbubble" : "chatbubble-outline"}
+              size={ICON_SIZE - 2}
+              color={(localPost as PostWithCounts).hasCommented ? colors.primary : colors.muted}
+            />
+            <Text
+              style={[
+                styles.actionCount,
+                (localPost as PostWithCounts).hasCommented && styles.actionCountActive,
+              ]}
+            >
+              {localPost.commentCount ?? 0}
+            </Text>
+          </Pressable>
 
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation?.();
-            Haptics.selectionAsync();
-            showAppAlert({
-              title: "Report this prayer?",
-              message: "Our team will review this content.",
-              buttons: [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Report",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      const res = await fetch(apiUrl(`/posts/${localPost.id}/flag`), {
-                        method: "POST",
-                        headers: authHeaders(token, { "Content-Type": "application/json" }),
-                        body: JSON.stringify({ reason: "inappropriate" }),
-                      });
-                      if (res.ok) {
-                        showAppAlert({ title: "Report submitted", message: "Thank you for helping keep the community safe." });
-                      } else {
-                        const err = await res.json().catch(() => ({}));
-                        showAppAlert({ title: "Could not submit report", message: (err as any).error ?? "Please try again." });
+          <Pressable
+            onPress={handleSave}
+            style={styles.actionBtn}
+            testID="save-btn"
+            accessibilityRole="button"
+            accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
+          >
+            <Ionicons
+              name={localPost.isSaved ? "bookmark" : "bookmark-outline"}
+              size={ICON_SIZE}
+              color={bookmarkColor}
+            />
+            <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
+              {localPost.saveCount ?? 0}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.actionsSecondary}>
+          <Pressable
+            onPress={handleShare}
+            style={styles.actionBtn}
+            testID="share-btn"
+            accessibilityRole="button"
+            accessibilityLabel="Share prayer"
+          >
+            <Feather name="share-2" size={ICON_SIZE - 2} color={colors.muted} />
+          </Pressable>
+
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              Haptics.selectionAsync();
+              showAppAlert({
+                title: "Report this prayer?",
+                message: "Our team will review this content.",
+                buttons: [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Report",
+                    style: "destructive",
+                    onPress: async () => {
+                      try {
+                        const res = await fetch(apiUrl(`/posts/${localPost.id}/flag`), {
+                          method: "POST",
+                          headers: authHeaders(token, { "Content-Type": "application/json" }),
+                          body: JSON.stringify({ reason: "inappropriate" }),
+                        });
+                        if (res.ok) {
+                          showAppAlert({ title: "Report submitted", message: "Thank you for helping keep the community safe." });
+                        } else {
+                          const err = await res.json().catch(() => ({}));
+                          showAppAlert({ title: "Could not submit report", message: (err as any).error ?? "Please try again." });
+                        }
+                      } catch {
+                        showAppAlert({ title: "Could not submit report", message: "Check your connection." });
                       }
-                    } catch {
-                      showAppAlert({ title: "Could not submit report", message: "Check your connection." });
-                    }
+                    },
                   },
-                },
-              ],
-            });
-          }}
-          style={styles.actionBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Report prayer"
-        >
-          <Ionicons name="flag-outline" size={ICON_SIZE - 2} color={colors.muted} />
-        </Pressable>
+                ],
+              });
+            }}
+            style={styles.actionBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Report prayer"
+          >
+            <Ionicons name="flag-outline" size={ICON_SIZE - 2} color={colors.muted} />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -399,12 +413,24 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.cream,
+  },
+  actionsPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    flexShrink: 1,
+    gap: 2,
+  },
+  actionsSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
   },
   actionBtn: {
     flexDirection: "row",

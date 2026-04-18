@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Get Praying",
+    "name": "GetPraying",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "CFBundleDisplayName": "Get Praying",
+        "CFBundleDisplayName": "GetPraying",
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.getpraying.app"

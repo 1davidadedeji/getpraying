@@ -1,6 +1,5 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
-import { useQueryClient } from "@tanstack/react-query";
-import { router, useFocusEffect } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,60 +13,29 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  useGetSavedPrayers,
-  getGetSavedPrayersQueryKey,
-} from "@workspace/api-client-react";
-import PostCard from "@/components/PostCard";
+import { OfficialGuideCard } from "@/components/OfficialGuideCard";
+import { SavedPrayersList } from "@/components/SavedPrayersList";
 import colors from "@/constants/colors";
+import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
+import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type Tab = "categories" | "saved";
 
 type CategoryItem = { name: string; count: number; icon: string };
 
-const FEATHER_ICON_MAP: Record<string, string> = {
-  waves: "wind",
-  sun: "sun",
-  "heart-pulse": "heart",
-  compass: "compass",
-  users: "users",
-  stethoscope: "activity",
-  briefcase: "briefcase",
-  "dollar-sign": "dollar-sign",
-  moon: "moon",
-  sprout: "trending-up",
-  "hand-heart": "heart",
-  heart: "heart",
-  brain: "cpu",
-  shield: "shield",
-  leaf: "feather",
-  cloud: "cloud",
-  star: "star",
-  music: "music",
-  "help-circle": "help-circle",
-  zap: "zap",
-};
-
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
-  const queryClient = useQueryClient();
   const categoriesScrollRef = useRef<ScrollView>(null);
   const savedListRef = useRef<FlatList>(null);
   const [activeTab, setActiveTab] = useState<Tab>("categories");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
-
-  const { data: savedData, isLoading: loadingSaved } = useGetSavedPrayers();
-
-  useFocusEffect(
-    useCallback(() => {
-      queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
-    }, [queryClient]),
-  );
+  const [officialPrayers, setOfficialPrayers] = useState<OfficialPrayerRow[]>([]);
+  const [loadingOfficial, setLoadingOfficial] = useState(false);
 
   const scrollLibraryToTop = useCallback(() => {
     if (activeTab === "categories") {
@@ -92,11 +60,28 @@ export default function LibraryScreen() {
     }
   }, [token]);
 
-  useEffect(() => {
-    if (activeTab === "categories" && categories.length === 0) {
-      void loadCategories();
+  const loadOfficial = useCallback(async () => {
+    setLoadingOfficial(true);
+    try {
+      const res = await fetch(apiUrl("/library/official?limit=30"), { headers: authHeaders(token) });
+      if (res.ok) {
+        const data = await res.json();
+        const list = (data as { prayers?: OfficialPrayerRow[] }).prayers;
+        setOfficialPrayers(Array.isArray(list) ? list : []);
+      }
+    } catch {
+      setOfficialPrayers([]);
+    } finally {
+      setLoadingOfficial(false);
     }
-  }, [activeTab, categories.length, loadCategories]);
+  }, [token]);
+
+  useEffect(() => {
+    if (activeTab === "categories") {
+      if (categories.length === 0) void loadCategories();
+      void loadOfficial();
+    }
+  }, [activeTab, categories.length, loadCategories, loadOfficial]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const screenWidth = Dimensions.get("window").width;
@@ -108,7 +93,7 @@ export default function LibraryScreen() {
   const cardWidth = (screenWidth - horizontalPad * 2 - totalGaps) / numColumns;
 
   const tabs: { key: Tab; label: string; icon: "grid" | "bookmark" }[] = [
-    { key: "categories", label: "Explore", icon: "grid" },
+    { key: "categories", label: "Paths", icon: "grid" },
     { key: "saved", label: "Saved", icon: "bookmark" },
   ];
 
@@ -144,12 +129,15 @@ export default function LibraryScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
         >
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeading}>Explore Paths</Text>
+          </View>
           {loadingCats ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />
           ) : categories.length === 0 ? (
-            <View style={styles.emptyState}>
+            <View style={styles.pathsEmpty}>
               <Feather name="grid" size={40} color={colors.muted} />
-              <Text style={styles.emptyText}>No categories yet</Text>
+              <Text style={styles.pathsEmptyText}>No paths yet</Text>
             </View>
           ) : (
             <View style={styles.catGrid}>
@@ -175,28 +163,26 @@ export default function LibraryScreen() {
               ))}
             </View>
           )}
+
+          <View style={[styles.sectionHeaderRow, styles.sectionSpacer]}>
+            <Text style={styles.sectionHeading}>Official Guides</Text>
+          </View>
+          {loadingOfficial ? (
+            <ActivityIndicator color={colors.accent} style={styles.loader} />
+          ) : officialPrayers.length === 0 ? (
+            <Text style={styles.officialEmpty}>Guides from your community team will appear here.</Text>
+          ) : (
+            officialPrayers.map((op) => <OfficialGuideCard key={op.id} op={op} />)
+          )}
         </ScrollView>
       )}
 
       {activeTab === "saved" && (
-        <FlatList
-          ref={savedListRef}
-          data={(savedData as any)?.posts ?? []}
-          keyExtractor={(item: any) => String(item.id)}
-          renderItem={({ item }: any) => <PostCard post={item} />}
+        <SavedPrayersList
+          listRef={savedListRef}
+          queryEnabled
+          invalidateOnFocus
           contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            loadingSaved ? (
-              <ActivityIndicator color={colors.accent} style={styles.loader} />
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="bookmark-outline" size={40} color={colors.muted} />
-                <Text style={styles.emptyText}>No saved prayers yet</Text>
-                <Text style={styles.emptySubtext}>Tap the bookmark on any post to save it</Text>
-              </View>
-            )
-          }
         />
       )}
     </View>
@@ -258,24 +244,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 4,
   },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  sectionSpacer: {
+    marginTop: 28,
+  },
+  sectionHeading: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 16,
+    color: colors.primary,
+  },
+  officialEmpty: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.muted,
+    marginBottom: 8,
+  },
   loader: {
     marginTop: 40,
   },
-  emptyState: {
+  pathsEmpty: {
     alignItems: "center",
     paddingTop: 60,
     gap: 10,
   },
-  emptyText: {
+  pathsEmptyText: {
     fontFamily: "NotoSerif_700Bold",
     fontSize: 16,
     color: colors.primary,
-  },
-  emptySubtext: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 13,
-    color: colors.muted,
-    textAlign: "center",
   },
   catGrid: {
     flexDirection: "row",
