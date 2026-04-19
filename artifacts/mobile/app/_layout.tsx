@@ -74,6 +74,7 @@ function RootLayoutNav() {
       <Stack.Screen name="path/[id]" options={{ title: "Prayer Path", headerBackTitle: "Back" }} />
       <Stack.Screen name="user/[username]" options={{ title: "Profile", headerBackTitle: "Back" }} />
       <Stack.Screen name="category/[name]" options={{ title: "Category", headerBackTitle: "Back" }} />
+      <Stack.Screen name="settings" options={{ title: "Settings", headerBackTitle: "Back" }} />
       <Stack.Screen name="admin" options={{ title: "Admin", headerBackTitle: "Back" }} />
     </Stack>
   );

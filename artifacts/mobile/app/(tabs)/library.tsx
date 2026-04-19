@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { OfficialGuideCard } from "@/components/OfficialGuideCard";
-import { SavedPrayersList } from "@/components/SavedPrayersList";
+import { SavedOfficialPrayersList } from "@/components/SavedOfficialPrayersList";
 import colors from "@/constants/colors";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
@@ -24,7 +24,9 @@ import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type Tab = "categories" | "saved";
 
-type CategoryItem = { name: string; count: number; icon: string };
+type CategoryItem = { name: string; count: number; icon: string; pathId?: number };
+
+const PATH_CARD_H_WIDTH = 132;
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
@@ -33,9 +35,11 @@ export default function LibraryScreen() {
   const savedListRef = useRef<FlatList>(null);
   const [activeTab, setActiveTab] = useState<Tab>("categories");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [pathsExpanded, setPathsExpanded] = useState(false);
   const [loadingCats, setLoadingCats] = useState(false);
   const [officialPrayers, setOfficialPrayers] = useState<OfficialPrayerRow[]>([]);
   const [loadingOfficial, setLoadingOfficial] = useState(false);
+  const [savedOfficialIds, setSavedOfficialIds] = useState<Set<number>>(new Set());
 
   const scrollLibraryToTop = useCallback(() => {
     if (activeTab === "categories") {
@@ -47,6 +51,24 @@ export default function LibraryScreen() {
 
   useTabScrollToTop(scrollLibraryToTop);
 
+  const loadSavedOfficialIds = useCallback(async () => {
+    if (!token) {
+      setSavedOfficialIds(new Set());
+      return;
+    }
+    try {
+      const res = await fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) });
+      if (!res.ok) return;
+      const data = await res.json();
+      const ids = new Set<number>(
+        ((data as { prayers?: { id: number }[] }).prayers ?? []).map((p) => p.id),
+      );
+      setSavedOfficialIds(ids);
+    } catch {
+      /* silent */
+    }
+  }, [token]);
+
   const loadCategories = useCallback(async () => {
     setLoadingCats(true);
     try {
@@ -55,7 +77,9 @@ export default function LibraryScreen() {
         const data = await res.json();
         setCategories(Array.isArray(data) ? data : []);
       }
-    } catch { /* silent */ } finally {
+    } catch {
+      /* silent */
+    } finally {
       setLoadingCats(false);
     }
   }, [token]);
@@ -63,7 +87,9 @@ export default function LibraryScreen() {
   const loadOfficial = useCallback(async () => {
     setLoadingOfficial(true);
     try {
-      const res = await fetch(apiUrl("/library/official?limit=30"), { headers: authHeaders(token) });
+      const res = await fetch(apiUrl("/library/official?limit=30&excludeScheduled=1"), {
+        headers: authHeaders(token),
+      });
       if (res.ok) {
         const data = await res.json();
         const list = (data as { prayers?: OfficialPrayerRow[] }).prayers;
@@ -76,12 +102,33 @@ export default function LibraryScreen() {
     }
   }, [token]);
 
+  const toggleSaveOfficial = useCallback(
+    async (id: number) => {
+      if (!token) return;
+      const next = !savedOfficialIds.has(id);
+      const method = next ? "POST" : "DELETE";
+      const res = await fetch(apiUrl(`/library/saved-official/${id}`), {
+        method,
+        headers: authHeaders(token),
+      });
+      if (!res.ok) return;
+      setSavedOfficialIds((prev) => {
+        const n = new Set(prev);
+        if (next) n.add(id);
+        else n.delete(id);
+        return n;
+      });
+    },
+    [token, savedOfficialIds],
+  );
+
   useEffect(() => {
     if (activeTab === "categories") {
       if (categories.length === 0) void loadCategories();
       void loadOfficial();
+      void loadSavedOfficialIds();
     }
-  }, [activeTab, categories.length, loadCategories, loadOfficial]);
+  }, [activeTab, categories.length, loadCategories, loadOfficial, loadSavedOfficialIds]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const screenWidth = Dimensions.get("window").width;
@@ -96,6 +143,39 @@ export default function LibraryScreen() {
     { key: "categories", label: "Paths", icon: "grid" },
     { key: "saved", label: "Saved", icon: "bookmark" },
   ];
+
+  const openPath = (cat: CategoryItem) => {
+    if (cat.pathId != null && cat.pathId > 0) {
+      router.push(`/path/${cat.pathId}` as never);
+    } else {
+      router.push(`/category/${encodeURIComponent(cat.name.toLowerCase())}` as never);
+    }
+  };
+
+  const renderPathCard = (cat: CategoryItem, compact: boolean) => (
+    <Pressable
+      key={cat.pathId != null ? `p-${cat.pathId}` : cat.name}
+      style={({ pressed }) => [
+        compact ? styles.catCardH : styles.catCard,
+        !compact && { width: cardWidth },
+        compact && { width: PATH_CARD_H_WIDTH },
+        pressed && styles.catCardPressed,
+      ]}
+      onPress={() => openPath(cat)}
+    >
+      <View style={styles.catIconBg}>
+        <Feather
+          name={(FEATHER_ICON_MAP[cat.icon] ?? "star") as any}
+          size={22}
+          color={colors.surface}
+        />
+      </View>
+      <Text style={styles.catName} numberOfLines={2}>
+        {cat.name}
+      </Text>
+      <Text style={styles.catCount}>{cat.count} guides</Text>
+    </Pressable>
+  );
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -116,9 +196,7 @@ export default function LibraryScreen() {
               size={14}
               color={activeTab === t.key ? colors.surface : colors.muted}
             />
-            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
-              {t.label}
-            </Text>
+            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -131,6 +209,11 @@ export default function LibraryScreen() {
         >
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionHeading}>Explore Paths</Text>
+            {categories.length > 0 ? (
+              <Pressable onPress={() => setPathsExpanded((e) => !e)} hitSlop={8}>
+                <Text style={styles.seeAll}>{pathsExpanded ? "Show less" : "See all"}</Text>
+              </Pressable>
+            ) : null}
           </View>
           {loadingCats ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />
@@ -139,29 +222,16 @@ export default function LibraryScreen() {
               <Feather name="grid" size={40} color={colors.muted} />
               <Text style={styles.pathsEmptyText}>No paths yet</Text>
             </View>
+          ) : pathsExpanded ? (
+            <View style={styles.catGrid}>{categories.map((c) => renderPathCard(c, false))}</View>
           ) : (
-            <View style={styles.catGrid}>
-              {categories.map((cat) => (
-                <Pressable
-                  key={cat.name}
-                  style={({ pressed }) => [
-                    styles.catCard,
-                    { width: cardWidth },
-                    pressed && styles.catCardPressed,
-                  ]}
-                  onPress={() => router.push(`/category/${encodeURIComponent(cat.name.toLowerCase())}` as never)}
-                >
-                  <View style={styles.catIconBg}>
-                    <Feather
-                      name={(FEATHER_ICON_MAP[cat.icon] ?? "hash") as any}
-                      size={22}
-                      color={colors.surface}
-                    />
-                  </View>
-                  <Text style={styles.catName} numberOfLines={2}>{cat.name}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.pathsRow}
+            >
+              {categories.map((c) => renderPathCard(c, true))}
+            </ScrollView>
           )}
 
           <View style={[styles.sectionHeaderRow, styles.sectionSpacer]}>
@@ -172,13 +242,21 @@ export default function LibraryScreen() {
           ) : officialPrayers.length === 0 ? (
             <Text style={styles.officialEmpty}>Guides from your community team will appear here.</Text>
           ) : (
-            officialPrayers.map((op) => <OfficialGuideCard key={op.id} op={op} />)
+            officialPrayers.map((op) => (
+              <OfficialGuideCard
+                key={op.id}
+                op={op}
+                showSave={!!token}
+                isSaved={savedOfficialIds.has(op.id)}
+                onToggleSave={() => void toggleSaveOfficial(op.id)}
+              />
+            ))
           )}
         </ScrollView>
       )}
 
       {activeTab === "saved" && (
-        <SavedPrayersList
+        <SavedOfficialPrayersList
           listRef={savedListRef}
           queryEnabled
           invalidateOnFocus
@@ -258,6 +336,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
+  seeAll: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.primary,
+  },
   officialEmpty: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
@@ -277,6 +360,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
+  pathsRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingBottom: 4,
+  },
   catGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -288,6 +376,15 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
     gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  catCardH: {
+    backgroundColor: colors.surface,
+    borderRadius: 32,
+    padding: 14,
+    alignItems: "center",
+    gap: 6,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -304,8 +401,13 @@ const styles = StyleSheet.create({
   },
   catName: {
     fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 14,
+    fontSize: 13,
     color: colors.text,
     textAlign: "center",
+  },
+  catCount: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 11,
+    color: colors.muted,
   },
 });

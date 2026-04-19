@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -159,10 +160,13 @@ export default function NotificationsScreen() {
     },
   });
   const notifications: NotifRow[] = normalizeNotificationsPayload(data);
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  const categoryLabel = (key: string) =>
+    key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
   const scrollNotifsToTop = useCallback(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -203,19 +207,56 @@ export default function NotificationsScreen() {
         <NotificationItem item={item} onPress={() => handlePress(item)} />
       )}
       ListHeaderComponent={
-        <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-          <View>
-            <Text style={styles.title}>Notifications</Text>
+        <View>
+          <View style={[styles.header, { paddingTop: topPad + 8 }]}>
+            <View>
+              <Text style={styles.title}>Notifications</Text>
+              {unreadCount > 0 && (
+                <Text style={styles.unreadLabel}>{unreadCount} unread</Text>
+              )}
+            </View>
             {unreadCount > 0 && (
-              <Text style={styles.unreadLabel}>{unreadCount} unread</Text>
+              <Pressable onPress={() => markAll()} style={styles.markReadBtn}>
+                <Feather name="check-circle" size={16} color={colors.accent} />
+                <Text style={styles.markReadText}>Mark all read</Text>
+              </Pressable>
             )}
           </View>
-          {unreadCount > 0 && (
-            <Pressable onPress={() => markAll()} style={styles.markReadBtn}>
-              <Feather name="check-circle" size={16} color={colors.accent} />
-              <Text style={styles.markReadText}>Mark all read</Text>
-            </Pressable>
-          )}
+
+          <Pressable
+            onPress={() => router.push("/library")}
+            style={({ pressed }) => [styles.reminderCard, pressed && styles.reminderCardPressed]}
+          >
+            <Ionicons name="time-outline" size={22} color={colors.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reminderTitle}>Prayer reminders</Text>
+              <Text style={styles.reminderSub}>Visit the library for guided audio and paths</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.muted} />
+          </Pressable>
+
+          {(user?.preferredCategories?.length ?? 0) > 0 ? (
+            <>
+              <Text style={styles.tilesLabel}>Your prayer interests</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tileRow}
+              >
+                {(user?.preferredCategories ?? []).map((cat) => (
+                  <Pressable
+                    key={cat}
+                    onPress={() => router.push(`/category/${encodeURIComponent(cat)}` as never)}
+                    style={({ pressed }) => [styles.tile, pressed && { opacity: 0.9 }]}
+                  >
+                    <Text style={styles.tileText}>{categoryLabel(cat)}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
+
+          <Text style={styles.listSectionLabel}>Activity</Text>
         </View>
       }
       ListEmptyComponent={
@@ -282,6 +323,64 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     color: colors.accent,
+  },
+  reminderCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  reminderCardPressed: { opacity: 0.92 },
+  reminderTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 15,
+    color: colors.text,
+  },
+  reminderSub: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  tilesLabel: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  tileRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 16,
+    paddingRight: 8,
+  },
+  tile: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tileText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.primary,
+  },
+  listSectionLabel: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   notifCard: {
     backgroundColor: colors.surface,

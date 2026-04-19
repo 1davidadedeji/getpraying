@@ -1,18 +1,40 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import colors from "@/constants/colors";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 
-export function OfficialGuideCard({ op }: { op: OfficialPrayerRow }) {
+type Props = {
+  op: OfficialPrayerRow;
+  isSaved?: boolean;
+  onToggleSave?: () => void;
+  showSave?: boolean;
+};
+
+export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props) {
   return (
     <View style={styles.officialCard}>
       <View style={styles.officialCardTop}>
         <Ionicons name="link-outline" size={16} color={colors.primary} />
-        <Text style={styles.officialBadge}>
+        <Text style={styles.officialBadge} numberOfLines={2}>
           {(op.label ?? "OFFICIAL GUIDE").toUpperCase()}
           {op.scheduleSlot ? ` · ${op.scheduleSlot}` : ""}
         </Text>
+        {showSave && onToggleSave ? (
+          <Pressable
+            onPress={onToggleSave}
+            hitSlop={8}
+            style={styles.saveBtn}
+            accessibilityRole="button"
+            accessibilityLabel={isSaved ? "Remove from saved guides" : "Save official guide"}
+          >
+            <Ionicons
+              name={isSaved ? "bookmark" : "bookmark-outline"}
+              size={22}
+              color={isSaved ? colors.primary : colors.muted}
+            />
+          </Pressable>
+        ) : null}
       </View>
       <Text style={styles.officialTitle}>{op.title}</Text>
       {op.subtitle ? (
@@ -49,7 +71,11 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 8,
   },
+  saveBtn: {
+    marginLeft: "auto",
+  },
   officialBadge: {
+    flex: 1,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
     color: colors.primary,

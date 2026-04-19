@@ -12,7 +12,7 @@ type Props = {
 export function PreferredCategoriesContent({ preferredCategories, onOpenPreferences }: Props) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.sectionTitle}>Prayer categories on your profile</Text>
+      <Text style={styles.sectionTitle}>Prayer categories</Text>
       {preferredCategories.length > 0 ? (
         <View style={styles.chips}>
           {preferredCategories.map((cat) => (

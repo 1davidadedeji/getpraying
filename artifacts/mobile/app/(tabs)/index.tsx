@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -9,6 +10,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -21,6 +23,7 @@ import { useAuth } from "@/context/auth";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
+import { formatLocalYMD } from "@/lib/date";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_POLL_MS = 30_000;
@@ -29,6 +32,12 @@ export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
   const { onScroll: onScrollHideBar } = useTabBarVisibility();
+  const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
+  const { data: dailyWord } = useGetDailyWord(
+    { date: todayYmd },
+    { query: { queryKey: getGetDailyWordQueryKey({ date: todayYmd }), staleTime: 60_000 } },
+  );
+  const [feedCategory, setFeedCategory] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -177,19 +186,70 @@ export default function FeedScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
+  const displayPosts = useMemo(() => {
+    if (!feedCategory) return posts;
+    return posts.filter((p) => p.category === feedCategory);
+  }, [posts, feedCategory]);
+
+  const categoryLabel = (key: string) =>
+    key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+
   const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: topPad + 4 }]}>
-      <View style={styles.headerTextBlock}>
-        <Text style={styles.greeting}>
-          {user?.displayName ? `Hello, ${user.displayName}` : "GetPraying"}
-        </Text>
-        <Text style={styles.subGreeting}>Your prayer feed</Text>
+    <View style={{ marginBottom: 8 }}>
+      <View style={[styles.header, { paddingTop: topPad + 4 }]}>
+        <View style={styles.headerTextBlock}>
+          <Text style={styles.greeting}>
+            {user?.displayName ? `Hello, ${user.displayName}` : "GetPraying"}
+          </Text>
+          <Text style={styles.subGreeting}>Your prayer feed</Text>
+        </View>
+        {(user?.role === "admin" || user?.role === "moderator") && (
+          <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
+            <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
+          </Pressable>
+        )}
       </View>
-      {(user?.role === "admin" || user?.role === "moderator") && (
-        <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
-          <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
-        </Pressable>
-      )}
+
+      <Pressable
+        onPress={() => router.push("/library")}
+        style={({ pressed }) => [styles.reflectionCard, pressed && { opacity: 0.92 }]}
+      >
+        <View style={styles.reflectionTop}>
+          <Ionicons name="sunny-outline" size={18} color={colors.accent} />
+          <Text style={styles.reflectionLabel}>Morning reflection</Text>
+        </View>
+        <Text style={styles.reflectionQuote} numberOfLines={3}>
+          &ldquo;{dailyWord?.quoteText ?? "Be still, and know that I am God."}&rdquo;
+        </Text>
+        <Text style={styles.reflectionRef}>{dailyWord?.reference ?? "Psalm 46:10"}</Text>
+      </Pressable>
+
+      {(user?.preferredCategories?.length ?? 0) > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillRow}
+        >
+          <Pressable
+            onPress={() => setFeedCategory(null)}
+            style={[styles.pill, feedCategory === null && styles.pillOn]}
+          >
+            <Text style={[styles.pillText, feedCategory === null && styles.pillTextOn]}>All</Text>
+          </Pressable>
+          {user!.preferredCategories!.map((cat) => {
+            const on = feedCategory === cat;
+            return (
+              <Pressable
+                key={cat}
+                onPress={() => setFeedCategory(on ? null : cat)}
+                style={[styles.pill, on && styles.pillOn]}
+              >
+                <Text style={[styles.pillText, on && styles.pillTextOn]}>{categoryLabel(cat)}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
     </View>
   );
 
@@ -223,7 +283,7 @@ export default function FeedScreen() {
     <View style={styles.flex}>
       <FlatList
         ref={listRef}
-        data={posts}
+        data={displayPosts}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <PostCard post={item} onUpdated={handleUpdated} />
@@ -238,6 +298,12 @@ export default function FeedScreen() {
               <Ionicons name="cloud-offline-outline" size={48} color={colors.muted} />
               <Text style={styles.emptyTitle}>Connection issue</Text>
               <Text style={styles.emptySubtitle}>Pull down to try again</Text>
+            </View>
+          ) : feedCategory && posts.length > 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="flame-outline" size={48} color={colors.muted} />
+              <Text style={styles.emptyTitle}>Nothing in this category yet</Text>
+              <Text style={styles.emptySubtitle}>Try another filter or pull to refresh</Text>
             </View>
           ) : (
             <View style={styles.emptyState}>
@@ -336,6 +402,65 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  reflectionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+  },
+  reflectionTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  reflectionLabel: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 11,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  reflectionQuote: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  reflectionRef: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+    fontStyle: "italic",
+  },
+  pillRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 8,
+    paddingRight: 8,
+  },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pillOn: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  pillText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.primary,
+  },
+  pillTextOn: {
+    color: colors.surface,
   },
   emptyState: {
     alignItems: "center",

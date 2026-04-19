@@ -22,11 +22,9 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { register } = useAuth();
   const usernameRef = useRef<TextInput | null>(null);
-  const displayNameRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,7 +47,7 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      await register(email.trim(), username.trim(), password, displayName.trim() || undefined);
+      await register(email.trim(), username.trim(), password);
       router.replace("/(auth)/verify" as Href);
     } catch (err: unknown) {
       showAppAlert({ title: "Sign up failed", message: getApiErrorMessage(err, "Registration failed") });
@@ -114,24 +112,8 @@ export default function RegisterScreen() {
               autoCorrect={false}
               returnKeyType="next"
               blurOnSubmit={false}
-              onSubmitEditing={() => displayNameRef.current?.focus()}
-              testID="username-input"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Display Name (optional)</Text>
-            <TextInput
-              ref={displayNameRef}
-              style={styles.input}
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="How should we call you?"
-              placeholderTextColor={colors.muted}
-              returnKeyType="next"
-              blurOnSubmit={false}
               onSubmitEditing={() => passwordRef.current?.focus()}
-              testID="displayname-input"
+              testID="username-input"
             />
           </View>
 

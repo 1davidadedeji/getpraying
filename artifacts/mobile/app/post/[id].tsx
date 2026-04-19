@@ -1,6 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  getGetUserProfileQueryKey,
   useGetPost,
   usePrayForPost,
   useSavePost,
@@ -49,6 +51,7 @@ export default function PostDetailScreen() {
   const postId = Number(id);
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<CommentRow[]>([]);
@@ -221,6 +224,9 @@ export default function PostDetailScreen() {
       const created = dataJson.comment as CommentRow | undefined;
       if (created) setComments((prev) => [...prev, created]);
       setCommentDraft("");
+      if (post.authorUsername) {
+        queryClient.invalidateQueries({ queryKey: getGetUserProfileQueryKey(post.authorUsername) });
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       showAppAlert({ title: "Comment failed", message: "Check your connection and try again." });

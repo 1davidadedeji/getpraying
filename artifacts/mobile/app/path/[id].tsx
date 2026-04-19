@@ -1,6 +1,9 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
-import React from "react";
+import { getGetPathQueryKey, useGetPath } from "@workspace/api-client-react";
+import type { OfficialPrayer, Post } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import React, { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -10,32 +13,78 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useGetPath } from "@workspace/api-client-react";
+import PostCard from "@/components/PostCard";
+import { OfficialGuideCard } from "@/components/OfficialGuideCard";
 import colors from "@/constants/colors";
+import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
+import { iconKeyForPathCategory } from "@/constants/pathCategoryIcon";
+import { useAuth } from "@/context/auth";
+import type { OfficialPrayerRow } from "@/lib/officialPrayer";
+import { apiUrl, authHeaders } from "@/lib/api";
+
+function toOfficialRow(p: OfficialPrayer): OfficialPrayerRow {
+  return {
+    id: p.id,
+    title: p.title,
+    subtitle: p.subtitle ?? null,
+    content: p.content,
+    category: p.category,
+    label: p.label ?? null,
+    scheduleSlot: p.scheduleSlot ?? null,
+    pathId: p.pathId ?? null,
+    uploadedByUsername: p.uploadedByUsername ?? null,
+    uploadedByDisplayName: p.uploadedByDisplayName ?? null,
+    scripture: p.scripture ?? null,
+  };
+}
 
 export default function PathDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const pathId = Number(id);
   const insets = useSafeAreaInsets();
-  const { data, isLoading } = useGetPath(Number(id));
+  const { token } = useAuth();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useGetPath(pathId);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
-  const path = data as any;
 
-  if (isLoading) {
+  const savedIds = useMemo(() => {
+    const saved = data?.savedOfficialPrayers ?? [];
+    return new Set(saved.map((p: OfficialPrayer) => p.id));
+  }, [data?.savedOfficialPrayers]);
+
+  const toggleSave = useCallback(
+    async (prayerId: number, currentlySaved: boolean) => {
+      if (!token) return;
+      const method = currentlySaved ? "DELETE" : "POST";
+    const res = await fetch(apiUrl(`/library/saved-official/${prayerId}`), {
+      method,
+      headers: authHeaders(token),
+    });
+      if (res.ok) {
+        await queryClient.invalidateQueries({ queryKey: getGetPathQueryKey(pathId) });
+      }
+    },
+    [token, queryClient, pathId],
+  );
+
+  if (isLoading || !data) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.accent} size="large" />
+        {isLoading ? (
+          <ActivityIndicator color={colors.accent} size="large" />
+        ) : (
+          <Text style={styles.errorText}>Prayer path not found</Text>
+        )}
       </View>
     );
   }
 
-  if (!path) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Prayer path not found</Text>
-      </View>
-    );
-  }
+  const path = data;
+  const iconName = (FEATHER_ICON_MAP[iconKeyForPathCategory(path.category)] ?? "star") as keyof typeof Feather.glyphMap;
+  const official = (path.officialPrayers ?? []).map(toOfficialRow);
+  const communityPosts = (path.savedPosts ?? []) as Post[];
+  const pathScripture = path.officialPrayers?.find((p) => p.scripture)?.scripture;
 
   return (
     <ScrollView
@@ -45,43 +94,56 @@ export default function PathDetailScreen() {
     >
       <View style={styles.heroSection}>
         <View style={styles.heroIcon}>
-          <Feather name="compass" size={32} color={colors.surface} />
+          <Feather name={iconName} size={32} color={colors.surface} />
         </View>
         <Text style={styles.heroTitle}>{path.name}</Text>
-        {path.description && (
-          <Text style={styles.heroDesc}>{path.description}</Text>
-        )}
+        {path.description ? <Text style={styles.heroDesc}>{path.description}</Text> : null}
+        {path.tagline ? (
+          <Text style={styles.heroTagline} numberOfLines={2}>
+            {path.tagline}
+          </Text>
+        ) : null}
         <View style={styles.heroMeta}>
           <Ionicons name="book-outline" size={16} color={colors.accent} />
-          <Text style={styles.heroMetaText}>
-            {path.officialPrayers?.length ?? 0} prayers in this path
-          </Text>
+          <Text style={styles.heroMetaText}>{official.length} official guides in this path</Text>
         </View>
       </View>
 
-      <View style={styles.prayersSection}>
-        <Text style={styles.sectionTitle}>Prayers in this Path</Text>
-        {(path.officialPrayers ?? []).map((prayer: any, idx: number) => (
-          <View key={prayer.id} style={styles.prayerItem}>
-            <View style={styles.prayerNumber}>
-              <Text style={styles.prayerNumberText}>{idx + 1}</Text>
-            </View>
-            <View style={styles.prayerContent}>
-              <Text style={styles.prayerTitle}>{prayer.title}</Text>
-              {prayer.subtitle && (
-                <Text style={styles.prayerAuthor}>— {prayer.subtitle}</Text>
-              )}
-              <Text style={styles.prayerBody}>{prayer.content}</Text>
-            </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Official guides</Text>
+        {official.length === 0 ? (
+          <View style={styles.emptyInline}>
+            <Text style={styles.emptyInlineText}>No guides in this path yet.</Text>
           </View>
-        ))}
-        {(path.officialPrayers ?? []).length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="book-outline" size={36} color={colors.muted} />
-            <Text style={styles.emptyText}>No prayers added to this path yet</Text>
-          </View>
+        ) : (
+          official.map((op) => (
+            <OfficialGuideCard
+              key={op.id}
+              op={op}
+              showSave={!!token}
+              isSaved={savedIds.has(op.id)}
+              onToggleSave={() => void toggleSave(op.id, savedIds.has(op.id))}
+            />
+          ))
         )}
       </View>
+
+      {pathScripture ? (
+        <View style={styles.scriptureBadge}>
+          <Ionicons name="bookmarks-outline" size={16} color={colors.primary} />
+          <Text style={styles.scriptureText}>{pathScripture}</Text>
+        </View>
+      ) : null}
+
+      {communityPosts.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>From the community</Text>
+          <Text style={styles.sectionHint}>Saved feed posts that match this path&apos;s theme.</Text>
+          {communityPosts.map((post) => (
+            <PostCard key={post.id} post={post} />
+          ))}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -124,6 +186,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
+  heroTagline: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.55)",
+    textAlign: "center",
+  },
   heroMeta: {
     flexDirection: "row",
     alignItems: "center",
@@ -135,9 +203,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.accent,
   },
-  prayersSection: {
-    padding: 20,
-    gap: 16,
+  section: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 10,
   },
   sectionTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -145,62 +214,39 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    marginBottom: 4,
   },
-  prayerItem: {
+  sectionHint: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.muted,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  emptyInline: {
+    paddingVertical: 16,
+  },
+  emptyInlineText: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.muted,
+  },
+  scriptureBadge: {
     flexDirection: "row",
-    gap: 14,
+    alignItems: "flex-start",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 8,
+    padding: 12,
     backgroundColor: colors.surface,
-    borderRadius: 32,
-    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  prayerNumber: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    marginTop: 2,
-  },
-  prayerNumberText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 13,
-    color: colors.accent,
-  },
-  prayerContent: {
+  scriptureText: {
     flex: 1,
-    gap: 4,
-  },
-  prayerTitle: {
-    fontFamily: "NotoSerif_700Bold",
-    fontSize: 15,
-    color: colors.text,
-  },
-  prayerAuthor: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    color: colors.muted,
-    fontStyle: "italic",
-  },
-  prayerBody: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 21,
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-    gap: 10,
-  },
-  emptyText: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
-    color: colors.muted,
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: 13,
+    color: colors.primary,
+    lineHeight: 18,
   },
 });

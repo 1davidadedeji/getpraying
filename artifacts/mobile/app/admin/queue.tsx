@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useNavigation } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { PostMediaBlock } from "@/components/PostMedia";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -17,22 +17,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  getGetDailyWordQueryKey,
   useApprovePost,
-  useClearDailyWordOverride,
   useDeclinePost,
   useGetAdminStats,
-  useGetDailyWord,
   getGetAdminStatsQueryKey,
   getGetModeratedPostsQueryKey,
   useGetModeratedPosts,
   useGetPendingPosts,
-  useSetDailyWordOverride,
 } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
-import { formatLocalYMD } from "@/lib/date";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -192,223 +187,6 @@ function PendingPostCard({
   );
 }
 
-function DailyWordAdminCard() {
-  const [dateStr, setDateStr] = useState(() => formatLocalYMD(new Date()));
-  const [quoteText, setQuoteText] = useState("");
-  const [reference, setReference] = useState("");
-  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim());
-
-  const trimmedDate = dateStr.trim();
-  const { data: word, refetch: refetchWord } = useGetDailyWord(
-    { date: trimmedDate },
-    {
-      query: {
-        queryKey: getGetDailyWordQueryKey({ date: trimmedDate }),
-        enabled: dateOk,
-        retry: 1,
-      },
-    },
-  );
-
-  useEffect(() => {
-    if (!word) return;
-    setQuoteText(word.quoteText);
-    setReference(word.reference);
-  }, [word?.date, word?.quoteText, word?.reference]);
-
-  const setOverride = useSetDailyWordOverride();
-  const clearOverride = useClearDailyWordOverride();
-
-  const onSave = () => {
-    const d = dateStr.trim();
-    const qt = quoteText.trim();
-    const ref = reference.trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !qt || !ref) {
-      showAppAlert({
-        title: "Check fields",
-        message: "Use date YYYY-MM-DD and fill in both quote and reference.",
-      });
-      return;
-    }
-    setOverride.mutate(
-      { data: { effectiveDate: d, quoteText: qt, reference: ref } },
-      {
-        onSuccess: () => {
-          showAppAlert({
-            title: "Saved",
-            message: "Daily Word for that date has been updated.",
-          });
-          refetchWord();
-        },
-        onError: (e: unknown) =>
-          showAppAlert({ title: "Save failed", message: getApiErrorMessage(e, "Try again") }),
-      },
-    );
-  };
-
-  const onClear = () => {
-    const d = dateStr.trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      showAppAlert({ title: "Invalid date", message: "Use YYYY-MM-DD." });
-      return;
-    }
-    clearOverride.mutate(
-      { params: { date: d } },
-      {
-        onSuccess: () => {
-          showAppAlert({
-            title: "Cleared",
-            message: "That date will use the automatic daily rotation again.",
-          });
-          refetchWord();
-        },
-        onError: (e: unknown) =>
-          showAppAlert({ title: "Clear failed", message: getApiErrorMessage(e, "Try again") }),
-      },
-    );
-  };
-
-  return (
-    <View style={dwStyles.card}>
-      <Text style={dwStyles.cardTitle}>{"Today's Word (override)"}</Text>
-      <Text style={dwStyles.hint}>
-        Set a custom verse for a calendar date, or clear to use the automatic rotation (
-        {word?.source === "override" ? "this date has an override" : "this date uses defaults"}).
-      </Text>
-      <Text style={dwStyles.label}>Date (YYYY-MM-DD)</Text>
-      <TextInput
-        value={dateStr}
-        onChangeText={setDateStr}
-        placeholder="2026-04-07"
-        placeholderTextColor={colors.muted}
-        style={dwStyles.input}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-      <Text style={dwStyles.label}>Quote</Text>
-      <TextInput
-        value={quoteText}
-        onChangeText={setQuoteText}
-        placeholder="Verse text"
-        placeholderTextColor={colors.muted}
-        style={[dwStyles.input, dwStyles.inputMultiline]}
-        multiline
-      />
-      <Text style={dwStyles.label}>Reference</Text>
-      <TextInput
-        value={reference}
-        onChangeText={setReference}
-        placeholder="— Psalm 23:1"
-        placeholderTextColor={colors.muted}
-        style={dwStyles.input}
-        autoCapitalize="none"
-      />
-      <View style={dwStyles.row}>
-        <Pressable
-          style={[dwStyles.btn, dwStyles.btnPrimary, setOverride.isPending && dwStyles.btnDisabled]}
-          onPress={onSave}
-          disabled={setOverride.isPending}
-        >
-          {setOverride.isPending ? (
-            <ActivityIndicator color={colors.surface} size="small" />
-          ) : (
-            <Text style={dwStyles.btnPrimaryText}>Save override</Text>
-          )}
-        </Pressable>
-        <Pressable
-          style={[dwStyles.btn, dwStyles.btnGhost, clearOverride.isPending && dwStyles.btnDisabled]}
-          onPress={onClear}
-          disabled={clearOverride.isPending}
-        >
-          {clearOverride.isPending ? (
-            <ActivityIndicator color={colors.danger} size="small" />
-          ) : (
-            <Text style={dwStyles.btnGhostText}>Clear</Text>
-          )}
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-const dwStyles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 32,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
-  },
-  cardTitle: {
-    fontFamily: "NotoSerif_700Bold",
-    fontSize: 17,
-    color: colors.primary,
-  },
-  hint: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    color: colors.muted,
-    marginBottom: 6,
-    lineHeight: 18,
-  },
-  label: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginTop: 4,
-  },
-  input: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.cream,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  inputMultiline: {
-    minHeight: 72,
-    textAlignVertical: "top",
-  },
-  row: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 8,
-  },
-  btn: {
-    flex: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnPrimary: {
-    backgroundColor: colors.success,
-  },
-  btnPrimaryText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 14,
-    color: colors.surface,
-  },
-  btnGhost: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.danger,
-  },
-  btnGhostText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 14,
-    color: colors.danger,
-  },
-  btnDisabled: { opacity: 0.6 },
-});
-
 type ModActivityRow = {
   moderatorId: number;
   username: string | null;
@@ -532,376 +310,15 @@ function ReviewedPostCard({
   );
 }
 
-function OfficialGuideCmsCard({ token }: { token: string | null }) {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [category, setCategory] = useState("guidance");
-  const [scheduleSlot, setScheduleSlot] = useState<"" | "morning" | "evening">("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    if (!token || !title.trim() || !content.trim()) {
-      showAppAlert({ title: "Missing fields", message: "Add a title and body for the guide." });
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch(apiUrl("/admin/official-prayers"), {
-        method: "POST",
-        headers: authHeaders(token, { "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          title: title.trim(),
-          content: content.trim(),
-          category: category.trim(),
-          scheduleSlot: scheduleSlot || undefined,
-          label: "Official Guide",
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        showAppAlert({ title: "Could not save", message: (data as { error?: string }).error ?? "Try again." });
-        return;
-      }
-      setTitle("");
-      setContent("");
-      setScheduleSlot("");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAppAlert({
-        title: "Guide added",
-        message: "It will show under Official Guides in the Prayer Library.",
-      });
-    } catch {
-      showAppAlert({ title: "Could not save", message: "Network error." });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <View style={styles.cmsCard}>
-      <Text style={styles.sectionTitle}>Official Guides (CMS)</Text>
-      <Text style={styles.usersHint}>
-        Add a curated guide with optional morning/evening slot. Media posts are still moderated separately.
-      </Text>
-      <TextInput
-        value={title}
-        onChangeText={setTitle}
-        placeholder="Title"
-        placeholderTextColor={colors.muted}
-        style={styles.cmsInput}
-      />
-      <TextInput
-        value={content}
-        onChangeText={setContent}
-        placeholder="Description / prayer text"
-        placeholderTextColor={colors.muted}
-        style={[styles.cmsInput, styles.cmsInputMultiline]}
-        multiline
-        textAlignVertical="top"
-      />
-      <TextInput
-        value={category}
-        onChangeText={setCategory}
-        placeholder="Category slug (e.g. guidance)"
-        placeholderTextColor={colors.muted}
-        style={styles.cmsInput}
-        autoCapitalize="none"
-      />
-      <View style={styles.cmsSlotRow}>
-        {(["", "morning", "evening"] as const).map((s) => (
-          <Pressable
-            key={s || "none"}
-            style={[styles.cmsSlotBtn, scheduleSlot === s && styles.cmsSlotBtnOn]}
-            onPress={() => setScheduleSlot(s)}
-          >
-            <Text style={[styles.cmsSlotBtnText, scheduleSlot === s && styles.cmsSlotBtnTextOn]}>
-              {s === "" ? "Any time" : s}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <Pressable style={[styles.manageUsersBtn, busy && styles.btnDisabledInline]} onPress={() => void submit()} disabled={busy}>
-        {busy ? (
-          <ActivityIndicator color={colors.surface} />
-        ) : (
-          <Text style={styles.manageUsersBtnText}>Publish guide</Text>
-        )}
-      </Pressable>
-    </View>
-  );
-}
-
-function UsersAdminPanel({
-  token,
-  onBack,
-  botPad,
-}: {
-  token: string | null;
-  onBack: () => void;
-  botPad: number;
-}) {
-  const { user: me } = useAuth();
-  const [allUsers, setAllUsers] = useState<
-    { id: number; username: string; displayName: string | null; role: string; isBanned?: boolean }[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const res = await fetch(apiUrl("/admin/users?limit=200"), {
-        headers: authHeaders(token),
-      });
-      const data = await res.json().catch(() => ({}));
-      setAllUsers(Array.isArray(data.users) ? data.users : []);
-    } catch {
-      showAppAlert({ title: "Could not load users", message: "Check your connection." });
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const filteredUsers = search.trim()
-    ? allUsers.filter((u) => {
-        const q = search.trim().toLowerCase();
-        return (
-          u.username.toLowerCase().includes(q) ||
-          (u.displayName ?? "").toLowerCase().includes(q)
-        );
-      })
-    : allUsers;
-
-  const changeRole = (userId: number, username: string, role: "user" | "moderator" | "admin") => {
-    showAppAlert({
-      title: `Set ${username} as ${role}?`,
-      message: "They will get the matching permissions the next time they use the app.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Update",
-          onPress: async () => {
-            if (!token) return;
-            try {
-              const res = await fetch(apiUrl(`/admin/users/${userId}/role`), {
-                method: "POST",
-                headers: authHeaders(token, { "Content-Type": "application/json" }),
-                body: JSON.stringify({ role }),
-              });
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                showAppAlert({ title: "Update failed", message: data?.error ?? "Try again." });
-                return;
-              }
-              await load();
-            } catch (e) {
-              showAppAlert({ title: "Update failed", message: "Network error. Try again." });
-            }
-          },
-        },
-      ],
-    });
-  };
-
-  const handleDeleteUser = (userId: number, username: string) => {
-    if (me?.id === userId) return;
-    showAppAlert({
-      title: `Delete ${username}?`,
-      message: "This permanently removes the account and associated content.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete account",
-          style: "destructive",
-          onPress: async () => {
-            if (!token) return;
-            try {
-              const res = await fetch(apiUrl(`/admin/users/${userId}`), {
-                method: "DELETE",
-                headers: authHeaders(token),
-              });
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                showAppAlert({ title: "Delete failed", message: (data as { error?: string }).error ?? "Try again." });
-                return;
-              }
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              await load();
-            } catch {
-              showAppAlert({ title: "Delete failed", message: "Network error." });
-            }
-          },
-        },
-      ],
-    });
-  };
-
-  const handleBanToggle = (userId: number, username: string, currentlyBanned: boolean) => {
-    const action = currentlyBanned ? "unban" : "ban";
-    showAppAlert({
-      title: `${currentlyBanned ? "Unban" : "Ban"} ${username}?`,
-      message: currentlyBanned
-        ? "This user will regain access to the app."
-        : "This user will be blocked from using the app.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: currentlyBanned ? "Unban" : "Ban",
-          style: currentlyBanned ? "default" : "destructive",
-          onPress: async () => {
-            if (!token) return;
-            try {
-              const res = await fetch(apiUrl(`/admin/users/${userId}/${action}`), {
-                method: "POST",
-                headers: authHeaders(token),
-              });
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                showAppAlert({ title: `${action} failed`, message: data?.error ?? "Try again." });
-                return;
-              }
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              await load();
-            } catch {
-              showAppAlert({ title: `${action} failed`, message: "Network error. Try again." });
-            }
-          },
-        },
-      ],
-    });
-  };
-
-  const roleColor = (role: string) => {
-    if (role === "admin") return colors.flame;
-    if (role === "moderator") return colors.accent;
-    return colors.muted;
-  };
-
-  return (
-    <FlatList
-      data={filteredUsers}
-      keyExtractor={(u) => String(u.id)}
-      style={{ flex: 1, backgroundColor: colors.cream }}
-      contentContainerStyle={[styles.list, { paddingBottom: botPad + 40 }]}
-      showsVerticalScrollIndicator={false}
-      ListHeaderComponent={
-        <View style={{ paddingTop: Platform.OS === "web" ? 20 : 8 }}>
-          <Text style={styles.sectionTitle}>Users & roles</Text>
-          <Text style={styles.usersHint}>
-            Admins can promote to moderator or admin, or demote with User (regular member).
-          </Text>
-          <View style={styles.searchRow}>
-            <Feather name="search" size={16} color={colors.muted} style={{ marginRight: 8 }} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search by username or display name…"
-              placeholderTextColor={colors.muted}
-              style={styles.searchInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-            />
-            {search.length > 0 && (
-              <Pressable onPress={() => setSearch("")} style={{ padding: 4 }}>
-                <Feather name="x" size={16} color={colors.muted} />
-              </Pressable>
-            )}
-          </View>
-        </View>
-      }
-      renderItem={({ item: u }) => (
-        <View style={styles.userRow}>
-          <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>
-              {(u.displayName ?? u.username)[0]?.toUpperCase() ?? "?"}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>{u.displayName ?? u.username}</Text>
-            <Text style={styles.userMeta}>
-              @{u.username} · <Text style={{ color: roleColor(u.role) }}>{u.role}</Text>
-            </Text>
-          </View>
-          <View style={styles.roleBtns}>
-            {(["user", "moderator", "admin"] as const).map((r) => (
-              <Pressable
-                key={r}
-                style={[styles.roleMini, u.role === r && styles.roleMiniActive]}
-                onPress={() => changeRole(u.id, u.username, r)}
-              >
-                <Text style={[styles.roleMiniText, u.role === r && styles.roleMiniTextActive]}>
-                  {r === "moderator" ? "Mod" : r.charAt(0).toUpperCase() + r.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
-            <Pressable
-              style={[styles.roleMini, (u as any).isBanned && styles.banBtnActive]}
-              onPress={() => handleBanToggle(u.id, u.username, !!(u as any).isBanned)}
-            >
-              <Text style={[styles.roleMiniText, (u as any).isBanned && styles.banBtnActiveText]}>
-                {(u as any).isBanned ? "Unban" : "Ban"}
-              </Text>
-            </Pressable>
-            {me?.id !== u.id ? (
-              <Pressable style={[styles.roleMini, styles.deleteBtn]} onPress={() => handleDeleteUser(u.id, u.username)}>
-                <Text style={[styles.roleMiniText, styles.deleteBtnText]}>Delete</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      )}
-      ListEmptyComponent={
-        loading ? (
-          <ActivityIndicator color={colors.accent} style={styles.loader} />
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptySubtitle}>
-              {search ? "No users match your search." : "No users returned."}
-            </Text>
-          </View>
-        )
-      }
-    />
-  );
-}
-
-export default function AdminScreen() {
+export default function AdminQueueScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const isAdmin = user?.role === "admin";
   const isModerator = user?.role === "moderator" || isAdmin;
   const [tab, setTab] = useState<"pending" | "reviewed">("pending");
-  const [usersOpen, setUsersOpen] = useState(false);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
-
-  useEffect(() => {
-    if (usersOpen) {
-      navigation.setOptions({
-        title: "Users & Roles",
-        headerLeft: () => (
-          <Pressable
-            onPress={() => setUsersOpen(false)}
-            style={{ paddingHorizontal: 8, paddingVertical: 4 }}
-          >
-            <Feather name="arrow-left" size={22} color={colors.primary} />
-          </Pressable>
-        ),
-      });
-    } else {
-      navigation.setOptions({
-        title: "Admin",
-        headerLeft: undefined,
-      });
-    }
-  }, [usersOpen, navigation]);
 
   const pendingQ = useGetPendingPosts({});
   const { data: statsData } = useGetAdminStats({
@@ -933,10 +350,6 @@ export default function AdminScreen() {
     );
   }
 
-  if (isAdmin && usersOpen) {
-    return <UsersAdminPanel token={token} onBack={() => setUsersOpen(false)} botPad={botPad} />;
-  }
-
   const stats = statsData as any;
   const pendingPosts: Post[] = (pendingQ.data as any)?.posts ?? [];
   const reviewedPosts: Post[] = (moderatedQ.data as any)?.posts ?? [];
@@ -956,16 +369,28 @@ export default function AdminScreen() {
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) =>
         tab === "pending" ? (
-          <PendingPostCard post={item} onModerated={pendingQ.refetch} />
+          <PendingPostCard
+            post={item}
+            onModerated={() => {
+              void pendingQ.refetch();
+              void queryClient.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
+            }}
+          />
         ) : (
-          <ReviewedPostCard post={item} token={token} onChanged={() => void moderatedQ.refetch()} />
+          <ReviewedPostCard
+            post={item}
+            token={token}
+            onChanged={() => {
+              void moderatedQ.refetch();
+              void queryClient.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
+            }}
+          />
         )
       }
       ListHeaderComponent={
         <View style={{ paddingTop: Platform.OS === "web" ? 20 : 8 }}>
           {isAdmin ? (
             <>
-              <DailyWordAdminCard />
               <ModActivityCard token={token} />
               {stats && (
                 <View style={styles.statsRow}>
@@ -1004,10 +429,6 @@ export default function AdminScreen() {
                   </Text>
                 </Pressable>
               </View>
-              <Pressable style={styles.manageUsersBtn} onPress={() => setUsersOpen(true)}>
-                <Feather name="users" size={18} color={colors.surface} />
-                <Text style={styles.manageUsersBtnText}>Manage users & roles</Text>
-              </Pressable>
             </>
           ) : (
             <Text style={styles.modOnlyTitle}>Pending review</Text>
@@ -1042,7 +463,7 @@ export default function AdminScreen() {
           tintColor={colors.accent}
         />
       }
-      ListFooterComponent={isAdmin ? <OfficialGuideCmsCard token={token} /> : null}
+      ListFooterComponent={null}
       showsVerticalScrollIndicator={false}
     />
   );

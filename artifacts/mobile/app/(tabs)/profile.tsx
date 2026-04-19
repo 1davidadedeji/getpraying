@@ -1,8 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { router, useFocusEffect } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { router, useFocusEffect, type Href } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,7 +19,6 @@ import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import { PreferredCategoriesContent } from "@/components/PreferredCategoriesContent";
 import { StatCard } from "@/components/StatCard";
-import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { PROFILE_MAIN_TABS } from "@/constants/profileTabs";
 import { SAVED_POSTS_EMPTY } from "@/constants/savedList";
@@ -29,15 +27,20 @@ import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
+type ProfileRow =
+  | { kind: "tabs" }
+  | { kind: "loading" }
+  | { kind: "categories" }
+  | { kind: "empty"; tab: "my" | "saved" }
+  | Post;
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout, refreshUser, token } = useAuth();
-  const queryClient = useQueryClient();
-  const listRef = useRef<FlatList>(null);
+  const { user, refreshUser, token } = useAuth();
+  const listRef = useRef<FlatList<ProfileRow>>(null);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
   const [profileTab, setProfileTab] = useState<"my" | "saved" | "categories">("my");
 
   const { data: freshUser, refetch: refetchMe } = useGetMe({
@@ -65,7 +68,6 @@ export default function ProfileScreen() {
     try {
       const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permResult.granted) {
-        showAppAlert({ title: "Permission needed", message: "Allow photo access to set your profile picture." });
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -96,12 +98,9 @@ export default function ProfileScreen() {
           refreshUser({ ...user, avatarUrl: data.avatarUrl });
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showAppAlert({ title: "Upload failed", message: (err as any).error ?? "Please try again." });
       }
     } catch {
-      showAppAlert({ title: "Upload failed", message: "Check your connection and try again." });
+      /* silent */
     } finally {
       setUploadingAvatar(false);
     }
@@ -118,7 +117,9 @@ export default function ProfileScreen() {
         const data = await res.json();
         setMyPosts(data.posts ?? []);
       }
-    } catch { /* silent */ } finally {
+    } catch {
+      /* silent */
+    } finally {
       setLoadingPosts(false);
     }
   }, [user?.username, token]);
@@ -136,64 +137,6 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const handleDeleteAccount = () => {
-    showAppAlert({
-      title: "Delete account?",
-      message:
-        "This permanently removes your profile, prayers, and saved items. This cannot be undone.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            if (!token) return;
-            setDeletingAccount(true);
-            try {
-              const res = await fetch(apiUrl("/auth/account"), {
-                method: "DELETE",
-                headers: authHeaders(token),
-              });
-              if (res.ok) {
-                queryClient.clear();
-                await logout();
-              } else {
-                const err = await res.json().catch(() => ({}));
-                showAppAlert({
-                  title: "Could not delete account",
-                  message: (err as { error?: string }).error ?? "Please try again.",
-                });
-              }
-            } catch {
-              showAppAlert({ title: "Could not delete account", message: "Check your connection." });
-            } finally {
-              setDeletingAccount(false);
-            }
-          },
-        },
-      ],
-    });
-  };
-
-  const handleLogout = () => {
-    showAppAlert({
-      title: "Sign out",
-      message: "You'll need to sign in again to view your feed.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign out",
-          style: "destructive",
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            queryClient.clear();
-            await logout();
-          },
-        },
-      ],
-    });
-  };
-
   if (!user) {
     return (
       <View style={styles.centered}>
@@ -206,8 +149,37 @@ export default function ProfileScreen() {
   const initials = displayName.slice(0, 2).toUpperCase();
   const joinYear = new Date(user.createdAt).getFullYear();
 
+  const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
+
+  const listRows: ProfileRow[] = (() => {
+    const tabs: ProfileRow = { kind: "tabs" };
+    if (profileTab === "categories") {
+      return [tabs, { kind: "categories" }];
+    }
+    if (profileTab === "my") {
+      if (loadingPosts) return [tabs, { kind: "loading" }];
+      if (myPosts.length === 0) return [tabs, { kind: "empty", tab: "my" }];
+      return [tabs, ...myPosts];
+    }
+    if (loadingSavedTab) return [tabs, { kind: "loading" }];
+    if (savedPosts.length === 0) return [tabs, { kind: "empty", tab: "saved" }];
+    return [tabs, ...savedPosts];
+  })();
+
   const profileHeader = (
     <View style={[styles.headerContainer, { paddingTop: topPad + 8 }]}>
+      <View style={styles.topBar}>
+        <Text style={styles.screenTitle}>Profile</Text>
+        <Pressable
+          onPress={() => router.push("/settings" as Href)}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+        >
+          <Feather name="settings" size={22} color={colors.primary} />
+        </Pressable>
+      </View>
+
       <View style={styles.profileHero}>
         <Pressable onPress={pickAndUploadAvatar} style={styles.avatarRing} disabled={uploadingAvatar}>
           {uploadingAvatar ? (
@@ -239,106 +211,80 @@ export default function ProfileScreen() {
       <Text style={styles.statLegend}>
         Prayed For goes up when someone else prays on your posts (not when you pray on your own).
       </Text>
-
-      <View style={styles.profileTabRow}>
-        {PROFILE_MAIN_TABS.map(({ key, label }) => (
-          <Pressable
-            key={key}
-            style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
-            onPress={() => setProfileTab(key)}
-          >
-            <Text style={[styles.profileTabText, profileTab === key && styles.profileTabTextActive]}>
-              {label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        <View style={styles.menuCard}>
-          <Pressable style={styles.menuItem} onPress={() => router.push("/onboarding")}>
-            <Feather name="settings" size={18} color={colors.primary} />
-            <Text style={styles.menuItemText}>Prayer preferences</Text>
-            <Feather name="chevron-right" size={16} color={colors.muted} />
-          </Pressable>
-
-          {(user.role === "admin" || user.role === "moderator") && (
-            <Pressable style={styles.menuItem} onPress={() => router.push("/admin")}>
-              <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
-              <Text style={[styles.menuItemText, { color: colors.accent }]}>
-                {user.role === "admin" ? "Admin panel" : "Moderation"}
-              </Text>
-              <Feather name="chevron-right" size={16} color={colors.muted} />
-            </Pressable>
-          )}
-
-          <Pressable
-            style={styles.menuItem}
-            onPress={handleDeleteAccount}
-            disabled={deletingAccount}
-          >
-            <Feather name="trash-2" size={18} color={colors.danger} />
-            <Text style={[styles.menuItemText, { color: colors.danger }]}>
-              {deletingAccount ? "Deleting…" : "Delete account"}
-            </Text>
-          </Pressable>
-
-          <Pressable style={[styles.menuItem, styles.menuItemLast]} onPress={handleLogout}>
-            <Feather name="log-out" size={18} color={colors.danger} />
-            <Text style={[styles.menuItemText, { color: colors.danger }]}>Sign Out</Text>
-          </Pressable>
-        </View>
-      </View>
-
     </View>
   );
 
-  const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
-  const listData =
-    profileTab === "my"
-      ? myPosts
-      : profileTab === "saved"
-        ? savedPosts
-        : [];
-  const listLoading =
-    profileTab === "my" ? loadingPosts : profileTab === "saved" ? loadingSavedTab : false;
+  const keyExtractor = (item: ProfileRow, index: number) => {
+    if (typeof item === "object" && item !== null && "kind" in item) {
+      if (item.kind === "tabs") return "tabs";
+      if (item.kind === "loading") return "loading";
+      if (item.kind === "categories") return "categories";
+      if (item.kind === "empty") return `empty-${item.tab}`;
+    }
+    return `post-${(item as Post).id}-${index}`;
+  };
+
+  const renderItem = ({ item }: { item: ProfileRow }) => {
+    if ("kind" in item && item.kind === "tabs") {
+      return (
+        <View style={styles.profileTabRow}>
+          {PROFILE_MAIN_TABS.map(({ key, label }) => (
+            <Pressable
+              key={key}
+              style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
+              onPress={() => setProfileTab(key)}
+            >
+              <Text style={[styles.profileTabText, profileTab === key && styles.profileTabTextActive]}>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      );
+    }
+    if ("kind" in item && item.kind === "loading") {
+      return <ActivityIndicator color={colors.accent} style={{ marginTop: 24, marginBottom: 24 }} />;
+    }
+    if ("kind" in item && item.kind === "categories") {
+      return (
+        <View style={styles.categoriesTabEmpty}>
+          <PreferredCategoriesContent
+            preferredCategories={user.preferredCategories ?? []}
+            onOpenPreferences={() => router.push("/settings" as Href)}
+          />
+        </View>
+      );
+    }
+    if ("kind" in item && item.kind === "empty") {
+      return item.tab === "my" ? (
+        <View style={styles.emptyHistory}>
+          <Ionicons name="flame-outline" size={36} color={colors.muted} />
+          <Text style={styles.emptyHistoryText}>No prayers shared yet</Text>
+          <Text style={styles.emptyHistorySubtext}>Your shared prayers will appear here</Text>
+        </View>
+      ) : (
+        <View style={styles.emptyHistory}>
+          <Ionicons name="bookmark-outline" size={36} color={colors.muted} />
+          <Text style={styles.emptyHistoryText}>{SAVED_POSTS_EMPTY.title}</Text>
+          <Text style={styles.emptyHistorySubtext}>{SAVED_POSTS_EMPTY.subtitle}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={{ paddingHorizontal: 20 }}>
+        <PostCard post={item as Post} />
+      </View>
+    );
+  };
 
   return (
     <FlatList
       ref={listRef}
-      data={profileTab === "categories" ? [] : listLoading ? [] : listData}
-      keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => (
-        <View style={{ paddingHorizontal: 20 }}>
-          <PostCard post={item} />
-        </View>
-      )}
+      data={listRows}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      stickyHeaderIndices={[0]}
       ListHeaderComponent={profileHeader}
-      ListEmptyComponent={
-        listLoading ? (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
-        ) : profileTab === "categories" ? (
-          <View style={styles.categoriesTabEmpty}>
-            <PreferredCategoriesContent
-              preferredCategories={user.preferredCategories ?? []}
-              onOpenPreferences={() => router.push("/onboarding")}
-            />
-          </View>
-        ) : profileTab === "my" ? (
-          <View style={styles.emptyHistory}>
-            <Ionicons name="flame-outline" size={36} color={colors.muted} />
-            <Text style={styles.emptyHistoryText}>No prayers shared yet</Text>
-            <Text style={styles.emptyHistorySubtext}>Your shared prayers will appear here</Text>
-          </View>
-        ) : (
-          <View style={styles.emptyHistory}>
-            <Ionicons name="bookmark-outline" size={36} color={colors.muted} />
-            <Text style={styles.emptyHistoryText}>{SAVED_POSTS_EMPTY.title}</Text>
-            <Text style={styles.emptyHistorySubtext}>{SAVED_POSTS_EMPTY.subtitle}</Text>
-          </View>
-        )
-      }
       contentContainerStyle={{ paddingBottom: botPad + 100 }}
       style={styles.flex}
       showsVerticalScrollIndicator={false}
@@ -353,6 +299,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 24,
     paddingBottom: 8,
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  screenTitle: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 22,
+    color: colors.primary,
   },
   profileHero: {
     alignItems: "center",
@@ -424,10 +381,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 6,
-    marginTop: 8,
+    backgroundColor: colors.cream,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingBottom: 2,
+    paddingHorizontal: 20,
   },
   profileTab: {
     flex: 1,
@@ -450,44 +408,10 @@ const styles = StyleSheet.create({
   profileTabTextActive: {
     color: colors.primary,
   },
-  section: {
-    gap: 10,
-  },
-  sectionTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 13,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  menuCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuItemLast: {
-    borderBottomWidth: 0,
-  },
-  menuItemText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 15,
-    color: colors.text,
-    flex: 1,
-  },
   categoriesTabEmpty: {
     width: "100%",
     paddingVertical: 40,
+    paddingHorizontal: 20,
   },
   emptyHistory: {
     alignItems: "center",

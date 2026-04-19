@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,6 +17,9 @@ import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { formatLocalYMD } from "@/lib/date";
+
+const TERMS_URL = "https://getpraying.app/terms";
+const PRIVACY_URL = "https://getpraying.app/privacy";
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
@@ -101,12 +105,17 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.quoteCard}>
-          <Text style={styles.quoteLabel}>Today's Word</Text>
+          <Text style={styles.quoteLabel}>Daily Word</Text>
           <Text style={styles.quoteText}>
             &ldquo;{dailyWord?.quoteText ?? "Be still, and know that I am God."}&rdquo;
           </Text>
           <Text style={styles.quoteRef}>
             {dailyWord?.reference ?? "— Psalm 46:10"}
+          </Text>
+          <Text style={styles.socialProof}>
+            {typeof dailyWord?.prayingWithYou === "number" && dailyWord.prayingWithYou > 0
+              ? `${dailyWord.prayingWithYou.toLocaleString()} praying with you`
+              : "Praying together, today"}
           </Text>
         </View>
 
@@ -125,6 +134,15 @@ export default function WelcomeScreen() {
           >
             <Text style={styles.secondaryBtnText}>Sign In</Text>
           </Pressable>
+          <View style={styles.legalRow}>
+            <Pressable onPress={() => void Linking.openURL(TERMS_URL)}>
+              <Text style={styles.legalLink}>Terms</Text>
+            </Pressable>
+            <Text style={styles.legalDot}>·</Text>
+            <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)}>
+              <Text style={styles.legalLink}>Privacy</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </LinearGradient>
@@ -200,9 +218,28 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.5)",
     fontStyle: "italic",
   },
+  socialProof: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: "rgba(255,255,255,0.55)",
+    marginTop: 8,
+  },
   actions: {
     gap: 12,
   },
+  legalRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  legalLink: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.75)",
+  },
+  legalDot: { color: "rgba(255,255,255,0.45)", fontSize: 13 },
   primaryBtn: {
     backgroundColor: colors.accent,
     borderRadius: 32,
