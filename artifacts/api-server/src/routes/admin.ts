@@ -453,6 +453,101 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
   res.status(201).json(row);
 });
 
+/**
+ * Set morning/evening sanctuary slot: optionally archive the previous slot content into a path
+ * (official guides library), then update or create the scheduled row in place.
+ */
+router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const mod = (req as any).user;
+  const slot =
+    typeof req.body?.slot === "string" && ["morning", "evening"].includes(req.body.slot)
+      ? (req.body.slot as "morning" | "evening")
+      : null;
+  if (!slot) {
+    res.status(400).json({ error: "slot must be morning or evening" });
+    return;
+  }
+
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  if (!title || !content) {
+    res.status(400).json({ error: "title and content are required" });
+    return;
+  }
+
+  const archivePathId =
+    typeof req.body?.archivePathId === "number" && Number.isFinite(req.body.archivePathId)
+      ? req.body.archivePathId
+      : null;
+  const category =
+    typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
+  const subtitle = typeof req.body?.subtitle === "string" ? req.body.subtitle : null;
+  const audioUrl = typeof req.body?.audioUrl === "string" ? req.body.audioUrl.trim() : null;
+  const label = typeof req.body?.label === "string" ? req.body.label : null;
+  const pathId = typeof req.body?.pathId === "number" ? req.body.pathId : null;
+
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(officialPrayersTable)
+      .where(eq(officialPrayersTable.scheduleSlot, slot))
+      .limit(1);
+
+    if (existing && archivePathId != null) {
+      await tx.insert(officialPrayersTable).values({
+        title: existing.title,
+        content: existing.content,
+        category: existing.category,
+        subtitle: existing.subtitle,
+        durationMinutes: existing.durationMinutes,
+        scripture: existing.scripture,
+        label: existing.label,
+        audioVoice: existing.audioVoice,
+        audioUrl: existing.audioUrl,
+        pathId: archivePathId,
+        uploadedByUserId: existing.uploadedByUserId,
+        scheduleSlot: null,
+      });
+    }
+
+    if (existing) {
+      const [row] = await tx
+        .update(officialPrayersTable)
+        .set({
+          title,
+          content,
+          category,
+          subtitle,
+          audioUrl,
+          label,
+          pathId,
+          uploadedByUserId: mod.id,
+        })
+        .where(eq(officialPrayersTable.id, existing.id))
+        .returning();
+      return row ?? null;
+    }
+
+    const [inserted] = await tx
+      .insert(officialPrayersTable)
+      .values({
+        title,
+        content,
+        category,
+        subtitle,
+        audioUrl,
+        label,
+        pathId,
+        scheduleSlot: slot,
+        uploadedByUserId: mod.id,
+      })
+      .returning();
+    return inserted ?? null;
+  });
+
+  res.json(result);
+});
+
 router.delete("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.prayerId) ? req.params.prayerId[0] : req.params.prayerId;
   const prayerId = parseInt(rawId, 10);

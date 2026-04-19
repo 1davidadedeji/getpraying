@@ -48,6 +48,22 @@ export const officialPrayersTable = pgTable("official_prayers", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** User-saved official guides (library), distinct from feed post saves */
+export const savedOfficialPrayersTable = pgTable(
+  "saved_official_prayers",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    officialPrayerId: integer("official_prayer_id")
+      .notNull()
+      .references(() => officialPrayersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("saved_official_user_prayer_uidx").on(t.userId, t.officialPrayerId)],
+);
+
 // Prayer paths / journeys
 export const prayerPathsTable = pgTable("prayer_paths", {
   id: serial("id").primaryKey(),
@@ -95,3 +111,5 @@ export type OfficialPrayer = typeof officialPrayersTable.$inferSelect;
 export const insertPrayerPathSchema = createInsertSchema(prayerPathsTable).omit({ id: true, createdAt: true });
 export type InsertPrayerPath = z.infer<typeof insertPrayerPathSchema>;
 export type PrayerPath = typeof prayerPathsTable.$inferSelect;
+
+export type SavedOfficialPrayer = typeof savedOfficialPrayersTable.$inferSelect;

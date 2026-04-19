@@ -413,36 +413,54 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
     return;
   }
 
-  const [created] = await db
-    .insert(commentsTable)
-    .values({ postId, authorId: user.id, content })
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    const prior = await tx
+      .select({ id: commentsTable.id })
+      .from(commentsTable)
+      .where(and(eq(commentsTable.postId, postId), eq(commentsTable.authorId, user.id)))
+      .limit(1);
+    const isFirstCommentFromUserOnPost = prior.length === 0;
 
-  if (post.authorId && post.authorId !== user.id) {
-    await db.insert(notificationsTable).values({
-      userId: post.authorId,
-      type: "comment",
-      message: "commented on your prayer",
-      actorId: user.id,
-      postId,
-      isRead: false,
-    });
-  }
+    const [created] = await tx
+      .insert(commentsTable)
+      .values({ postId, authorId: user.id, content })
+      .returning();
 
-  const [author] = await db
-    .select({ username: usersTable.username, displayName: usersTable.displayName })
-    .from(usersTable)
-    .where(eq(usersTable.id, user.id));
+    if (post.authorId && post.authorId !== user.id) {
+      await tx.insert(notificationsTable).values({
+        userId: post.authorId,
+        type: "comment",
+        message: "commented on your prayer",
+        actorId: user.id,
+        postId,
+        isRead: false,
+      });
+
+      if (isFirstCommentFromUserOnPost) {
+        await tx
+          .update(usersTable)
+          .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
+          .where(eq(usersTable.id, post.authorId));
+      }
+    }
+
+    const [author] = await tx
+      .select({ username: usersTable.username, displayName: usersTable.displayName })
+      .from(usersTable)
+      .where(eq(usersTable.id, user.id));
+
+    return { created, author };
+  });
 
   res.status(201).json({
     comment: {
-      id: created.id,
-      postId: created.postId,
-      authorId: created.authorId,
-      content: created.content,
-      createdAt: created.createdAt,
-      authorUsername: author?.username ?? null,
-      authorDisplayName: author?.displayName ?? null,
+      id: result.created.id,
+      postId: result.created.postId,
+      authorId: result.created.authorId,
+      content: result.created.content,
+      createdAt: result.created.createdAt,
+      authorUsername: result.author?.username ?? null,
+      authorDisplayName: result.author?.displayName ?? null,
     },
   });
 });

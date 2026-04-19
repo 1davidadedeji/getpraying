@@ -1,12 +1,14 @@
 import { Router, type IRouter } from "express";
-import { db, dailyWordOverridesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, dailyWordOverridesTable, usersTable } from "@workspace/db";
+import { eq, notLike, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/auth";
 import {
   dayOfYearFromDate,
   getDefaultDailyQuote,
   parseCalendarDateString,
 } from "../lib/dailyWordCatalog";
+
+const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 
 const router: IRouter = Router();
 
@@ -32,12 +34,18 @@ router.get("/daily-word", async (req, res): Promise<void> => {
     .where(eq(dailyWordOverridesTable.effectiveDate, dateStr))
     .limit(1);
 
+  const [{ prayingWithYou }] = await db
+    .select({ prayingWithYou: sql<number>`count(*)::int` })
+    .from(usersTable)
+    .where(notLike(usersTable.email, `%${SEED_EMAIL_SUFFIX}`));
+
   if (override) {
     res.json({
       date: dateStr,
       quoteText: override.quoteText,
       reference: override.reference,
       source: "override" as const,
+      prayingWithYou,
     });
     return;
   }
@@ -49,6 +57,7 @@ router.get("/daily-word", async (req, res): Promise<void> => {
     quoteText: def.quoteText,
     reference: def.reference,
     source: "default" as const,
+    prayingWithYou,
   });
 });
 
