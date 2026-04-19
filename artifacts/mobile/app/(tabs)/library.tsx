@@ -21,10 +21,15 @@ import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
+import {
+  LIBRARY_FALLBACK_PATHS,
+  type ApiLibraryCategory,
+  type LibraryPathCard,
+} from "@/constants/libraryFallbackPaths";
 
 type Tab = "categories" | "saved";
 
-type CategoryItem = { name: string; count: number; icon: string; pathId?: number };
+type CategoryItem = LibraryPathCard | ApiLibraryCategory;
 
 const PATH_CARD_H_WIDTH = 132;
 
@@ -34,7 +39,7 @@ export default function LibraryScreen() {
   const categoriesScrollRef = useRef<ScrollView>(null);
   const savedListRef = useRef<FlatList>(null);
   const [activeTab, setActiveTab] = useState<Tab>("categories");
-  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>(LIBRARY_FALLBACK_PATHS);
   const [pathsExpanded, setPathsExpanded] = useState(false);
   const [loadingCats, setLoadingCats] = useState(false);
   const [officialPrayers, setOfficialPrayers] = useState<OfficialPrayerRow[]>([]);
@@ -75,10 +80,13 @@ export default function LibraryScreen() {
       const res = await fetch(apiUrl("/library/categories"), { headers: authHeaders(token) });
       if (res.ok) {
         const data = await res.json();
-        setCategories(Array.isArray(data) ? data : []);
+        const apiList = Array.isArray(data) ? (data as ApiLibraryCategory[]) : [];
+        setCategories(apiList.length > 0 ? apiList : LIBRARY_FALLBACK_PATHS);
+      } else {
+        setCategories(LIBRARY_FALLBACK_PATHS);
       }
     } catch {
-      /* silent */
+      setCategories(LIBRARY_FALLBACK_PATHS);
     } finally {
       setLoadingCats(false);
     }
@@ -124,11 +132,11 @@ export default function LibraryScreen() {
 
   useEffect(() => {
     if (activeTab === "categories") {
-      if (categories.length === 0) void loadCategories();
+      void loadCategories();
       void loadOfficial();
       void loadSavedOfficialIds();
     }
-  }, [activeTab, categories.length, loadCategories, loadOfficial, loadSavedOfficialIds]);
+  }, [activeTab, loadCategories, loadOfficial, loadSavedOfficialIds]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const screenWidth = Dimensions.get("window").width;
@@ -148,13 +156,20 @@ export default function LibraryScreen() {
     if (cat.pathId != null && cat.pathId > 0) {
       router.push(`/path/${cat.pathId}` as never);
     } else {
-      router.push(`/category/${encodeURIComponent(cat.name.toLowerCase())}` as never);
+      const slug =
+        "slug" in cat && cat.slug
+          ? cat.slug
+          : cat.name
+              .toLowerCase()
+              .replace(/[^a-z0-9/]+/g, "-")
+              .replace(/^-|-$/g, "");
+      router.push(`/category/${encodeURIComponent(slug)}` as never);
     }
   };
 
   const renderPathCard = (cat: CategoryItem, compact: boolean) => (
     <Pressable
-      key={cat.pathId != null ? `p-${cat.pathId}` : cat.name}
+      key={cat.pathId != null && cat.pathId > 0 ? `p-${cat.pathId}` : `c-${"slug" in cat && cat.slug ? cat.slug : cat.name}`}
       style={({ pressed }) => [
         compact ? styles.catCardH : styles.catCard,
         !compact && { width: cardWidth },
@@ -217,11 +232,6 @@ export default function LibraryScreen() {
           </View>
           {loadingCats ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />
-          ) : categories.length === 0 ? (
-            <View style={styles.pathsEmpty}>
-              <Feather name="grid" size={40} color={colors.muted} />
-              <Text style={styles.pathsEmptyText}>No paths yet</Text>
-            </View>
           ) : pathsExpanded ? (
             <View style={styles.catGrid}>{categories.map((c) => renderPathCard(c, false))}</View>
           ) : (

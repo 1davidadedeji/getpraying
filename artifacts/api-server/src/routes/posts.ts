@@ -421,6 +421,13 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
       .limit(1);
     const isFirstCommentFromUserOnPost = prior.length === 0;
 
+    const priorPray = await tx
+      .select({ id: postPrayersTable.id })
+      .from(postPrayersTable)
+      .where(and(eq(postPrayersTable.postId, postId), eq(postPrayersTable.userId, user.id)))
+      .limit(1);
+    const shouldBumpPrayedForComment = isFirstCommentFromUserOnPost && priorPray.length === 0;
+
     const [created] = await tx
       .insert(commentsTable)
       .values({ postId, authorId: user.id, content })
@@ -436,7 +443,7 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
         isRead: false,
       });
 
-      if (isFirstCommentFromUserOnPost) {
+      if (shouldBumpPrayedForComment) {
         await tx
           .update(usersTable)
           .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
@@ -548,10 +555,17 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
       const newCount = updated.prayCount ?? 0;
 
       if (post.authorId && post.authorId !== user.id) {
-        await tx
-          .update(usersTable)
-          .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
-          .where(eq(usersTable.id, post.authorId));
+        const priorComments = await tx
+          .select({ id: commentsTable.id })
+          .from(commentsTable)
+          .where(and(eq(commentsTable.postId, postId), eq(commentsTable.authorId, user.id)))
+          .limit(1);
+        if (priorComments.length === 0) {
+          await tx
+            .update(usersTable)
+            .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
+            .where(eq(usersTable.id, post.authorId));
+        }
 
         await tx.insert(notificationsTable).values({
           userId: post.authorId,

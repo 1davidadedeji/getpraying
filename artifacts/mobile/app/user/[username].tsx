@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
+import { showAppAlert } from "@/components/AppAlert";
 import { StatCard } from "@/components/StatCard";
 import colors from "@/constants/colors";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
@@ -157,31 +158,45 @@ export default function UserProfileScreen() {
           onPress={() => {
             if (!profile || !token) return;
             const next = !profile.isFollowing;
-            setFollowBusy(true);
-            void (async () => {
-              try {
-                const res = await fetch(apiUrl(`/users/${profile.username}/follow`), {
-                  method: next ? "POST" : "DELETE",
-                  headers: authHeaders(token),
-                });
-                if (res.ok) {
-                  setProfile((p) =>
-                    p
-                      ? {
-                          ...p,
-                          isFollowing: next,
-                          followerCount: Math.max(
-                            0,
-                            (p.followerCount ?? 0) + (next ? 1 : -1),
-                          ),
-                        }
-                      : p,
-                  );
+            const runToggle = () => {
+              setFollowBusy(true);
+              void (async () => {
+                try {
+                  const res = await fetch(apiUrl(`/users/${profile.username}/follow`), {
+                    method: next ? "POST" : "DELETE",
+                    headers: authHeaders(token),
+                  });
+                  if (res.ok) {
+                    setProfile((p) =>
+                      p
+                        ? {
+                            ...p,
+                            isFollowing: next,
+                            followerCount: Math.max(
+                              0,
+                              (p.followerCount ?? 0) + (next ? 1 : -1),
+                            ),
+                          }
+                        : p,
+                    );
+                  }
+                } finally {
+                  setFollowBusy(false);
                 }
-              } finally {
-                setFollowBusy(false);
-              }
-            })();
+              })();
+            };
+            if (profile.isFollowing && !next) {
+              showAppAlert({
+                title: "Unfollow?",
+                message: `You will stop seeing ${profile.displayName ?? profile.username} in your following list.`,
+                buttons: [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Unfollow", style: "destructive", onPress: runToggle },
+                ],
+              });
+              return;
+            }
+            runToggle();
           }}
         >
           <Text style={[styles.followBtnText, profile.isFollowing && styles.followBtnTextOutline]}>

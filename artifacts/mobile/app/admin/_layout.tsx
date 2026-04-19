@@ -12,6 +12,12 @@ export default function AdminLayout() {
         contentStyle: { backgroundColor: colors.cream },
         headerBackTitle: "Back",
       }}
-    />
+    >
+      <Stack.Screen name="index" options={{ title: "Admin" }} />
+      <Stack.Screen name="queue" options={{ title: "Moderation queue" }} />
+      <Stack.Screen name="daily-word" options={{ title: "Today's Word" }} />
+      <Stack.Screen name="official-guides" options={{ title: "Official guides" }} />
+      <Stack.Screen name="users" options={{ title: "Users & roles" }} />
+    </Stack>
   );
 }

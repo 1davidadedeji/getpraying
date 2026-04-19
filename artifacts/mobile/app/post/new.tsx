@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -123,34 +123,6 @@ export default function NewPostScreen() {
   const [aiLoading, setAiLoading] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
-
-  const [aiRewriting, setAiRewriting] = useState(false);
-
-  const handleAiRewrite = async () => {
-    const trimmed = content.trim();
-    if (trimmed.length < 10 || !token) return;
-    setAiRewriting(true);
-    try {
-      const res = await fetch(apiUrl("/posts/ai-rewrite"), {
-        method: "POST",
-        headers: authHeaders(token, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ content: trimmed }),
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.rewritten) {
-        setContent(data.rewritten);
-      } else {
-        showAppAlert({
-          title: res.status === 429 ? "Rewrite limit reached" : "AI rewrite failed",
-          message: data?.error ?? "Please try again.",
-        });
-      }
-    } catch {
-      showAppAlert({ title: "AI rewrite failed", message: "Check your connection and try again." });
-    } finally {
-      setAiRewriting(false);
-    }
-  };
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -414,25 +386,23 @@ export default function NewPostScreen() {
       {
         onSuccess: (res: any) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setContent("");
+          setIsAnonymous(false);
+          setSelectedCategories([]);
+          setAiCategories([]);
+          setPendingMedia(null);
           const isApproved = res?.status === "approved";
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(tabs)" as Href);
+          }
           showAppAlert({
-            title: isApproved ? "Prayer posted!" : "Prayer submitted",
+            title: isApproved ? "Posted" : "Submitted",
             message: isApproved
-              ? "Your prayer is now live in the feed."
-              : "Your prayer is in review and will appear in the feed shortly.",
-            buttons: [
-              {
-                text: "OK",
-                onPress: () => {
-                  setContent("");
-                  setIsAnonymous(false);
-                  setSelectedCategories([]);
-                  setAiCategories([]);
-                  setPendingMedia(null);
-                  router.replace("/(tabs)");
-                },
-              },
-            ],
+              ? "Your prayer is in the feed."
+              : "Thanks — your prayer is in review and will appear after approval.",
+            buttons: [{ text: "OK", style: "default" }],
           });
         },
         onError: (err: any) => {
@@ -493,23 +463,6 @@ export default function NewPostScreen() {
           </>
         )}
       </Pressable>
-
-      {content.trim().length >= 10 && (
-        <Pressable
-          style={[styles.aiRewriteBtn, aiRewriting && styles.aiRewriteBtnDisabled]}
-          onPress={() => void handleAiRewrite()}
-          disabled={aiRewriting}
-        >
-          {aiRewriting ? (
-            <ActivityIndicator size="small" color={colors.accent} />
-          ) : (
-            <>
-              <Ionicons name="sparkles" size={16} color={colors.accent} />
-              <Text style={styles.aiRewriteBtnText}>Rewrite with AI</Text>
-            </>
-          )}
-        </Pressable>
-      )}
 
       <View style={styles.imageSection}>
         <Text style={styles.sectionLabel}>
@@ -907,24 +860,5 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
     color: colors.surface,
-  },
-  aiRewriteBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 50,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  aiRewriteBtnDisabled: {
-    opacity: 0.5,
-  },
-  aiRewriteBtnText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 13,
-    color: colors.accent,
   },
 });

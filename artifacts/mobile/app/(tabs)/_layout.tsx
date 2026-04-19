@@ -4,7 +4,7 @@ import { Redirect, router, Tabs, usePathname, type Href } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
@@ -14,37 +14,76 @@ import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarV
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 72 : Platform.OS === "ios" ? 52 : 58;
 
+function isFeedsPath(pathname: string): boolean {
+  return (
+    pathname === "/" ||
+    pathname === "/(tabs)" ||
+    pathname === "/(tabs)/index" ||
+    pathname === "/index"
+  );
+}
+
+/** Keeps tab bar + FAB chrome in sync with route: reset when entering Feeds, and when leaving Feeds so other tabs are not stuck with a hidden bar. */
+function ScrollChromeSync() {
+  const pathname = usePathname();
+  const { resetScrollChrome } = useTabBarVisibility();
+  const isFeeds = isFeedsPath(pathname);
+  const prevIsFeeds = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (isFeeds) {
+      resetScrollChrome();
+    } else if (prevIsFeeds.current === true) {
+      resetScrollChrome();
+    }
+    prevIsFeeds.current = isFeeds;
+  }, [isFeeds, resetScrollChrome]);
+
+  return null;
+}
+
 function ComposeFab() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const { translateY } = useTabBarVisibility();
-  const isFeeds = pathname === "/" || pathname === "/(tabs)" || pathname === "/(tabs)/index" || pathname === "/index";
+  const { translateY, fabScale, fabOpacity, fabPointerEvents } = useTabBarVisibility();
+  const isFeeds = isFeedsPath(pathname);
+
   if (!isFeeds) return null;
   return (
     <Animated.View
-      pointerEvents="box-none"
+      pointerEvents={fabPointerEvents}
       style={[StyleSheet.absoluteFill, { transform: [{ translateY }] }]}
     >
-      <Pressable
-        onPress={() => router.push("/post/new")}
-        style={({ pressed }) => [
-          fabStyles.fab,
-          { bottom: insets.bottom + TAB_BAR_HEIGHT + 10, right: 20 },
-          pressed && fabStyles.fabPressed,
+      <Animated.View
+        style={[
+          fabStyles.fabWrap,
+          {
+            bottom: insets.bottom + TAB_BAR_HEIGHT + 10,
+            right: 20,
+            transform: [{ scale: fabScale }],
+            opacity: fabOpacity,
+          },
         ]}
-        accessibilityRole="button"
-        accessibilityLabel="Share a prayer"
-        testID="compose-fab"
       >
-        <Ionicons name="add" size={28} color={colors.surface} />
-      </Pressable>
+        <Pressable
+          onPress={() => router.push("/post/new")}
+          style={({ pressed }) => [fabStyles.fab, pressed && fabStyles.fabPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Share a prayer"
+          testID="compose-fab"
+        >
+          <Ionicons name="add" size={28} color={colors.surface} />
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }
 
 const fabStyles = StyleSheet.create({
-  fab: {
+  fabWrap: {
     position: "absolute",
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -83,6 +122,7 @@ function NativeTabLayout() {
         <Label>Profile</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
+    <ScrollChromeSync />
     <ComposeFab />
     </View>
   );
@@ -203,6 +243,7 @@ function ClassicTabLayout() {
       <Tabs.Screen name="notifications" options={{ title: "Alerts" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
+    <ScrollChromeSync />
     <ComposeFab />
     </View>
   );

@@ -112,11 +112,14 @@ export default function WelcomeScreen() {
           <Text style={styles.quoteRef}>
             {dailyWord?.reference ?? "— Psalm 46:10"}
           </Text>
-          <Text style={styles.socialProof}>
-            {typeof dailyWord?.prayingWithYou === "number" && dailyWord.prayingWithYou > 0
-              ? `${dailyWord.prayingWithYou.toLocaleString()} praying with you`
-              : "Praying together, today"}
-          </Text>
+          <View style={styles.socialProofRow}>
+            <Ionicons name="flame" size={16} color={colors.accent} />
+            <Text style={styles.socialProof}>
+              {typeof dailyWord?.prayingWithYou === "number" && dailyWord.prayingWithYou > 0
+                ? `${dailyWord.prayingWithYou.toLocaleString()} praying with you`
+                : "Praying together, today"}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -218,11 +221,17 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.5)",
     fontStyle: "italic",
   },
+  socialProofRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
   socialProof: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     color: "rgba(255,255,255,0.55)",
-    marginTop: 8,
+    flex: 1,
   },
   actions: {
     gap: 12,

@@ -2,7 +2,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect, type Href } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetMe, getGetMeQueryKey, useGetSavedPrayers, getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
-import type { Post } from "@workspace/api-client-react";
+import type { Post, User } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import { PreferredCategoriesContent } from "@/components/PreferredCategoriesContent";
 import { StatCard } from "@/components/StatCard";
@@ -28,6 +28,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type ProfileRow =
+  | { kind: "hero" }
   | { kind: "tabs" }
   | { kind: "loading" }
   | { kind: "categories" }
@@ -48,8 +49,8 @@ export default function ProfileScreen() {
   });
 
   useEffect(() => {
-    if (freshUser) refreshUser(freshUser as any);
-  }, [freshUser]);
+    if (freshUser) refreshUser(freshUser as User);
+  }, [freshUser, refreshUser]);
 
   useFocusEffect(
     useCallback(() => {
@@ -63,6 +64,11 @@ export default function ProfileScreen() {
       enabled: !!token && profileTab === "saved",
     },
   });
+
+  const me = useMemo(() => {
+    if (!user) return null;
+    return { ...user, ...(freshUser as Partial<User> | undefined) } as User;
+  }, [user, freshUser]);
 
   const pickAndUploadAvatar = async () => {
     try {
@@ -98,6 +104,7 @@ export default function ProfileScreen() {
           refreshUser({ ...user, avatarUrl: data.avatarUrl });
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void refetchMe();
       }
     } catch {
       /* silent */
@@ -137,7 +144,7 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  if (!user) {
+  if (!user || !me) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.accent} />
@@ -145,28 +152,30 @@ export default function ProfileScreen() {
     );
   }
 
-  const displayName = user.displayName ?? user.username;
+  const displayName = me.displayName ?? me.username;
   const initials = displayName.slice(0, 2).toUpperCase();
-  const joinYear = new Date(user.createdAt).getFullYear();
+  const joinYear = new Date(me.createdAt).getFullYear();
 
   const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
 
   const listRows: ProfileRow[] = (() => {
+    const hero: ProfileRow = { kind: "hero" };
     const tabs: ProfileRow = { kind: "tabs" };
+    const head: ProfileRow[] = [hero, tabs];
     if (profileTab === "categories") {
-      return [tabs, { kind: "categories" }];
+      return [...head, { kind: "categories" }];
     }
     if (profileTab === "my") {
-      if (loadingPosts) return [tabs, { kind: "loading" }];
-      if (myPosts.length === 0) return [tabs, { kind: "empty", tab: "my" }];
-      return [tabs, ...myPosts];
+      if (loadingPosts) return [...head, { kind: "loading" }];
+      if (myPosts.length === 0) return [...head, { kind: "empty", tab: "my" }];
+      return [...head, ...myPosts];
     }
-    if (loadingSavedTab) return [tabs, { kind: "loading" }];
-    if (savedPosts.length === 0) return [tabs, { kind: "empty", tab: "saved" }];
-    return [tabs, ...savedPosts];
+    if (loadingSavedTab) return [...head, { kind: "loading" }];
+    if (savedPosts.length === 0) return [...head, { kind: "empty", tab: "saved" }];
+    return [...head, ...savedPosts];
   })();
 
-  const profileHeader = (
+  const renderHero = () => (
     <View style={[styles.headerContainer, { paddingTop: topPad + 8 }]}>
       <View style={styles.topBar}>
         <Text style={styles.screenTitle}>Profile</Text>
@@ -186,8 +195,8 @@ export default function ProfileScreen() {
             <View style={styles.avatar}>
               <ActivityIndicator color={colors.accent} />
             </View>
-          ) : user.avatarUrl ? (
-            <Image source={{ uri: resolveMediaUrl(user.avatarUrl)! }} style={styles.avatar} />
+          ) : me.avatarUrl ? (
+            <Image source={{ uri: resolveMediaUrl(me.avatarUrl)! }} style={styles.avatar} />
           ) : (
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{initials}</Text>
@@ -198,24 +207,22 @@ export default function ProfileScreen() {
           </View>
         </Pressable>
         <Text style={styles.displayName}>{displayName}</Text>
-        <Text style={styles.username}>@{user.username}</Text>
+        <Text style={styles.username}>@{me.username}</Text>
 
         <Text style={styles.joinDate}>Member since {joinYear}</Text>
       </View>
 
       <View style={styles.statsRow}>
-        <StatCard label="Prayers Shared" value={user.prayersShared ?? 0} />
-        <StatCard label="Prayed For" value={user.prayedFor ?? 0} />
-        <StatCard label="Saved Scrolls" value={user.savedScrolls ?? 0} />
+        <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
+        <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
+        <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
       </View>
-      <Text style={styles.statLegend}>
-        Prayed For goes up when someone else prays on your posts (not when you pray on your own).
-      </Text>
     </View>
   );
 
   const keyExtractor = (item: ProfileRow, index: number) => {
     if (typeof item === "object" && item !== null && "kind" in item) {
+      if (item.kind === "hero") return "hero";
       if (item.kind === "tabs") return "tabs";
       if (item.kind === "loading") return "loading";
       if (item.kind === "categories") return "categories";
@@ -225,20 +232,25 @@ export default function ProfileScreen() {
   };
 
   const renderItem = ({ item }: { item: ProfileRow }) => {
+    if ("kind" in item && item.kind === "hero") {
+      return renderHero();
+    }
     if ("kind" in item && item.kind === "tabs") {
       return (
-        <View style={styles.profileTabRow}>
-          {PROFILE_MAIN_TABS.map(({ key, label }) => (
-            <Pressable
-              key={key}
-              style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
-              onPress={() => setProfileTab(key)}
-            >
-              <Text style={[styles.profileTabText, profileTab === key && styles.profileTabTextActive]}>
-                {label}
-              </Text>
-            </Pressable>
-          ))}
+        <View style={styles.stickyTabWrap}>
+          <View style={styles.profileTabRow}>
+            {PROFILE_MAIN_TABS.map(({ key, label }) => (
+              <Pressable
+                key={key}
+                style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
+                onPress={() => setProfileTab(key)}
+              >
+                <Text style={[styles.profileTabText, profileTab === key && styles.profileTabTextActive]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       );
     }
@@ -249,7 +261,7 @@ export default function ProfileScreen() {
       return (
         <View style={styles.categoriesTabEmpty}>
           <PreferredCategoriesContent
-            preferredCategories={user.preferredCategories ?? []}
+            preferredCategories={me.preferredCategories ?? []}
             onOpenPreferences={() => router.push("/settings" as Href)}
           />
         </View>
@@ -283,8 +295,7 @@ export default function ProfileScreen() {
       data={listRows}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
-      stickyHeaderIndices={[0]}
-      ListHeaderComponent={profileHeader}
+      stickyHeaderIndices={[1]}
       contentContainerStyle={{ paddingBottom: botPad + 100 }}
       style={styles.flex}
       showsVerticalScrollIndicator={false}
@@ -298,7 +309,8 @@ const styles = StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 20,
     gap: 24,
-    paddingBottom: 8,
+    paddingBottom: 16,
+    backgroundColor: colors.cream,
   },
   topBar: {
     flexDirection: "row",
@@ -370,18 +382,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
-  statLegend: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 11,
-    color: colors.muted,
-    lineHeight: 16,
-    marginTop: -4,
+  stickyTabWrap: {
+    backgroundColor: colors.cream,
+    paddingTop: 0,
+    zIndex: 2,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
   },
   profileTabRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 6,
-    backgroundColor: colors.cream,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingBottom: 2,

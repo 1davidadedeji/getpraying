@@ -1,4 +1,4 @@
-﻿import { Feather, Ionicons } from "@expo/vector-icons";
+﻿import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -13,7 +13,14 @@ import {
   View,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePrayForPost, useSavePost, useUnsavePost, getGetSavedPrayersQueryKey, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  usePrayForPost,
+  useSavePost,
+  useUnsavePost,
+  getGetSavedPrayersQueryKey,
+  getGetMeQueryKey,
+  getGetUserProfileQueryKey,
+} from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
@@ -82,6 +89,12 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
             onUpdated?.(next);
             return next;
           });
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          if (localPost.authorUsername) {
+            queryClient.invalidateQueries({
+              queryKey: getGetUserProfileQueryKey(localPost.authorUsername),
+            });
+          }
         },
       },
     );
@@ -255,11 +268,7 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
             accessibilityRole="button"
             accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
           >
-            <Ionicons
-              name={localPost.isSaved ? "bookmark" : "bookmark-outline"}
-              size={ICON_SIZE}
-              color={bookmarkColor}
-            />
+            <MaterialCommunityIcons name="stairs" size={ICON_SIZE} color={bookmarkColor} />
             <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
               {localPost.saveCount ?? 0}
             </Text>

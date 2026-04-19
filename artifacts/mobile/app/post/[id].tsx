@@ -1,4 +1,4 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  getGetMeQueryKey,
   getGetUserProfileQueryKey,
   useGetPost,
   usePrayForPost,
@@ -118,10 +119,17 @@ export default function PostDetailScreen() {
     pray(
       { postId: post.id },
       {
-        onSuccess: (res) =>
+        onSuccess: (res) => {
           setLocalPost((p) =>
             p ? { ...p, hasPrayed: res.hasPrayed, prayCount: res.prayCount } : p,
-          ),
+          );
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          if (post.authorUsername) {
+            queryClient.invalidateQueries({
+              queryKey: getGetUserProfileQueryKey(post.authorUsername),
+            });
+          }
+        },
       },
     );
   };
@@ -224,6 +232,7 @@ export default function PostDetailScreen() {
       const created = dataJson.comment as CommentRow | undefined;
       if (created) setComments((prev) => [...prev, created]);
       setCommentDraft("");
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       if (post.authorUsername) {
         queryClient.invalidateQueries({ queryKey: getGetUserProfileQueryKey(post.authorUsername) });
       }
@@ -431,8 +440,8 @@ export default function PostDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
         >
-          <Ionicons
-            name={post.isSaved ? "bookmark" : "bookmark-outline"}
+          <MaterialCommunityIcons
+            name="stairs"
             size={ENGAGE_ICON}
             color={post.isSaved ? colors.surface : colors.primary}
           />
