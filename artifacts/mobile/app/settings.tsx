@@ -20,7 +20,7 @@ import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 
-const TERMS_URL = "https://getpraying.app/terms";
+const TERMS_URL = "https://getpraying.app/tos";
 const PRIVACY_URL = "https://getpraying.app/privacy";
 
 export default function SettingsScreen() {

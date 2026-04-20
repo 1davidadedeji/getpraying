@@ -1,8 +1,8 @@
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -61,6 +61,12 @@ export default function PostDetailScreen() {
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
 
+  const replyFirst = useMemo(() => {
+    const v = Array.isArray(focusComment) ? focusComment[0] : focusComment;
+    return v === "1" || v === "true";
+  }, [focusComment]);
+  const [threadOpen, setThreadOpen] = useState(() => !replyFirst);
+
   const { data, isLoading } = useGetPost(Number(id));
 
   useEffect(() => {
@@ -74,8 +80,10 @@ export default function PostDetailScreen() {
   const { mutate: unsave } = useUnsavePost();
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
-  const actionBarHeight = 12 + 48 + botPad + 12;
-  const listBottomPad = actionBarHeight + 24;
+
+  useEffect(() => {
+    setThreadOpen(!replyFirst);
+  }, [postId, replyFirst]);
 
   const loadComments = useCallback(async () => {
     if (!post?.id) return;
@@ -102,12 +110,10 @@ export default function PostDetailScreen() {
   }, [post?.id, loadComments]);
 
   useEffect(() => {
-    if (focusComment === "1" && post && !commentsLoading) {
-      setTimeout(() => {
-        commentInputRef.current?.focus();
-      }, 400);
-    }
-  }, [focusComment, post, commentsLoading]);
+    if (!replyFirst || !post) return;
+    const t = setTimeout(() => commentInputRef.current?.focus(), 320);
+    return () => clearTimeout(t);
+  }, [replyFirst, post?.id]);
 
   const handlePray = () => {
     if (!post) return;
@@ -231,6 +237,7 @@ export default function PostDetailScreen() {
       const dataJson = await res.json();
       const created = dataJson.comment as CommentRow | undefined;
       if (created) setComments((prev) => [...prev, created]);
+      setThreadOpen(true);
       setCommentDraft("");
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       if (post.authorUsername) {
@@ -329,43 +336,19 @@ export default function PostDetailScreen() {
           </View>
         </View>
 
-      <Text style={styles.commentsSectionTitle}>Comments</Text>
-      {commentsLoading && (
-        <View style={styles.commentsLoadingRow}>
-          <ActivityIndicator color={colors.flame} size="small" />
-        </View>
+      {threadOpen ? (
+        <>
+          <Text style={styles.commentsSectionTitle}>Comments</Text>
+          {commentsLoading && (
+            <View style={styles.commentsLoadingRow}>
+              <ActivityIndicator color={colors.flame} size="small" />
+            </View>
+          )}
+        </>
+      ) : (
+        <Text style={styles.replyHint}>Replying to {authorName}</Text>
       )}
     </>
-  );
-
-  const commentInputFooter = (
-    <View style={styles.commentComposerCard}>
-      <TextInput
-        ref={commentInputRef}
-        style={styles.commentInput}
-        placeholder={token ? "Write a comment…" : "Sign in to comment"}
-        placeholderTextColor={colors.muted}
-        value={commentDraft}
-        onChangeText={setCommentDraft}
-        multiline
-        maxLength={2000}
-        editable={!!token && !commentSubmitting}
-        textAlignVertical="top"
-      />
-      <Pressable
-        onPress={() => void submitComment()}
-        style={[styles.commentSendBtn, (!commentDraft.trim() || commentSubmitting || !token) && styles.commentSendBtnDisabled]}
-        disabled={!commentDraft.trim() || commentSubmitting || !token}
-        accessibilityRole="button"
-        accessibilityLabel="Post comment"
-      >
-        {commentSubmitting ? (
-          <ActivityIndicator color={colors.surface} size="small" />
-        ) : (
-          <Text style={styles.commentSendBtnText}>Post</Text>
-        )}
-      </Pressable>
-    </View>
   );
 
   const renderComment = ({ item }: { item: CommentRow }) => {
@@ -390,28 +373,57 @@ export default function PostDetailScreen() {
   };
 
   return (
-    <View style={styles.flex}>
-      <KeyboardAvoidingView
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 52 : 0}
+    >
+      <FlatList
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 56 : 0}
-      >
-        <FlatList
-          data={commentsLoading ? [] : comments}
-          keyExtractor={(c) => String(c.id)}
-          renderItem={renderComment}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={
-            !commentsLoading ? (
-              <Text style={styles.emptyComments}>No comments yet</Text>
-            ) : null
-          }
-          ListFooterComponent={commentInputFooter}
-          contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPad }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        data={threadOpen ? comments : []}
+        keyExtractor={(c) => String(c.id)}
+        renderItem={renderComment}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
+          threadOpen && !commentsLoading ? (
+            <Text style={styles.emptyComments}>No comments yet</Text>
+          ) : null
+        }
+        contentContainerStyle={[styles.listContent, { paddingBottom: 8 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      />
+
+      <View style={styles.stickyComposer}>
+        <TextInput
+          ref={commentInputRef}
+          style={styles.commentInputSticky}
+          placeholder={token ? "Add your reply…" : "Sign in to reply"}
+          placeholderTextColor={colors.muted}
+          value={commentDraft}
+          onChangeText={setCommentDraft}
+          multiline
+          maxLength={2000}
+          editable={!!token && !commentSubmitting}
+          textAlignVertical="center"
         />
-      </KeyboardAvoidingView>
+        <Pressable
+          onPress={() => void submitComment()}
+          style={[
+            styles.commentSendBtnSticky,
+            (!commentDraft.trim() || commentSubmitting || !token) && styles.commentSendBtnDisabled,
+          ]}
+          disabled={!commentDraft.trim() || commentSubmitting || !token}
+          accessibilityRole="button"
+          accessibilityLabel="Reply"
+        >
+          {commentSubmitting ? (
+            <ActivityIndicator color={colors.surface} size="small" />
+          ) : (
+            <Text style={styles.commentSendBtnText}>Reply</Text>
+          )}
+        </Pressable>
+      </View>
 
       <View style={[styles.actionBar, { paddingBottom: botPad + 12 }]}>
         <Pressable
@@ -440,8 +452,8 @@ export default function PostDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
         >
-          <MaterialCommunityIcons
-            name="stairs"
+          <Ionicons
+            name={post.isSaved ? "bookmark" : "bookmark-outline"}
             size={ENGAGE_ICON}
             color={post.isSaved ? colors.surface : colors.primary}
           />
@@ -457,7 +469,7 @@ export default function PostDetailScreen() {
           <Feather name="share-2" size={ENGAGE_ICON - 2} color={colors.primary} />
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -569,6 +581,43 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 12,
   },
+  replyHint: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: 14,
+    color: colors.muted,
+    marginBottom: 12,
+  },
+  stickyComposer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  commentInputSticky: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 15,
+    color: colors.text,
+    minHeight: 40,
+    maxHeight: 120,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    paddingHorizontal: 14,
+    backgroundColor: colors.cream,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  commentSendBtnSticky: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 999,
+    marginBottom: 2,
+  },
   commentsLoadingRow: {
     alignItems: "center",
     paddingVertical: 16,
@@ -664,10 +713,6 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   actionBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,

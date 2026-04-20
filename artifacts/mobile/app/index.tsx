@@ -18,7 +18,7 @@ import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { formatLocalYMD } from "@/lib/date";
 
-const TERMS_URL = "https://getpraying.app/terms";
+const TERMS_URL = "https://getpraying.app/tos";
 const PRIVACY_URL = "https://getpraying.app/privacy";
 
 export default function WelcomeScreen() {

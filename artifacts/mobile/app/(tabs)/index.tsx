@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -22,6 +23,7 @@ import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { formatLocalYMD } from "@/lib/date";
 
@@ -194,6 +196,8 @@ export default function FeedScreen() {
   const categoryLabel = (key: string) =>
     key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
+  const isEveningReflection = useMemo(() => new Date().getHours() >= 17, []);
+
   const renderHeader = () => (
     <View style={{ marginBottom: 8 }}>
       <View style={[styles.header, { paddingTop: topPad + 4 }]}>
@@ -203,25 +207,90 @@ export default function FeedScreen() {
           </Text>
           <Text style={styles.subGreeting}>Your prayer feed</Text>
         </View>
-        {(user?.role === "admin" || user?.role === "moderator") && (
-          <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
-            <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
+        <View style={styles.headerRight}>
+          {(user?.role === "admin" || user?.role === "moderator") && (
+            <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
+              <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() =>
+              user?.username
+                ? router.push(`/user/${user.username}` as never)
+                : router.push("/(tabs)/profile" as never)
+            }
+            style={styles.headerAvatarBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Your profile"
+          >
+            {user?.avatarUrl ? (
+              <Image
+                source={{ uri: resolveMediaUrl(user.avatarUrl)! }}
+                style={styles.headerAvatarImg}
+              />
+            ) : (
+              <View style={styles.headerAvatarFallback}>
+                <Text style={styles.headerAvatarLetter}>
+                  {(user?.displayName?.[0] ?? user?.username?.[0] ?? "?").toUpperCase()}
+                </Text>
+              </View>
+            )}
           </Pressable>
-        )}
+        </View>
       </View>
 
       <Pressable
         onPress={() => router.push("/library")}
-        style={({ pressed }) => [styles.reflectionCard, pressed && { opacity: 0.92 }]}
+        style={({ pressed }) => [
+          styles.reflectionCard,
+          isEveningReflection && styles.reflectionCardEvening,
+          pressed && { opacity: 0.92 },
+        ]}
       >
         <View style={styles.reflectionTop}>
-          <Ionicons name="sunny-outline" size={18} color={colors.accent} />
-          <Text style={styles.reflectionLabel}>Morning reflection</Text>
+          <Ionicons
+            name={isEveningReflection ? "moon-outline" : "sunny-outline"}
+            size={18}
+            color={colors.accent}
+          />
+          <Text style={styles.reflectionLabel}>
+            {isEveningReflection ? "Evening reflection" : "Morning reflection"}
+          </Text>
         </View>
         <Text style={styles.reflectionQuote} numberOfLines={3}>
           &ldquo;{dailyWord?.quoteText ?? "Be still, and know that I am God."}&rdquo;
         </Text>
         <Text style={styles.reflectionRef}>{dailyWord?.reference ?? "Psalm 46:10"}</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.push("/post/new" as never)}
+        style={({ pressed }) => [styles.heartRow, pressed && { opacity: 0.92 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Share a prayer"
+      >
+        {user?.avatarUrl ? (
+          <Image source={{ uri: resolveMediaUrl(user.avatarUrl)! }} style={styles.heartRowAvatar} />
+        ) : (
+          <View style={styles.heartRowAvatarFallback}>
+            <Text style={styles.heartRowAvatarLetter}>
+              {(user?.displayName?.[0] ?? user?.username?.[0] ?? "?").toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <Text style={styles.heartPlaceholder}>What&apos;s on your heart?</Text>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation?.();
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/post/new" as never);
+          }}
+          style={({ pressed }) => [styles.heartPrayBtn, pressed && { opacity: 0.9 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Pray"
+        >
+          <Text style={styles.heartPrayBtnText}>Pray</Text>
+        </Pressable>
       </Pressable>
 
       {(user?.preferredCategories?.length ?? 0) > 0 ? (
@@ -393,6 +462,11 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 2,
   },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   adminBtn: {
     width: 40,
     height: 40,
@@ -403,14 +477,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  reflectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 12,
+  headerAvatarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 6,
+  },
+  headerAvatarImg: {
+    width: "100%",
+    height: "100%",
+  },
+  headerAvatarFallback: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerAvatarLetter: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+    color: colors.accent,
+  },
+  reflectionCard: {
+    backgroundColor: "#E8F0FA",
+    borderRadius: 20,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(26,43,74,0.08)",
+    gap: 4,
+  },
+  reflectionCardEvening: {
+    backgroundColor: "#F3E8DD",
+    borderColor: "rgba(92,74,58,0.12)",
   },
   reflectionTop: {
     flexDirection: "row",
@@ -426,15 +527,62 @@ const styles = StyleSheet.create({
   },
   reflectionQuote: {
     fontFamily: "NotoSerif_700Bold",
-    fontSize: 15,
+    fontSize: 14,
     color: colors.text,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   reflectionRef: {
     fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
+    fontSize: 11,
     color: colors.muted,
     fontStyle: "italic",
+  },
+  heartRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  heartRowAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  heartRowAvatarFallback: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heartRowAvatarLetter: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 13,
+    color: colors.accent,
+  },
+  heartPlaceholder: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.muted,
+  },
+  heartPrayBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  heartPrayBtnText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 13,
+    color: colors.surface,
   },
   pillRow: {
     flexDirection: "row",

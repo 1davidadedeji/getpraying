@@ -1,4 +1,4 @@
-/** Row from GET /library/official or /library/saved-official */
+/** Row from GET /library/official, sanctuary, path detail, or /library/saved-official */
 export type OfficialPrayerRow = {
   id: number;
   title: string;
@@ -11,4 +11,7 @@ export type OfficialPrayerRow = {
   uploadedByUsername: string | null;
   uploadedByDisplayName: string | null;
   scripture?: string | null;
+  audioUrl?: string | null;
+  durationMinutes?: number | null;
+  createdAt?: string | Date | null;
 };

@@ -484,7 +484,26 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
   const subtitle = typeof req.body?.subtitle === "string" ? req.body.subtitle : null;
   const audioUrl = typeof req.body?.audioUrl === "string" ? req.body.audioUrl.trim() : null;
   const label = typeof req.body?.label === "string" ? req.body.label : null;
-  const pathId = typeof req.body?.pathId === "number" ? req.body.pathId : null;
+  const scripture =
+    typeof req.body?.scripture === "string" && req.body.scripture.trim() ? req.body.scripture.trim() : null;
+  const durationMinutes =
+    typeof req.body?.durationMinutes === "number" && Number.isFinite(req.body.durationMinutes)
+      ? Math.round(req.body.durationMinutes)
+      : null;
+
+  const [slotOccupied] = await db
+    .select({ id: officialPrayersTable.id })
+    .from(officialPrayersTable)
+    .where(eq(officialPrayersTable.scheduleSlot, slot))
+    .limit(1);
+
+  if (slotOccupied && archivePathId == null) {
+    res.status(400).json({
+      error:
+        "archivePathId is required when replacing an existing morning or evening guide (the previous version is saved to that path).",
+    });
+    return;
+  }
 
   const result = await db.transaction(async (tx) => {
     const [existing] = await tx
@@ -520,7 +539,9 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
           subtitle,
           audioUrl,
           label,
-          pathId,
+          scripture,
+          durationMinutes,
+          pathId: null,
           uploadedByUserId: mod.id,
         })
         .where(eq(officialPrayersTable.id, existing.id))
@@ -537,7 +558,9 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
         subtitle,
         audioUrl,
         label,
-        pathId,
+        scripture,
+        durationMinutes,
+        pathId: null,
         scheduleSlot: slot,
         uploadedByUserId: mod.id,
       })

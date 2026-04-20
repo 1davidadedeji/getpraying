@@ -11,7 +11,14 @@ export type LibraryPathCard = {
 };
 
 /** API shape from GET /library/categories */
-export type ApiLibraryCategory = { name: string; count: number; icon: string; pathId?: number };
+export type ApiLibraryCategory = {
+  name: string;
+  count: number;
+  icon: string;
+  pathId?: number;
+  /** Path category slug (e.g. anxiety) — from prayer_paths.category */
+  category?: string;
+};
 
 export const LIBRARY_FALLBACK_PATHS: LibraryPathCard[] = [
   { name: "Anxiety & Worry", slug: "anxiety", count: 0, icon: iconKeyForPathCategory("anxiety") },

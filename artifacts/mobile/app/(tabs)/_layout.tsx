@@ -128,17 +128,25 @@ function NativeTabLayout() {
   );
 }
 
-const TAB_ITEMS = [
-  { name: "index", title: "Feeds", iosSymbol: "flame.fill", androidIcon: "flame" as const, iconSet: "ionicons" as const },
+type TabItemConfig = {
+  name: string;
+  title: string;
+  iosSymbol: string;
+  androidIcon: string;
+  iconSet: "ionicons" | "mci" | "feather";
+};
+
+const TAB_ITEMS: TabItemConfig[] = [
+  { name: "index", title: "Feeds", iosSymbol: "flame.fill", androidIcon: "flame", iconSet: "ionicons" },
   {
     name: "library",
     title: "Library",
     iosSymbol: "square.stack.3d.up.fill",
-    androidIcon: "stairs" as const,
-    iconSet: "mci" as const,
+    androidIcon: "library",
+    iconSet: "ionicons",
   },
-  { name: "notifications", title: "Alerts", iosSymbol: "bell.fill", androidIcon: "bell" as const, iconSet: "feather" as const },
-  { name: "profile", title: "Profile", iosSymbol: "person.fill", androidIcon: "user" as const, iconSet: "feather" as const },
+  { name: "notifications", title: "Alerts", iosSymbol: "bell.fill", androidIcon: "bell", iconSet: "feather" },
+  { name: "profile", title: "Profile", iosSymbol: "person.fill", androidIcon: "user", iconSet: "feather" },
 ];
 
 function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {

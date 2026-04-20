@@ -3,18 +3,19 @@ import { useLocalSearchParams } from "expo-router";
 import { getGetPathQueryKey, useGetPath } from "@workspace/api-client-react";
 import type { OfficialPrayer, Post } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
 import PostCard from "@/components/PostCard";
-import { OfficialGuideCard } from "@/components/OfficialGuideCard";
 import colors from "@/constants/colors";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { iconKeyForPathCategory } from "@/constants/pathCategoryIcon";
@@ -22,7 +23,7 @@ import { useAuth } from "@/context/auth";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { apiUrl, authHeaders } from "@/lib/api";
 
-function toOfficialRow(p: OfficialPrayer): OfficialPrayerRow {
+function toOfficialRow(p: OfficialPrayer & { audioUrl?: string | null; scheduleSlot?: string | null }): OfficialPrayerRow {
   return {
     id: p.id,
     title: p.title,
@@ -31,11 +32,64 @@ function toOfficialRow(p: OfficialPrayer): OfficialPrayerRow {
     category: p.category,
     label: p.label ?? null,
     scheduleSlot: p.scheduleSlot ?? null,
-    pathId: p.pathId ?? null,
-    uploadedByUsername: p.uploadedByUsername ?? null,
-    uploadedByDisplayName: p.uploadedByDisplayName ?? null,
+    pathId: (p as { pathId?: number | null }).pathId ?? null,
+    uploadedByUsername: (p as { uploadedByUsername?: string | null }).uploadedByUsername ?? null,
+    uploadedByDisplayName: (p as { uploadedByDisplayName?: string | null }).uploadedByDisplayName ?? null,
     scripture: p.scripture ?? null,
+    audioUrl: p.audioUrl ?? (p as { audioUrl?: string | null }).audioUrl ?? null,
+    durationMinutes: p.durationMinutes ?? null,
+    createdAt: p.createdAt as string | Date | null,
   };
+}
+
+function PathSessionCard({
+  op,
+  isSaved,
+  onToggleSave,
+  showSave,
+}: {
+  op: OfficialPrayerRow;
+  isSaved: boolean;
+  onToggleSave: () => void;
+  showSave: boolean;
+}) {
+  const playRef = useRef<OfficialGuidePlayHandle>(null);
+  const mins = op.durationMinutes;
+  return (
+    <View style={styles.sessionCard}>
+      <View style={styles.sessionCardHeader}>
+        <Ionicons name="pulse-outline" size={22} color={colors.primary} />
+        <View style={styles.durationBadge}>
+          <Text style={styles.durationBadgeText}>
+            {mins != null && mins > 0 ? `${mins} MINS` : "SESSION"}
+          </Text>
+        </View>
+        {showSave ? (
+          <Pressable onPress={onToggleSave} style={styles.sessionSave} hitSlop={8} accessibilityRole="button">
+            <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color={colors.primary} />
+          </Pressable>
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
+      </View>
+      <Text style={styles.sessionCardTitle}>{op.title}</Text>
+      {op.scripture ? <Text style={styles.sessionScripture}>{op.scripture}</Text> : null}
+      <View style={styles.progressOuter}>
+        <View style={[styles.progressInner, { width: "30%" }]} />
+      </View>
+      <View style={styles.sessionCardFooter}>
+        <Pressable
+          style={styles.listenPill}
+          onPress={() => playRef.current?.toggle()}
+          accessibilityRole="button"
+          accessibilityLabel="Play session"
+        >
+          <Text style={styles.listenPillText}>Listen</Text>
+        </Pressable>
+        <OfficialGuidePlayCircle ref={playRef} audioUrl={op.audioUrl} size={56} />
+      </View>
+    </View>
+  );
 }
 
 export default function PathDetailScreen() {
@@ -57,10 +111,10 @@ export default function PathDetailScreen() {
     async (prayerId: number, currentlySaved: boolean) => {
       if (!token) return;
       const method = currentlySaved ? "DELETE" : "POST";
-    const res = await fetch(apiUrl(`/library/saved-official/${prayerId}`), {
-      method,
-      headers: authHeaders(token),
-    });
+      const res = await fetch(apiUrl(`/library/saved-official/${prayerId}`), {
+        method,
+        headers: authHeaders(token),
+      });
       if (res.ok) {
         await queryClient.invalidateQueries({ queryKey: getGetPathQueryKey(pathId) });
       }
@@ -83,8 +137,8 @@ export default function PathDetailScreen() {
   const path = data;
   const iconName = (FEATHER_ICON_MAP[iconKeyForPathCategory(path.category)] ?? "star") as keyof typeof Feather.glyphMap;
   const official = (path.officialPrayers ?? []).map(toOfficialRow);
+  const pathSessions = official.slice(0, 2);
   const communityPosts = (path.savedPosts ?? []) as Post[];
-  const pathScripture = path.officialPrayers?.find((p) => p.scripture)?.scripture;
 
   return (
     <ScrollView
@@ -92,32 +146,29 @@ export default function PathDetailScreen() {
       contentContainerStyle={{ paddingBottom: botPad + 40 }}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.heroSection}>
-        <View style={styles.heroIcon}>
-          <Feather name={iconName} size={32} color={colors.surface} />
+      <View style={styles.heroLight}>
+        <View style={styles.heroIconLight}>
+          <Feather name={iconName} size={28} color={colors.primary} />
         </View>
-        <Text style={styles.heroTitle}>{path.name}</Text>
-        {path.description ? <Text style={styles.heroDesc}>{path.description}</Text> : null}
-        {path.tagline ? (
-          <Text style={styles.heroTagline} numberOfLines={2}>
-            {path.tagline}
-          </Text>
-        ) : null}
-        <View style={styles.heroMeta}>
-          <Ionicons name="book-outline" size={16} color={colors.accent} />
-          <Text style={styles.heroMetaText}>{official.length} official guides in this path</Text>
-        </View>
+        <Text style={styles.heroPathTitle}>{path.name}</Text>
+        <Text style={styles.heroLead}>
+          {path.tagline?.trim() ||
+            path.description ||
+            "Explore curated sessions designed to anchor your heart."}
+        </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Official guides</Text>
-        {official.length === 0 ? (
+        <Text style={styles.sectionTitle}>Guided official prayers</Text>
+        {pathSessions.length === 0 ? (
           <View style={styles.emptyInline}>
-            <Text style={styles.emptyInlineText}>No guides in this path yet.</Text>
+            <Text style={styles.emptyInlineText}>
+              Sanctuary sessions archived to this path will appear here.
+            </Text>
           </View>
         ) : (
-          official.map((op) => (
-            <OfficialGuideCard
+          pathSessions.map((op) => (
+            <PathSessionCard
               key={op.id}
               op={op}
               showSave={!!token}
@@ -128,17 +179,10 @@ export default function PathDetailScreen() {
         )}
       </View>
 
-      {pathScripture ? (
-        <View style={styles.scriptureBadge}>
-          <Ionicons name="bookmarks-outline" size={16} color={colors.primary} />
-          <Text style={styles.scriptureText}>{pathScripture}</Text>
-        </View>
-      ) : null}
-
       {communityPosts.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>From the community</Text>
-          <Text style={styles.sectionHint}>Saved feed posts that match this path&apos;s theme.</Text>
+          <Text style={styles.sectionTitle}>Saved in this path</Text>
+          <Text style={styles.sectionHint}>Prayers you saved that match this theme.</Text>
           {communityPosts.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
@@ -156,57 +200,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.muted,
   },
-  heroSection: {
-    backgroundColor: colors.primary,
-    padding: 28,
+  heroLight: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 22,
+    paddingVertical: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     alignItems: "center",
     gap: 10,
   },
-  heroIcon: {
-    width: 72,
-    height: 72,
+  heroIconLight: {
+    width: 64,
+    height: 64,
     borderRadius: 20,
-    backgroundColor: "rgba(212,160,67,0.2)",
+    backgroundColor: colors.cream,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(212,160,67,0.4)",
-    marginBottom: 4,
+    borderColor: colors.border,
   },
-  heroTitle: {
+  heroPathTitle: {
     fontFamily: "NotoSerif_700Bold",
-    fontSize: 24,
-    color: colors.surface,
+    fontSize: 22,
+    color: colors.primary,
     textAlign: "center",
   },
-  heroDesc: {
+  heroLead: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
-    color: "rgba(255,255,255,0.65)",
+    color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 22,
-  },
-  heroTagline: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.55)",
-    textAlign: "center",
-  },
-  heroMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-  heroMetaText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 13,
-    color: colors.accent,
   },
   section: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    gap: 10,
+    gap: 12,
   },
   sectionTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -229,24 +258,75 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,
+    lineHeight: 20,
   },
-  scriptureBadge: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    marginHorizontal: 20,
-    marginTop: 8,
-    padding: 12,
+  sessionCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
+    marginBottom: 4,
   },
-  scriptureText: {
-    flex: 1,
+  sessionCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  durationBadge: {
+    backgroundColor: "#E3EEF9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  durationBadgeText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 11,
+    color: colors.primary,
+    letterSpacing: 0.4,
+  },
+  sessionSave: { marginLeft: "auto" },
+  sessionCardTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 17,
+    color: colors.text,
+    marginBottom: 6,
+  },
+  sessionScripture: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: 13,
-    color: colors.primary,
-    lineHeight: 18,
+    color: colors.muted,
+    marginBottom: 12,
+  },
+  progressOuter: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  progressInner: {
+    height: "100%",
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+  },
+  sessionCardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  listenPill: {
+    flex: 1,
+    marginRight: 12,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+  },
+  listenPillText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+    color: colors.surface,
   },
 });

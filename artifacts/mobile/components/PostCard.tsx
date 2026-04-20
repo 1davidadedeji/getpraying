@@ -1,4 +1,4 @@
-﻿import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -268,7 +268,11 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
             accessibilityRole="button"
             accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
           >
-            <MaterialCommunityIcons name="stairs" size={ICON_SIZE} color={bookmarkColor} />
+            <Ionicons
+              name={localPost.isSaved ? "bookmark" : "bookmark-outline"}
+              size={ICON_SIZE}
+              color={bookmarkColor}
+            />
             <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
               {localPost.saveCount ?? 0}
             </Text>

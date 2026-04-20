@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { OfficialGuideCard } from "@/components/OfficialGuideCard";
+import { SanctuarySlotCard } from "@/components/SanctuarySlotCard";
 import { SavedOfficialPrayersList } from "@/components/SavedOfficialPrayersList";
 import colors from "@/constants/colors";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
@@ -42,7 +42,10 @@ export default function LibraryScreen() {
   const [categories, setCategories] = useState<CategoryItem[]>(LIBRARY_FALLBACK_PATHS);
   const [pathsExpanded, setPathsExpanded] = useState(false);
   const [loadingCats, setLoadingCats] = useState(false);
-  const [officialPrayers, setOfficialPrayers] = useState<OfficialPrayerRow[]>([]);
+  const [sanctuary, setSanctuary] = useState<{
+    morning: OfficialPrayerRow | null;
+    evening: OfficialPrayerRow | null;
+  }>({ morning: null, evening: null });
   const [loadingOfficial, setLoadingOfficial] = useState(false);
   const [savedOfficialIds, setSavedOfficialIds] = useState<Set<number>>(new Set());
 
@@ -92,19 +95,24 @@ export default function LibraryScreen() {
     }
   }, [token]);
 
-  const loadOfficial = useCallback(async () => {
+  const loadSanctuary = useCallback(async () => {
     setLoadingOfficial(true);
     try {
-      const res = await fetch(apiUrl("/library/official?limit=30&excludeScheduled=1"), {
+      const res = await fetch(apiUrl("/library/official/sanctuary"), {
         headers: authHeaders(token),
       });
       if (res.ok) {
-        const data = await res.json();
-        const list = (data as { prayers?: OfficialPrayerRow[] }).prayers;
-        setOfficialPrayers(Array.isArray(list) ? list : []);
+        const data = (await res.json()) as {
+          morning?: OfficialPrayerRow | null;
+          evening?: OfficialPrayerRow | null;
+        };
+        setSanctuary({
+          morning: data.morning ?? null,
+          evening: data.evening ?? null,
+        });
       }
     } catch {
-      setOfficialPrayers([]);
+      setSanctuary({ morning: null, evening: null });
     } finally {
       setLoadingOfficial(false);
     }
@@ -133,10 +141,10 @@ export default function LibraryScreen() {
   useEffect(() => {
     if (activeTab === "categories") {
       void loadCategories();
-      void loadOfficial();
+      void loadSanctuary();
       void loadSavedOfficialIds();
     }
-  }, [activeTab, loadCategories, loadOfficial, loadSavedOfficialIds]);
+  }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const screenWidth = Dimensions.get("window").width;
@@ -196,7 +204,7 @@ export default function LibraryScreen() {
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Prayer Library</Text>
-        <Text style={styles.subtitle}>Curated for your walk</Text>
+        <Text style={styles.subtitle}>Find your sanctuary in words.</Text>
       </View>
 
       <View style={styles.tabRow}>
@@ -249,18 +257,29 @@ export default function LibraryScreen() {
           </View>
           {loadingOfficial ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />
-          ) : officialPrayers.length === 0 ? (
-            <Text style={styles.officialEmpty}>Guides from your community team will appear here.</Text>
+          ) : !sanctuary.morning && !sanctuary.evening ? (
+            <Text style={styles.officialEmpty}>Morning and evening sanctuary guides will appear here.</Text>
           ) : (
-            officialPrayers.map((op) => (
-              <OfficialGuideCard
-                key={op.id}
-                op={op}
-                showSave={!!token}
-                isSaved={savedOfficialIds.has(op.id)}
-                onToggleSave={() => void toggleSaveOfficial(op.id)}
+            <>
+              <SanctuarySlotCard
+                slot="morning"
+                prayer={sanctuary.morning}
+                showSave={!!token && !!sanctuary.morning}
+                isSaved={sanctuary.morning ? savedOfficialIds.has(sanctuary.morning.id) : false}
+                onToggleSave={
+                  sanctuary.morning ? () => void toggleSaveOfficial(sanctuary.morning!.id) : undefined
+                }
               />
-            ))
+              <SanctuarySlotCard
+                slot="evening"
+                prayer={sanctuary.evening}
+                showSave={!!token && !!sanctuary.evening}
+                isSaved={sanctuary.evening ? savedOfficialIds.has(sanctuary.evening.id) : false}
+                onToggleSave={
+                  sanctuary.evening ? () => void toggleSaveOfficial(sanctuary.evening!.id) : undefined
+                }
+              />
+            </>
           )}
         </ScrollView>
       )}

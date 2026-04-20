@@ -98,6 +98,60 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
   });
 });
 
+/** Current featured morning & evening sanctuary guides (one row per slot, newest if duplicated). */
+router.get("/library/official/sanctuary", optionalAuth, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: officialPrayersTable.id,
+      title: officialPrayersTable.title,
+      subtitle: officialPrayersTable.subtitle,
+      content: officialPrayersTable.content,
+      category: officialPrayersTable.category,
+      durationMinutes: officialPrayersTable.durationMinutes,
+      scripture: officialPrayersTable.scripture,
+      label: officialPrayersTable.label,
+      audioVoice: officialPrayersTable.audioVoice,
+      audioUrl: officialPrayersTable.audioUrl,
+      pathId: officialPrayersTable.pathId,
+      scheduleSlot: officialPrayersTable.scheduleSlot,
+      createdAt: officialPrayersTable.createdAt,
+      uploaderUsername: usersTable.username,
+      uploaderDisplayName: usersTable.displayName,
+    })
+    .from(officialPrayersTable)
+    .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id))
+    .where(inArray(officialPrayersTable.scheduleSlot, ["morning", "evening"]))
+    .orderBy(desc(officialPrayersTable.createdAt));
+
+  const mapRow = (p: (typeof rows)[number]) => ({
+    id: p.id,
+    title: p.title,
+    subtitle: p.subtitle,
+    content: p.content,
+    category: p.category,
+    durationMinutes: p.durationMinutes,
+    scripture: p.scripture,
+    label: p.label,
+    audioVoice: p.audioVoice,
+    audioUrl: p.audioUrl,
+    pathId: p.pathId,
+    scheduleSlot: p.scheduleSlot,
+    uploadedByUsername: p.uploaderUsername ?? null,
+    uploadedByDisplayName: p.uploaderDisplayName ?? null,
+    createdAt: p.createdAt,
+  });
+
+  let morning: ReturnType<typeof mapRow> | null = null;
+  let evening: ReturnType<typeof mapRow> | null = null;
+  for (const r of rows) {
+    if (r.scheduleSlot === "morning" && !morning) morning = mapRow(r);
+    else if (r.scheduleSlot === "evening" && !evening) evening = mapRow(r);
+    if (morning && evening) break;
+  }
+
+  res.json({ morning, evening });
+});
+
 router.get("/library/saved", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
 
@@ -276,7 +330,7 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
     .where(
       and(eq(officialPrayersTable.pathId, pathId), isNull(officialPrayersTable.scheduleSlot)),
     )
-    .orderBy(officialPrayersTable.createdAt);
+    .orderBy(desc(officialPrayersTable.createdAt));
 
   const mapOfficial = (p: (typeof officialRows)[number]) => ({
     id: p.id,
@@ -389,6 +443,7 @@ router.get("/library/categories", optionalAuth, async (req, res): Promise<void> 
       count: countMap.get(p.id) ?? 0,
       icon: iconForPathCategory(p.category),
       pathId: p.id,
+      category: p.category,
     })),
   );
 });
