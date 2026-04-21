@@ -9,7 +9,8 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "tsx scripts/seed.ts",
-    "seed:library": "tsx scripts/seed-library-demo.ts"
+    "seed:library": "tsx scripts/seed-library-demo.ts",
+    "seed:lib-pg": "tsx scripts/seed-lib-pg.ts"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",

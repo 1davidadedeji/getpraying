@@ -1,7 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { OfficialGuideCard } from "@/components/OfficialGuideCard";
 import colors from "@/constants/colors";
 import { SAVED_OFFICIAL_EMPTY } from "@/constants/savedOfficialList";
@@ -15,6 +23,8 @@ type Props = {
   listRef?: React.RefObject<FlatList<OfficialPrayerRow> | null>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   paddingHorizontal?: number;
+  /** Called with the id after a successful unsave, so parent can sync its savedOfficialIds set */
+  onToggleSave?: (id: number) => void;
 };
 
 export function SavedOfficialPrayersList({
@@ -23,10 +33,12 @@ export function SavedOfficialPrayersList({
   listRef,
   contentContainerStyle,
   paddingHorizontal = 16,
+  onToggleSave,
 }: Props) {
   const { token } = useAuth();
   const [prayers, setPrayers] = useState<OfficialPrayerRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     if (!token || !queryEnabled) {
@@ -63,13 +75,30 @@ export function SavedOfficialPrayersList({
   }, [load]);
 
   const toggleSave = async (id: number) => {
-    if (!token) return;
-    const res = await fetch(apiUrl(`/library/saved-official/${id}`), {
-      method: "DELETE",
-      headers: authHeaders(token),
-    });
-    if (res.ok) {
-      setPrayers((prev) => prev.filter((p) => p.id !== id));
+    if (!token || removingIds.has(id)) return;
+
+    // Optimistic remove
+    setRemovingIds((prev) => new Set([...prev, id]));
+    setPrayers((prev) => prev.filter((p) => p.id !== id));
+    onToggleSave?.(id);
+
+    try {
+      const res = await fetch(apiUrl(`/library/saved-official/${id}`), {
+        method: "DELETE",
+        headers: authHeaders(token),
+      });
+      if (!res.ok) {
+        // Revert: reload list on failure
+        void load();
+      }
+    } catch {
+      void load();
+    } finally {
+      setRemovingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 

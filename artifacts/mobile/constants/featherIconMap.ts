@@ -20,4 +20,5 @@ export const FEATHER_ICON_MAP: Record<string, string> = {
   music: "music",
   "help-circle": "help-circle",
   zap: "zap",
+  "hand-heart": "heart",
 };
