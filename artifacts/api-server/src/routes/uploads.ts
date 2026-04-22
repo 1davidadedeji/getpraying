@@ -60,11 +60,20 @@ const uploadAudio = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_AUDIO_BYTES },
   fileFilter: (_req, file, cb) => {
-    if (!/^audio\/(mpeg|mp3|wav|x-wav|aac|x-m4a|mp4|webm|ogg)$/i.test(file.mimetype)) {
-      cb(new Error("Only common audio formats are allowed (max 15MB)"));
+    if (
+      /^audio\/(mpeg|mp3|mp4|m4a|x-m4a|wav|x-wav|aac|webm|ogg|flac|x-flac|x-caf|caf)$/i.test(
+        file.mimetype,
+      )
+    ) {
+      cb(null, true);
       return;
     }
-    cb(null, true);
+    const name = file.originalname?.toLowerCase() ?? "";
+    if (/\.(mp3|m4a|aac|wav|ogg|webm|flac|caf)$/i.test(name)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error("Only common audio formats are allowed (max 15MB)"));
   },
 });
 
@@ -181,7 +190,9 @@ router.post(
   requireAuth,
   (req, res, next) => handleMulterError(uploadAudio.single("file"), req, res, next),
   async (req, res): Promise<void> => {
-    const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
+    const file = (req as any).file as
+      | { buffer: Buffer; mimetype: string; originalname?: string }
+      | undefined;
     if (!file?.buffer?.length) {
       res.status(400).json({ error: "No audio file provided" });
       return;
@@ -191,10 +202,14 @@ router.post(
     await mkdir(dir, { recursive: true });
 
     let ext = "m4a";
-    if (file.mimetype.includes("mpeg") || file.mimetype.includes("mp3")) ext = "mp3";
-    else if (file.mimetype.includes("wav")) ext = "wav";
-    else if (file.mimetype.includes("ogg")) ext = "ogg";
-    else if (file.mimetype.includes("webm")) ext = "webm";
+    const mt = file.mimetype.toLowerCase();
+    const on = (file.originalname ?? "").toLowerCase();
+    if (mt.includes("mpeg") || mt.includes("mp3") || on.endsWith(".mp3")) ext = "mp3";
+    else if (mt.includes("wav") || on.endsWith(".wav")) ext = "wav";
+    else if (mt.includes("ogg") || on.endsWith(".ogg")) ext = "ogg";
+    else if (mt.includes("webm") || on.endsWith(".webm")) ext = "webm";
+    else if (mt.includes("flac") || on.endsWith(".flac")) ext = "flac";
+    else if (mt.includes("caf") || on.endsWith(".caf")) ext = "caf";
 
     const filename = `${randomUUID()}.${ext}`;
     await writeFile(path.join(dir, filename), file.buffer);

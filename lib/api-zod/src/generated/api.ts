@@ -412,6 +412,8 @@ export const SavePostParams = zod.object({
 export const SavePostResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
+  isSaved: zod.boolean(),
+  saveCount: zod.number(),
 });
 
 /**
@@ -424,6 +426,8 @@ export const UnsavePostParams = zod.object({
 export const UnsavePostResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
+  isSaved: zod.boolean(),
+  saveCount: zod.number(),
 });
 
 /**
@@ -553,6 +557,24 @@ export const GetPathResponse = zod.object({
       createdAt: zod.coerce.date(),
     }),
   ),
+  savedOfficialPrayers: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        title: zod.string(),
+        subtitle: zod.string().nullish(),
+        content: zod.string(),
+        category: zod.string(),
+        durationMinutes: zod.number().nullish(),
+        scripture: zod.string().nullish(),
+        label: zod.string().nullish(),
+        audioVoice: zod.string().nullish(),
+        createdAt: zod.coerce.date(),
+      }),
+    )
+    .describe(
+      "Official guides on this path the current user has saved (empty when anonymous)",
+    ),
   savedPosts: zod.array(
     zod.object({
       id: zod.number(),
@@ -610,6 +632,9 @@ export const GetDailyWordResponse = zod.object({
   quoteText: zod.string(),
   reference: zod.string(),
   source: zod.enum(["default", "override"]),
+  prayingWithYou: zod
+    .number()
+    .describe("Approximate count of community members for social proof"),
 });
 
 /**
@@ -906,6 +931,9 @@ export const SetDailyWordOverrideResponse = zod.object({
   quoteText: zod.string(),
   reference: zod.string(),
   source: zod.enum(["default", "override"]),
+  prayingWithYou: zod
+    .number()
+    .describe("Approximate count of community members for social proof"),
 });
 
 /**

@@ -46,6 +46,7 @@ export * from "./prayResponse";
 export * from "./preferencesInput";
 export * from "./registerInput";
 export * from "./resendVerificationInput";
+export * from "./savePostStateResponse";
 export * from "./setDailyWordOverrideInput";
 export * from "./successResponse";
 export * from "./unfollowUser200";

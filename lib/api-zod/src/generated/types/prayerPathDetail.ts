@@ -15,5 +15,7 @@ export interface PrayerPathDetail {
   category: string;
   tagline?: string | null;
   officialPrayers: OfficialPrayer[];
+  /** Official guides on this path the current user has saved (empty when anonymous) */
+  savedOfficialPrayers: OfficialPrayer[];
   savedPosts: Post[];
 }

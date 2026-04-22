@@ -52,6 +52,16 @@ export default function AdminHubScreen() {
   if (!isModerator) {
     return (
       <View style={styles.accessDenied}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)" as Href))}
+          style={[styles.accessDeniedBack, { top: (Platform.OS === "web" ? 16 : insets.top) + 8 }]}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Feather name="chevron-left" size={22} color={colors.primary} />
+          <Text style={styles.accessDeniedBackText}>Back</Text>
+        </Pressable>
         <Ionicons name="lock-closed-outline" size={40} color={colors.muted} />
         <Text style={styles.accessDeniedTitle}>Restricted</Text>
         <Text style={styles.accessDeniedText}>
@@ -198,6 +208,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 32,
     gap: 12,
+  },
+  accessDeniedBack: {
+    position: "absolute",
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    zIndex: 1,
+  },
+  accessDeniedBackText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 16,
+    color: colors.primary,
   },
   accessDeniedTitle: {
     fontFamily: "NotoSerif_700Bold",

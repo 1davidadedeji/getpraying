@@ -50,6 +50,7 @@ import type {
   PreferencesInput,
   RegisterInput,
   ResendVerificationInput,
+  SavePostStateResponse,
   SetDailyWordOverrideInput,
   SuccessResponse,
   UnfollowUser200,
@@ -1689,8 +1690,8 @@ export const getSavePostUrl = (postId: number) => {
 export const savePost = async (
   postId: number,
   options?: RequestInit,
-): Promise<SuccessResponse> => {
-  return customFetch<SuccessResponse>(getSavePostUrl(postId), {
+): Promise<SavePostStateResponse> => {
+  return customFetch<SavePostStateResponse>(getSavePostUrl(postId), {
     ...options,
     method: "POST",
   });
@@ -1773,8 +1774,8 @@ export const getUnsavePostUrl = (postId: number) => {
 export const unsavePost = async (
   postId: number,
   options?: RequestInit,
-): Promise<SuccessResponse> => {
-  return customFetch<SuccessResponse>(getUnsavePostUrl(postId), {
+): Promise<SavePostStateResponse> => {
+  return customFetch<SavePostStateResponse>(getUnsavePostUrl(postId), {
     ...options,
     method: "DELETE",
   });

@@ -21,7 +21,7 @@ import {
   getGetMeQueryKey,
   getGetUserProfileQueryKey,
 } from "@workspace/api-client-react";
-import type { Post } from "@workspace/api-client-react";
+import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -110,9 +110,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
       unsave(
         { postId: localPost.id },
         {
-          onSuccess: () => {
+          onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((prev) => {
-              const next = { ...prev, isSaved: false };
+              const next = { ...prev, isSaved: res.isSaved, saveCount: res.saveCount };
               onUpdated?.(next);
               return next;
             });
@@ -124,9 +124,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
       save(
         { postId: localPost.id },
         {
-          onSuccess: () => {
+          onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((prev) => {
-              const next = { ...prev, isSaved: true };
+              const next = { ...prev, isSaved: res.isSaved, saveCount: res.saveCount };
               onUpdated?.(next);
               return next;
             });

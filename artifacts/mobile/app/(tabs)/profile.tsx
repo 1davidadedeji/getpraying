@@ -11,6 +11,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,8 +29,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type ProfileRow =
-  | { kind: "hero" }
-  | { kind: "tabs" }
+  | { kind: "header" }
   | { kind: "loading" }
   | { kind: "categories" }
   | { kind: "empty"; tab: "my" | "saved" }
@@ -37,6 +37,7 @@ type ProfileRow =
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { user, refreshUser, token } = useAuth();
   const listRef = useRef<FlatList<ProfileRow>>(null);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
@@ -159,9 +160,7 @@ export default function ProfileScreen() {
   const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
 
   const listRows: ProfileRow[] = (() => {
-    const hero: ProfileRow = { kind: "hero" };
-    const tabs: ProfileRow = { kind: "tabs" };
-    const head: ProfileRow[] = [hero, tabs];
+    const head: ProfileRow[] = [{ kind: "header" }];
     if (profileTab === "categories") {
       return [...head, { kind: "categories" }];
     }
@@ -220,10 +219,11 @@ export default function ProfileScreen() {
     </View>
   );
 
+  const tabFontSize = windowWidth < 360 ? 10 : windowWidth >= 768 ? 12 : 11;
+
   const keyExtractor = (item: ProfileRow, index: number) => {
     if (typeof item === "object" && item !== null && "kind" in item) {
-      if (item.kind === "hero") return "hero";
-      if (item.kind === "tabs") return "tabs";
+      if (item.kind === "header") return "header";
       if (item.kind === "loading") return "loading";
       if (item.kind === "categories") return "categories";
       if (item.kind === "empty") return `empty-${item.tab}`;
@@ -232,24 +232,35 @@ export default function ProfileScreen() {
   };
 
   const renderItem = ({ item }: { item: ProfileRow }) => {
-    if ("kind" in item && item.kind === "hero") {
-      return renderHero();
-    }
-    if ("kind" in item && item.kind === "tabs") {
+    if ("kind" in item && item.kind === "header") {
       return (
-        <View style={styles.stickyTabWrap}>
-          <View style={styles.profileTabRow}>
-            {PROFILE_MAIN_TABS.map(({ key, label }) => (
-              <Pressable
-                key={key}
-                style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
-                onPress={() => setProfileTab(key)}
-              >
-                <Text style={[styles.profileTabText, profileTab === key && styles.profileTabTextActive]}>
-                  {label}
-                </Text>
-              </Pressable>
-            ))}
+        <View style={styles.headerBlock}>
+          {renderHero()}
+          <View style={styles.tabBarSurface}>
+            <View style={styles.profileTabRow}>
+              {PROFILE_MAIN_TABS.map(({ key, label }) => (
+                <Pressable
+                  key={key}
+                  style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
+                  onPress={() => setProfileTab(key)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: profileTab === key }}
+                >
+                  <Text
+                    style={[
+                      styles.profileTabText,
+                      { fontSize: tabFontSize },
+                      profileTab === key && styles.profileTabTextActive,
+                    ]}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.85}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         </View>
       );
@@ -289,15 +300,23 @@ export default function ProfileScreen() {
     );
   };
 
+  const webColumnStyle =
+    Platform.OS === "web"
+      ? {
+          maxWidth: Math.min(720, windowWidth),
+          width: "100%" as const,
+          alignSelf: "center" as const,
+        }
+      : null;
+
   return (
     <FlatList
       ref={listRef}
       data={listRows}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
-      stickyHeaderIndices={[1]}
-      contentContainerStyle={{ paddingBottom: botPad + 100 }}
-      style={styles.flex}
+      contentContainerStyle={[styles.listContent, { paddingBottom: botPad + 100 }, webColumnStyle]}
+      style={[styles.flex, webColumnStyle]}
       showsVerticalScrollIndicator={false}
     />
   );
@@ -305,7 +324,11 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
+  listContent: { flexGrow: 1 },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
+  headerBlock: {
+    backgroundColor: colors.cream,
+  },
   headerContainer: {
     paddingHorizontal: 20,
     gap: 24,
@@ -382,29 +405,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
-  stickyTabWrap: {
+  tabBarSurface: {
     backgroundColor: colors.cream,
-    paddingTop: 0,
-    zIndex: 2,
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   profileTabRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 2,
-    paddingHorizontal: 20,
+    alignItems: "stretch",
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
   profileTab: {
     flex: 1,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: "center",
     alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
@@ -413,10 +433,9 @@ const styles = StyleSheet.create({
   },
   profileTabText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
     color: colors.muted,
     textTransform: "uppercase",
-    letterSpacing: 0.4,
+    letterSpacing: 0.35,
     textAlign: "center",
   },
   profileTabTextActive: {

@@ -39,7 +39,6 @@ function iconForPathCategory(category: string): string {
     wisdom: "help-circle",
     peace: "cloud",
     strength: "zap",
-    forgiveness: "hand-heart",
     general: "star",
   };
   return map[c] ?? "star";

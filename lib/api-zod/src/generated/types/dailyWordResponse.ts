@@ -12,4 +12,6 @@ export interface DailyWordResponse {
   quoteText: string;
   reference: string;
   source: DailyWordResponseSource;
+  /** Approximate count of community members for social proof */
+  prayingWithYou: number;
 }

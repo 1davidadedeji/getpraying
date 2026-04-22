@@ -20,13 +20,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getGetMeQueryKey,
+  getGetSavedPrayersQueryKey,
   getGetUserProfileQueryKey,
   useGetPost,
   usePrayForPost,
   useSavePost,
   useUnsavePost,
 } from "@workspace/api-client-react";
-import type { Post } from "@workspace/api-client-react";
+import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { showAppAlert } from "@/components/AppAlert";
@@ -143,10 +144,30 @@ export default function PostDetailScreen() {
   const handleSave = () => {
     if (!post) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const invalidateSaved = () => {
+      queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+    };
     if (post.isSaved) {
-      unsave({ postId: post.id }, { onSuccess: () => setLocalPost((p) => p ? { ...p, isSaved: false } : p) });
+      unsave(
+        { postId: post.id },
+        {
+          onSuccess: (res: SavePostStateResponse) => {
+            setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
+            invalidateSaved();
+          },
+        },
+      );
     } else {
-      save({ postId: post.id }, { onSuccess: () => setLocalPost((p) => p ? { ...p, isSaved: true } : p) });
+      save(
+        { postId: post.id },
+        {
+          onSuccess: (res: SavePostStateResponse) => {
+            setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
+            invalidateSaved();
+          },
+        },
+      );
     }
   };
 

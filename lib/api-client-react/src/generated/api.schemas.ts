@@ -18,6 +18,13 @@ export interface SuccessResponse {
   message?: string;
 }
 
+export interface SavePostStateResponse {
+  success: boolean;
+  message?: string;
+  isSaved: boolean;
+  saveCount: number;
+}
+
 export interface RegisterInput {
   email: string;
   /** @minLength 3 */
@@ -226,11 +233,6 @@ export interface OfficialPrayer {
   scripture?: string | null;
   label?: string | null;
   audioVoice?: string | null;
-  audioUrl?: string | null;
-  pathId?: number | null;
-  scheduleSlot?: string | null;
-  uploadedByUsername?: string | null;
-  uploadedByDisplayName?: string | null;
   createdAt: string;
 }
 
@@ -250,8 +252,8 @@ export interface PrayerPathDetail {
   category: string;
   tagline?: string | null;
   officialPrayers: OfficialPrayer[];
-  /** User's saved official guides that belong to this path */
-  savedOfficialPrayers?: OfficialPrayer[];
+  /** Official guides on this path the current user has saved (empty when anonymous) */
+  savedOfficialPrayers: OfficialPrayer[];
   savedPosts: Post[];
 }
 
@@ -318,8 +320,8 @@ export interface DailyWordResponse {
   quoteText: string;
   reference: string;
   source: DailyWordResponseSource;
-  /** Approximate community size (non-seed accounts) for welcome / social proof */
-  prayingWithYou?: number;
+  /** Approximate count of community members for social proof */
+  prayingWithYou: number;
 }
 
 export interface SetDailyWordOverrideInput {

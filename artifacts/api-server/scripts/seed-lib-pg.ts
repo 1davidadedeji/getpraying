@@ -1,14 +1,75 @@
 /**
- * Seeds the library with all prayer paths and official prayers linked to the
- * lib-pg audio files copied to data/uploads.
+ * Seeds the library with all prayer paths and official prayers linked to audio
+ * files in artifacts/GetPraying/lib-pg (copied into data/uploads on each run).
+ *
+ * First two MP3s (sorted by filename) → morning & evening official guides.
+ * Remaining MP3s → “For your situation” path guides (in PATHS order; extra paths
+ * share the last situation file if there are fewer audios than paths).
  *
  * Safe to run multiple times — clears and reseeds official_prayers and prayer_paths.
  *
  *   pnpm --filter @workspace/api-server run seed:lib-pg
  */
 import "dotenv/config";
+import { copyFile, mkdir, readdir } from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 import { db, officialPrayersTable, pool, prayerPathsTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function uploadDir(): string {
+  return process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
+}
+
+/** artifacts/GetPraying/lib-pg (sibling of api-server under artifacts/) */
+function libPgSourceDir(): string {
+  return path.join(__dirname, "../..", "GetPraying", "lib-pg");
+}
+
+function sortMp3Files(names: string[]): string[] {
+  return names
+    .filter((n) => n.toLowerCase().endsWith(".mp3"))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+}
+
+async function copyLibPgAudios(): Promise<{
+  morning: string;
+  evening: string;
+  byPathIndex: (string | null)[];
+}> {
+  const srcDir = libPgSourceDir();
+  let names: string[];
+  try {
+    names = sortMp3Files(await readdir(srcDir));
+  } catch (e) {
+    console.error("[seed-lib-pg] Could not read lib-pg folder:", srcDir, e);
+    throw new Error(`[seed-lib-pg] lib-pg not readable: ${srcDir}`);
+  }
+  if (names.length < 2) {
+    throw new Error(`[seed-lib-pg] Need at least 2 mp3 files in ${srcDir}, found ${names.length}.`);
+  }
+
+  const destRoot = uploadDir();
+  await mkdir(destRoot, { recursive: true });
+  const urls: string[] = [];
+  for (let i = 0; i < names.length; i++) {
+    const destName = `libpg-seed-${i}.mp3`;
+    await copyFile(path.join(srcDir, names[i]!), path.join(destRoot, destName));
+    urls.push(`/api/static/uploads/${destName}`);
+  }
+  console.log(`[seed-lib-pg] Copied ${names.length} mp3 file(s) from lib-pg → ${destRoot}`);
+
+  const morning = urls[0]!;
+  const evening = urls[1]!;
+  const situationFiles = urls.slice(2);
+  const byPathIndex = PATHS.map((_, idx) => {
+    if (situationFiles.length === 0) return null;
+    return situationFiles[Math.min(idx, situationFiles.length - 1)] ?? null;
+  });
+  return { morning, evening, byPathIndex };
+}
 
 const PATHS = [
   {
@@ -84,22 +145,6 @@ const PATHS = [
     tagline: "Love one another.",
   },
 ] as const;
-
-/** Audio paths relative to /api/static/uploads/ */
-const AUDIO: Record<string, string> = {
-  morning: "/api/static/uploads/prayer-morning-sanctuary.mp3",
-  evening: "/api/static/uploads/prayer-evening-sanctuary.mp3",
-  anxiety: "/api/static/uploads/prayer-anxiety.mp3",
-  gratitude: "/api/static/uploads/prayer-gratitude.mp3",
-  healing: "/api/static/uploads/prayer-healing.mp3",
-  grief: "/api/static/uploads/prayer-grief.mp3",
-  family: "/api/static/uploads/prayer-family.mp3",
-  strength: "/api/static/uploads/prayer-strength.mp3",
-  peace: "/api/static/uploads/prayer-peace.mp3",
-  hope: "/api/static/uploads/prayer-hope.mp3",
-  forgiveness: "/api/static/uploads/prayer-forgiveness.mp3",
-  wisdom: "/api/static/uploads/prayer-wisdom.mp3",
-};
 
 const PATH_CONTENT: Record<
   string,
@@ -218,6 +263,8 @@ async function main(): Promise<void> {
   const paths = await db.select().from(prayerPathsTable).orderBy(asc(prayerPathsTable.id));
   console.log(`[seed-lib-pg] Inserted ${paths.length} prayer paths.`);
 
+  const { morning, evening, byPathIndex } = await copyLibPgAudios();
+
   const categoryToPathId = new Map(paths.map((p) => [p.category, p.id]));
   const morningPathId = categoryToPathId.get("gratitude") ?? paths[0]?.id;
   const eveningPathId = categoryToPathId.get("peace") ?? paths[0]?.id;
@@ -232,7 +279,7 @@ async function main(): Promise<void> {
       pathId: morningPathId,
       scheduleSlot: "morning",
       label: "Official Guide",
-      audioUrl: AUDIO.morning,
+      audioUrl: morning,
       scripture: "Lamentations 3:22–23",
       durationMinutes: 7,
     },
@@ -245,23 +292,24 @@ async function main(): Promise<void> {
       pathId: eveningPathId,
       scheduleSlot: "evening",
       label: "Official Guide",
-      audioUrl: AUDIO.evening,
+      audioUrl: evening,
       scripture: "Psalm 4:8",
       durationMinutes: 6,
     },
   ];
 
-  for (const path of paths) {
-    const c = PATH_CONTENT[path.category];
+  for (let i = 0; i < paths.length; i++) {
+    const pathRow = paths[i]!;
+    const c = PATH_CONTENT[pathRow.category];
     if (!c) continue;
     rows.push({
       title: c.title,
       subtitle: c.subtitle,
       content: c.content,
-      category: path.category,
-      pathId: path.id,
+      category: pathRow.category,
+      pathId: pathRow.id,
       label: "Official Guide",
-      audioUrl: AUDIO[path.category] ?? null,
+      audioUrl: byPathIndex[i] ?? null,
       scripture: c.scripture,
       durationMinutes: c.duration,
     });

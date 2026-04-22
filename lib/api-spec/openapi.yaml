@@ -460,7 +460,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/SavePostStateResponse"
 
     delete:
       operationId: unsavePost
@@ -478,7 +478,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/SavePostStateResponse"
 
   /posts/{postId}/comments:
     get:
@@ -932,6 +932,22 @@ components:
           type: string
       required:
         - success
+
+    SavePostStateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        isSaved:
+          type: boolean
+        saveCount:
+          type: integer
+      required:
+        - success
+        - isSaved
+        - saveCount
 
     RegisterInput:
       type: object
@@ -1396,6 +1412,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OfficialPrayer"
+        savedOfficialPrayers:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficialPrayer"
+          description: Official guides on this path the current user has saved (empty when anonymous)
         savedPosts:
           type: array
           items:
@@ -1406,6 +1427,7 @@ components:
         - description
         - category
         - officialPrayers
+        - savedOfficialPrayers
         - savedPosts
 
     Category:
@@ -1517,11 +1539,15 @@ components:
         source:
           type: string
           enum: [default, override]
+        prayingWithYou:
+          type: integer
+          description: Approximate count of community members for social proof
       required:
         - date
         - quoteText
         - reference
         - source
+        - prayingWithYou
 
     SetDailyWordOverrideInput:
       type: object

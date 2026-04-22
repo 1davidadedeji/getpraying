@@ -20,6 +20,25 @@ const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
 const router: IRouter = Router();
 
+async function getPostSaveState(
+  postId: number,
+  userId: number,
+): Promise<{ saveCount: number; isSaved: boolean }> {
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(savedPostsTable)
+    .where(eq(savedPostsTable.postId, postId));
+  const [savedRow] = await db
+    .select({ id: savedPostsTable.id })
+    .from(savedPostsTable)
+    .where(and(eq(savedPostsTable.postId, postId), eq(savedPostsTable.userId, userId)))
+    .limit(1);
+  return {
+    saveCount: Number(countRow?.count ?? 0),
+    isSaved: !!savedRow,
+  };
+}
+
 router.post("/posts/suggest-category", requireAuth, async (req, res): Promise<void> => {
   const { content } = req.body ?? {};
   if (typeof content !== "string" || !content.trim()) {
@@ -643,7 +662,8 @@ router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> 
     }
   });
 
-  res.json({ success: true, message: "Post saved" });
+  const state = await getPostSaveState(postId, user.id);
+  res.json({ success: true, message: "Post saved", ...state });
 });
 
 router.delete("/posts/:postId/save", requireAuth, async (req, res): Promise<void> => {
@@ -667,7 +687,8 @@ router.delete("/posts/:postId/save", requireAuth, async (req, res): Promise<void
       .where(eq(usersTable.id, user.id));
   }
 
-  res.json({ success: true, message: "Post unsaved" });
+  const state = await getPostSaveState(postId, user.id);
+  res.json({ success: true, message: "Post unsaved", ...state });
 });
 
 export default router;

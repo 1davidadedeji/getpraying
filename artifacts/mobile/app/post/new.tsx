@@ -32,6 +32,21 @@ const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SEC = 10;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 
+function normalizeAudioMime(mime: string, fileName: string): string {
+  const m = mime.trim().toLowerCase();
+  if (m && m !== "application/octet-stream") return mime;
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".m4a")) return "audio/mp4";
+  if (lower.endsWith(".aac")) return "audio/aac";
+  if (lower.endsWith(".wav")) return "audio/wav";
+  if (lower.endsWith(".ogg")) return "audio/ogg";
+  if (lower.endsWith(".webm")) return "audio/webm";
+  if (lower.endsWith(".flac")) return "audio/flac";
+  if (lower.endsWith(".caf")) return "audio/x-caf";
+  if (lower.endsWith(".mp3")) return "audio/mpeg";
+  return "audio/mpeg";
+}
+
 type PendingMedia =
   | { kind: "image"; uri: string }
   | { kind: "video"; uri: string; mimeType: string; fileName: string; durationSec: number }
@@ -305,11 +320,12 @@ export default function NewPostScreen() {
       });
       return;
     }
-    const mimeType =
-      asset.mimeType && asset.mimeType.length > 0 ? asset.mimeType : "audio/mpeg";
-    const name =
+    const rawName =
       asset.name && asset.name.length > 0 ? asset.name.replace(/[^\w.\-]+/g, "_") : "audio.m4a";
-    setPendingMedia({ kind: "audio", uri: asset.uri, mimeType, name });
+    const rawMime =
+      asset.mimeType && asset.mimeType.length > 0 ? asset.mimeType : "audio/mpeg";
+    const mimeType = normalizeAudioMime(rawMime, rawName);
+    setPendingMedia({ kind: "audio", uri: asset.uri, mimeType, name: rawName });
   };
 
   const canSubmit = !!(content.trim() || pendingMedia);
