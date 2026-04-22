@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,6 +45,25 @@ export default function LibraryScreen() {
   }>({ morning: null, evening: null });
   const [loadingOfficial, setLoadingOfficial] = useState(false);
   const [savedOfficialIds, setSavedOfficialIds] = useState<Set<number>>(new Set());
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<TextInput>(null);
+
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) return categories;
+    const q = searchQuery.toLowerCase();
+    return categories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [categories, searchQuery]);
+
+  const toggleSearch = () => {
+    if (showSearch) {
+      setShowSearch(false);
+      setSearchQuery("");
+    } else {
+      setShowSearch(true);
+      setTimeout(() => searchInputRef.current?.focus(), 80);
+    }
+  };
 
   const scrollLibraryToTop = useCallback(() => {
     if (activeTab === "categories") {
@@ -234,14 +254,32 @@ export default function LibraryScreen() {
             <Text style={styles.title}>Official Prayers</Text>
           </View>
           <Pressable
-            style={styles.searchBtn}
+            style={[styles.searchBtn, showSearch && styles.searchBtnActive]}
             hitSlop={8}
+            onPress={toggleSearch}
             accessibilityRole="button"
-            accessibilityLabel="Search prayers"
+            accessibilityLabel={showSearch ? "Close search" : "Search prayers"}
           >
-            <Feather name="search" size={22} color={colors.primary} />
+            <Feather
+              name={showSearch ? "x" : "search"}
+              size={20}
+              color={showSearch ? colors.surface : colors.primary}
+            />
           </Pressable>
         </View>
+        {showSearch && (
+          <TextInput
+            ref={searchInputRef}
+            style={styles.searchInput}
+            placeholder="Search paths…"
+            placeholderTextColor={colors.muted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+          />
+        )}
       </View>
 
       {/* Tabs */}
@@ -312,9 +350,13 @@ export default function LibraryScreen() {
 
           {loadingCats ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />
+          ) : filteredCategories.length === 0 ? (
+            <View style={styles.emptySlots}>
+              <Text style={styles.officialEmpty}>No paths match "{searchQuery}"</Text>
+            </View>
           ) : (
             <View style={styles.situationGrid}>
-              {categories.map((c) => renderSituationCard(c))}
+              {filteredCategories.map((c) => renderSituationCard(c))}
             </View>
           )}
         </ScrollView>
@@ -381,6 +423,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 2,
+  },
+  searchBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  searchInput: {
+    marginTop: 10,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.text,
   },
   tabRow: {
     flexDirection: "row",

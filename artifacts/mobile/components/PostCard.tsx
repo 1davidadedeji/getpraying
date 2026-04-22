@@ -36,17 +36,18 @@ type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCom
 interface PostCardProps {
   post: Post;
   onUpdated?: (post: Post) => void;
-  /** When true, navigations replace the current screen instead of pushing (prevents deep stacking) */
+  onDeleted?: (id: number) => void;
   replaceNav?: boolean;
 }
 
 const ICON_SIZE = 22;
 
-export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps) {
+export default function PostCard({ post, onUpdated, onDeleted, replaceNav }: PostCardProps) {
   const navigate = replaceNav ? router.replace : router.push;
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<PostWithCounts>(post);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setLocalPost(post);
@@ -68,7 +69,48 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
     (post as PostWithCounts).saveCount,
   ]);
 
-  const { token } = useAuth();
+  const { user, token } = useAuth();
+
+  const isOwner =
+    !!user &&
+    !localPost.isAnonymous &&
+    (user.id === (localPost as any).authorId || user.username === localPost.authorUsername);
+  const isAdmin = user?.role === "admin" || user?.role === "moderator";
+
+  const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    showAppAlert({
+      title: "Delete this prayer?",
+      message: "This will permanently remove it from the feed.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const res = await fetch(apiUrl(`/posts/${localPost.id}`), {
+                method: "DELETE",
+                headers: authHeaders(token),
+              });
+              if (res.ok) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                onDeleted?.(localPost.id);
+              } else {
+                const err = await res.json().catch(() => ({}));
+                showAppAlert({ title: "Could not delete", message: (err as any).error ?? "Please try again." });
+              }
+            } catch {
+              showAppAlert({ title: "Could not delete", message: "Check your connection." });
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    });
+  };
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -198,11 +240,25 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
               <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
             </View>
           </Pressable>
-          {localPost.category && CATEGORY_LABELS[localPost.category] && (
-            <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{CATEGORY_LABELS[localPost.category]}</Text>
-            </View>
-          )}
+          <View style={styles.headerRight}>
+            {localPost.category && CATEGORY_LABELS[localPost.category] && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>{CATEGORY_LABELS[localPost.category]}</Text>
+              </View>
+            )}
+            {(isOwner || isAdmin) && (
+              <Pressable
+                onPress={(e) => { e.stopPropagation?.(); handleDelete(); }}
+                hitSlop={10}
+                disabled={deleting}
+                style={styles.deleteBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Delete prayer"
+              >
+                <Feather name="trash-2" size={15} color={colors.muted} />
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <PostMediaBlock
@@ -402,6 +458,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
     marginTop: 1,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  deleteBtn: {
+    padding: 4,
   },
   categoryBadge: {
     backgroundColor: colors.flameDim,

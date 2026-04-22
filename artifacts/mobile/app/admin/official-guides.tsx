@@ -1,5 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import type { ApiLibraryCategory } from "@/constants/libraryFallbackPaths";
+import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 
@@ -66,6 +68,58 @@ export default function AdminOfficialGuidesScreen() {
   const [audioMime, setAudioMime] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [existingPrayers, setExistingPrayers] = useState<OfficialPrayerRow[]>([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const loadExistingPrayers = useCallback(async () => {
+    if (!token) return;
+    setLoadingExisting(true);
+    try {
+      const res = await fetch(apiUrl("/library/official?limit=50"), { headers: authHeaders(token) });
+      if (!res.ok) return;
+      const data = await res.json();
+      setExistingPrayers((data as { prayers?: OfficialPrayerRow[] }).prayers ?? []);
+    } catch {
+      /* silent */
+    } finally {
+      setLoadingExisting(false);
+    }
+  }, [token]);
+
+  const deleteOfficialPrayer = (prayer: OfficialPrayerRow) => {
+    showAppAlert({
+      title: "Delete this guide?",
+      message: `"${prayer.title}" will be permanently removed from the library.`,
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingId(prayer.id);
+            try {
+              const res = await fetch(apiUrl(`/admin/official-prayers/${prayer.id}`), {
+                method: "DELETE",
+                headers: authHeaders(token),
+              });
+              if (res.ok) {
+                setExistingPrayers((prev) => prev.filter((p) => p.id !== prayer.id));
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } else {
+                const err = await res.json().catch(() => ({}));
+                showAppAlert({ title: "Could not delete", message: (err as any).error ?? "Try again." });
+              }
+            } catch {
+              showAppAlert({ title: "Could not delete", message: "Network error." });
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ],
+    });
+  };
 
   const loadPaths = useCallback(async () => {
     setPathsLoading(true);
@@ -90,7 +144,8 @@ export default function AdminOfficialGuidesScreen() {
 
   useEffect(() => {
     void loadPaths();
-  }, [loadPaths]);
+    void loadExistingPrayers();
+  }, [loadPaths, loadExistingPrayers]);
 
   const pickAudio = async () => {
     setPicking(true);
@@ -271,6 +326,55 @@ export default function AdminOfficialGuidesScreen() {
           <Text style={styles.publishBtnText}>Publish sanctuary guide</Text>
         )}
       </Pressable>
+
+      {/* Existing Library Content */}
+      <View style={styles.divider} />
+      <View style={styles.existingHeader}>
+        <Text style={styles.sectionTitle}>Existing library guides</Text>
+        <Pressable onPress={() => void loadExistingPrayers()} hitSlop={8} disabled={loadingExisting}>
+          <Feather name="refresh-cw" size={16} color={colors.primary} />
+        </Pressable>
+      </View>
+      <Text style={styles.hint}>Tap the trash icon to permanently remove a guide from the library.</Text>
+
+      {loadingExisting ? (
+        <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
+      ) : existingPrayers.length === 0 ? (
+        <Text style={[styles.hint, { textAlign: "center", marginTop: 8 }]}>No guides in library yet.</Text>
+      ) : (
+        existingPrayers.map((prayer) => (
+          <View key={prayer.id} style={styles.existingRow}>
+            <View style={styles.existingMeta}>
+              {prayer.scheduleSlot ? (
+                <View style={styles.slotBadge}>
+                  <Ionicons
+                    name={prayer.scheduleSlot === "morning" ? "sunny-outline" : "moon-outline"}
+                    size={12}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.slotBadgeText}>{prayer.scheduleSlot}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.existingTitle} numberOfLines={1}>{prayer.title}</Text>
+              <Text style={styles.existingCategory}>{prayer.category}{prayer.durationMinutes ? ` · ${prayer.durationMinutes}min` : ""}</Text>
+            </View>
+            <Pressable
+              onPress={() => deleteOfficialPrayer(prayer)}
+              disabled={deletingId === prayer.id}
+              hitSlop={8}
+              style={styles.deleteBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${prayer.title}`}
+            >
+              {deletingId === prayer.id ? (
+                <ActivityIndicator color={colors.danger} size="small" />
+              ) : (
+                <Feather name="trash-2" size={17} color={colors.danger} />
+              )}
+            </Pressable>
+          </View>
+        ))
+      )}
 
       <Modal visible={pathPickerOpen} animationType="slide" transparent>
         <Pressable style={styles.modalBackdrop} onPress={() => setPathPickerOpen(false)}>
@@ -457,5 +561,57 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 15,
     color: colors.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 24,
+  },
+  existingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  existingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 8,
+    gap: 10,
+  },
+  existingMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  slotBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 2,
+  },
+  slotBadgeText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 10,
+    color: colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  existingTitle: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    color: colors.text,
+  },
+  existingCategory: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+  },
+  deleteBtn: {
+    padding: 6,
   },
 });

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import colors from "@/constants/colors";
@@ -11,9 +12,22 @@ type Props = {
   showSave?: boolean;
 };
 
+function navigateToGuide(op: OfficialPrayerRow) {
+  if (op.pathId && op.pathId > 0) {
+    router.push(`/path/${op.pathId}` as never);
+  } else if (op.category) {
+    router.push(`/category/${encodeURIComponent(op.category)}` as never);
+  }
+}
+
 export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props) {
   return (
-    <View style={styles.officialCard}>
+    <Pressable
+      style={({ pressed }) => [styles.officialCard, pressed && styles.pressed]}
+      onPress={() => navigateToGuide(op)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open guide: ${op.title}`}
+    >
       <View style={styles.officialCardTop}>
         <Ionicons name="link-outline" size={16} color={colors.primary} />
         <Text style={styles.officialBadge} numberOfLines={2}>
@@ -22,7 +36,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
         </Text>
         {showSave && onToggleSave ? (
           <Pressable
-            onPress={onToggleSave}
+            onPress={(e) => { e.stopPropagation?.(); onToggleSave(); }}
             hitSlop={8}
             style={styles.saveBtn}
             accessibilityRole="button"
@@ -52,7 +66,10 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
           {op.uploadedByUsername ? `@${op.uploadedByUsername}` : op.uploadedByDisplayName}
         </Text>
       ) : null}
-    </View>
+      <View style={styles.tapHint}>
+        <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -64,6 +81,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  pressed: {
+    opacity: 0.85,
   },
   officialCardTop: {
     flexDirection: "row",
@@ -98,5 +118,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
     marginTop: 10,
+  },
+  tapHint: {
+    position: "absolute",
+    right: 14,
+    bottom: 14,
   },
 });

@@ -29,7 +29,8 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type ProfileRow =
-  | { kind: "header" }
+  | { kind: "hero" }
+  | { kind: "tabs" }
   | { kind: "loading" }
   | { kind: "categories" }
   | { kind: "empty"; tab: "my" | "saved" }
@@ -74,9 +75,7 @@ export default function ProfileScreen() {
   const pickAndUploadAvatar = async () => {
     try {
       const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permResult.granted) {
-        return;
-      }
+      if (!permResult.granted) return;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
@@ -101,9 +100,7 @@ export default function ProfileScreen() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (user && data.avatarUrl) {
-          refreshUser({ ...user, avatarUrl: data.avatarUrl });
-        }
+        if (user && data.avatarUrl) refreshUser({ ...user, avatarUrl: data.avatarUrl });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         void refetchMe();
       }
@@ -159,11 +156,10 @@ export default function ProfileScreen() {
 
   const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
 
+  // Build list: hero at 0, sticky tabs at 1, then content
   const listRows: ProfileRow[] = (() => {
-    const head: ProfileRow[] = [{ kind: "header" }];
-    if (profileTab === "categories") {
-      return [...head, { kind: "categories" }];
-    }
+    const head: ProfileRow[] = [{ kind: "hero" }, { kind: "tabs" }];
+    if (profileTab === "categories") return [...head, { kind: "categories" }];
     if (profileTab === "my") {
       if (loadingPosts) return [...head, { kind: "loading" }];
       if (myPosts.length === 0) return [...head, { kind: "empty", tab: "my" }];
@@ -174,56 +170,12 @@ export default function ProfileScreen() {
     return [...head, ...savedPosts];
   })();
 
-  const renderHero = () => (
-    <View style={[styles.headerContainer, { paddingTop: topPad + 8 }]}>
-      <View style={styles.topBar}>
-        <Text style={styles.screenTitle}>Profile</Text>
-        <Pressable
-          onPress={() => router.push("/settings" as Href)}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Open settings"
-        >
-          <Feather name="settings" size={22} color={colors.primary} />
-        </Pressable>
-      </View>
-
-      <View style={styles.profileHero}>
-        <Pressable onPress={pickAndUploadAvatar} style={styles.avatarRing} disabled={uploadingAvatar}>
-          {uploadingAvatar ? (
-            <View style={styles.avatar}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          ) : me.avatarUrl ? (
-            <Image source={{ uri: resolveMediaUrl(me.avatarUrl)! }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-          )}
-          <View style={styles.cameraIcon}>
-            <Feather name="camera" size={14} color={colors.surface} />
-          </View>
-        </Pressable>
-        <Text style={styles.displayName}>{displayName}</Text>
-        <Text style={styles.username}>@{me.username}</Text>
-
-        <Text style={styles.joinDate}>Member since {joinYear}</Text>
-      </View>
-
-      <View style={styles.statsRow}>
-        <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
-        <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
-        <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
-      </View>
-    </View>
-  );
-
   const tabFontSize = windowWidth < 360 ? 10 : windowWidth >= 768 ? 12 : 11;
 
   const keyExtractor = (item: ProfileRow, index: number) => {
     if (typeof item === "object" && item !== null && "kind" in item) {
-      if (item.kind === "header") return "header";
+      if (item.kind === "hero") return "hero";
+      if (item.kind === "tabs") return "tabs";
       if (item.kind === "loading") return "loading";
       if (item.kind === "categories") return "categories";
       if (item.kind === "empty") return `empty-${item.tab}`;
@@ -232,39 +184,84 @@ export default function ProfileScreen() {
   };
 
   const renderItem = ({ item }: { item: ProfileRow }) => {
-    if ("kind" in item && item.kind === "header") {
+    if ("kind" in item && item.kind === "hero") {
       return (
-        <View style={styles.headerBlock}>
-          {renderHero()}
-          <View style={styles.tabBarSurface}>
-            <View style={styles.profileTabRow}>
-              {PROFILE_MAIN_TABS.map(({ key, label }) => (
-                <Pressable
-                  key={key}
-                  style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
-                  onPress={() => setProfileTab(key)}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: profileTab === key }}
-                >
-                  <Text
-                    style={[
-                      styles.profileTabText,
-                      { fontSize: tabFontSize },
-                      profileTab === key && styles.profileTabTextActive,
-                    ]}
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.85}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+        <View style={[styles.headerContainer, { paddingTop: topPad + 8 }]}>
+          <View style={styles.topBar}>
+            <Text style={styles.screenTitle}>Profile</Text>
+            <Pressable
+              onPress={() => router.push("/settings" as Href)}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Open settings"
+            >
+              <Feather name="settings" size={22} color={colors.primary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.profileHero}>
+            <Pressable onPress={pickAndUploadAvatar} style={styles.avatarRing} disabled={uploadingAvatar}>
+              {uploadingAvatar ? (
+                <View style={styles.avatar}>
+                  <ActivityIndicator color={colors.accent} />
+                </View>
+              ) : me.avatarUrl ? (
+                <Image source={{ uri: resolveMediaUrl(me.avatarUrl)! }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+              )}
+              <View style={styles.cameraIcon}>
+                <Feather name="camera" size={14} color={colors.surface} />
+              </View>
+            </Pressable>
+            <Text style={styles.displayName}>{displayName}</Text>
+            <Text style={styles.username}>@{me.username}</Text>
+            <Text style={styles.joinDate}>Member since {joinYear}</Text>
+          </View>
+
+          <View style={styles.statsRow}>
+            <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
+            <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
+            <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
           </View>
         </View>
       );
     }
+
+    // Sticky tab bar — must be opaque so content scrolls under it cleanly
+    if ("kind" in item && item.kind === "tabs") {
+      return (
+        <View style={styles.tabBarSurface}>
+          <View style={styles.profileTabRow}>
+            {PROFILE_MAIN_TABS.map(({ key, label }) => (
+              <Pressable
+                key={key}
+                style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
+                onPress={() => setProfileTab(key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: profileTab === key }}
+              >
+                <Text
+                  style={[
+                    styles.profileTabText,
+                    { fontSize: tabFontSize },
+                    profileTab === key && styles.profileTabTextActive,
+                  ]}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      );
+    }
+
     if ("kind" in item && item.kind === "loading") {
       return <ActivityIndicator color={colors.accent} style={{ marginTop: 24, marginBottom: 24 }} />;
     }
@@ -295,7 +292,10 @@ export default function ProfileScreen() {
     }
     return (
       <View style={{ paddingHorizontal: 20 }}>
-        <PostCard post={item as Post} />
+        <PostCard
+          post={item as Post}
+          onDeleted={(id) => setMyPosts((prev) => prev.filter((p) => p.id !== id))}
+        />
       </View>
     );
   };
@@ -315,6 +315,8 @@ export default function ProfileScreen() {
       data={listRows}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
+      // index 1 = tabs row — sticks to the top as hero scrolls away
+      stickyHeaderIndices={[1]}
       contentContainerStyle={[styles.listContent, { paddingBottom: botPad + 100 }, webColumnStyle]}
       style={[styles.flex, webColumnStyle]}
       showsVerticalScrollIndicator={false}
@@ -326,9 +328,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   listContent: { flexGrow: 1 },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
-  headerBlock: {
-    backgroundColor: colors.cream,
-  },
   headerContainer: {
     paddingHorizontal: 20,
     gap: 24,
@@ -405,6 +404,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
+  // Sticky tab bar — fully opaque so scrolling content disappears cleanly beneath it
   tabBarSurface: {
     backgroundColor: colors.cream,
     borderBottomWidth: StyleSheet.hairlineWidth,

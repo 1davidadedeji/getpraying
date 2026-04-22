@@ -118,6 +118,10 @@ export default function UserProfileScreen() {
     setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   }, []);
 
+  const handleDeleted = useCallback((deletedId: number) => {
+    setPosts((prev) => prev.filter((p) => p.id !== deletedId));
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -213,7 +217,7 @@ export default function UserProfileScreen() {
     <FlatList
       data={posts}
       keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => <PostCard post={item} onUpdated={handleUpdated} replaceNav />}
+      renderItem={({ item }) => <PostCard post={item} onUpdated={handleUpdated} onDeleted={handleDeleted} replaceNav />}
       ListHeaderComponent={renderHeader}
       ListEmptyComponent={
         <View style={styles.emptyState}>

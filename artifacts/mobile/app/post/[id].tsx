@@ -8,6 +8,7 @@ import {
   Animated,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -61,6 +62,7 @@ export default function PostDetailScreen() {
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList>(null);
 
   const replyFirst = useMemo(() => {
     const v = Array.isArray(focusComment) ? focusComment[0] : focusComment;
@@ -115,6 +117,53 @@ export default function PostDetailScreen() {
     const t = setTimeout(() => commentInputRef.current?.focus(), 320);
     return () => clearTimeout(t);
   }, [replyFirst, post?.id]);
+
+  // Scroll list to end when keyboard appears so the comment input stays visible
+  useEffect(() => {
+    const event = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const sub = Keyboard.addListener(event, () => {
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const { user } = useAuth();
+  const isOwner =
+    !!user && !!post && !post.isAnonymous &&
+    (user.id === (post as any).authorId || user.username === post.authorUsername);
+  const isAdmin = user?.role === "admin" || user?.role === "moderator";
+
+  const handleDeletePost = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    showAppAlert({
+      title: "Delete this prayer?",
+      message: "This will permanently remove it.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await fetch(apiUrl(`/posts/${post!.id}`), {
+                method: "DELETE",
+                headers: authHeaders(token),
+              });
+              if (res.ok) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                router.back();
+              } else {
+                const err = await res.json().catch(() => ({}));
+                showAppAlert({ title: "Could not delete", message: (err as any).error ?? "Please try again." });
+              }
+            } catch {
+              showAppAlert({ title: "Could not delete", message: "Check your connection." });
+            }
+          },
+        },
+      ],
+    });
+  };
 
   const handlePray = () => {
     if (!post) return;
@@ -326,6 +375,17 @@ export default function PostDetailScreen() {
               </Text>
             </View>
           )}
+          {(isOwner || isAdmin) && (
+            <Pressable
+              onPress={handleDeletePost}
+              hitSlop={8}
+              style={styles.flagBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Delete prayer"
+            >
+              <Feather name="trash-2" size={17} color={colors.muted} />
+            </Pressable>
+          )}
           <Pressable
             onPress={handleReportFlag}
             style={styles.flagBtn}
@@ -396,10 +456,11 @@ export default function PostDetailScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 52 : 0}
     >
       <FlatList
+        ref={listRef}
         style={styles.flex}
         data={threadOpen ? comments : []}
         keyExtractor={(c) => String(c.id)}
@@ -423,6 +484,7 @@ export default function PostDetailScreen() {
           placeholderTextColor={colors.muted}
           value={commentDraft}
           onChangeText={setCommentDraft}
+          onFocus={() => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100)}
           multiline
           maxLength={2000}
           editable={!!token && !commentSubmitting}
