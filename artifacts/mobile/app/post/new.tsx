@@ -24,6 +24,7 @@ import { CreatePostInputMediaType, useCreatePost } from "@workspace/api-client-r
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
 
@@ -52,6 +53,19 @@ type PendingMedia =
   | { kind: "video"; uri: string; mimeType: string; fileName: string; durationSec: number }
   | { kind: "audio"; uri: string; mimeType: string; name: string };
 
+function messageForUploadFailure(res: Response, data: { error?: string }): string {
+  if (res.status === 413) {
+    return "That file is too large for the server. Photos should finish under 1MB after resize; video max 12MB and 10 seconds; audio max 15MB.";
+  }
+  if (typeof data?.error === "string" && data.error.trim()) {
+    return data.error;
+  }
+  if (res.status === 408 || res.status === 504) {
+    return "Upload timed out. Check your connection and try again.";
+  }
+  return "Upload failed. Check your connection and file size, then try again.";
+}
+
 async function uploadMultipart(
   localUri: string,
   token: string,
@@ -74,14 +88,14 @@ async function uploadMultipart(
     headers: authHeaders(token),
     body: form,
   });
-  const data = await res.json().catch(() => ({}));
+  const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string; mediaType?: string };
   if (!res.ok) {
-    throw new Error(typeof data?.error === "string" ? data.error : "Upload failed");
+    throw new Error(messageForUploadFailure(res, data));
   }
   if (typeof data?.url !== "string") {
-    throw new Error("Upload failed");
+    throw new Error("Upload failed: server did not return a file URL.");
   }
-  return { url: data.url, mediaType: data.mediaType };
+  return { url: data.url, mediaType: data.mediaType ?? "unknown" };
 }
 
 async function resizeUnderCap(uri: string): Promise<string> {
@@ -117,12 +131,12 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
     headers: authHeaders(token),
     body: form,
   });
-  const data = await res.json().catch(() => ({}));
+  const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string };
   if (!res.ok) {
-    throw new Error(typeof data?.error === "string" ? data.error : "Upload failed");
+    throw new Error(messageForUploadFailure(res, data));
   }
   if (typeof data?.url !== "string") {
-    throw new Error("Upload failed");
+    throw new Error("Upload failed: server did not return a file URL.");
   }
   return data.url;
 }
@@ -413,18 +427,21 @@ export default function NewPostScreen() {
           } else {
             router.replace("/(tabs)" as Href);
           }
-          showAppAlert({
-            title: isApproved ? "Posted" : "Submitted",
-            message: isApproved
-              ? "Your prayer is in the feed."
-              : "Thanks — your prayer is in review and will appear after approval.",
-            buttons: [{ text: "OK", style: "default" }],
-          });
+          // Defer alert so navigation completes first (avoids focus/gesture glitches on some devices)
+          setTimeout(() => {
+            showAppAlert({
+              title: isApproved ? "Posted" : "Submitted",
+              message: isApproved
+                ? "Your prayer is in the feed at the top when you open Feeds."
+                : "Thanks — your prayer is in review and will appear after approval.",
+              buttons: [{ text: "OK", style: "default" }],
+            });
+          }, 350);
         },
-        onError: (err: any) => {
+        onError: (err: unknown) => {
           showAppAlert({
             title: "Could not submit",
-            message: err?.data?.error ?? "Please check your connection and try again.",
+            message: getApiErrorMessage(err, "Please check your connection and try again."),
           });
         },
       },

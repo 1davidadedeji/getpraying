@@ -26,6 +26,7 @@ import { Text, TextInput } from "react-native";
 import { AppAlertHost } from "@/components/AppAlert";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/auth";
+import { ModerationBadgeProvider } from "@/context/moderationBadge";
 import { RevenueCatProvider } from "@/context/revenuecat";
 import colors from "@/constants/colors";
 
@@ -106,11 +107,13 @@ export default function RootLayout() {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <RevenueCatProvider>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </RevenueCatProvider>
+              <ModerationBadgeProvider>
+                <RevenueCatProvider>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </RevenueCatProvider>
+              </ModerationBadgeProvider>
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>

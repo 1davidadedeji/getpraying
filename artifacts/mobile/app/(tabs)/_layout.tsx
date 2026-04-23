@@ -9,6 +9,7 @@ import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, Vie
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useModerationBadge } from "@/context/moderationBadge";
 import { useRevenueCat } from "@/context/revenuecat";
 import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarVisibility";
 
@@ -155,6 +156,9 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
   const isWeb = Platform.OS === "web";
   const isDark = useColorScheme() === "dark";
   const { translateY } = useTabBarVisibility();
+  const { user: authUser } = useAuth();
+  const isMod = authUser?.role === "admin" || authUser?.role === "moderator";
+  const { pendingCount } = useModerationBadge();
 
   const bgColor = isIOS ? "transparent" : isDark ? "#1A1F36" : colors.surface;
   const barHeight = isWeb ? 84 : undefined;
@@ -182,6 +186,7 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
       {TAB_ITEMS.map((tab, index) => {
         const focused = state.index === index;
         const tint = focused ? colors.flame : colors.muted;
+        const showModBadge = isMod && tab.name === "profile" && pendingCount > 0;
         return (
           <Pressable
             key={tab.name}
@@ -196,15 +201,24 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
             }}
             style={tabBarStyles.tab}
           >
-            {isIOS ? (
-              <SymbolView name={tab.iosSymbol as any} tintColor={tint} size={24} />
-            ) : tab.iconSet === "ionicons" ? (
-              <Ionicons name={tab.androidIcon as any} size={24} color={tint} />
-            ) : tab.iconSet === "mci" ? (
-              <MaterialCommunityIcons name={tab.androidIcon as any} size={24} color={tint} />
-            ) : (
-              <Feather name={tab.androidIcon as any} size={22} color={tint} />
-            )}
+            <View style={tabBarStyles.iconWrap}>
+              {isIOS ? (
+                <SymbolView name={tab.iosSymbol as any} tintColor={tint} size={24} />
+              ) : tab.iconSet === "ionicons" ? (
+                <Ionicons name={tab.androidIcon as any} size={24} color={tint} />
+              ) : tab.iconSet === "mci" ? (
+                <MaterialCommunityIcons name={tab.androidIcon as any} size={24} color={tint} />
+              ) : (
+                <Feather name={tab.androidIcon as any} size={22} color={tint} />
+              )}
+              {showModBadge && (
+                <View style={tabBarStyles.modTabBadge}>
+                  <Text style={tabBarStyles.modTabBadgeText}>
+                    {pendingCount > 9 ? "9+" : String(pendingCount)}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text style={[tabBarStyles.label, { color: tint }]}>{tab.title}</Text>
           </Pressable>
         );
@@ -230,6 +244,28 @@ const tabBarStyles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 8,
     gap: 2,
+  },
+  iconWrap: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modTabBadge: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modTabBadgeText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 9,
+    color: colors.surface,
   },
   label: {
     fontFamily: "PlusJakartaSans_600SemiBold",

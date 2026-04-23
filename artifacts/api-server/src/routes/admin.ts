@@ -17,6 +17,7 @@ import { eq, ne, desc, sql, and, or, isNotNull, inArray, notLike } from "drizzle
 const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
+import { clearModQueueNotificationsForPost, notifyModeratorsNewPending } from "../lib/modQueueNotifications";
 
 async function notifyAuthorPostDecision(
   authorId: number | null,
@@ -39,6 +40,14 @@ async function notifyAuthorPostDecision(
 }
 
 const router: IRouter = Router();
+
+router.get("/admin/pending-count", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const result = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(postsTable)
+    .where(eq(postsTable.status, "pending"));
+  res.json({ count: result[0]?.count ?? 0 });
+});
 
 router.get("/admin/posts/pending", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "20", 10);
@@ -116,6 +125,7 @@ router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req,
     return;
   }
 
+  await clearModQueueNotificationsForPost(postId);
   await notifyAuthorPostDecision(post.authorId ?? null, post.id, "approved");
 
   const [enriched] = await enrichPosts([post]);
@@ -151,6 +161,7 @@ router.post("/admin/posts/:postId/decline", requireModeratorOrAdmin, async (req,
     return;
   }
 
+  await clearModQueueNotificationsForPost(postId);
   await notifyAuthorPostDecision(post.authorId ?? null, post.id, "declined", reason);
 
   const [enriched] = await enrichPosts([post]);
@@ -190,6 +201,8 @@ router.post("/admin/posts/:postId/requeue", requireAdmin, async (req, res): Prom
     res.status(404).json({ error: "Post not found" });
     return;
   }
+
+  await notifyModeratorsNewPending(postId, post.authorId ?? 0);
 
   const [enriched] = await enrichPosts([post]);
   res.json(enriched);

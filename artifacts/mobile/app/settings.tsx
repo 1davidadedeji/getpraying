@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useModerationBadge } from "@/context/moderationBadge";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 
@@ -26,6 +27,7 @@ const PRIVACY_URL = "https://getpraying.app/privacy";
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, token } = useAuth();
+  const { pendingCount: modPending } = useModerationBadge();
   const queryClient = useQueryClient();
   const [deletingAccount, setDeletingAccount] = useState(false);
 
@@ -122,7 +124,16 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Team</Text>
           <View style={styles.menuCard}>
             <Pressable style={[styles.menuItem, styles.menuItemLast]} onPress={() => router.push("/admin")}>
-              <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
+              <View style={styles.teamRow}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
+                {modPending > 0 && (
+                  <View style={styles.settingsModPill}>
+                    <Text style={styles.settingsModPillText}>
+                      {modPending > 99 ? "99+" : String(modPending)}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text style={[styles.menuItemText, { color: colors.accent }]}>
                 {user.role === "admin" ? "Admin panel" : "Moderation"}
               </Text>
@@ -210,6 +221,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     flex: 1,
+  },
+  teamRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  settingsModPill: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsModPillText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 10,
+    color: colors.surface,
   },
   legalRow: {
     flexDirection: "row",

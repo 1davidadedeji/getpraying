@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1A1F36"
+      "backgroundColor": "#F9F6F0"
     },
     "ios": {
       "supportsTablet": false,
@@ -22,7 +22,11 @@
       "bundleIdentifier": "com.getpraying.app"
     },
     "android": {
-      "package": "com.getpraying.app"
+      "package": "com.getpraying.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#F9F6F0"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"

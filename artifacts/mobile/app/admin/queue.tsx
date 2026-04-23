@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { PostMediaBlock } from "@/components/PostMedia";
 import React, { useCallback, useEffect, useState } from "react";
@@ -30,6 +31,7 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { useAuth } from "@/context/auth";
+import { useModerationBadge } from "@/context/moderationBadge";
 import { apiUrl, authHeaders } from "@/lib/api";
 
 function StatBadge({ label, value, color }: { label: string; value: number; color: string }) {
@@ -314,9 +316,16 @@ export default function AdminQueueScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
+  const { refresh: refreshModBadge } = useModerationBadge();
   const isAdmin = user?.role === "admin";
   const isModerator = user?.role === "moderator" || isAdmin;
   const [tab, setTab] = useState<"pending" | "reviewed">("pending");
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshModBadge();
+    }, [refreshModBadge]),
+  );
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -374,6 +383,7 @@ export default function AdminQueueScreen() {
             onModerated={() => {
               void pendingQ.refetch();
               void queryClient.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
+              void refreshModBadge();
             }}
           />
         ) : (

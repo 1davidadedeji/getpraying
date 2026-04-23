@@ -24,6 +24,7 @@ import colors from "@/constants/colors";
 import { PROFILE_MAIN_TABS } from "@/constants/profileTabs";
 import { SAVED_POSTS_EMPTY } from "@/constants/savedList";
 import { useAuth } from "@/context/auth";
+import { useModerationBadge } from "@/context/moderationBadge";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
@@ -40,6 +41,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const { user, refreshUser, token } = useAuth();
+  const { pendingCount: modPending, refresh: refreshModBadge } = useModerationBadge();
   const listRef = useRef<FlatList<ProfileRow>>(null);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -56,8 +58,9 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (token) refetchMe();
-    }, [token, refetchMe]),
+      if (token) void refetchMe();
+      void refreshModBadge();
+    }, [token, refetchMe, refreshModBadge]),
   );
 
   const { data: savedPrayersData, isLoading: loadingSavedTab } = useGetSavedPrayers({
@@ -194,8 +197,16 @@ export default function ProfileScreen() {
               hitSlop={12}
               accessibilityRole="button"
               accessibilityLabel="Open settings"
+              style={styles.settingsIconBtn}
             >
               <Feather name="settings" size={22} color={colors.primary} />
+              {(user?.role === "admin" || user?.role === "moderator") && modPending > 0 && (
+                <View style={styles.settingsModBadge} accessibilityLabel={`${modPending} to moderate`}>
+                  <Text style={styles.settingsModBadgeText}>
+                    {modPending > 9 ? "9+" : String(modPending)}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           </View>
 
@@ -339,6 +350,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
+  },
+  settingsIconBtn: {
+    position: "relative",
+  },
+  settingsModBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsModBadgeText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 9,
+    color: colors.surface,
   },
   screenTitle: {
     fontFamily: "NotoSerif_700Bold",

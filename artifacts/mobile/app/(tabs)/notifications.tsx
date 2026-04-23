@@ -56,6 +56,8 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
       return "Prayer approved";
     case "post_declined":
       return "Prayer not approved";
+    case "mod_queue":
+      return "Moderation needed";
     case "system":
       return "Update";
     default:
@@ -88,7 +90,9 @@ function NotificationItem({
                   ? "checkmark-circle"
                   : t === "post_declined"
                     ? "alert-circle"
-                    : "notifications-outline";
+                    : t === "mod_queue"
+                      ? "shield-checkmark"
+                      : "notifications-outline";
   const iconColor =
     t === "prayer" || t === "prayer_milestone"
       ? colors.flame
@@ -104,7 +108,9 @@ function NotificationItem({
                 ? colors.danger
                 : t === "post_approved"
                   ? colors.success
-                  : colors.accent;
+                  : t === "mod_queue"
+                    ? colors.accent
+                    : colors.accent;
 
   return (
     <Pressable
@@ -131,7 +137,7 @@ function NotificationItem({
         <Text style={styles.notifTime}>{timeAgo(item.createdAt)}</Text>
       </View>
       {!item.isRead && <View style={styles.unreadDot} />}
-      {(item.postId || item.type === "follow") && item.actorUsername && (
+      {(item.postId || item.type === "follow" || item.type === "mod_queue") && (
         <Ionicons name="chevron-forward" size={14} color={colors.muted} style={styles.chevron} />
       )}
     </Pressable>
@@ -193,8 +199,12 @@ export default function NotificationsScreen() {
       router.push(`/user/${item.actorUsername}` as any);
       return;
     }
+    if (item.type === "mod_queue") {
+      router.push("/admin/queue" as any);
+      return;
+    }
     if (item.postId) {
-      router.push(`/post/${item.postId}`);
+      router.push(`/post/${item.postId}` as any);
     }
   };
 

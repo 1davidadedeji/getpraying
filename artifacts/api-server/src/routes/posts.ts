@@ -7,13 +7,13 @@ import {
   usersTable,
   notificationsTable,
   commentsTable,
-  userFollowsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, asc } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
+import { notifyModeratorsNewPending } from "../lib/modQueueNotifications";
 import { RateLimiter } from "../lib/rateLimit";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
@@ -150,34 +150,17 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const category = req.query.category as string | undefined;
   const currentUser = (req as any).user as { id: number } | undefined;
 
-  let followIds: number[] = [];
-  if (currentUser?.id) {
-    const rows = await db
-      .select({ followingId: userFollowsTable.followingId })
-      .from(userFollowsTable)
-      .where(eq(userFollowsTable.followerId, currentUser.id));
-    followIds = rows.map((r) => r.followingId);
-  }
-
   let conditions: any = eq(postsTable.status, "approved");
   if (category) conditions = and(conditions, eq(postsTable.category, category));
   if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
 
-  const posts =
-    followIds.length > 0
-      ? await db
-          .select()
-          .from(postsTable)
-          .where(conditions)
-          .orderBy(
-            sql`(CASE WHEN ${postsTable.authorId} IN (${sql.join(
-              followIds.map((id) => sql`${id}`),
-              sql`, `,
-            )}) THEN 1 ELSE 0 END) DESC`,
-            desc(postsTable.id),
-          )
-          .limit(limit + 1)
-      : await db.select().from(postsTable).where(conditions).orderBy(desc(postsTable.id)).limit(limit + 1);
+  /** Pure reverse-chronological feed so new posts (including the viewer's) stay on top. */
+  const posts = await db
+    .select()
+    .from(postsTable)
+    .where(conditions)
+    .orderBy(desc(postsTable.createdAt), desc(postsTable.id))
+    .limit(limit + 1);
 
   const hasMore = posts.length > limit;
   const page = posts.slice(0, limit);
@@ -284,6 +267,10 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     .set({ prayersShared: sql`${usersTable.prayersShared} + 1` })
     .where(eq(usersTable.id, user.id));
 
+  if (postStatus === "pending") {
+    await notifyModeratorsNewPending(post.id, user.id);
+  }
+
   const enriched = await enrichPost(post, user.id);
   res.status(201).json(enriched);
 });
@@ -362,6 +349,11 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
   const shouldQueue = (updated.flagCount ?? 0) >= FLAG_THRESHOLD && post.status === "approved";
   if (shouldQueue) {
     await db.update(postsTable).set({ status: "pending" }).where(eq(postsTable.id, postId));
+    if (post.authorId != null) {
+      await notifyModeratorsNewPending(postId, post.authorId);
+    } else {
+      await notifyModeratorsNewPending(postId, 0);
+    }
   }
 
   res.json({

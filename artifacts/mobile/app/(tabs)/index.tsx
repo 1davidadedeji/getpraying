@@ -21,6 +21,7 @@ import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
@@ -33,6 +34,7 @@ const NEW_POSTS_POLL_MS = 30_000;
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
+  const { pendingCount: modPending } = useModerationBadge();
   const { onScroll: onScrollHideBar } = useTabBarVisibility();
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
   const { data: dailyWord } = useGetDailyWord(
@@ -127,6 +129,7 @@ export default function FeedScreen() {
   const handleNewPostsTap = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setNewPostCount(0);
+    setFeedCategory(null);
     setRefreshing(true);
     try {
       const result = await fetchPage();
@@ -134,9 +137,13 @@ export default function FeedScreen() {
       setNextCursor(result.nextCursor);
       if (result.posts.length > 0) {
         topPostId.current = result.posts[0].id;
+      } else {
+        topPostId.current = null;
       }
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
-    } catch { /* silent */ } finally {
+    } catch {
+      setError(true);
+    } finally {
       setRefreshing(false);
     }
   }, [fetchPage]);
@@ -213,8 +220,13 @@ export default function FeedScreen() {
         </View>
         <View style={styles.headerRight}>
           {(user?.role === "admin" || user?.role === "moderator") && (
-            <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn}>
+            <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn} accessibilityLabel="Moderation">
               <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
+              {modPending > 0 && (
+                <View style={styles.modBadge} accessibilityLabel={`${modPending} pending`}>
+                  <Text style={styles.modBadgeText}>{modPending > 9 ? "9+" : String(modPending)}</Text>
+                </View>
+              )}
             </Pressable>
           )}
           <Pressable
@@ -480,6 +492,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.border,
+    position: "relative",
+  },
+  modBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modBadgeText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 9,
+    color: colors.surface,
   },
   headerAvatarBtn: {
     width: 36,
