@@ -1,0 +1,44 @@
+# EAS upload ignore (replaces .gitignore for archive when this file is used).
+# https://expo.fyi/eas-build-archive
+# In pnpm monorepos the project root is often the repo root — keep this file to trim uploads.
+
+# --- From repo .gitignore (Expo: include .gitignore rules in .easignore) ---
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+node_modules
+**/.idea
+**/.project
+**/.classpath
+**/.c9/
+**/*.launch
+**/.settings
+**/*.sublime-workspace
+**/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+.DS_Store
+Thumbs.db
+.cache/
+.local/
+.env
+.cursor
+
+# --- Not needed to build the mobile app; drops tens–hundreds of MB (API, seeds, design collateral) ---
+artifacts/api-server
+artifacts/GetPraying
+lib/db
+lib/api-zod
+lib/api-spec
+scripts
+
+# Git metadata (sometimes included; safe to drop on server)
+.git
