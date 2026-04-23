@@ -67,7 +67,7 @@
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "expo-file-system": "~19.0.21",
     "expo-sharing": "~14.0.8",
-    "react-native-pager-view": "6.5.0",
+    "react-native-pager-view": "6.9.1",
     "react-native-purchases": "^9.15.0"
   }
 }
