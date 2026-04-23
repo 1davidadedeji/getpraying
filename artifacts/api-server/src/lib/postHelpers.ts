@@ -1,5 +1,6 @@
 import { db, postsTable, usersTable, postPrayersTable, savedPostsTable, commentsTable } from "@workspace/db";
 import { eq, and, inArray, sql } from "drizzle-orm";
+import { parseCategoryTagsFromRow } from "./categoryTags";
 
 export type PostWithMeta = {
   id: number;
@@ -7,9 +8,12 @@ export type PostWithMeta = {
   mediaUrl: string | null;
   mediaType: string | null;
   category: string | null;
+  /** All tag slugs (primary display + extras); empty if none */
+  categories: string[];
   isAnonymous: boolean;
   status: string;
   flagReason: string | null;
+  moderationReason: string | null;
   prayCount: number;
   commentCount: number;
   saveCount: number;
@@ -69,15 +73,21 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     .where(eq(savedPostsTable.postId, post.id));
   const saveCount = Number(saveRow?.count ?? 0);
 
+  const categories = parseCategoryTagsFromRow({
+    category: post.category,
+    categoryTags: post.categoryTags,
+  });
   return {
     id: post.id,
     content: post.content,
     mediaUrl: post.mediaUrl ?? null,
     mediaType: post.mediaType ?? null,
     category: post.category ?? null,
+    categories,
     isAnonymous: post.isAnonymous,
     status: post.status,
     flagReason: post.flagReason ?? null,
+    moderationReason: post.moderationReason ?? null,
     prayCount: post.prayCount,
     commentCount,
     saveCount,
@@ -144,15 +154,21 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
 
   return posts.map((post) => {
     const author = post.isAnonymous ? null : (post.authorId ? authorsMap.get(post.authorId) ?? null : null);
+    const categories = parseCategoryTagsFromRow({
+      category: post.category,
+      categoryTags: post.categoryTags,
+    });
     return {
       id: post.id,
       content: post.content,
       mediaUrl: post.mediaUrl ?? null,
       mediaType: post.mediaType ?? null,
       category: post.category ?? null,
+      categories,
       isAnonymous: post.isAnonymous,
       status: post.status,
       flagReason: post.flagReason ?? null,
+      moderationReason: post.moderationReason ?? null,
       prayCount: post.prayCount,
       commentCount: commentCountMap.get(post.id) ?? 0,
       saveCount: saveCountMap.get(post.id) ?? 0,

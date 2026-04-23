@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, type Href } from "expo-router";
 import React, { useEffect, useMemo, useRef } from "react";
@@ -98,7 +99,12 @@ export default function WelcomeScreen() {
       <View style={[styles.inner, { paddingTop: topPad + 40, paddingBottom: insets.bottom + 40 }]}>
         <View style={styles.logoSection}>
           <View style={styles.logoRing}>
-            <Ionicons name="flame" size={48} color={colors.accent} />
+            <Image
+              source={require("../assets/images/icon.png")}
+              style={styles.logoImage}
+              contentFit="contain"
+              accessibilityLabel="GetPraying app logo"
+            />
           </View>
           <Text style={styles.appName}>GetPraying</Text>
           <Text style={styles.tagline}>A sanctuary for your{"\n"}daily walk with God</Text>
@@ -180,6 +186,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(212,160,67,0.1)",
+    overflow: "hidden",
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 18,
   },
   appName: {
     fontFamily: "NotoSerif_700Bold",

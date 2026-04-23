@@ -179,10 +179,6 @@ export default function FeedScreen() {
     setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   }, []);
 
-  const handleDeleted = useCallback((deletedId: number) => {
-    setPosts((prev) => prev.filter((p) => p.id !== deletedId));
-  }, []);
-
   const handleTabPressScroll = useCallback(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
     void loadFresh({ silent: true });
@@ -371,7 +367,7 @@ export default function FeedScreen() {
         data={displayPosts}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <PostCard post={item} onUpdated={handleUpdated} onDeleted={handleDeleted} />
+          <PostCard post={item} onUpdated={handleUpdated} />
         )}
         numColumns={Platform.OS === "web" ? 2 : 1}
         columnWrapperStyle={Platform.OS === "web" ? styles.columnWrap : undefined}

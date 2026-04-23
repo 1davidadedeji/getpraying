@@ -26,6 +26,7 @@ import { Text, TextInput } from "react-native";
 import { AppAlertHost } from "@/components/AppAlert";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/auth";
+import { FeedNoticeProvider } from "@/context/feedNotice";
 import { ModerationBadgeProvider } from "@/context/moderationBadge";
 import { RevenueCatProvider } from "@/context/revenuecat";
 import colors from "@/constants/colors";
@@ -72,6 +73,7 @@ function RootLayoutNav() {
         options={{ title: "Share a prayer", headerBackTitle: "Back", headerShown: true }}
       />
       <Stack.Screen name="post/[id]" options={{ title: "Prayer", headerBackTitle: "Back" }} />
+      <Stack.Screen name="official/[id]" options={{ title: "Official guide", headerBackTitle: "Back" }} />
       <Stack.Screen name="path/[id]" options={{ title: "Prayer Path", headerBackTitle: "Back" }} />
       <Stack.Screen name="user/[username]" options={{ title: "Profile", headerBackTitle: "Back" }} />
       <Stack.Screen name="category/[name]" options={{ title: "Category", headerBackTitle: "Back" }} />
@@ -107,13 +109,15 @@ export default function RootLayout() {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <ModerationBadgeProvider>
-                <RevenueCatProvider>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </RevenueCatProvider>
-              </ModerationBadgeProvider>
+              <FeedNoticeProvider>
+                <ModerationBadgeProvider>
+                  <RevenueCatProvider>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                  </RevenueCatProvider>
+                </ModerationBadgeProvider>
+              </FeedNoticeProvider>
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>

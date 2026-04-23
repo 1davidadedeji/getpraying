@@ -9,6 +9,8 @@ export const postsTable = pgTable("posts", {
   mediaUrl: text("media_url"),
   mediaType: text("media_type"), // 'image' | 'video'
   category: text("category"),
+  /** JSON array string of category slugs (primary = `category`, usually first tag) */
+  categoryTags: text("category_tags"),
   isAnonymous: boolean("is_anonymous").notNull().default(false),
   status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'declined'
   flagReason: text("flag_reason"),

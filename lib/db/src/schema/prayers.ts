@@ -46,6 +46,7 @@ export const officialPrayersTable = pgTable("official_prayers", {
   /** morning | evening — featured slot for daily prayers */
   scheduleSlot: text("schedule_slot"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 /** User-saved official guides (library), distinct from feed post saves */

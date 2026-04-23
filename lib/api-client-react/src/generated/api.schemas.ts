@@ -131,6 +131,8 @@ export interface Post {
   mediaUrl?: string | null;
   mediaType?: PostMediaType;
   category?: string | null;
+  /** All tag slugs for this post (primary is usually first) */
+  categories?: string[];
   isAnonymous: boolean;
   status: PostStatus;
   flagReason?: string | null;
@@ -181,6 +183,15 @@ export interface DeclinePostInput {
   reason: string;
 }
 
+export interface DeletePostInput {
+  /**
+   * Required when a moderator or admin deletes another user's post
+   * @minLength 3
+   * @maxLength 500
+   */
+  reason?: string;
+}
+
 export type CreatePostInputMediaType =
   | (typeof CreatePostInputMediaType)[keyof typeof CreatePostInputMediaType]
   | null;
@@ -196,7 +207,13 @@ export interface CreatePostInput {
   content?: string;
   mediaUrl?: string | null;
   mediaType?: CreatePostInputMediaType;
+  /** Primary category slug (also include in categories if using multiple) */
   category?: string | null;
+  /**
+   * Additional category slugs; merged with category, stored in order after allowlist filter
+   * @maxItems 30
+   */
+  categories?: string[];
   isAnonymous?: boolean;
 }
 
@@ -234,6 +251,25 @@ export interface OfficialPrayer {
   label?: string | null;
   audioVoice?: string | null;
   createdAt: string;
+}
+
+export interface OfficialPrayerDetail {
+  id: number;
+  title: string;
+  subtitle?: string | null;
+  content: string;
+  category: string;
+  durationMinutes?: number | null;
+  scripture?: string | null;
+  label?: string | null;
+  audioVoice?: string | null;
+  audioUrl?: string | null;
+  pathId?: number | null;
+  scheduleSlot?: string | null;
+  uploadedByUsername?: string | null;
+  uploadedByDisplayName?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PrayerPath {

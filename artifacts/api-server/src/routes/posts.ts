@@ -7,8 +7,10 @@ import {
   usersTable,
   notificationsTable,
   commentsTable,
+  staffPostDeletionsTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, asc } from "drizzle-orm";
+import { eq, and, or, desc, sql, asc } from "drizzle-orm";
+import { filterAllowedCategories } from "../lib/categoriesAllowlist";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
@@ -151,7 +153,16 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const currentUser = (req as any).user as { id: number } | undefined;
 
   let conditions: any = eq(postsTable.status, "approved");
-  if (category) conditions = and(conditions, eq(postsTable.category, category));
+  if (category && String(category).trim()) {
+    const c = String(category).trim();
+    conditions = and(
+      conditions,
+      or(
+        eq(postsTable.category, c),
+        sql`coalesce(${postsTable.categoryTags}, '[]')::jsonb @> ${JSON.stringify([c])}::jsonb`,
+      )!,
+    );
+  }
   if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
 
   /** Pure reverse-chronological feed so new posts (including the viewer's) stay on top. */
@@ -175,7 +186,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
 
 router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
-  const { content, mediaUrl, mediaType, category, isAnonymous } = req.body;
+  const { content, mediaUrl, mediaType, category, isAnonymous, categories: categoriesBody } = req.body;
 
   const contentTrimmed = typeof content === "string" ? content.trim() : "";
   if (contentTrimmed.length > 5000) {
@@ -204,14 +215,30 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  let detectedCategory: string | null = category ?? null;
-  if (!detectedCategory) {
-    try {
-      detectedCategory = await suggestCategory(storedContent);
-    } catch {
-      detectedCategory = null;
+  const rawTagOrder: string[] = [];
+  if (typeof category === "string" && category.trim()) {
+    rawTagOrder.push(category.trim().toLowerCase());
+  }
+  if (Array.isArray(categoriesBody)) {
+    for (const c of categoriesBody) {
+      if (typeof c === "string" && c.trim()) {
+        const t = c.trim().toLowerCase();
+        if (!rawTagOrder.includes(t)) rawTagOrder.push(t);
+      }
     }
   }
+  let tagList = filterAllowedCategories(rawTagOrder);
+  if (tagList.length === 0) {
+    let detected: string | null = null;
+    try {
+      detected = await suggestCategory(storedContent);
+    } catch {
+      detected = null;
+    }
+    if (detected) tagList = filterAllowedCategories([detected]);
+  }
+  const detectedCategory: string | null = tagList[0] ?? null;
+  const categoryTagsJson: string | null = tagList.length > 0 ? JSON.stringify(tagList) : null;
 
   // AI moderation: text-only posts can be auto-approved/declined. Any media requires manual review (never auto-approved).
   let postStatus: "approved" | "pending" | "declined" = "pending";
@@ -255,6 +282,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
       mediaUrl: hasMedia ? mediaUrlStr : null,
       mediaType: storedMediaType,
       category: detectedCategory,
+      categoryTags: categoryTagsJson,
       isAnonymous: isAnonymous ?? false,
       status: postStatus,
       moderationReason,
@@ -487,6 +515,8 @@ router.delete("/posts/:postId", requireAuth, async (req, res): Promise<void> => 
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
   const user = (req as any).user;
+  const reason =
+    typeof req.body?.reason === "string" ? req.body.reason.trim() : String(req.query.reason ?? "").trim();
 
   const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
   if (!post) {
@@ -494,9 +524,29 @@ router.delete("/posts/:postId", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  if (post.authorId !== user.id && user.role !== "admin") {
+  const isStaff = user.role === "admin" || user.role === "moderator";
+  if (post.authorId !== user.id && !isStaff) {
     res.status(403).json({ error: "Not authorized" });
     return;
+  }
+
+  const deletingOther =
+    isStaff && post.authorId != null && post.authorId !== user.id;
+  if (deletingOther) {
+    if (reason.length < 3 || reason.length > 500) {
+      res.status(400).json({
+        error: "A reason of 3–500 characters is required to delete another person’s post.",
+        code: "REASON_REQUIRED",
+      });
+      return;
+    }
+    await db.insert(staffPostDeletionsTable).values({
+      postId: post.id,
+      authorId: post.authorId!,
+      staffUserId: user.id,
+      reason,
+      contentPreview: post.content.length > 280 ? post.content.slice(0, 277) + "…" : post.content,
+    });
   }
 
   await db.delete(commentsTable).where(eq(commentsTable.postId, postId));

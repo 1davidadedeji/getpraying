@@ -77,14 +77,32 @@ const uploadAudio = multer({
   },
 });
 
+function isLimitFileSize(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: string }).code === "LIMIT_FILE_SIZE"
+  );
+}
+
+/** Optional friendly message for 413 when file exceeds route limit. */
 function handleMulterError(
   upload: ReturnType<multer.Multer["single"]>,
   req: Request,
   res: Response,
   next: NextFunction,
+  fileTooLargeMessage?: string,
 ): void {
   upload(req, res, (err: unknown) => {
     if (err) {
+      if (isLimitFileSize(err)) {
+        res.status(413).json({
+          error:
+            fileTooLargeMessage ??
+            "That file is too large for the server. Try a smaller or shorter file.",
+        });
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Upload failed";
       res.status(400).json({ error: msg });
       return;
@@ -98,7 +116,14 @@ const router: IRouter = Router();
 router.post(
   "/uploads/post-image",
   requireAuth,
-  (req, res, next) => handleMulterError(uploadPostImage.single("file"), req, res, next),
+  (req, res, next) =>
+    handleMulterError(
+      uploadPostImage.single("file"),
+      req,
+      res,
+      next,
+      "Photo is too large for the server (max 1MB). The app resizes; try a smaller or simpler image.",
+    ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
     if (!file?.buffer?.length) {
@@ -125,7 +150,14 @@ router.post(
 router.post(
   "/uploads/avatar",
   requireAuth,
-  (req, res, next) => handleMulterError(uploadAvatarImage.single("file"), req, res, next),
+  (req, res, next) =>
+    handleMulterError(
+      uploadAvatarImage.single("file"),
+      req,
+      res,
+      next,
+      "Profile image is too large (max 2MB).",
+    ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
     if (!file?.buffer?.length) {
@@ -156,7 +188,14 @@ router.post(
 router.post(
   "/uploads/post-video",
   requireAuth,
-  (req, res, next) => handleMulterError(uploadVideo.single("file"), req, res, next),
+  (req, res, next) =>
+    handleMulterError(
+      uploadVideo.single("file"),
+      req,
+      res,
+      next,
+      `Video file is too large (max 12MB) or too long; clips must be ${MAX_VIDEO_DURATION_SEC} seconds or less.`,
+    ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
     if (!file?.buffer?.length) {
@@ -188,7 +227,14 @@ router.post(
 router.post(
   "/uploads/post-audio",
   requireAuth,
-  (req, res, next) => handleMulterError(uploadAudio.single("file"), req, res, next),
+  (req, res, next) =>
+    handleMulterError(
+      uploadAudio.single("file"),
+      req,
+      res,
+      next,
+      "Audio file is too large (max 15MB).",
+    ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as
       | { buffer: Buffer; mimetype: string; originalname?: string }

@@ -409,13 +409,19 @@ paths:
     delete:
       operationId: deletePost
       tags: [posts]
-      summary: Delete own post
+      summary: Delete own post (or staff may delete another user's post with a reason)
       parameters:
         - name: postId
           in: path
           required: true
           schema:
             type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeletePostInput"
       responses:
         "200":
           description: Deleted
@@ -423,6 +429,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Missing reason for staff deletion of someone else's post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /posts/{postId}/pray:
     post:
@@ -549,6 +561,31 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/OfficialPrayer"
+
+  /library/official/{id}:
+    get:
+      operationId: getOfficialPrayerById
+      tags: [prayers]
+      summary: Get one official prayer by id (detail / saved deep link)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Official prayer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficialPrayerDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /library/saved:
     get:
@@ -1144,6 +1181,11 @@ components:
         category:
           type: string
           nullable: true
+        categories:
+          type: array
+          items:
+            type: string
+          description: All tag slugs for this post (primary is usually first)
         isAnonymous:
           type: boolean
         status:
@@ -1261,6 +1303,15 @@ components:
       required:
         - reason
 
+    DeletePostInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Required when a moderator or admin deletes another user's post
+
     CreatePostInput:
       type: object
       properties:
@@ -1277,6 +1328,13 @@ components:
         category:
           type: string
           nullable: true
+          description: Primary category slug (also include in categories if using multiple)
+        categories:
+          type: array
+          items:
+            type: string
+          maxItems: 30
+          description: Additional category slugs; merged with category, stored in order after allowlist filter
         isAnonymous:
           type: boolean
           default: false
@@ -1370,6 +1428,61 @@ components:
         - content
         - category
         - createdAt
+
+    OfficialPrayerDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        subtitle:
+          type: string
+          nullable: true
+        content:
+          type: string
+        category:
+          type: string
+        durationMinutes:
+          type: integer
+          nullable: true
+        scripture:
+          type: string
+          nullable: true
+        label:
+          type: string
+          nullable: true
+        audioVoice:
+          type: string
+          nullable: true
+        audioUrl:
+          type: string
+          nullable: true
+        pathId:
+          type: integer
+          nullable: true
+        scheduleSlot:
+          type: string
+          nullable: true
+        uploadedByUsername:
+          type: string
+          nullable: true
+        uploadedByDisplayName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - content
+        - category
+        - createdAt
+        - updatedAt
 
     PrayerPath:
       type: object

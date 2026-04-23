@@ -14,6 +14,8 @@ export interface Post {
   mediaUrl?: string | null;
   mediaType?: PostMediaType;
   category?: string | null;
+  /** All tag slugs for this post (primary is usually first) */
+  categories?: string[];
   isAnonymous: boolean;
   status: PostStatus;
   flagReason?: string | null;

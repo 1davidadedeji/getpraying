@@ -13,11 +13,7 @@ type Props = {
 };
 
 function navigateToGuide(op: OfficialPrayerRow) {
-  if (op.pathId && op.pathId > 0) {
-    router.push(`/path/${op.pathId}` as never);
-  } else if (op.category) {
-    router.push(`/category/${encodeURIComponent(op.category)}` as never);
-  }
+  router.push(`/official/${op.id}` as never);
 }
 
 export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props) {

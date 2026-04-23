@@ -205,6 +205,10 @@ export const GetUserPostsResponse = zod.object({
       mediaUrl: zod.string().nullish(),
       mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
+      categories: zod
+        .array(zod.string())
+        .optional()
+        .describe("All tag slugs for this post (primary is usually first)"),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
@@ -254,6 +258,10 @@ export const GetPostsResponse = zod.object({
       mediaUrl: zod.string().nullish(),
       mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
+      categories: zod
+        .array(zod.string())
+        .optional()
+        .describe("All tag slugs for this post (primary is usually first)"),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
@@ -281,6 +289,8 @@ export const GetPostsResponse = zod.object({
 /**
  * @summary Create a new prayer post
  */
+export const createPostBodyCategoriesMax = 30;
+
 export const createPostBodyIsAnonymousDefault = false;
 
 export const CreatePostBody = zod.object({
@@ -290,7 +300,19 @@ export const CreatePostBody = zod.object({
     .describe("May be empty when mediaUrl is set (e.g. image-only post)"),
   mediaUrl: zod.string().nullish(),
   mediaType: zod.enum(["image", "video", "audio"]).nullish(),
-  category: zod.string().nullish(),
+  category: zod
+    .string()
+    .nullish()
+    .describe(
+      "Primary category slug (also include in categories if using multiple)",
+    ),
+  categories: zod
+    .array(zod.string())
+    .max(createPostBodyCategoriesMax)
+    .optional()
+    .describe(
+      "Additional category slugs; merged with category, stored in order after allowlist filter",
+    ),
   isAnonymous: zod.boolean().default(createPostBodyIsAnonymousDefault),
 });
 
@@ -309,6 +331,10 @@ export const GetTrendingPostsResponseItem = zod.object({
   mediaUrl: zod.string().nullish(),
   mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
+  categories: zod
+    .array(zod.string())
+    .optional()
+    .describe("All tag slugs for this post (primary is usually first)"),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
@@ -358,6 +384,10 @@ export const GetPostResponse = zod.object({
   mediaUrl: zod.string().nullish(),
   mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
+  categories: zod
+    .array(zod.string())
+    .optional()
+    .describe("All tag slugs for this post (primary is usually first)"),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
@@ -379,10 +409,22 @@ export const GetPostResponse = zod.object({
 });
 
 /**
- * @summary Delete own post
+ * @summary Delete own post (or staff may delete another user's post with a reason)
  */
 export const DeletePostParams = zod.object({
   postId: zod.coerce.number(),
+});
+
+export const deletePostBodyReasonMin = 3;
+export const deletePostBodyReasonMax = 500;
+
+export const DeletePostBody = zod.object({
+  reason: zod
+    .string()
+    .min(deletePostBodyReasonMin)
+    .max(deletePostBodyReasonMax)
+    .optional()
+    .describe("Required when a moderator or admin deletes another user's post"),
 });
 
 export const DeletePostResponse = zod.object({
@@ -488,6 +530,32 @@ export const GetOfficialPrayersResponse = zod.array(
 );
 
 /**
+ * @summary Get one official prayer by id (detail / saved deep link)
+ */
+export const GetOfficialPrayerByIdParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetOfficialPrayerByIdResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  subtitle: zod.string().nullish(),
+  content: zod.string(),
+  category: zod.string(),
+  durationMinutes: zod.number().nullish(),
+  scripture: zod.string().nullish(),
+  label: zod.string().nullish(),
+  audioVoice: zod.string().nullish(),
+  audioUrl: zod.string().nullish(),
+  pathId: zod.number().nullish(),
+  scheduleSlot: zod.string().nullish(),
+  uploadedByUsername: zod.string().nullish(),
+  uploadedByDisplayName: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
  * @summary Get current user's saved prayers/scrolls
  */
 export const GetSavedPrayersResponseItem = zod.object({
@@ -496,6 +564,10 @@ export const GetSavedPrayersResponseItem = zod.object({
   mediaUrl: zod.string().nullish(),
   mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
+  categories: zod
+    .array(zod.string())
+    .optional()
+    .describe("All tag slugs for this post (primary is usually first)"),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
@@ -582,6 +654,10 @@ export const GetPathResponse = zod.object({
       mediaUrl: zod.string().nullish(),
       mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
+      categories: zod
+        .array(zod.string())
+        .optional()
+        .describe("All tag slugs for this post (primary is usually first)"),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
@@ -689,6 +765,10 @@ export const GetPendingPostsResponse = zod.object({
       mediaUrl: zod.string().nullish(),
       mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
+      categories: zod
+        .array(zod.string())
+        .optional()
+        .describe("All tag slugs for this post (primary is usually first)"),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
@@ -731,6 +811,10 @@ export const GetModeratedPostsResponse = zod.object({
       mediaUrl: zod.string().nullish(),
       mediaType: zod.enum(["image", "video", "audio"]).nullish(),
       category: zod.string().nullish(),
+      categories: zod
+        .array(zod.string())
+        .optional()
+        .describe("All tag slugs for this post (primary is usually first)"),
       isAnonymous: zod.boolean(),
       status: zod.enum(["pending", "approved", "declined"]),
       flagReason: zod.string().nullish(),
@@ -768,6 +852,10 @@ export const ApprovePostResponse = zod.object({
   mediaUrl: zod.string().nullish(),
   mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
+  categories: zod
+    .array(zod.string())
+    .optional()
+    .describe("All tag slugs for this post (primary is usually first)"),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),
@@ -812,6 +900,10 @@ export const DeclinePostResponse = zod.object({
   mediaUrl: zod.string().nullish(),
   mediaType: zod.enum(["image", "video", "audio"]).nullish(),
   category: zod.string().nullish(),
+  categories: zod
+    .array(zod.string())
+    .optional()
+    .describe("All tag slugs for this post (primary is usually first)"),
   isAnonymous: zod.boolean(),
   status: zod.enum(["pending", "approved", "declined"]),
   flagReason: zod.string().nullish(),

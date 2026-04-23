@@ -3,6 +3,7 @@ import { Audio } from "expo-av";
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import colors from "@/constants/colors";
+import { registerOfficialGuideSound, pauseOtherOfficialGuides } from "@/lib/officialGuidesAudioSession";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 export type OfficialGuidePlayHandle = {
@@ -42,11 +43,13 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
     }
     let mounted = true;
     let instance: Audio.Sound | null = null;
+    let unregister: (() => void) | null = null;
     (async () => {
       try {
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
         const { sound: s } = await Audio.Sound.createAsync({ uri });
         instance = s;
+        unregister = registerOfficialGuideSound(s);
         if (mounted) {
           setSound(s);
           s.setOnPlaybackStatusUpdate((st) => {
@@ -61,6 +64,7 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
     })();
     return () => {
       mounted = false;
+      unregister?.();
       instance?.unloadAsync().catch(() => {});
     };
   }, [uri]);
@@ -73,6 +77,7 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
       await s.pauseAsync();
       setPlaying(false);
     } else {
+      await pauseOtherOfficialGuides(s);
       await s.playAsync();
       setPlaying(true);
     }

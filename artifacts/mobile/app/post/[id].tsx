@@ -10,6 +10,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   Share,
@@ -53,7 +54,9 @@ export default function PostDetailScreen() {
   const { id, focusComment } = useLocalSearchParams<{ id: string; focusComment?: string }>();
   const postId = Number(id);
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { user, token } = useAuth();
+  const [staffDeleteOpen, setStaffDeleteOpen] = useState(false);
+  const [staffDeleteReason, setStaffDeleteReason] = useState("");
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<Post | null>(null);
@@ -127,14 +130,47 @@ export default function PostDetailScreen() {
     return () => sub.remove();
   }, []);
 
-  const { user } = useAuth();
   const isOwner =
     !!user && !!post && !post.isAnonymous &&
     (user.id === (post as any).authorId || user.username === post.authorUsername);
   const isAdmin = user?.role === "admin" || user?.role === "moderator";
 
+  const runDelete = async (opts?: { reason?: string }) => {
+    if (!post) return;
+    try {
+      const body =
+        opts?.reason && opts.reason.length >= 3
+          ? JSON.stringify({ reason: opts.reason })
+          : undefined;
+      const res = await fetch(apiUrl(`/posts/${post.id}`), {
+        method: "DELETE",
+        headers: authHeaders(
+          token,
+          body ? { "Content-Type": "application/json" } : undefined,
+        ),
+        body,
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setStaffDeleteOpen(false);
+        setStaffDeleteReason("");
+        router.back();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showAppAlert({ title: "Could not delete", message: (err as any).error ?? "Please try again." });
+      }
+    } catch {
+      showAppAlert({ title: "Could not delete", message: "Check your connection." });
+    }
+  };
+
   const handleDeletePost = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    if (isAdmin && !isOwner) {
+      setStaffDeleteReason("");
+      setStaffDeleteOpen(true);
+      return;
+    }
     showAppAlert({
       title: "Delete this prayer?",
       message: "This will permanently remove it.",
@@ -143,23 +179,7 @@ export default function PostDetailScreen() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await fetch(apiUrl(`/posts/${post!.id}`), {
-                method: "DELETE",
-                headers: authHeaders(token),
-              });
-              if (res.ok) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                router.back();
-              } else {
-                const err = await res.json().catch(() => ({}));
-                showAppAlert({ title: "Could not delete", message: (err as any).error ?? "Please try again." });
-              }
-            } catch {
-              showAppAlert({ title: "Could not delete", message: "Check your connection." });
-            }
-          },
+          onPress: () => void runDelete(),
         },
       ],
     });
@@ -381,9 +401,9 @@ export default function PostDetailScreen() {
               hitSlop={8}
               style={styles.flagBtn}
               accessibilityRole="button"
-              accessibilityLabel="Delete prayer"
+              accessibilityLabel="Delete or manage this prayer"
             >
-              <Feather name="trash-2" size={17} color={colors.muted} />
+              <Feather name="more-horizontal" size={20} color={colors.muted} />
             </Pressable>
           )}
           <Pressable
@@ -552,6 +572,55 @@ export default function PostDetailScreen() {
           <Feather name="share-2" size={ENGAGE_ICON - 2} color={colors.primary} />
         </Pressable>
       </View>
+
+      <Modal
+        visible={staffDeleteOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setStaffDeleteOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setStaffDeleteOpen(false)}
+        >
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Reason required</Text>
+            <Text style={styles.modalHelp}>
+              Briefly say why you are removing this person&apos;s prayer (team audit).
+            </Text>
+            <TextInput
+              value={staffDeleteReason}
+              onChangeText={setStaffDeleteReason}
+              placeholder="e.g. policy violation, spam…"
+              placeholderTextColor={colors.muted}
+              style={styles.modalInput}
+              multiline
+              maxLength={500}
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => setStaffDeleteOpen(false)}
+                style={styles.modalCancel}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  const r = staffDeleteReason.trim();
+                  if (r.length < 3) {
+                    showAppAlert({ title: "Add a bit more", message: "Use at least 3 characters for the reason." });
+                    return;
+                  }
+                  void runDelete({ reason: r });
+                }}
+                style={styles.modalDelete}
+              >
+                <Text style={styles.modalDeleteText}>Delete</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -842,5 +911,67 @@ const styles = StyleSheet.create({
   iconCircleBtnActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 20,
+    maxWidth: 400,
+    alignSelf: "center",
+    width: "100%",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalTitle: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 18,
+    color: colors.primary,
+    marginBottom: 6,
+  },
+  modalHelp: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.muted,
+    marginBottom: 12,
+  },
+  modalInput: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 15,
+    color: colors.text,
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 12,
+    textAlignVertical: "top",
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    marginTop: 16,
+  },
+  modalCancel: { paddingVertical: 10, paddingHorizontal: 14 },
+  modalCancelText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 15,
+    color: colors.muted,
+  },
+  modalDelete: {
+    backgroundColor: colors.danger,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  modalDeleteText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 15,
+    color: colors.surface,
   },
 });

@@ -153,6 +153,61 @@ router.get("/library/official/sanctuary", optionalAuth, async (_req, res): Promi
   res.json({ morning, evening });
 });
 
+/** Single official prayer (saved items / deep link). Registered after /sanctuary so "sanctuary" is not parsed as an id. */
+router.get("/library/official/:id", optionalAuth, async (req, res): Promise<void> => {
+  const raw = req.params.id;
+  const id = parseInt(Array.isArray(raw) ? raw[0]! : raw, 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [row] = await db
+    .select({
+      id: officialPrayersTable.id,
+      title: officialPrayersTable.title,
+      subtitle: officialPrayersTable.subtitle,
+      content: officialPrayersTable.content,
+      category: officialPrayersTable.category,
+      durationMinutes: officialPrayersTable.durationMinutes,
+      scripture: officialPrayersTable.scripture,
+      label: officialPrayersTable.label,
+      audioVoice: officialPrayersTable.audioVoice,
+      audioUrl: officialPrayersTable.audioUrl,
+      pathId: officialPrayersTable.pathId,
+      scheduleSlot: officialPrayersTable.scheduleSlot,
+      createdAt: officialPrayersTable.createdAt,
+      updatedAt: officialPrayersTable.updatedAt,
+      uploaderUsername: usersTable.username,
+      uploaderDisplayName: usersTable.displayName,
+    })
+    .from(officialPrayersTable)
+    .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id))
+    .where(eq(officialPrayersTable.id, id))
+    .limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json({
+    id: row.id,
+    title: row.title,
+    subtitle: row.subtitle,
+    content: row.content,
+    category: row.category,
+    durationMinutes: row.durationMinutes,
+    scripture: row.scripture,
+    label: row.label,
+    audioVoice: row.audioVoice,
+    audioUrl: row.audioUrl,
+    pathId: row.pathId,
+    scheduleSlot: row.scheduleSlot,
+    uploadedByUsername: row.uploaderUsername ?? null,
+    uploadedByDisplayName: row.uploaderDisplayName ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  });
+});
+
 router.get("/library/saved", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
 
@@ -193,6 +248,7 @@ router.get("/library/saved-official", requireAuth, async (req, res): Promise<voi
       pathId: officialPrayersTable.pathId,
       scheduleSlot: officialPrayersTable.scheduleSlot,
       createdAt: officialPrayersTable.createdAt,
+      updatedAt: officialPrayersTable.updatedAt,
       uploaderUsername: usersTable.username,
       uploaderDisplayName: usersTable.displayName,
       savedAt: savedOfficialPrayersTable.createdAt,
@@ -223,6 +279,7 @@ router.get("/library/saved-official", requireAuth, async (req, res): Promise<voi
       uploadedByUsername: p.uploaderUsername ?? null,
       uploadedByDisplayName: p.uploaderDisplayName ?? null,
       createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
     })),
   });
 });

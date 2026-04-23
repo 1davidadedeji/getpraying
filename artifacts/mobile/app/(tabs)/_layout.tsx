@@ -12,6 +12,7 @@ import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { useRevenueCat } from "@/context/revenuecat";
 import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarVisibility";
+import { FeedNoticeBanner } from "@/components/FeedNoticeBanner";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 72 : Platform.OS === "ios" ? 52 : 58;
 
@@ -125,6 +126,7 @@ function NativeTabLayout() {
     </NativeTabs>
     <ScrollChromeSync />
     <ComposeFab />
+    <FeedNoticeBanner />
     </View>
   );
 }
@@ -289,6 +291,7 @@ function ClassicTabLayout() {
     </Tabs>
     <ScrollChromeSync />
     <ComposeFab />
+    <FeedNoticeBanner />
     </View>
   );
 }

@@ -12,6 +12,12 @@ export interface CreatePostInput {
   content?: string;
   mediaUrl?: string | null;
   mediaType?: CreatePostInputMediaType;
+  /** Primary category slug (also include in categories if using multiple) */
   category?: string | null;
+  /**
+   * Additional category slugs; merged with category, stored in order after allowlist filter
+   * @maxItems 30
+   */
+  categories?: string[];
   isAnonymous?: boolean;
 }

@@ -24,6 +24,7 @@ import { CreatePostInputMediaType, useCreatePost } from "@workspace/api-client-r
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useFeedNotice } from "@/context/feedNotice";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -53,17 +54,43 @@ type PendingMedia =
   | { kind: "video"; uri: string; mimeType: string; fileName: string; durationSec: number }
   | { kind: "audio"; uri: string; mimeType: string; name: string };
 
-function messageForUploadFailure(res: Response, data: { error?: string }): string {
-  if (res.status === 413) {
-    return "That file is too large for the server. Photos should finish under 1MB after resize; video max 12MB and 10 seconds; audio max 15MB.";
+function messageForUploadFailure(
+  res: Response,
+  data: { error?: string },
+  kind: "image" | "video" | "audio",
+): string {
+  const fromServer = typeof data?.error === "string" ? data.error.trim() : "";
+  if (fromServer) {
+    if (res.status === 400 || res.status === 413) {
+      return fromServer;
+    }
+    if (res.status >= 500) {
+      return `${fromServer} (${kind === "image" ? "Photo" : kind === "video" ? "Video" : "Audio"} upload)`;
+    }
   }
-  if (typeof data?.error === "string" && data.error.trim()) {
-    return data.error;
+  if (res.status === 413) {
+    if (kind === "image") {
+      return "Photo is too large for the server (max 1MB). The app resizes; try a smaller or simpler image.";
+    }
+    if (kind === "video") {
+      return "Video file is too large (max 12MB). Shorter or lower quality clips work best.";
+    }
+    return "Audio file is too large (max 15MB).";
   }
   if (res.status === 408 || res.status === 504) {
     return "Upload timed out. Check your connection and try again.";
   }
-  return "Upload failed. Check your connection and file size, then try again.";
+  if (res.status === 401) {
+    return "Your session may have expired. Sign in again and try uploading the "
+      + (kind === "image" ? "photo" : kind === "video" ? "video" : "audio")
+      + " again.";
+  }
+  if (res.status === 0 || res.status < 0) {
+    return "No network. Check your connection, then try the "
+      + (kind === "image" ? "photo" : kind === "video" ? "video" : "audio")
+      + " again.";
+  }
+  return "Upload failed. Check your connection, file type, and limits (photo ~1MB after resize, video max 10s/12MB, audio max 15MB).";
 }
 
 async function uploadMultipart(
@@ -90,7 +117,8 @@ async function uploadMultipart(
   });
   const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string; mediaType?: string };
   if (!res.ok) {
-    throw new Error(messageForUploadFailure(res, data));
+    const kind = route === "post-image" ? "image" : route === "post-video" ? "video" : "audio";
+    throw new Error(messageForUploadFailure(res, data, kind));
   }
   if (typeof data?.url !== "string") {
     throw new Error("Upload failed: server did not return a file URL.");
@@ -133,7 +161,7 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
   });
   const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string };
   if (!res.ok) {
-    throw new Error(messageForUploadFailure(res, data));
+    throw new Error(messageForUploadFailure(res, data, "image"));
   }
   if (typeof data?.url !== "string") {
     throw new Error("Upload failed: server did not return a file URL.");
@@ -144,6 +172,7 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
 export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const { showNotice } = useFeedNotice();
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -358,8 +387,10 @@ export default function NewPostScreen() {
       return;
     }
 
-    // Use first selected category for DB storage (primary)
+    // Primary = first chip; all selected slugs are sent and stored (server allowlist)
     const category = selectedCategories[0] ?? undefined;
+    const categories =
+      selectedCategories.length > 0 ? selectedCategories : undefined;
 
     let mediaUrl: string | undefined;
     let postMediaType: CreatePostInputMediaType | undefined;
@@ -410,33 +441,30 @@ export default function NewPostScreen() {
           content: content.trim(),
           isAnonymous,
           category,
+          ...(categories ? { categories } : {}),
           ...(mediaUrl && postMediaType ? { mediaUrl, mediaType: postMediaType } : {}),
         },
       },
       {
-        onSuccess: (res: any) => {
+        onSuccess: (res: { status?: string }) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          const isApproved = res?.status === "approved";
+          showNotice(
+            isApproved
+              ? "Posted — you’ll see it at the top of the feed."
+              : "Sent for review — it will appear after approval.",
+            "success",
+          );
           setContent("");
           setIsAnonymous(false);
           setSelectedCategories([]);
           setAiCategories([]);
           setPendingMedia(null);
-          const isApproved = res?.status === "approved";
           if (router.canGoBack()) {
             router.back();
           } else {
             router.replace("/(tabs)" as Href);
           }
-          // Defer alert so navigation completes first (avoids focus/gesture glitches on some devices)
-          setTimeout(() => {
-            showAppAlert({
-              title: isApproved ? "Posted" : "Submitted",
-              message: isApproved
-                ? "Your prayer is in the feed at the top when you open Feeds."
-                : "Thanks — your prayer is in review and will appear after approval.",
-              buttons: [{ text: "OK", style: "default" }],
-            });
-          }, 350);
         },
         onError: (err: unknown) => {
           showAppAlert({

@@ -26,6 +26,7 @@ import type {
   CreatePostInput,
   DailyWordResponse,
   DeclinePostInput,
+  DeletePostInput,
   ErrorResponse,
   FeedStats,
   FollowUser200,
@@ -41,6 +42,7 @@ import type {
   LoginInput,
   Notification,
   OfficialPrayer,
+  OfficialPrayerDetail,
   Post,
   PostCommentsResponse,
   PostsPage,
@@ -1513,7 +1515,7 @@ export function useGetPost<
 }
 
 /**
- * @summary Delete own post
+ * @summary Delete own post (or staff may delete another user's post with a reason)
  */
 export const getDeletePostUrl = (postId: number) => {
   return `/api/posts/${postId}`;
@@ -1521,29 +1523,32 @@ export const getDeletePostUrl = (postId: number) => {
 
 export const deletePost = async (
   postId: number,
+  deletePostInput?: DeletePostInput,
   options?: RequestInit,
 ): Promise<SuccessResponse> => {
   return customFetch<SuccessResponse>(getDeletePostUrl(postId), {
     ...options,
     method: "DELETE",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(deletePostInput),
   });
 };
 
 export const getDeletePostMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deletePost>>,
     TError,
-    { postId: number },
+    { postId: number; data: BodyType<DeletePostInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deletePost>>,
   TError,
-  { postId: number },
+  { postId: number; data: BodyType<DeletePostInput> },
   TContext
 > => {
   const mutationKey = ["deletePost"];
@@ -1557,11 +1562,11 @@ export const getDeletePostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deletePost>>,
-    { postId: number }
+    { postId: number; data: BodyType<DeletePostInput> }
   > = (props) => {
-    const { postId } = props ?? {};
+    const { postId, data } = props ?? {};
 
-    return deletePost(postId, requestOptions);
+    return deletePost(postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1570,27 +1575,27 @@ export const getDeletePostMutationOptions = <
 export type DeletePostMutationResult = NonNullable<
   Awaited<ReturnType<typeof deletePost>>
 >;
-
-export type DeletePostMutationError = ErrorType<unknown>;
+export type DeletePostMutationBody = BodyType<DeletePostInput>;
+export type DeletePostMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Delete own post
+ * @summary Delete own post (or staff may delete another user's post with a reason)
  */
 export const useDeletePost = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deletePost>>,
     TError,
-    { postId: number },
+    { postId: number; data: BodyType<DeletePostInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof deletePost>>,
   TError,
-  { postId: number },
+  { postId: number; data: BodyType<DeletePostInput> },
   TContext
 > => {
   return useMutation(getDeletePostMutationOptions(options));
@@ -2111,6 +2116,94 @@ export function useGetOfficialPrayers<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetOfficialPrayersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get one official prayer by id (detail / saved deep link)
+ */
+export const getGetOfficialPrayerByIdUrl = (id: number) => {
+  return `/api/library/official/${id}`;
+};
+
+export const getOfficialPrayerById = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OfficialPrayerDetail> => {
+  return customFetch<OfficialPrayerDetail>(getGetOfficialPrayerByIdUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOfficialPrayerByIdQueryKey = (id: number) => {
+  return [`/api/library/official/${id}`] as const;
+};
+
+export const getGetOfficialPrayerByIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOfficialPrayerById>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOfficialPrayerById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOfficialPrayerByIdQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOfficialPrayerById>>
+  > = ({ signal }) => getOfficialPrayerById(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOfficialPrayerById>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOfficialPrayerByIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOfficialPrayerById>>
+>;
+export type GetOfficialPrayerByIdQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get one official prayer by id (detail / saved deep link)
+ */
+
+export function useGetOfficialPrayerById<
+  TData = Awaited<ReturnType<typeof getOfficialPrayerById>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOfficialPrayerById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOfficialPrayerByIdQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

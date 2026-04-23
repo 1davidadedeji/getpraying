@@ -36,18 +36,16 @@ type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCom
 interface PostCardProps {
   post: Post;
   onUpdated?: (post: Post) => void;
-  onDeleted?: (id: number) => void;
   replaceNav?: boolean;
 }
 
 const ICON_SIZE = 22;
 
-export default function PostCard({ post, onUpdated, onDeleted, replaceNav }: PostCardProps) {
+export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps) {
   const navigate = replaceNav ? router.replace : router.push;
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<PostWithCounts>(post);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setLocalPost(post);
@@ -69,48 +67,7 @@ export default function PostCard({ post, onUpdated, onDeleted, replaceNav }: Pos
     (post as PostWithCounts).saveCount,
   ]);
 
-  const { user, token } = useAuth();
-
-  const isOwner =
-    !!user &&
-    !localPost.isAnonymous &&
-    (user.id === (localPost as any).authorId || user.username === localPost.authorUsername);
-  const isAdmin = user?.role === "admin" || user?.role === "moderator";
-
-  const handleDelete = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    showAppAlert({
-      title: "Delete this prayer?",
-      message: "This will permanently remove it from the feed.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              const res = await fetch(apiUrl(`/posts/${localPost.id}`), {
-                method: "DELETE",
-                headers: authHeaders(token),
-              });
-              if (res.ok) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                onDeleted?.(localPost.id);
-              } else {
-                const err = await res.json().catch(() => ({}));
-                showAppAlert({ title: "Could not delete", message: (err as any).error ?? "Please try again." });
-              }
-            } catch {
-              showAppAlert({ title: "Could not delete", message: "Check your connection." });
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ],
-    });
-  };
+  const { token } = useAuth();
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -205,6 +162,16 @@ export default function PostCard({ post, onUpdated, onDeleted, replaceNav }: Pos
     ? "Anonymous"
     : localPost.authorDisplayName ?? localPost.authorUsername ?? "Unknown";
 
+  const categoryChips: string[] = (() => {
+    const p = localPost as Post & { categories?: string[] };
+    if (Array.isArray(p.categories) && p.categories.length > 0) {
+      return p.categories.filter((c) => c && CATEGORY_LABELS[c as keyof typeof CATEGORY_LABELS]);
+    }
+    return localPost.category && CATEGORY_LABELS[localPost.category as keyof typeof CATEGORY_LABELS]
+      ? [localPost.category]
+      : [];
+  })();
+
   const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
   const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
   return (
@@ -241,22 +208,16 @@ export default function PostCard({ post, onUpdated, onDeleted, replaceNav }: Pos
             </View>
           </Pressable>
           <View style={styles.headerRight}>
-            {localPost.category && CATEGORY_LABELS[localPost.category] && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{CATEGORY_LABELS[localPost.category]}</Text>
+            {categoryChips.length > 0 && (
+              <View style={styles.headerCats}>
+                {categoryChips.map((c) => (
+                  <View key={c} style={styles.categoryBadge}>
+                    <Text style={styles.categoryText} numberOfLines={1}>
+                      {CATEGORY_LABELS[c as keyof typeof CATEGORY_LABELS] ?? c}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            )}
-            {(isOwner || isAdmin) && (
-              <Pressable
-                onPress={(e) => { e.stopPropagation?.(); handleDelete(); }}
-                hitSlop={10}
-                disabled={deleting}
-                style={styles.deleteBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Delete prayer"
-              >
-                <Feather name="trash-2" size={15} color={colors.muted} />
-              </Pressable>
             )}
           </View>
         </View>
@@ -464,8 +425,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  deleteBtn: {
-    padding: 4,
+  headerCats: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    maxWidth: 180,
+    justifyContent: "flex-end",
   },
   categoryBadge: {
     backgroundColor: colors.flameDim,
