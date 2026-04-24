@@ -25,6 +25,8 @@ import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { formatLocalYMD } from "@/lib/date";
 
@@ -33,6 +35,7 @@ const NEW_POSTS_POLL_MS = 30_000;
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
+  const { gutter, feedInnerWidth, useTwoColumnFeed } = useResponsiveLayout();
   const { user, token } = useAuth();
   const { pendingCount: modPending } = useModerationBadge();
   const { onScroll: onScrollHideBar } = useTabBarVisibility();
@@ -49,6 +52,7 @@ export default function FeedScreen() {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [error, setError] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const { feedMediaFocusPostId, onViewableItemsChanged, viewabilityConfig } = useFeedMediaViewability();
 
   const [newPostCount, setNewPostCount] = useState(0);
   const pillAnim = useRef(new Animated.Value(0)).current;
@@ -209,7 +213,7 @@ export default function FeedScreen() {
     <View style={{ marginBottom: 8 }}>
       <View style={[styles.header, { paddingTop: topPad + 4 }]}>
         <View style={styles.headerTextBlock}>
-          <Text style={styles.greeting}>
+          <Text style={styles.greeting} numberOfLines={2} ellipsizeMode="tail">
             {user?.displayName ? `Hello, ${user.displayName}` : "GetPraying"}
           </Text>
           <Text style={styles.subGreeting}>Your prayer feed</Text>
@@ -315,7 +319,12 @@ export default function FeedScreen() {
             onPress={() => setFeedCategory(null)}
             style={[styles.pill, feedCategory === null && styles.pillOn]}
           >
-            <Text style={[styles.pillText, feedCategory === null && styles.pillTextOn]}>All</Text>
+            <Text
+              style={[styles.pillText, feedCategory === null && styles.pillTextOn]}
+              numberOfLines={1}
+            >
+              All
+            </Text>
           </Pressable>
           {user!.preferredCategories!.map((cat) => {
             const on = feedCategory === cat;
@@ -325,7 +334,9 @@ export default function FeedScreen() {
                 onPress={() => setFeedCategory(on ? null : cat)}
                 style={[styles.pill, on && styles.pillOn]}
               >
-                <Text style={[styles.pillText, on && styles.pillTextOn]}>{categoryLabel(cat)}</Text>
+                <Text style={[styles.pillText, on && styles.pillTextOn]} numberOfLines={1}>
+                  {categoryLabel(cat)}
+                </Text>
               </Pressable>
             );
           })}
@@ -367,10 +378,16 @@ export default function FeedScreen() {
         data={displayPosts}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <PostCard post={item} onUpdated={handleUpdated} />
+          <PostCard
+            post={item}
+            onUpdated={handleUpdated}
+            feedMediaFocusPostId={feedMediaFocusPostId}
+          />
         )}
-        numColumns={Platform.OS === "web" ? 2 : 1}
-        columnWrapperStyle={Platform.OS === "web" ? styles.columnWrap : undefined}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        numColumns={useTwoColumnFeed ? 2 : 1}
+        columnWrapperStyle={useTwoColumnFeed ? styles.columnWrap : undefined}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={
@@ -396,7 +413,13 @@ export default function FeedScreen() {
         }
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: 100 },
+          {
+            paddingBottom: 100,
+            paddingHorizontal: gutter,
+            maxWidth: feedInnerWidth,
+            width: "100%",
+            alignSelf: "center",
+          },
         ]}
         refreshControl={
           <RefreshControl
@@ -447,7 +470,6 @@ const styles = StyleSheet.create({
   },
   list: {
     backgroundColor: colors.cream,
-    paddingHorizontal: 16,
   },
   columnWrap: {
     gap: 12,
@@ -462,6 +484,7 @@ const styles = StyleSheet.create({
   },
   headerTextBlock: {
     flex: 1,
+    minWidth: 0,
   },
   greeting: {
     fontFamily: "NotoSerif_700Bold",
@@ -599,6 +622,7 @@ const styles = StyleSheet.create({
   },
   heartPlaceholder: {
     flex: 1,
+    minWidth: 0,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 14,
     color: colors.muted,

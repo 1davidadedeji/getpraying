@@ -23,6 +23,7 @@ import type { Post, User } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import { PreferredCategoriesContent } from "@/components/PreferredCategoriesContent";
 import { StatCard } from "@/components/StatCard";
+import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { PROFILE_MAIN_TABS, type ProfileMainTabKey } from "@/constants/profileTabs";
 import { SAVED_POSTS_EMPTY } from "@/constants/savedList";
@@ -30,7 +31,11 @@ import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
+
+/** Must match collapsible header layout so list content starts at the first item (library measures wrong if omitted). */
+const PROFILE_COLLAPSIBLE_HEADER_HEIGHT = 312;
 
 type PagerViewOnPage = import("react-native").NativeSyntheticEvent<{ position: number }>;
 
@@ -47,6 +52,35 @@ export default function ProfileScreen() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileMainTabKey>("my");
+  const activeTabRef = useRef<ProfileMainTabKey>(activeTab);
+  activeTabRef.current = activeTab;
+
+  const {
+    feedMediaFocusPostId,
+    onViewableItemsChanged: onProfileFeedViewable,
+    viewabilityConfig: profileFeedViewabilityConfig,
+    clearFeedMediaFocus,
+  } = useFeedMediaViewability();
+
+  const onMyFeedViewableItemsChanged = useCallback(
+    (info: Parameters<typeof onProfileFeedViewable>[0]) => {
+      if (activeTabRef.current !== "my") return;
+      onProfileFeedViewable(info);
+    },
+    [onProfileFeedViewable],
+  );
+
+  const onSavedFeedViewableItemsChanged = useCallback(
+    (info: Parameters<typeof onProfileFeedViewable>[0]) => {
+      if (activeTabRef.current !== "saved") return;
+      onProfileFeedViewable(info);
+    },
+    [onProfileFeedViewable],
+  );
+
+  useEffect(() => {
+    clearFeedMediaFocus();
+  }, [activeTab, clearFeedMediaFocus]);
 
   const { data: freshUser, refetch: refetchMe } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
@@ -136,9 +170,24 @@ export default function ProfileScreen() {
     void loadMyPosts();
   }, [loadMyPosts]);
 
-  const onTabChange = useCallback((data: { tabName: string }) => {
-    setActiveTab(data.tabName as ProfileMainTabKey);
+  const scrollActiveProfileListToTop = useCallback((tab: ProfileMainTabKey) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (tab === "my") myListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        else if (tab === "saved") savedListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        else categoriesScrollRef.current?.scrollTo({ y: 0, animated: false });
+      });
+    });
   }, []);
+
+  const onTabChange = useCallback(
+    (data: { tabName: string }) => {
+      const next = data.tabName as ProfileMainTabKey;
+      setActiveTab(next);
+      if (Platform.OS !== "web") scrollActiveProfileListToTop(next);
+    },
+    [scrollActiveProfileListToTop],
+  );
 
   const goToTabWeb = useCallback(
     (key: ProfileMainTabKey) => {
@@ -151,15 +200,22 @@ export default function ProfileScreen() {
           /* noop */
         }
       }
+      scrollActiveProfileListToTop(key);
     },
-    [],
+    [scrollActiveProfileListToTop],
   );
 
-  const onWebPagerPageSelected = useCallback((e: PagerViewOnPage) => {
-    const p = e.nativeEvent.position;
-    const key = PROFILE_MAIN_TABS[p]?.key;
-    if (key) setActiveTab(key);
-  }, []);
+  const onWebPagerPageSelected = useCallback(
+    (e: PagerViewOnPage) => {
+      const p = e.nativeEvent.position;
+      const key = PROFILE_MAIN_TABS[p]?.key;
+      if (key) {
+        setActiveTab(key);
+        scrollActiveProfileListToTop(key);
+      }
+    },
+    [scrollActiveProfileListToTop],
+  );
 
   const scrollProfileToTop = useCallback(() => {
     if (activeTab === "my") {
@@ -253,7 +309,16 @@ export default function ProfileScreen() {
   const webColumnStyle =
     Platform.OS === "web"
       ? {
-          maxWidth: Math.min(720, windowWidth),
+          maxWidth: Math.min(LAYOUT.contentMaxWidth, windowWidth),
+          width: "100%" as const,
+          alignSelf: "center" as const,
+        }
+      : null;
+
+  const tabletColumnStyle =
+    Platform.OS !== "web" && windowWidth >= LAYOUT.tabletMinWidth
+      ? {
+          maxWidth: LAYOUT.contentMaxWidth,
           width: "100%" as const,
           alignSelf: "center" as const,
         }
@@ -283,7 +348,7 @@ export default function ProfileScreen() {
         keyExtractor={(p) => `my-${p.id}`}
         renderItem={({ item }) => (
           <View style={{ paddingHorizontal: 20 }}>
-            <PostCard post={item} />
+            <PostCard post={item} feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null} />
           </View>
         )}
         ListEmptyComponent={
@@ -298,6 +363,8 @@ export default function ProfileScreen() {
           { paddingBottom: botPad + 32 },
           myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
         ]}
+        onViewableItemsChanged={onMyFeedViewableItemsChanged}
+        viewabilityConfig={profileFeedViewabilityConfig}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -311,7 +378,7 @@ export default function ProfileScreen() {
         keyExtractor={(p) => `saved-${p.id}`}
         renderItem={({ item }) => (
           <View style={{ paddingHorizontal: 20 }}>
-            <PostCard post={item} />
+            <PostCard post={item} feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null} />
           </View>
         )}
         ListEmptyComponent={
@@ -326,6 +393,8 @@ export default function ProfileScreen() {
           { paddingBottom: botPad + 32 },
           savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
         ]}
+        onViewableItemsChanged={onSavedFeedViewableItemsChanged}
+        viewabilityConfig={profileFeedViewabilityConfig}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -430,7 +499,7 @@ export default function ProfileScreen() {
   );
 
   return (
-    <View style={[styles.flex, webColumnStyle]}>
+    <View style={[styles.flex, webColumnStyle, tabletColumnStyle]}>
       <View style={[styles.fixedTopBar, { paddingTop: topPad + 8 }]}>{topBar}</View>
 
       {Platform.OS === "web" ? (
@@ -454,6 +523,7 @@ export default function ProfileScreen() {
         <Tabs.Container
           containerStyle={styles.tabsContainer}
           minHeaderHeight={0}
+          headerHeight={PROFILE_COLLAPSIBLE_HEADER_HEIGHT}
           initialTabName={PROFILE_MAIN_TABS[0].key}
           renderHeader={renderCollapsibleHeader}
           renderTabBar={renderMaterialProfileTabBar}
@@ -466,7 +536,10 @@ export default function ProfileScreen() {
               keyExtractor={(p: Post) => `my-${p.id}`}
               renderItem={({ item }: { item: Post }) => (
                 <View style={{ paddingHorizontal: 20 }}>
-                  <PostCard post={item} />
+                  <PostCard
+                    post={item}
+                    feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null}
+                  />
                 </View>
               )}
               ListEmptyComponent={
@@ -481,6 +554,8 @@ export default function ProfileScreen() {
                 { paddingBottom: botPad + 32 },
                 myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
               ]}
+              onViewableItemsChanged={onMyFeedViewableItemsChanged}
+              viewabilityConfig={profileFeedViewabilityConfig}
               showsVerticalScrollIndicator={false}
             />
           </Tabs.Tab>
@@ -491,7 +566,10 @@ export default function ProfileScreen() {
               keyExtractor={(p: Post) => `saved-${p.id}`}
               renderItem={({ item }: { item: Post }) => (
                 <View style={{ paddingHorizontal: 20 }}>
-                  <PostCard post={item} />
+                  <PostCard
+                    post={item}
+                    feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
+                  />
                 </View>
               )}
               ListEmptyComponent={
@@ -506,6 +584,8 @@ export default function ProfileScreen() {
                 { paddingBottom: botPad + 32 },
                 savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
               ]}
+              onViewableItemsChanged={onSavedFeedViewableItemsChanged}
+              viewabilityConfig={profileFeedViewabilityConfig}
               showsVerticalScrollIndicator={false}
             />
           </Tabs.Tab>

@@ -3,7 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import { getGetPathQueryKey, useGetPath } from "@workspace/api-client-react";
 import type { OfficialPrayer, Post } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
@@ -54,7 +55,11 @@ function PathSessionCard({
   showSave: boolean;
 }) {
   const playRef = useRef<OfficialGuidePlayHandle>(null);
+  const [playProgress, setPlayProgress] = useState(0);
   const mins = op.durationMinutes;
+  const progressInnerStyle: ViewStyle = {
+    width: `${Math.round(Math.min(1, Math.max(0, playProgress)) * 100)}%`,
+  };
   return (
     <View style={styles.sessionCard}>
       <View style={styles.sessionCardHeader}>
@@ -75,7 +80,7 @@ function PathSessionCard({
       <Text style={styles.sessionCardTitle}>{op.title}</Text>
       {op.scripture ? <Text style={styles.sessionScripture}>{op.scripture}</Text> : null}
       <View style={styles.progressOuter}>
-        <View style={[styles.progressInner, { width: "30%" }]} />
+        <View style={[styles.progressInner, progressInnerStyle]} />
       </View>
       <View style={styles.sessionCardFooter}>
         <Pressable
@@ -86,7 +91,12 @@ function PathSessionCard({
         >
           <Text style={styles.listenPillText}>Listen</Text>
         </Pressable>
-        <OfficialGuidePlayCircle ref={playRef} audioUrl={op.audioUrl} size={56} />
+        <OfficialGuidePlayCircle
+          ref={playRef}
+          audioUrl={op.audioUrl}
+          size={56}
+          onPlaybackProgress={setPlayProgress}
+        />
       </View>
     </View>
   );

@@ -221,7 +221,14 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
                 </View>
               )}
             </View>
-            <Text style={[tabBarStyles.label, { color: tint }]}>{tab.title}</Text>
+            <Text
+              style={[tabBarStyles.label, { color: tint }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
+              {tab.title}
+            </Text>
           </Pressable>
         );
       })}
@@ -242,10 +249,12 @@ const tabBarStyles = StyleSheet.create({
   },
   tab: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 8,
     gap: 2,
+    paddingHorizontal: 2,
   },
   iconWrap: {
     position: "relative",

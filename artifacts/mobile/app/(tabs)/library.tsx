@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Platform,
   Pressable,
@@ -16,7 +15,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SanctuarySlotCard } from "@/components/SanctuarySlotCard";
 import { SavedOfficialPrayersList } from "@/components/SavedOfficialPrayersList";
+import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -33,6 +34,7 @@ type CategoryItem = LibraryPathCard | ApiLibraryCategory;
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
+  const { windowWidth, gutter, isTablet } = useResponsiveLayout();
   const { token } = useAuth();
   const categoriesScrollRef = useRef<ScrollView>(null);
   const savedListRef = useRef<FlatList>(null);
@@ -184,13 +186,11 @@ export default function LibraryScreen() {
   }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const screenWidth = Dimensions.get("window").width;
-  const isTablet = screenWidth >= 768;
+  const layoutWidth = Math.min(LAYOUT.contentMaxWidth, windowWidth - gutter * 2);
   const SITUATION_COLS = isTablet ? 4 : 3;
   const cardGap = 10;
-  const horizontalPad = 16;
   const totalGaps = (SITUATION_COLS - 1) * cardGap;
-  const cardWidth = (screenWidth - horizontalPad * 2 - totalGaps) / SITUATION_COLS;
+  const cardWidth = (layoutWidth - totalGaps) / SITUATION_COLS;
 
   const tabs: { key: Tab; label: string; icon: "book-open" | "bookmark" }[] = [
     { key: "categories", label: "Official Prayers", icon: "book-open" },
@@ -246,12 +246,15 @@ export default function LibraryScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
+      <View style={[styles.shell, { maxWidth: LAYOUT.contentMaxWidth, paddingHorizontal: gutter }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerTitles}>
             <Text style={styles.libraryLabel}>LIBRARY</Text>
-            <Text style={styles.title}>Official Prayers</Text>
+            <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
+              Official Prayers
+            </Text>
           </View>
           <Pressable
             style={[styles.searchBtn, showSearch && styles.searchBtnActive]}
@@ -295,7 +298,12 @@ export default function LibraryScreen() {
               size={13}
               color={activeTab === t.key ? colors.surface : colors.muted}
             />
-            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
+            <Text
+              style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
               {t.label}
             </Text>
           </Pressable>
@@ -307,7 +315,7 @@ export default function LibraryScreen() {
         <ScrollView
           ref={categoriesScrollRef}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120, paddingHorizontal: 0 }]}
         >
           
           {/* Today's Sanctuary — morning first */}
@@ -369,7 +377,7 @@ export default function LibraryScreen() {
           listRef={savedListRef}
           queryEnabled
           invalidateOnFocus
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120, paddingHorizontal: 0 }]}
           onToggleSave={(id) => {
             setSavedOfficialIds((prev) => {
               const next = new Set(prev);
@@ -379,6 +387,7 @@ export default function LibraryScreen() {
           }}
         />
       )}
+      </View>
     </View>
   );
 }
@@ -387,9 +396,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.cream,
+    alignItems: "center",
+  },
+  shell: {
+    flex: 1,
+    width: "100%",
   },
   header: {
-    paddingHorizontal: 20,
     paddingBottom: 12,
     paddingTop: 6,
   },
@@ -400,6 +413,8 @@ const styles = StyleSheet.create({
   },
   headerTitles: {
     flex: 1,
+    minWidth: 0,
+    paddingRight: 8,
   },
   libraryLabel: {
     fontFamily: "PlusJakartaSans_700Bold",
@@ -443,16 +458,17 @@ const styles = StyleSheet.create({
   },
   tabRow: {
     flexDirection: "row",
-    paddingHorizontal: 20,
     gap: 8,
     marginBottom: 14,
   },
   tab: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     height: 34,
     borderRadius: 17,
     backgroundColor: colors.surface,
@@ -472,7 +488,6 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   scrollContent: {
-    paddingHorizontal: 16,
     paddingTop: 4,
   },
   sanctuaryExplainer: {

@@ -15,8 +15,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { showAppAlert } from "@/components/AppAlert";
+import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
@@ -26,6 +28,7 @@ const PRIVACY_URL = "https://getpraying.app/privacy";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { gutter } = useResponsiveLayout();
   const { user, logout, token } = useAuth();
   const { pendingCount: modPending } = useModerationBadge();
   const queryClient = useQueryClient();
@@ -102,7 +105,14 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={styles.flex}
-      contentContainerStyle={{ paddingTop: topPad + 8, paddingBottom: botPad + 32, paddingHorizontal: 20 }}
+      contentContainerStyle={{
+        paddingTop: topPad + 8,
+        paddingBottom: botPad + 32,
+        paddingHorizontal: gutter,
+        maxWidth: LAYOUT.contentMaxWidth,
+        width: "100%",
+        alignSelf: "center",
+      }}
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.screenTitle}>Settings</Text>
@@ -221,6 +231,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     flex: 1,
+    minWidth: 0,
   },
   teamRow: {
     flexDirection: "row",

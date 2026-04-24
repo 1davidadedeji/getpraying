@@ -18,6 +18,7 @@ import type { Notification } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
@@ -127,7 +128,9 @@ function NotificationItem({
         <Ionicons name={icon as any} size={18} color={iconColor} />
       </View>
       <View style={styles.notifContent}>
-        <Text style={styles.notifTitle}>{notificationTitle(item)}</Text>
+        <Text style={styles.notifTitle} numberOfLines={2} ellipsizeMode="tail">
+          {notificationTitle(item)}
+        </Text>
         <Text style={styles.notifBody} numberOfLines={2}>{item.message}</Text>
         {item.postPreview && (
           <Text style={styles.notifPreview} numberOfLines={1}>
@@ -146,6 +149,7 @@ function NotificationItem({
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const { gutter, feedInnerWidth } = useResponsiveLayout();
   const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
   const { data, isLoading, refetch, isFetching } = useGetNotifications();
@@ -219,8 +223,10 @@ export default function NotificationsScreen() {
       ListHeaderComponent={
         <View>
           <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-            <View>
-              <Text style={styles.title}>Notifications</Text>
+            <View style={styles.headerTitleBlock}>
+              <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                Notifications
+              </Text>
               {unreadCount > 0 && (
                 <Text style={styles.unreadLabel}>{unreadCount} unread</Text>
               )}
@@ -228,7 +234,9 @@ export default function NotificationsScreen() {
             {unreadCount > 0 && (
               <Pressable onPress={() => markAll()} style={styles.markReadBtn}>
                 <Feather name="check-circle" size={16} color={colors.accent} />
-                <Text style={styles.markReadText}>Mark all read</Text>
+                <Text style={styles.markReadText} numberOfLines={1} ellipsizeMode="tail">
+                  Mark all read
+                </Text>
               </Pressable>
             )}
           </View>
@@ -238,7 +246,7 @@ export default function NotificationsScreen() {
             style={({ pressed }) => [styles.reminderCard, pressed && styles.reminderCardPressed]}
           >
             <Ionicons name="time-outline" size={22} color={colors.accent} />
-            <View style={{ flex: 1 }}>
+            <View style={styles.reminderTextBlock}>
               <Text style={styles.reminderTitle}>Prayer reminders</Text>
               <Text style={styles.reminderSub}>Visit the library for guided audio and paths</Text>
             </View>
@@ -282,7 +290,13 @@ export default function NotificationsScreen() {
       }
       contentContainerStyle={[
         styles.list,
-        { paddingBottom: 100 },
+        {
+          paddingBottom: 100,
+          paddingHorizontal: gutter,
+          maxWidth: feedInnerWidth,
+          width: "100%",
+          alignSelf: "center",
+        },
       ]}
       refreshControl={
         <RefreshControl
@@ -299,13 +313,17 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   list: {
     backgroundColor: colors.cream,
-    paddingHorizontal: 16,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
     paddingBottom: 16,
+    gap: 8,
+  },
+  headerTitleBlock: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
     fontFamily: "NotoSerif_700Bold",
@@ -328,11 +346,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    flexShrink: 0,
+    maxWidth: "48%",
   },
   markReadText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     color: colors.accent,
+    flexShrink: 1,
+  },
+  reminderTextBlock: {
+    flex: 1,
+    minWidth: 0,
   },
   reminderCard: {
     flexDirection: "row",
@@ -420,6 +445,7 @@ const styles = StyleSheet.create({
   },
   notifContent: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   notifTitle: {

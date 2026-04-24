@@ -37,11 +37,13 @@ interface PostCardProps {
   post: Post;
   onUpdated?: (post: Post) => void;
   replaceNav?: boolean;
+  /** Home feed: post id that should autoplay media (muted) when in view */
+  feedMediaFocusPostId?: number | null;
 }
 
 const ICON_SIZE = 22;
 
-export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps) {
+export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPostId }: PostCardProps) {
   const navigate = replaceNav ? router.replace : router.push;
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
@@ -203,7 +205,9 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
               </View>
             )}
             <View style={styles.headerInfo}>
-              <Text style={styles.authorName}>{authorName}</Text>
+              <Text style={styles.authorName} numberOfLines={1} ellipsizeMode="tail">
+                {authorName}
+              </Text>
               <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
             </View>
           </Pressable>
@@ -226,6 +230,11 @@ export default function PostCard({ post, onUpdated, replaceNav }: PostCardProps)
           mediaUrl={localPost.mediaUrl}
           mediaType={localPost.mediaType}
           style={styles.media}
+          feedMediaFocused={
+            feedMediaFocusPostId != null &&
+            feedMediaFocusPostId === localPost.id &&
+            (localPost.mediaType === "video" || localPost.mediaType === "audio")
+          }
         />
 
         <Text style={styles.content} numberOfLines={4}>
@@ -408,6 +417,7 @@ const styles = StyleSheet.create({
   },
   headerInfo: {
     flex: 1,
+    minWidth: 0,
   },
   authorName: {
     fontFamily: "NotoSerif_700Bold",
@@ -424,12 +434,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    flexShrink: 0,
+    maxWidth: "42%",
   },
   headerCats: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,
-    maxWidth: 180,
     justifyContent: "flex-end",
   },
   categoryBadge: {

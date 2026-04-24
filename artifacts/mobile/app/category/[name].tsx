@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
+import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 
@@ -22,6 +24,7 @@ const PAGE_SIZE = 20;
 export default function CategoryFeedScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const insets = useSafeAreaInsets();
+  const { gutter, feedInnerWidth } = useResponsiveLayout();
   const { token } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,7 @@ export default function CategoryFeedScreen() {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [error, setError] = useState(false);
   const seenIds = useRef(new Set<number>());
+  const { feedMediaFocusPostId, onViewableItemsChanged, viewabilityConfig } = useFeedMediaViewability();
 
   const categoryDisplay = name ? decodeURIComponent(name).replace(/^\w/, (c) => c.toUpperCase()) : "";
 
@@ -102,10 +106,12 @@ export default function CategoryFeedScreen() {
     <FlatList
       data={posts}
       keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => <PostCard post={item} />}
+      renderItem={({ item }) => <PostCard post={item} feedMediaFocusPostId={feedMediaFocusPostId} />}
       ListHeaderComponent={
         <View style={styles.header}>
-          <Text style={styles.title}>{categoryDisplay}</Text>
+          <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
+            {categoryDisplay}
+          </Text>
           <Text style={styles.subtitle}>Prayers in this category</Text>
         </View>
       }
@@ -131,12 +137,23 @@ export default function CategoryFeedScreen() {
           </View>
         )
       }
-      contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
+      contentContainerStyle={[
+        styles.list,
+        {
+          paddingBottom: insets.bottom + 100,
+          paddingHorizontal: gutter,
+          maxWidth: feedInnerWidth,
+          width: "100%",
+          alignSelf: "center",
+        },
+      ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.flame} />
       }
       onEndReached={handleLoadMore}
       onEndReachedThreshold={0.4}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={viewabilityConfig}
       showsVerticalScrollIndicator={false}
     />
   );
@@ -151,10 +168,6 @@ const styles = StyleSheet.create({
   },
   list: {
     backgroundColor: colors.cream,
-    paddingHorizontal: 16,
-    maxWidth: 680,
-    alignSelf: "center" as const,
-    width: "100%",
   },
   header: {
     paddingTop: Platform.OS === "web" ? 20 : 8,

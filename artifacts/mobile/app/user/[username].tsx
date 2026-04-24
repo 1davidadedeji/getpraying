@@ -14,8 +14,10 @@ import {
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import { showAppAlert } from "@/components/AppAlert";
+import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { StatCard } from "@/components/StatCard";
 import colors from "@/constants/colors";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -38,6 +40,7 @@ const PAGE_SIZE = 20;
 
 export default function UserProfileScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
+  const { gutter, feedInnerWidth } = useResponsiveLayout();
   const { token, user: me } = useAuth();
   const [followBusy, setFollowBusy] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -47,6 +50,7 @@ export default function UserProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const seenIds = useRef(new Set<number>());
+  const { feedMediaFocusPostId, onViewableItemsChanged, viewabilityConfig } = useFeedMediaViewability();
 
   const headers = authHeaders(token);
 
@@ -141,8 +145,12 @@ export default function UserProfileScreen() {
           </View>
         )}
       </View>
-      <Text style={styles.displayName}>{displayName}</Text>
-      <Text style={styles.username}>@{profile?.username ?? username}</Text>
+      <Text style={styles.displayName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
+        {displayName}
+      </Text>
+      <Text style={styles.username} numberOfLines={1} ellipsizeMode="middle">
+        @{profile?.username ?? username}
+      </Text>
       {joinYear ? <Text style={styles.joinDate}>Member since {joinYear}</Text> : null}
 
       <View style={styles.statsRow}>
@@ -213,7 +221,14 @@ export default function UserProfileScreen() {
     <FlatList
       data={posts}
       keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => <PostCard post={item} onUpdated={handleUpdated} replaceNav />}
+      renderItem={({ item }) => (
+        <PostCard
+          post={item}
+          onUpdated={handleUpdated}
+          replaceNav
+          feedMediaFocusPostId={feedMediaFocusPostId}
+        />
+      )}
       ListHeaderComponent={renderHeader}
       ListEmptyComponent={
         <View style={styles.emptyState}>
@@ -228,12 +243,17 @@ export default function UserProfileScreen() {
           </View>
         ) : null
       }
-      contentContainerStyle={styles.list}
+      contentContainerStyle={[
+        styles.list,
+        { paddingHorizontal: gutter, maxWidth: feedInnerWidth, width: "100%", alignSelf: "center" },
+      ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.flame} />
       }
       onEndReached={handleLoadMore}
       onEndReachedThreshold={0.4}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={viewabilityConfig}
       showsVerticalScrollIndicator={false}
     />
   );
@@ -241,7 +261,7 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
-  list: { backgroundColor: colors.cream, paddingHorizontal: 16, paddingBottom: 100, maxWidth: 680, alignSelf: "center" as const, width: "100%" },
+  list: { backgroundColor: colors.cream, paddingBottom: 100 },
   profileSection: { alignItems: "center", gap: 6, paddingTop: 12, paddingBottom: 20 },
   avatarRing: {
     width: 80,

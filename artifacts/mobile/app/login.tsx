@@ -1,4 +1,5 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -14,12 +15,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
+import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { gutter } = useResponsiveLayout();
   const { login } = useAuth();
   const passwordRef = useRef<TextInput | null>(null);
   const [email, setEmail] = useState("");
@@ -61,7 +65,14 @@ export default function LoginScreen() {
         style={styles.flex}
         contentContainerStyle={[
           styles.container,
-          { paddingTop: topPad + 16, paddingBottom: botPad + 20 },
+          {
+            paddingTop: topPad + 16,
+            paddingBottom: botPad + 20,
+            paddingHorizontal: gutter,
+            maxWidth: LAYOUT.authMaxWidth,
+            width: "100%",
+            alignSelf: "center",
+          },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -71,7 +82,14 @@ export default function LoginScreen() {
         </Pressable>
 
         <View style={styles.header}>
-          <Ionicons name="flame" size={36} color={colors.accent} />
+          <View style={styles.logoRing}>
+            <Image
+              source={require("../assets/images/icon-bg.png")}
+              style={styles.logoImage}
+              contentFit="contain"
+              accessibilityLabel="GetPraying app logo"
+            />
+          </View>
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Continue your prayer journey</Text>
         </View>
@@ -148,7 +166,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   container: {
-    paddingHorizontal: 24,
     flexGrow: 1,
   },
   backBtn: {
@@ -163,6 +180,22 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 36,
     marginTop: 8,
+  },
+  logoRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 2,
+    borderColor: "rgba(212,160,67,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(212,160,67,0.1)",
+    overflow: "hidden",
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 18,
   },
   title: {
     fontFamily: "NotoSerif_700Bold",

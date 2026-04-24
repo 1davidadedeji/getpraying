@@ -15,12 +15,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
+import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
+  const { gutter } = useResponsiveLayout();
   const { register } = useAuth();
   const usernameRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
@@ -76,12 +79,14 @@ export default function RegisterScreen() {
         </Pressable>
 
         <View style={styles.header}>
-          <Image
-            source={require("../assets/images/icon-bg.png")}
-            style={styles.headerIcon}
-            contentFit="contain"
-            accessibilityLabel="GetPraying app logo"
-          />
+          <View style={styles.logoRing}>
+            <Image
+              source={require("../assets/images/icon-bg.png")}
+              style={styles.logoImage}
+              contentFit="contain"
+              accessibilityLabel="GetPraying app logo"
+            />
+          </View>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Join our prayer community</Text>
         </View>
@@ -172,7 +177,6 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   container: {
-    paddingHorizontal: 24,
     flexGrow: 1,
   },
   backBtn: {
@@ -188,9 +192,21 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     marginTop: 8,
   },
-  headerIcon: {
-    width: 40,
-    height: 40,
+  logoRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 2,
+    borderColor: "rgba(212,160,67,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(212,160,67,0.1)",
+    overflow: "hidden",
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 18,
   },
   title: {
     fontFamily: "NotoSerif_700Bold",

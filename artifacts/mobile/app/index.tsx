@@ -14,8 +14,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useRevenueCat } from "@/context/revenuecat";
 import { formatLocalYMD } from "@/lib/date";
 
@@ -24,6 +26,7 @@ const PRIVACY_URL = "https://getpraying.app/privacy";
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
+  const { gutter } = useResponsiveLayout();
   const { user, loading } = useAuth();
   const rc = useRevenueCat();
   /** Avoid re-running `router.replace("/(tabs)")` on every `user` object refresh (that was resetting navigation to Home). */
@@ -96,7 +99,19 @@ export default function WelcomeScreen() {
       end={{ x: 1, y: 1 }}
       style={styles.container}
     >
-      <View style={[styles.inner, { paddingTop: topPad + 40, paddingBottom: insets.bottom + 40 }]}>
+      <View
+        style={[
+          styles.inner,
+          {
+            paddingTop: topPad + 40,
+            paddingBottom: insets.bottom + 40,
+            paddingHorizontal: gutter,
+            maxWidth: LAYOUT.welcomeMaxWidth,
+            width: "100%",
+            alignSelf: "center",
+          },
+        ]}
+      >
         <View style={styles.logoSection}>
           <View style={styles.logoRing}>
             <Image
@@ -170,7 +185,6 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    paddingHorizontal: 28,
     justifyContent: "space-between",
   },
   logoSection: {
@@ -198,6 +212,7 @@ const styles = StyleSheet.create({
     fontSize: 38,
     color: colors.surface,
     letterSpacing: -0.5,
+    textAlign: "center",
   },
   tagline: {
     fontFamily: "PlusJakartaSans_400Regular",

@@ -35,10 +35,15 @@ setBaseUrl(getApiBaseUrl());
 
 SplashScreen.preventAutoHideAsync();
 
-(Text as any).defaultProps = { ...((Text as any).defaultProps ?? {}), allowFontScaling: false };
+(Text as any).defaultProps = {
+  ...((Text as any).defaultProps ?? {}),
+  allowFontScaling: true,
+  maxFontSizeMultiplier: 1.28,
+};
 (TextInput as any).defaultProps = {
   ...((TextInput as any).defaultProps ?? {}),
-  allowFontScaling: false,
+  allowFontScaling: true,
+  maxFontSizeMultiplier: 1.28,
 };
 
 const queryClient = new QueryClient({
