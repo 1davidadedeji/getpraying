@@ -11,12 +11,14 @@
     "preview": {
       "distribution": "internal",
       "env": {
+        "NODE_ENV": "production",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
+        "NODE_ENV": "production",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com"
       }
     },

@@ -100,7 +100,7 @@ export default function WelcomeScreen() {
         <View style={styles.logoSection}>
           <View style={styles.logoRing}>
             <Image
-              source={require("../assets/images/icon.png")}
+              source={require("../assets/images/icon-bg.png")}
               style={styles.logoImage}
               contentFit="contain"
               accessibilityLabel="GetPraying app logo"

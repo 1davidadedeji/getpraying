@@ -9,13 +9,13 @@ import {
   Image,
   Platform,
   Pressable,
-  type NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from "react-native";
+import { MaterialTabBar, Tabs, type TabBarProps } from "react-native-collapsible-tab-view";
 import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetMe, getGetMeQueryKey, useGetSavedPrayers, getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
@@ -32,7 +32,7 @@ import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
-type PagerViewOnPage = NativeSyntheticEvent<{ position: number }>;
+type PagerViewOnPage = import("react-native").NativeSyntheticEvent<{ position: number }>;
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -42,11 +42,11 @@ export default function ProfileScreen() {
   const myListRef = useRef<FlatList<Post>>(null);
   const savedListRef = useRef<FlatList<Post>>(null);
   const categoriesScrollRef = useRef<ScrollView>(null);
-  const pagerRef = useRef<PagerView | null>(null);
+  const webPagerRef = useRef<PagerView | null>(null);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [profileTab, setProfileTab] = useState<ProfileMainTabKey>("my");
+  const [activeTab, setActiveTab] = useState<ProfileMainTabKey>("my");
 
   const { data: freshUser, refetch: refetchMe } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
@@ -66,7 +66,7 @@ export default function ProfileScreen() {
   const { data: savedPrayersData, isLoading: loadingSavedTab } = useGetSavedPrayers({
     query: {
       queryKey: getGetSavedPrayersQueryKey(),
-      enabled: !!token && profileTab === "saved",
+      enabled: !!token && activeTab === "saved",
     },
   });
 
@@ -136,13 +136,17 @@ export default function ProfileScreen() {
     void loadMyPosts();
   }, [loadMyPosts]);
 
-  const goToTab = useCallback(
+  const onTabChange = useCallback((data: { tabName: string }) => {
+    setActiveTab(data.tabName as ProfileMainTabKey);
+  }, []);
+
+  const goToTabWeb = useCallback(
     (key: ProfileMainTabKey) => {
-      setProfileTab(key);
+      setActiveTab(key);
       const idx = PROFILE_MAIN_TABS.findIndex((t) => t.key === key);
-      if (idx >= 0 && Platform.OS !== "web" && pagerRef.current) {
+      if (idx >= 0 && webPagerRef.current) {
         try {
-          pagerRef.current.setPage(idx);
+          webPagerRef.current.setPage(idx);
         } catch {
           /* noop */
         }
@@ -151,27 +155,86 @@ export default function ProfileScreen() {
     [],
   );
 
-  const onPagerPageSelected = useCallback((e: PagerViewOnPage) => {
+  const onWebPagerPageSelected = useCallback((e: PagerViewOnPage) => {
     const p = e.nativeEvent.position;
     const key = PROFILE_MAIN_TABS[p]?.key;
-    if (key) setProfileTab(key);
+    if (key) setActiveTab(key);
   }, []);
 
   const scrollProfileToTop = useCallback(() => {
-    if (profileTab === "my") {
+    if (activeTab === "my") {
       myListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    } else if (profileTab === "saved") {
+    } else if (activeTab === "saved") {
       savedListRef.current?.scrollToOffset({ offset: 0, animated: true });
     } else {
       categoriesScrollRef.current?.scrollTo({ y: 0, animated: true });
     }
-  }, [profileTab]);
+  }, [activeTab]);
 
   useTabScrollToTop(scrollProfileToTop);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   const tabFontSize = windowWidth < 360 ? 10 : windowWidth >= 768 ? 12 : 11;
+
+  const renderMaterialProfileTabBar = useCallback(
+    (props: TabBarProps) => (
+      <View style={styles.tabBarSurface}>
+        <MaterialTabBar
+          {...props}
+          scrollEnabled={false}
+          getLabelText={(name) =>
+            PROFILE_MAIN_TABS.find((t) => t.key === (name as ProfileMainTabKey))?.label ?? String(name)
+          }
+          activeColor={colors.primary}
+          inactiveColor={colors.muted}
+          labelStyle={[styles.materialTabLabel, { fontSize: tabFontSize }]}
+          tabStyle={styles.materialTabItem}
+          style={styles.materialTabBar}
+          indicatorStyle={styles.tabIndicator}
+        />
+      </View>
+    ),
+    [tabFontSize],
+  );
+
+  const renderCollapsibleHeader = useCallback(() => {
+    if (!me) return null;
+    const displayName = me.displayName ?? me.username;
+    const initials = displayName.slice(0, 2).toUpperCase();
+    const joinYear = new Date(me.createdAt).getFullYear();
+    return (
+      <View style={styles.collapsibleHeader} pointerEvents="box-none">
+        <View style={styles.profileHero}>
+          <Pressable onPress={pickAndUploadAvatar} style={styles.avatarRing} disabled={uploadingAvatar}>
+            {uploadingAvatar ? (
+              <View style={styles.avatar}>
+                <ActivityIndicator color={colors.accent} />
+              </View>
+            ) : me.avatarUrl ? (
+              <Image source={{ uri: resolveMediaUrl(me.avatarUrl)! }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+            <View style={styles.cameraIcon}>
+              <Feather name="camera" size={14} color={colors.surface} />
+            </View>
+          </Pressable>
+          <Text style={styles.displayName}>{displayName}</Text>
+          <Text style={styles.username}>@{me.username}</Text>
+          <Text style={styles.joinDate}>Member since {joinYear}</Text>
+        </View>
+
+        <View style={styles.statsRow}>
+          <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
+          <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
+          <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
+        </View>
+      </View>
+    );
+  }, [me, uploadingAvatar, pickAndUploadAvatar]);
 
   if (!user || !me) {
     return (
@@ -212,7 +275,7 @@ export default function ProfileScreen() {
     </View>
   );
 
-  const myPage = (
+  const webMyPage = (
     <View style={styles.page} collapsable={false}>
       <FlatList<Post>
         ref={myListRef}
@@ -240,7 +303,7 @@ export default function ProfileScreen() {
     </View>
   );
 
-  const savedPage = (
+  const webSavedPage = (
     <View style={styles.page} collapsable={false}>
       <FlatList<Post>
         ref={savedListRef}
@@ -268,7 +331,7 @@ export default function ProfileScreen() {
     </View>
   );
 
-  const categoriesPage = (
+  const webCategoriesPage = (
     <View style={styles.page} collapsable={false}>
       <ScrollView
         ref={categoriesScrollRef}
@@ -283,102 +346,182 @@ export default function ProfileScreen() {
     </View>
   );
 
+  const topBar = (
+    <View style={styles.topBar}>
+      <Text style={styles.screenTitle}>Profile</Text>
+      <Pressable
+        onPress={() => router.push("/settings" as Href)}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Open settings"
+        style={styles.settingsIconBtn}
+      >
+        <Feather name="settings" size={22} color={colors.primary} />
+        {(user?.role === "admin" || user?.role === "moderator") && modPending > 0 && (
+          <View style={styles.settingsModBadge} accessibilityLabel={`${modPending} to moderate`}>
+            <Text style={styles.settingsModBadgeText}>
+              {modPending > 9 ? "9+" : String(modPending)}
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+
+  const webHeaderBlock = (
+    <>
+      <View style={styles.profileHero}>
+        <Pressable onPress={pickAndUploadAvatar} style={styles.avatarRing} disabled={uploadingAvatar}>
+          {uploadingAvatar ? (
+            <View style={styles.avatar}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ) : me.avatarUrl ? (
+            <Image source={{ uri: resolveMediaUrl(me.avatarUrl)! }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
+          <View style={styles.cameraIcon}>
+            <Feather name="camera" size={14} color={colors.surface} />
+          </View>
+        </Pressable>
+        <Text style={styles.displayName}>{displayName}</Text>
+        <Text style={styles.username}>@{me.username}</Text>
+        <Text style={styles.joinDate}>Member since {joinYear}</Text>
+      </View>
+
+      <View style={styles.statsRow}>
+        <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
+        <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
+        <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
+      </View>
+    </>
+  );
+
+  const webTabRow = (
+    <View style={styles.tabBarSurface}>
+      <View style={styles.profileTabRow}>
+        {PROFILE_MAIN_TABS.map(({ key, label }) => (
+          <Pressable
+            key={key}
+            style={[styles.profileTab, activeTab === key && styles.profileTabActive]}
+            onPress={() => goToTabWeb(key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === key }}
+          >
+            <Text
+              style={[
+                styles.profileTabText,
+                { fontSize: tabFontSize },
+                activeTab === key && styles.profileTabTextActive,
+              ]}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <View style={[styles.flex, webColumnStyle]}>
-      <View style={[styles.headerContainer, { paddingTop: topPad + 8 }]}>
-        <View style={styles.topBar}>
-          <Text style={styles.screenTitle}>Profile</Text>
-          <Pressable
-            onPress={() => router.push("/settings" as Href)}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Open settings"
-            style={styles.settingsIconBtn}
-          >
-            <Feather name="settings" size={22} color={colors.primary} />
-            {(user?.role === "admin" || user?.role === "moderator") && modPending > 0 && (
-              <View style={styles.settingsModBadge} accessibilityLabel={`${modPending} to moderate`}>
-                <Text style={styles.settingsModBadgeText}>
-                  {modPending > 9 ? "9+" : String(modPending)}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
-
-        <View style={styles.profileHero}>
-          <Pressable onPress={pickAndUploadAvatar} style={styles.avatarRing} disabled={uploadingAvatar}>
-            {uploadingAvatar ? (
-              <View style={styles.avatar}>
-                <ActivityIndicator color={colors.accent} />
-              </View>
-            ) : me.avatarUrl ? (
-              <Image source={{ uri: resolveMediaUrl(me.avatarUrl)! }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            )}
-            <View style={styles.cameraIcon}>
-              <Feather name="camera" size={14} color={colors.surface} />
-            </View>
-          </Pressable>
-          <Text style={styles.displayName}>{displayName}</Text>
-          <Text style={styles.username}>@{me.username}</Text>
-          <Text style={styles.joinDate}>Member since {joinYear}</Text>
-        </View>
-
-        <View style={styles.statsRow}>
-          <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
-          <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
-          <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
-        </View>
-      </View>
-
-      <View style={styles.tabBarSurface}>
-        <View style={styles.profileTabRow}>
-          {PROFILE_MAIN_TABS.map(({ key, label }) => (
-            <Pressable
-              key={key}
-              style={[styles.profileTab, profileTab === key && styles.profileTabActive]}
-              onPress={() => goToTab(key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: profileTab === key }}
-            >
-              <Text
-                style={[
-                  styles.profileTabText,
-                  { fontSize: tabFontSize },
-                  profileTab === key && styles.profileTabTextActive,
-                ]}
-                numberOfLines={2}
-                adjustsFontSizeToFit
-                minimumFontScale={0.85}
-              >
-                {label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+      <View style={[styles.fixedTopBar, { paddingTop: topPad + 8 }]}>{topBar}</View>
 
       {Platform.OS === "web" ? (
-        <View style={styles.pager}>
-          {profileTab === "my" && myPage}
-          {profileTab === "saved" && savedPage}
-          {profileTab === "categories" && categoriesPage}
-        </View>
+        <>
+          <View style={styles.webStaticHeader}>{webHeaderBlock}</View>
+          {webTabRow}
+          <View style={styles.pager}>
+            <PagerView
+              ref={webPagerRef}
+              style={styles.pager}
+              initialPage={0}
+              onPageSelected={onWebPagerPageSelected}
+            >
+              {webMyPage}
+              {webSavedPage}
+              {webCategoriesPage}
+            </PagerView>
+          </View>
+        </>
       ) : (
-        <PagerView
-          ref={pagerRef}
-          style={styles.pager}
-          initialPage={0}
-          onPageSelected={onPagerPageSelected}
+        <Tabs.Container
+          containerStyle={styles.tabsContainer}
+          minHeaderHeight={0}
+          initialTabName={PROFILE_MAIN_TABS[0].key}
+          renderHeader={renderCollapsibleHeader}
+          renderTabBar={renderMaterialProfileTabBar}
+          onTabChange={onTabChange}
         >
-          {myPage}
-          {savedPage}
-          {categoriesPage}
-        </PagerView>
+          <Tabs.Tab name="my" label="My Prayers">
+            <Tabs.FlatList
+              ref={myListRef}
+              data={myPosts}
+              keyExtractor={(p: Post) => `my-${p.id}`}
+              renderItem={({ item }: { item: Post }) => (
+                <View style={{ paddingHorizontal: 20 }}>
+                  <PostCard post={item} />
+                </View>
+              )}
+              ListEmptyComponent={
+                loadingPosts ? (
+                  <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+                ) : (
+                  myEmpty
+                )
+              }
+              contentContainerStyle={[
+                styles.pagerListContent,
+                { paddingBottom: botPad + 32 },
+                myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
+              ]}
+              showsVerticalScrollIndicator={false}
+            />
+          </Tabs.Tab>
+          <Tabs.Tab name="saved" label="Saved">
+            <Tabs.FlatList
+              ref={savedListRef}
+              data={savedPosts}
+              keyExtractor={(p: Post) => `saved-${p.id}`}
+              renderItem={({ item }: { item: Post }) => (
+                <View style={{ paddingHorizontal: 20 }}>
+                  <PostCard post={item} />
+                </View>
+              )}
+              ListEmptyComponent={
+                loadingSavedTab ? (
+                  <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+                ) : (
+                  savedEmpty
+                )
+              }
+              contentContainerStyle={[
+                styles.pagerListContent,
+                { paddingBottom: botPad + 32 },
+                savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
+              ]}
+              showsVerticalScrollIndicator={false}
+            />
+          </Tabs.Tab>
+          <Tabs.Tab name="categories" label="Categories">
+            <Tabs.ScrollView
+              ref={categoriesScrollRef}
+              contentContainerStyle={[styles.catScrollInner, { paddingBottom: botPad + 32 }]}
+              showsVerticalScrollIndicator={false}
+            >
+              <PreferredCategoriesContent
+                preferredCategories={me.preferredCategories ?? []}
+                onOpenPreferences={() => router.push("/settings" as Href)}
+              />
+            </Tabs.ScrollView>
+          </Tabs.Tab>
+        </Tabs.Container>
       )}
     </View>
   );
@@ -387,10 +530,21 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
-  headerContainer: {
+  fixedTopBar: {
+    paddingHorizontal: 20,
+    backgroundColor: colors.cream,
+    zIndex: 1,
+  },
+  webStaticHeader: {
     paddingHorizontal: 20,
     gap: 24,
     paddingBottom: 16,
+    backgroundColor: colors.cream,
+  },
+  collapsibleHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 24,
     backgroundColor: colors.cream,
   },
   topBar: {
@@ -488,6 +642,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  materialTabBar: {
+    backgroundColor: colors.cream,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  materialTabItem: {
+    minHeight: 44,
+    paddingVertical: 8,
+  },
+  materialTabLabel: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
+    textAlign: "center",
+  },
+  tabIndicator: {
+    backgroundColor: colors.primary,
+    height: 2,
+  },
   profileTabRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -518,6 +691,9 @@ const styles = StyleSheet.create({
   },
   profileTabTextActive: {
     color: colors.primary,
+  },
+  tabsContainer: {
+    flex: 1,
   },
   pager: {
     flex: 1,

@@ -1,4 +1,5 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -75,7 +76,12 @@ export default function RegisterScreen() {
         </Pressable>
 
         <View style={styles.header}>
-          <Ionicons name="flame" size={36} color={colors.accent} />
+          <Image
+            source={require("../assets/images/icon-bg.png")}
+            style={styles.headerIcon}
+            contentFit="contain"
+            accessibilityLabel="GetPraying app logo"
+          />
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Join our prayer community</Text>
         </View>
@@ -181,6 +187,10 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 32,
     marginTop: 8,
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
   },
   title: {
     fontFamily: "NotoSerif_700Bold",

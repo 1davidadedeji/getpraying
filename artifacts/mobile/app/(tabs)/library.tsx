@@ -309,13 +309,7 @@ export default function LibraryScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
         >
-          <Text style={styles.sanctuaryExplainer}>
-            Sanctuary is today&apos;s featured morning and evening audio. When our team posts new
-            ones, the featured guides here update; you keep the same save on that slot, and
-            see refreshed content. Older versions may appear under prayer paths in &ldquo;For your
-            situation&rdquo; (your saved feed posts with similar categories are separate from these
-            official guides).
-          </Text>
+          
           {/* Today's Sanctuary — morning first */}
           {loadingOfficial ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />

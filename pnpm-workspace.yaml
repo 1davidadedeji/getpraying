@@ -27,6 +27,11 @@
 # ============================================================================
 minimumReleaseAge: 1440
 
+# Hoisted node_modules so React Native Gradle autolinking resolves native deps
+# reliably in this monorepo (pnpm isolated linker breaks some Android builds; see
+# https://docs.expo.dev/guides/monorepos/#package-managers-with-isolated-dependencies).
+nodeLinker: hoisted
+
 minimumReleaseAgeExclude:
   # Exclude @replit scoped packages from the minimum release age check.
   # These are published by Replit and trusted — the supply-chain attack vector

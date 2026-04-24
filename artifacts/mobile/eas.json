@@ -11,6 +11,7 @@
         "buildType": "apk" 
       },
       "env": {
+        "NODE_ENV": "production",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com",
         "EXPO_PUBLIC_RC_APPLE_KEY": "test_AIJjrRzCVKiEadmgBwlqKSUVkhJ",
         "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_WaVmpcWZydnXUsCQXGMPGrihOtm"
