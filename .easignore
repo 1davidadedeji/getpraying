@@ -32,9 +32,8 @@ Thumbs.db
 .env
 .cursor
 
-# --- Not needed to build the mobile app; drops tens–hundreds of MB (API, seeds, design collateral) ---
+# --- Not needed to build the mobile app; drops tens–hundreds of MB (API, DB tooling) ---
 artifacts/api-server
-artifacts/GetPraying
 lib/db
 lib/api-zod
 lib/api-spec

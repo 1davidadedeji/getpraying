@@ -1,6 +1,6 @@
 # GetPraying — Local setup & APK testing
 
-This repo is a **pnpm monorepo**: API (`artifacts/api-server`), mobile app (`artifacts/mobile`), shared DB (`lib/db`), and generated API clients.
+This repo is a **pnpm monorepo**: API (`artifacts/api-server`), mobile app (`mobile/`), shared DB (`lib/db`), and generated API clients.
 
 ## What you already configured
 
@@ -9,7 +9,7 @@ If these are set, you are past the first hurdle:
 | Location | Typical variables |
 |----------|-------------------|
 | **Repo root** `.env` | `DATABASE_URL`, `OPENAI_API_KEY`, and optionally `EXPO_PUBLIC_API_BASE_URL` (root copy is mainly for docs; the **API** loads root `.env` when you run the server from the repo.) |
-| **`artifacts/mobile/.env`** | `EXPO_PUBLIC_API_BASE_URL` (must match a URL the **phone** can reach when testing a real build) |
+| **`mobile/.env`** | `EXPO_PUBLIC_API_BASE_URL` (must match a URL the **phone** can reach when testing a real build) |
 
 ## Next line of action (ordered)
 
@@ -51,7 +51,7 @@ Or use `pnpm run dev` if you use that script locally. Confirm the server is reac
 ### 4. Run the mobile app (Expo)
 
 ```bash
-cd artifacts/mobile
+cd mobile
 corepack pnpm run dev
 ```
 
@@ -60,7 +60,7 @@ corepack pnpm run dev
 
 ### 5. RevenueCat (Android IAP / paywall)
 
-For a **real** subscription test on Android, set in **`artifacts/mobile/.env`** (and rebuild the app so `EXPO_PUBLIC_*` is embedded):
+For a **real** subscription test on Android, set in **`mobile/.env`** (and rebuild the app so `EXPO_PUBLIC_*` is embedded):
 
 - `EXPO_PUBLIC_RC_GOOGLE_KEY` — RevenueCat **public** SDK key for Google Play.
 
@@ -70,11 +70,11 @@ If these are empty, the app should still run; paywall / entitlement behavior wil
 
 ### 6. Build an APK for testing
 
-This project does not ship a committed `eas.json` by default. Typical path:
+`mobile/eas.json` is committed (preview profile builds an **APK**). Typical path:
 
 1. Install [EAS CLI](https://docs.expo.dev/build/introduction/) and log in.
-2. In `artifacts/mobile`, run `eas build:configure` if needed, then `eas build -p android --profile preview` (or your chosen profile).
-3. Ensure **EAS secrets** or **`.env`** at build time includes `EXPO_PUBLIC_API_BASE_URL` (and RevenueCat keys when testing IAP).
+2. From the repo root, run **`corepack pnpm run eas:android`** (runs EAS with `mobile/` as the project directory), **or** `cd mobile` and run `eas build -p android --profile preview`.
+3. Override env via **EAS secrets** if you do not want the defaults in `mobile/eas.json` (e.g. `EXPO_PUBLIC_API_BASE_URL`, RevenueCat keys).
 
 Use an **internal testing** track and **license testers** in Play Console for purchase testing.
 
@@ -86,7 +86,7 @@ Use an **internal testing** track and **license testers** in Play Console for pu
 
 ## Reference: environment variables
 
-See **`.env.example`** (repo root) and **`artifacts/mobile/.env.example`** for the full list with short comments.
+See **`.env.example`** (repo root) and **`mobile/.env.example`** for the full list with short comments.
 
 ## Useful commands
 
@@ -94,10 +94,12 @@ See **`.env.example`** (repo root) and **`artifacts/mobile/.env.example`** for t
 |---------|---------|
 | `corepack pnpm run typecheck` (root) | Typecheck libs + artifacts |
 | `corepack pnpm --filter @workspace/api-server run build` | Build API |
+| `corepack pnpm --filter @workspace/api-server run seed:lib-pg` | Reseed official prayers (needs MP3s in `artifacts/api-server/data/seed-audio`) |
 | `corepack pnpm --filter @workspace/mobile run dev` | Start Expo |
 
 ## Troubleshooting
 
+- **Windows: empty `artifacts/mobile` folder won’t delete:** Something still has a handle on it (IDE tab, Metro, or `eas build`). Close those, then remove the folder manually. The app lives under **`mobile/`** at the repo root; the old path should not exist after a clean pull.
 - **Mobile cannot reach API:** Check firewall, same Wi‑Fi, and that `EXPO_PUBLIC_API_BASE_URL` uses the host the device can resolve (not `localhost` on a physical phone).
 - **DB errors on API start:** `DATABASE_URL` must be set where the Node process runs; run migrations / `drizzle-kit push`.
 - **AI category fails:** Confirm `OPENAI_API_KEY` on the **API** server process.

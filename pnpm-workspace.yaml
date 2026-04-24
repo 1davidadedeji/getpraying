@@ -41,6 +41,7 @@ minimumReleaseAgeExclude:
 
 packages:
   - artifacts/*
+  - mobile
   - lib/*
   - scripts
 

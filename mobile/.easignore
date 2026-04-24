@@ -1,0 +1,40 @@
+# EAS: run `eas build` from this app directory. Merge .gitignore here per Expo (see
+# https://docs.expo.dev/build-reference/easignore/) so node_modules and local artifacts stay out.
+
+# --- From mobile/.gitignore ---
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+ios/
+android/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env*.local
+*.tsbuildinfo
+.vercel
+.env
+
+# --- Monorepo paths (relative to this file) not needed for the mobile bundle ---
+# Backend and seed audio (large assets)
+../artifacts/api-server
+# Server-only and codegen-only packages (mobile only depends on @workspace/api-client-react)
+../lib/db
+../lib/api-zod
+../lib/api-spec
+../scripts
+# Root install tree — EAS runs pnpm install on the server; keep lockfiles out of “fat” if present
+../node_modules
+../.git
+../.cursor

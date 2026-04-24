@@ -1,6 +1,6 @@
 /**
  * Seeds the library with all prayer paths and official prayers linked to audio
- * files in artifacts/GetPraying/lib-pg (copied into data/uploads on each run).
+ * files in artifacts/api-server/data/seed-audio (copied into data/uploads on each run).
  *
  * First two MP3s (sorted by filename) → morning & evening official guides.
  * Remaining MP3s → “For your situation” path guides (in PATHS order; extra paths
@@ -23,9 +23,9 @@ function uploadDir(): string {
   return process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
 }
 
-/** artifacts/GetPraying/lib-pg (sibling of api-server under artifacts/) */
+/** Co-located with api-server: data/seed-audio */
 function libPgSourceDir(): string {
-  return path.join(__dirname, "../..", "GetPraying", "lib-pg");
+  return path.join(__dirname, "..", "data", "seed-audio");
 }
 
 function sortMp3Files(names: string[]): string[] {

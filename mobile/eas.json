@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 18.4.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com",
+        "EXPO_PUBLIC_RC_APPLE_KEY": "test_AIJjrRzCVKiEadmgBwlqKSUVkhJ",
+        "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_WaVmpcWZydnXUsCQXGMPGrihOtm"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com"
+      }
+    },
+    "simulator": {
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
