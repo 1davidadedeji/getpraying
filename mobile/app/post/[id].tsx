@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getGetMeQueryKey,
+  getGetPostQueryKey,
   getGetSavedPrayersQueryKey,
   getGetUserProfileQueryKey,
   useGetPost,
@@ -240,7 +241,13 @@ export default function PostDetailScreen() {
         body,
       });
       if (res.ok) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        queryClient.removeQueries({ queryKey: getGetPostQueryKey(post.id) });
+        queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
+        try {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {
+          /* noop */
+        }
         setStaffDeleteOpen(false);
         setStaffDeleteReason("");
         router.back();

@@ -92,13 +92,6 @@ export default function ProfileScreen() {
     if (freshUser) refreshUser(freshUser as User);
   }, [freshUser, refreshUser]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (token) void refetchMe();
-      void refreshModBadge();
-    }, [token, refetchMe, refreshModBadge]),
-  );
-
   const { data: savedPrayersData, isLoading: loadingSavedTab } = useGetSavedPrayers({
     query: {
       queryKey: getGetSavedPrayersQueryKey(),
@@ -169,9 +162,13 @@ export default function ProfileScreen() {
     }
   }, [user?.username, token]);
 
-  useEffect(() => {
-    void loadMyPosts();
-  }, [loadMyPosts]);
+  useFocusEffect(
+    useCallback(() => {
+      if (token) void refetchMe();
+      void refreshModBadge();
+      void loadMyPosts();
+    }, [token, refetchMe, refreshModBadge, loadMyPosts]),
+  );
 
   const scrollActiveProfileListToTop = useCallback((tab: ProfileMainTabKey) => {
     requestAnimationFrame(() => {
@@ -236,6 +233,12 @@ export default function ProfileScreen() {
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   /** Same clearance as main feed so lists aren’t clipped by the tab bar / home indicator. */
   const listTabBarClearance = Math.round(clamp(100 * uiScale, 88, 112));
+  /** Space between material tab strip and first list card (does not replace collapsible list insets). */
+  const tabListTopSpacer = Math.round(clamp(14 * uiScale, 12, 18));
+  const profilePostsListHeader = useMemo(
+    () => <View style={{ height: tabListTopSpacer }} />,
+    [tabListTopSpacer],
+  );
 
   const prof = useMemo(() => {
     const ringOuter = Math.round(clamp(92 * uiScale, 80, 102));
@@ -465,6 +468,7 @@ export default function ProfileScreen() {
           { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
           myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
         ]}
+        ListHeaderComponent={profilePostsListHeader}
         onViewableItemsChanged={onMyFeedViewableItemsChanged}
         viewabilityConfig={profileFeedViewabilityConfig}
         showsVerticalScrollIndicator={false}
@@ -495,6 +499,7 @@ export default function ProfileScreen() {
           { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
           savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
         ]}
+        ListHeaderComponent={profilePostsListHeader}
         onViewableItemsChanged={onSavedFeedViewableItemsChanged}
         viewabilityConfig={profileFeedViewabilityConfig}
         showsVerticalScrollIndicator={false}
@@ -509,8 +514,8 @@ export default function ProfileScreen() {
         contentContainerStyle={[
           styles.catScrollInner,
           {
+            paddingTop: prof.catScrollPadV + tabListTopSpacer,
             paddingBottom: listTabBarClearance + botPad + prof.listBottomPad,
-            paddingVertical: prof.catScrollPadV,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -722,6 +727,7 @@ export default function ProfileScreen() {
                   myEmpty
                 )
               }
+              ListHeaderComponent={profilePostsListHeader}
               contentContainerStyle={[
                 styles.pagerListContent,
                 { paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad },
@@ -752,6 +758,7 @@ export default function ProfileScreen() {
                   savedEmpty
                 )
               }
+              ListHeaderComponent={profilePostsListHeader}
               contentContainerStyle={[
                 styles.pagerListContent,
                 { paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad },
@@ -768,8 +775,8 @@ export default function ProfileScreen() {
               contentContainerStyle={[
                 styles.catScrollInner,
                 {
+                  paddingTop: prof.catScrollPadV + tabListTopSpacer,
                   paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad,
-                  paddingVertical: prof.catScrollPadV,
                 },
               ]}
               showsVerticalScrollIndicator={false}

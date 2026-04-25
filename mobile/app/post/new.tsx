@@ -20,7 +20,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CreatePostInputMediaType, useCreatePost } from "@workspace/api-client-react";
+import { CreatePostInputMediaType, useCreatePost, type Post } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -507,8 +507,12 @@ export default function NewPostScreen() {
         },
       },
       {
-        onSuccess: (res: { status?: string }) => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onSuccess: (res: Post) => {
+          try {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch {
+            /* Haptics unavailable on some devices */
+          }
           const isApproved = res?.status === "approved";
           showNotice(
             isApproved
@@ -521,11 +525,10 @@ export default function NewPostScreen() {
           setSelectedCategories([]);
           setAiCategories([]);
           setPendingMedia(null);
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace("/(tabs)" as Href);
-          }
+          /** Always replace to feed tab — `router.back()` can pop past the app shell on some Android stacks after media upload. */
+          requestAnimationFrame(() => {
+            router.replace("/(tabs)/index" as Href);
+          });
         },
         onError: (err: unknown) => {
           showAppAlert({

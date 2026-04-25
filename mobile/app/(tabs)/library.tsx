@@ -435,6 +435,7 @@ export default function LibraryScreen() {
           listRef={savedListRef}
           queryEnabled
           invalidateOnFocus
+          paddingHorizontal={0}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollPadBottom, paddingHorizontal: 0 }]}
           onToggleSave={(id) => {
             setSavedOfficialIds((prev) => {
