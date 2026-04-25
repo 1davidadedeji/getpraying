@@ -50,19 +50,6 @@ export function getCardRadius(uiScale: number): number {
   return Math.round(clamp(32 * uiScale, 28, 38));
 }
 
-export function getTwoColumnFeed(
-  width: number,
-  height: number,
-  isTablet: boolean,
-  isWeb: boolean,
-): boolean {
-  if (isWeb || isTablet) return true;
-  const landscape = width > height;
-  const short = Math.min(width, height);
-  if (landscape && width >= 640 && short >= 360) return true;
-  return false;
-}
-
 /** Library situation grid: more columns when tablet or phone landscape is wide enough. */
 export function getLibrarySituationCols(width: number, height: number, isTablet: boolean): number {
   if (isTablet) return 4;

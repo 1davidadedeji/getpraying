@@ -17,6 +17,7 @@ import { useGetNotifications, useMarkAllNotificationsRead, getGetNotificationsQu
 import type { Notification } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import colors from "@/constants/colors";
+import { LAYOUT } from "@/constants/layout";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { timeAgo } from "@/lib/timeAgo";
@@ -149,7 +150,7 @@ function NotificationItem({
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
-  const { gutter, feedInnerWidth } = useResponsiveLayout();
+  const { gutter } = useResponsiveLayout();
   const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
   const { data, isLoading, refetch, isFetching } = useGetNotifications();
@@ -293,7 +294,7 @@ export default function NotificationsScreen() {
         {
           paddingBottom: 100,
           paddingHorizontal: gutter,
-          maxWidth: feedInnerWidth,
+          maxWidth: LAYOUT.contentMaxWidth,
           width: "100%",
           alignSelf: "center",
         },

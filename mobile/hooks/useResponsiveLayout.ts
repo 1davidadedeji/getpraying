@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Platform, useWindowDimensions } from "react-native";
+import { useWindowDimensions } from "react-native";
 import { LAYOUT } from "@/constants/layout";
 import {
   clamp,
@@ -9,7 +9,6 @@ import {
   getIconAction,
   getIconTab,
   getIsLandscape,
-  getTwoColumnFeed,
   getUiScale,
 } from "@/lib/responsiveMetrics";
 
@@ -29,11 +28,6 @@ export function useResponsiveLayout() {
   const isTablet = windowWidth >= LAYOUT.tabletMinWidth;
   const isDesktop = windowWidth >= 1024;
 
-  const useTwoColumnFeed = useMemo(
-    () => getTwoColumnFeed(width, height, isTablet, Platform.OS === "web"),
-    [width, height, isTablet],
-  );
-
   const iconTab = useMemo(() => getIconTab(uiScale), [uiScale]);
   const iconAction = useMemo(() => getIconAction(uiScale), [uiScale]);
   const fabSize = useMemo(() => getFabSize(uiScale), [uiScale]);
@@ -51,7 +45,6 @@ export function useResponsiveLayout() {
     feedInnerWidth,
     isTablet,
     isDesktop,
-    useTwoColumnFeed,
     iconTab,
     iconAction,
     fabSize,

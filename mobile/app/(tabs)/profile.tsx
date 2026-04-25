@@ -54,6 +54,8 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileMainTabKey>("my");
   const activeTabRef = useRef<ProfileMainTabKey>(activeTab);
   activeTabRef.current = activeTab;
+  /** Measured height for collapsible-tab-view — avoids first row rendering under the profile hero. */
+  const [profileCollapsibleHeaderH, setProfileCollapsibleHeaderH] = useState(380);
 
   const {
     feedMediaFocusPostId,
@@ -318,12 +320,20 @@ export default function ProfileScreen() {
     const p = prof;
     return (
       <View
-        style={[
-          styles.collapsibleHeader,
-          { paddingHorizontal: p.gutter, paddingBottom: p.headerPadBottom, gap: p.headerGap },
-        ]}
-        pointerEvents="box-none"
+        onLayout={(e) => {
+          const h = Math.round(e.nativeEvent.layout.height);
+          if (h > 0) {
+            setProfileCollapsibleHeaderH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+          }
+        }}
       >
+        <View
+          style={[
+            styles.collapsibleHeader,
+            { paddingHorizontal: p.gutter, paddingBottom: p.headerPadBottom, gap: p.headerGap },
+          ]}
+          pointerEvents="box-none"
+        >
         <View style={[styles.profileHero, { gap: p.heroGap, paddingVertical: p.heroPadV }]}>
           <Pressable
             onPress={pickAndUploadAvatar}
@@ -374,6 +384,7 @@ export default function ProfileScreen() {
           <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
           <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
           <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
+        </View>
         </View>
       </View>
     );
@@ -678,6 +689,7 @@ export default function ProfileScreen() {
       ) : (
         <Tabs.Container
           containerStyle={styles.tabsContainer}
+          headerHeight={profileCollapsibleHeaderH}
           minHeaderHeight={0}
           tabBarHeight={prof.tabBarH}
           initialTabName={PROFILE_MAIN_TABS[0].key}

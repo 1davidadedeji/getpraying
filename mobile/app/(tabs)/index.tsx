@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
+import { LAYOUT } from "@/constants/layout";
 import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
@@ -36,7 +37,7 @@ const NEW_POSTS_POLL_MS = 30_000;
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
-  const { gutter, feedInnerWidth, useTwoColumnFeed, uiScale } = useResponsiveLayout();
+  const { gutter, uiScale } = useResponsiveLayout();
   const greetSize = Math.round(clamp(24 * uiScale, 22, 28));
   const subGreetSize = Math.round(clamp(13 * uiScale, 12, 15));
   const listBotPad = Math.round(clamp(100 * uiScale, 88, 112));
@@ -416,8 +417,7 @@ export default function FeedScreen() {
         )}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
-        numColumns={useTwoColumnFeed ? 2 : 1}
-        columnWrapperStyle={useTwoColumnFeed ? styles.columnWrap : undefined}
+        numColumns={1}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={
@@ -448,7 +448,7 @@ export default function FeedScreen() {
           {
             paddingBottom: listBotPad,
             paddingHorizontal: gutter,
-            maxWidth: feedInnerWidth,
+            maxWidth: LAYOUT.contentMaxWidth,
             width: "100%",
             alignSelf: "center",
           },
@@ -502,10 +502,6 @@ const styles = StyleSheet.create({
   },
   list: {
     backgroundColor: colors.cream,
-  },
-  columnWrap: {
-    gap: 12,
-    justifyContent: "space-between",
   },
   header: {
     flexDirection: "row",

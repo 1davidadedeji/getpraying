@@ -187,7 +187,8 @@ export default function LibraryScreen() {
   }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const layoutWidth = Math.min(LAYOUT.contentMaxWidth, windowWidth - gutter * 2);
+  /** Match shell: `maxWidth` + horizontal padding — not `windowWidth - gutter` (too wide when capped at 760). */
+  const layoutWidth = Math.max(260, Math.min(LAYOUT.contentMaxWidth, windowWidth) - gutter * 2);
   const SITUATION_COLS = getLibrarySituationCols(windowWidth, windowHeight, isTablet);
   const cardGap = Math.round(10 * uiScale);
   const totalGaps = (SITUATION_COLS - 1) * cardGap;
