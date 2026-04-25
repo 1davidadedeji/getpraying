@@ -23,7 +23,6 @@ export function useResponsiveLayout() {
   const gutter = useMemo(() => getGutter(width, height), [width, height]);
 
   const contentInnerWidth = Math.min(LAYOUT.contentMaxWidth, windowWidth - gutter * 2);
-  const feedInnerWidth = Math.min(LAYOUT.feedMaxWidth, windowWidth - gutter * 2);
 
   const isTablet = windowWidth >= LAYOUT.tabletMinWidth;
   const isDesktop = windowWidth >= 1024;
@@ -42,7 +41,6 @@ export function useResponsiveLayout() {
     isLandscape,
     gutter,
     contentInnerWidth,
-    feedInnerWidth,
     isTablet,
     isDesktop,
     iconTab,

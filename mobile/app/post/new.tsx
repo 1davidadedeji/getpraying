@@ -20,7 +20,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CreatePostInputMediaType, useCreatePost, type Post } from "@workspace/api-client-react";
+import {
+  CreatePostInputMediaType,
+  getGetPostsQueryKey,
+  getGetTrendingPostsQueryKey,
+  getGetUserPostsQueryKey,
+  useCreatePost,
+  type Post,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -173,7 +181,8 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
 
 export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const queryClient = useQueryClient();
+  const { token, user } = useAuth();
   const { showNotice } = useFeedNotice();
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -525,9 +534,14 @@ export default function NewPostScreen() {
           setSelectedCategories([]);
           setAiCategories([]);
           setPendingMedia(null);
-          /** Match auth/onboarding: `/(tabs)/index` is not a registered path here and triggers +not-found. */
+          queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
+          if (user?.username) {
+            queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
+          }
           requestAnimationFrame(() => {
-            router.replace("/(tabs)" as Href);
+            if (router.canGoBack()) router.back();
+            else router.replace("/(tabs)" as Href);
           });
         },
         onError: (err: unknown) => {

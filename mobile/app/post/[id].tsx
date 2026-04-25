@@ -22,8 +22,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getGetMeQueryKey,
+  getGetModeratedPostsQueryKey,
+  getGetPendingPostsQueryKey,
   getGetPostQueryKey,
+  getGetPostsQueryKey,
   getGetSavedPrayersQueryKey,
+  getGetTrendingPostsQueryKey,
+  getGetUserPostsQueryKey,
   getGetUserProfileQueryKey,
   useGetPost,
   usePrayForPost,
@@ -242,7 +247,20 @@ export default function PostDetailScreen() {
       });
       if (res.ok) {
         queryClient.removeQueries({ queryKey: getGetPostQueryKey(post.id) });
+        queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
+        const authorUsername =
+          typeof post.authorUsername === "string" && post.authorUsername.length > 0
+            ? post.authorUsername
+            : null;
+        if (authorUsername) {
+          queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(authorUsername) });
+        }
+        if (isAdmin) {
+          queryClient.invalidateQueries({ queryKey: getGetPendingPostsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetModeratedPostsQueryKey() });
+        }
         try {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch {
