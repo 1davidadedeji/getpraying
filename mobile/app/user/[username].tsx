@@ -11,13 +11,16 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import { showAppAlert } from "@/components/AppAlert";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { StatCard } from "@/components/StatCard";
 import colors from "@/constants/colors";
+import { LAYOUT } from "@/constants/layout";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { clamp } from "@/lib/responsiveMetrics";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -40,7 +43,9 @@ const PAGE_SIZE = 20;
 
 export default function UserProfileScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
-  const { gutter, feedInnerWidth } = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { gutter, uiScale } = useResponsiveLayout();
+  const listBotPad = Math.round(clamp(100 * uiScale, 88, 112));
   const { token, user: me } = useAuth();
   const [followBusy, setFollowBusy] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -245,7 +250,13 @@ export default function UserProfileScreen() {
       }
       contentContainerStyle={[
         styles.list,
-        { paddingHorizontal: gutter, maxWidth: feedInnerWidth, width: "100%", alignSelf: "center" },
+        {
+          paddingHorizontal: gutter,
+          maxWidth: LAYOUT.contentMaxWidth,
+          width: "100%",
+          alignSelf: "center",
+          paddingBottom: listBotPad + insets.bottom,
+        },
       ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.flame} />
@@ -261,7 +272,7 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
-  list: { backgroundColor: colors.cream, paddingBottom: 100 },
+  list: { backgroundColor: colors.cream },
   profileSection: { alignItems: "center", gap: 6, paddingTop: 12, paddingBottom: 20 },
   avatarRing: {
     width: 80,

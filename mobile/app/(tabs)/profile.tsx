@@ -234,6 +234,8 @@ export default function ProfileScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+  /** Same clearance as main feed so lists aren’t clipped by the tab bar / home indicator. */
+  const listTabBarClearance = Math.round(clamp(100 * uiScale, 88, 112));
 
   const prof = useMemo(() => {
     const ringOuter = Math.round(clamp(92 * uiScale, 80, 102));
@@ -460,7 +462,7 @@ export default function ProfileScreen() {
         }
         contentContainerStyle={[
           styles.pagerListContent,
-          { paddingBottom: botPad + prof.listBottomPad },
+          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
           myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
         ]}
         onViewableItemsChanged={onMyFeedViewableItemsChanged}
@@ -490,7 +492,7 @@ export default function ProfileScreen() {
         }
         contentContainerStyle={[
           styles.pagerListContent,
-          { paddingBottom: botPad + prof.listBottomPad },
+          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
           savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
         ]}
         onViewableItemsChanged={onSavedFeedViewableItemsChanged}
@@ -506,7 +508,10 @@ export default function ProfileScreen() {
         ref={categoriesScrollRef}
         contentContainerStyle={[
           styles.catScrollInner,
-          { paddingBottom: botPad + prof.listBottomPad, paddingVertical: prof.catScrollPadV },
+          {
+            paddingBottom: listTabBarClearance + botPad + prof.listBottomPad,
+            paddingVertical: prof.catScrollPadV,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -719,7 +724,7 @@ export default function ProfileScreen() {
               }
               contentContainerStyle={[
                 styles.pagerListContent,
-                { paddingBottom: botPad + prof.listBottomPad },
+                { paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad },
                 myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
               ]}
               onViewableItemsChanged={onMyFeedViewableItemsChanged}
@@ -749,7 +754,7 @@ export default function ProfileScreen() {
               }
               contentContainerStyle={[
                 styles.pagerListContent,
-                { paddingBottom: botPad + prof.listBottomPad },
+                { paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad },
                 savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
               ]}
               onViewableItemsChanged={onSavedFeedViewableItemsChanged}
@@ -762,7 +767,10 @@ export default function ProfileScreen() {
               ref={categoriesScrollRef}
               contentContainerStyle={[
                 styles.catScrollInner,
-                { paddingBottom: botPad + prof.listBottomPad, paddingVertical: prof.catScrollPadV },
+                {
+                  paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad,
+                  paddingVertical: prof.catScrollPadV,
+                },
               ]}
               showsVerticalScrollIndicator={false}
             >
@@ -952,9 +960,8 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
   },
-  pagerListContent: {
-    paddingTop: 0,
-  },
+  /** Do not set paddingTop — collapsible-tab-view merges paddingTop into Tabs.FlatList. */
+  pagerListContent: {},
   /** Horizontal inset: `PreferredCategoriesContent` uses `gutter`. Vertical/bottom padding set inline. */
   catScrollInner: {},
   emptyHistory: {

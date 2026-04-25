@@ -187,15 +187,18 @@ export default function LibraryScreen() {
   }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  /** Match shell: `maxWidth` + horizontal padding — not `windowWidth - gutter` (too wide when capped at 760). */
-  const layoutWidth = Math.max(260, Math.min(LAYOUT.contentMaxWidth, windowWidth) - gutter * 2);
   const SITUATION_COLS = getLibrarySituationCols(windowWidth, windowHeight, isTablet);
   const cardGap = Math.round(10 * uiScale);
-  const totalGaps = (SITUATION_COLS - 1) * cardGap;
-  const cardWidth = (layoutWidth - totalGaps) / SITUATION_COLS;
+  const situationRows = useMemo(() => {
+    const rows: CategoryItem[][] = [];
+    for (let i = 0; i < filteredCategories.length; i += SITUATION_COLS) {
+      rows.push(filteredCategories.slice(i, i + SITUATION_COLS));
+    }
+    return rows;
+  }, [filteredCategories, SITUATION_COLS]);
   const situationIconSize = Math.round(20 * uiScale);
   const situationIconBg = getLibraryIconBgSize(uiScale);
-  const scrollPadBottom = Math.round(clamp(120 * uiScale, 100, 140));
+  const scrollPadBottom = Math.round(clamp(100 * uiScale, 88, 112)) + insets.bottom;
   const searchBtnSz = Math.round(clamp(40 * uiScale, 36, 46));
   const searchBtnRad = Math.round(searchBtnSz / 2);
   const searchHitSlop = Math.round(clamp(8 * uiScale, 6, 10));
@@ -229,16 +232,11 @@ export default function LibraryScreen() {
   };
 
   const renderSituationCard = (cat: CategoryItem) => {
-    const key =
-      cat.pathId != null && cat.pathId > 0
-        ? `p-${cat.pathId}`
-        : `c-${"slug" in cat && cat.slug ? cat.slug : cat.name}`;
     return (
       <Pressable
-        key={key}
         style={({ pressed }) => [
           styles.situationCard,
-          { width: cardWidth },
+          { width: "100%" },
           pressed && styles.cardPressed,
         ]}
         onPress={() => openPath(cat)}
@@ -411,7 +409,21 @@ export default function LibraryScreen() {
             </View>
           ) : (
             <View style={styles.situationGrid}>
-              {filteredCategories.map((c) => renderSituationCard(c))}
+              {situationRows.map((row, ri) => (
+                <View key={`sit-row-${ri}`} style={[styles.situationRow, { gap: cardGap, marginBottom: cardGap }]}>
+                  {row.map((c) => {
+                    const key =
+                      c.pathId != null && c.pathId > 0
+                        ? `p-${c.pathId}`
+                        : `c-${"slug" in c && c.slug ? c.slug : c.name}`;
+                    return (
+                      <View key={key} style={styles.situationCell}>
+                        {renderSituationCard(c)}
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
           )}
         </ScrollView>
@@ -572,10 +584,14 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 32,
   },
-  situationGrid: {
+  situationGrid: {},
+  situationRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+    alignItems: "stretch",
+  },
+  situationCell: {
+    flex: 1,
+    minWidth: 0,
   },
   situationCard: {
     backgroundColor: colors.surface,

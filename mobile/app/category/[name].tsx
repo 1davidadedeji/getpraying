@@ -14,8 +14,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
+import { LAYOUT } from "@/constants/layout";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { clamp } from "@/lib/responsiveMetrics";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 
@@ -24,7 +26,8 @@ const PAGE_SIZE = 20;
 export default function CategoryFeedScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const insets = useSafeAreaInsets();
-  const { gutter, feedInnerWidth } = useResponsiveLayout();
+  const { gutter, uiScale } = useResponsiveLayout();
+  const listBotPad = Math.round(clamp(100 * uiScale, 88, 112));
   const { token } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,9 +143,9 @@ export default function CategoryFeedScreen() {
       contentContainerStyle={[
         styles.list,
         {
-          paddingBottom: insets.bottom + 100,
+          paddingBottom: listBotPad + insets.bottom,
           paddingHorizontal: gutter,
-          maxWidth: feedInnerWidth,
+          maxWidth: LAYOUT.contentMaxWidth,
           width: "100%",
           alignSelf: "center",
         },
