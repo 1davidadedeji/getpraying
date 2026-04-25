@@ -525,9 +525,9 @@ export default function NewPostScreen() {
           setSelectedCategories([]);
           setAiCategories([]);
           setPendingMedia(null);
-          /** Always replace to feed tab — `router.back()` can pop past the app shell on some Android stacks after media upload. */
+          /** Match auth/onboarding: `/(tabs)/index` is not a registered path here and triggers +not-found. */
           requestAnimationFrame(() => {
-            router.replace("/(tabs)/index" as Href);
+            router.replace("/(tabs)" as Href);
           });
         },
         onError: (err: unknown) => {

@@ -775,12 +775,17 @@ export default function ProfileScreen() {
               contentContainerStyle={[
                 styles.catScrollInner,
                 {
-                  paddingTop: prof.catScrollPadV + tabListTopSpacer,
                   paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad,
+                  flexGrow: 1,
                 },
               ]}
               showsVerticalScrollIndicator={false}
             >
+              {/*
+                Do not set paddingTop on contentContainerStyle — collapsible-tab-view merges its own
+                paddingTop; overriding it hid Categories content. Spacer + default cat padding lives in children.
+              */}
+              <View style={{ height: tabListTopSpacer + prof.catScrollPadV }} />
               <PreferredCategoriesContent
                 preferredCategories={me.preferredCategories ?? []}
                 onOpenPreferences={() => router.push("/settings" as Href)}
