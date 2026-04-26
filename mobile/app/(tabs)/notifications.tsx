@@ -60,6 +60,8 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
       return "Prayer not approved";
     case "mod_queue":
       return "Moderation needed";
+    case "role_updated":
+      return "Your role was updated";
     case "system":
       return "Update";
     default:
@@ -94,7 +96,9 @@ function NotificationItem({
                     ? "alert-circle"
                     : t === "mod_queue"
                       ? "shield-checkmark"
-                      : "notifications-outline";
+                      : t === "role_updated"
+                        ? "person-circle"
+                        : "notifications-outline";
   const iconColor =
     t === "prayer" || t === "prayer_milestone"
       ? colors.flame
@@ -112,7 +116,9 @@ function NotificationItem({
                   ? colors.success
                   : t === "mod_queue"
                     ? colors.accent
-                    : colors.accent;
+                    : t === "role_updated"
+                      ? colors.primary
+                      : colors.accent;
 
   return (
     <Pressable

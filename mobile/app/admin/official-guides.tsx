@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
@@ -20,8 +21,17 @@ import type { ApiLibraryCategory } from "@/constants/libraryFallbackPaths";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { normalizeAudioMime } from "@/lib/audioMime";
+import {
+  OFFICIAL_GUIDE_CONTENT_MAX,
+  OFFICIAL_GUIDE_SCRIPTURE_MAX,
+  OFFICIAL_GUIDE_TITLE_MAX,
+} from "@/lib/officialGuideFieldLimits";
+import { parseApiJson, parseUploadJson } from "@/lib/parseUploadResponse";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
+
+const MAX_GUIDE_AUDIO_BYTES = 15 * 1024 * 1024;
 
 type PathPick = ApiLibraryCategory & { pathId: number; category?: string };
 
@@ -42,12 +52,18 @@ async function uploadAudioFile(
     headers: authHeaders(token),
     body: form,
   });
-  const data = await res.json().catch(() => ({}));
+  const data = await parseUploadJson(res);
   if (!res.ok) {
-    throw new Error(typeof data?.error === "string" ? data.error : "Upload failed");
+    const msg =
+      typeof data?.error === "string" && data.error.trim()
+        ? data.error
+        : res.status === 413
+          ? "Audio is too large (max 15MB) or blocked by the server. Try a smaller file or check hosting limits."
+          : "Upload failed";
+    throw new Error(msg);
   }
   if (typeof data?.url !== "string") {
-    throw new Error("Upload failed");
+    throw new Error("Upload failed: server did not return a file URL.");
   }
   return data.url;
 }
@@ -158,9 +174,25 @@ export default function AdminOfficialGuidesScreen() {
       });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
+      const name = a.name ?? "audio";
+      const pickerReported =
+        "size" in a && typeof (a as { size?: number }).size === "number"
+          ? (a as { size: number }).size
+          : 0;
+      const info = await FileSystem.getInfoAsync(a.uri);
+      const infoSize =
+        info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
+      const sz = pickerReported > 0 ? pickerReported : infoSize;
+      if (sz > MAX_GUIDE_AUDIO_BYTES) {
+        showAppAlert({
+          title: "Audio too large",
+          message: "Choose a file under 15MB.",
+        });
+        return;
+      }
       setAudioUri(a.uri);
-      setAudioMime(a.mimeType ?? "audio/mpeg");
-      setAudioName(a.name ?? "audio");
+      setAudioMime(normalizeAudioMime(a.mimeType ?? "audio/mpeg", name));
+      setAudioName(name);
     } catch {
       showAppAlert({ title: "Picker failed", message: "Could not open file picker." });
     } finally {
@@ -179,6 +211,23 @@ export default function AdminOfficialGuidesScreen() {
     }
     if (!audioUri || !audioMime) {
       showAppAlert({ title: "Audio required", message: "Upload an audio file for this sanctuary guide." });
+      return;
+    }
+    const t = title.trim();
+    const c = content.trim();
+    const scr = scripture.trim();
+    if (t.length > OFFICIAL_GUIDE_TITLE_MAX || c.length > OFFICIAL_GUIDE_CONTENT_MAX) {
+      showAppAlert({
+        title: "Text too long",
+        message: `Title max ${OFFICIAL_GUIDE_TITLE_MAX} characters; description max ${OFFICIAL_GUIDE_CONTENT_MAX}.`,
+      });
+      return;
+    }
+    if (scr.length > OFFICIAL_GUIDE_SCRIPTURE_MAX) {
+      showAppAlert({
+        title: "Scripture too long",
+        message: `Scripture max ${OFFICIAL_GUIDE_SCRIPTURE_MAX} characters.`,
+      });
       return;
     }
     const category = (selectedPath.category ?? "general").trim() || "general";
@@ -206,18 +255,19 @@ export default function AdminOfficialGuidesScreen() {
         body: JSON.stringify({
           slot: scheduleSlot,
           archivePathId,
-          title: title.trim(),
-          content: content.trim(),
+          title: t,
+          content: c,
           category,
-          scripture: scripture.trim() || undefined,
+          scripture: scr || undefined,
           durationMinutes: durationPayload,
           audioUrl,
           label: scheduleSlot === "morning" ? "Official Sanctuary" : "Vesper Light",
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseApiJson(res);
       if (!res.ok) {
-        showAppAlert({ title: "Could not save", message: (data as { error?: string }).error ?? "Try again." });
+        const errMsg = typeof data.error === "string" ? data.error : "Try again.";
+        showAppAlert({ title: "Could not save", message: errMsg });
         return;
       }
       setTitle("");
@@ -354,11 +404,15 @@ export default function AdminOfficialGuidesScreen() {
         ))}
       </View>
 
+      <Text style={[styles.charCount, { fontSize: fsField - 1, marginBottom: fieldMb }]}>
+        Title · {title.length}/{OFFICIAL_GUIDE_TITLE_MAX}
+      </Text>
       <TextInput
         value={title}
         onChangeText={setTitle}
         placeholder="Title"
         placeholderTextColor={colors.muted}
+        maxLength={OFFICIAL_GUIDE_TITLE_MAX}
         style={[
           styles.input,
           {
@@ -369,11 +423,15 @@ export default function AdminOfficialGuidesScreen() {
           },
         ]}
       />
+      <Text style={[styles.charCount, { fontSize: fsField - 1, marginBottom: fieldMb }]}>
+        Description · {content.length}/{OFFICIAL_GUIDE_CONTENT_MAX}
+      </Text>
       <TextInput
         value={content}
         onChangeText={setContent}
         placeholder="Description"
         placeholderTextColor={colors.muted}
+        maxLength={OFFICIAL_GUIDE_CONTENT_MAX}
         style={[
           styles.input,
           styles.inputMultiline,
@@ -388,11 +446,15 @@ export default function AdminOfficialGuidesScreen() {
         multiline
         textAlignVertical="top"
       />
+      <Text style={[styles.charCount, { fontSize: fsField - 1, marginBottom: fieldMb }]}>
+        Scripture (optional) · {scripture.length}/{OFFICIAL_GUIDE_SCRIPTURE_MAX}
+      </Text>
       <TextInput
         value={scripture}
         onChangeText={setScripture}
         placeholder="Scripture (optional, e.g. Psalm 34:4)"
         placeholderTextColor={colors.muted}
+        maxLength={OFFICIAL_GUIDE_SCRIPTURE_MAX}
         style={[
           styles.input,
           {
@@ -592,6 +654,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginBottom: 6,
+  },
+  charCount: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.muted,
+    alignSelf: "flex-end",
   },
   selectBtn: {
     borderWidth: 1,

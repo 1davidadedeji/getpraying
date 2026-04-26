@@ -36,13 +36,24 @@ app.use(
 );
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "512kb" }));
+app.use(express.urlencoded({ extended: true, limit: "512kb" }));
 
 app.use("/api", router);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (res.headersSent) return;
+  const anyErr = err as { status?: number; statusCode?: number; type?: string };
+  if (
+    anyErr?.status === 413 ||
+    anyErr?.statusCode === 413 ||
+    anyErr?.type === "entity.too.large"
+  ) {
+    res.status(413).json({
+      error: "Request is too large. Shorten your text or attachments and try again.",
+    });
+    return;
+  }
   logger.error({ err }, "Unhandled error");
   const detail = err instanceof Error ? err.message : String(err);
   res.status(500).json({

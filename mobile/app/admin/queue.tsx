@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { PostMediaBlock } from "@/components/PostMedia";
 import React, { useCallback, useEffect, useState } from "react";
@@ -35,6 +35,22 @@ import { useModerationBadge } from "@/context/moderationBadge";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
+
+/** Readable caption for mod queue — hide image placeholder; clarify media-only posts. */
+function moderationCaptionPreview(post: Post): { lines: string[]; muted: boolean } {
+  const raw = String(post.content ?? "").trim();
+  const hasMedia = !!(post.mediaUrl && String(post.mediaUrl).trim());
+  if (raw === "(Image)" || (raw === "" && hasMedia)) {
+    return {
+      lines: ["No written text — see media above."],
+      muted: true,
+    };
+  }
+  if (!raw && !hasMedia) {
+    return { lines: ["No text in this prayer."], muted: true };
+  }
+  return { lines: [raw], muted: false };
+}
 
 function StatBadge({ label, value, color }: { label: string; value: number; color: string }) {
   const { uiScale } = useResponsiveLayout();
@@ -141,6 +157,7 @@ function PendingPostCard({
   const authorName = post.isAnonymous
     ? "Anonymous"
     : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
+  const caption = moderationCaptionPreview(post);
 
   return (
     <View
@@ -257,9 +274,19 @@ function PendingPostCard({
         compact
         thumbnail
       />
-      <Text style={[styles.postContent, { fontSize: fsPost, lineHeight: lhPost }]} numberOfLines={4}>
-        {post.content}
+      <Text
+        style={[
+          styles.postContent,
+          caption.muted && styles.postContentMuted,
+          { fontSize: fsPost, lineHeight: lhPost },
+        ]}
+        numberOfLines={4}
+      >
+        {caption.lines[0]}
       </Text>
+      <Pressable onPress={() => router.push(`/post/${post.id}` as never)} style={styles.openFullPost}>
+        <Text style={[styles.openFullPostText, { fontSize: fsPill }]}>Open full post</Text>
+      </Pressable>
       <View style={[styles.postActions, { gap: actGap }]}>
         <Pressable
           style={[
@@ -405,6 +432,7 @@ function ReviewedPostCard({
   const authorName = post.isAnonymous
     ? "Anonymous"
     : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
+  const captionReviewed = moderationCaptionPreview(post);
 
   const requeue = async () => {
     if (!token) return;
@@ -468,9 +496,19 @@ function ReviewedPostCard({
         compact
         thumbnail
       />
-      <Text style={[styles.postContent, { fontSize: fsPost, lineHeight: lhPost }]} numberOfLines={5}>
-        {post.content}
+      <Text
+        style={[
+          styles.postContent,
+          captionReviewed.muted && styles.postContentMuted,
+          { fontSize: fsPost, lineHeight: lhPost },
+        ]}
+        numberOfLines={5}
+      >
+        {captionReviewed.lines[0]}
       </Text>
+      <Pressable onPress={() => router.push(`/post/${post.id}` as never)} style={styles.openFullPost}>
+        <Text style={[styles.openFullPostText, { fontSize: fsPill }]}>Open full post</Text>
+      </Pressable>
       {post.status === "approved" ? (
         <Pressable
           style={[
@@ -835,6 +873,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 21,
+  },
+  postContentMuted: {
+    color: colors.muted,
+    fontStyle: "italic",
+  },
+  openFullPost: {
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  openFullPostText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.primary,
   },
   postThumb: {
     width: "100%",

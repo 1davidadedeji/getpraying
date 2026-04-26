@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -65,6 +65,7 @@ export default function OfficialPrayerScreen() {
   const playRef = useRef<OfficialGuidePlayHandle | null>(null);
   const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [bodyExpanded, setBodyExpanded] = useState(false);
 
   const { data, isLoading, isError, refetch } = useGetOfficialPrayerById(prayerId, {
     query: {
@@ -88,6 +89,10 @@ export default function OfficialPrayerScreen() {
   React.useEffect(() => {
     void checkSaved();
   }, [checkSaved]);
+
+  React.useEffect(() => {
+    setBodyExpanded(false);
+  }, [prayerId]);
 
   const toggleSave = async () => {
     if (!token) {
@@ -139,6 +144,12 @@ export default function OfficialPrayerScreen() {
       ? new Date(d.updatedAt)
       : null;
 
+  const bodyText = (d.content ?? "").trim();
+  const longBody = useMemo(
+    () => bodyText.length > 280 || (bodyText.match(/\n/g)?.length ?? 0) > 4,
+    [bodyText],
+  );
+
   return (
     <ScrollView
       contentContainerStyle={[styles.container, { paddingHorizontal: gutter, paddingBottom: insets.bottom + botPad }]}
@@ -187,7 +198,26 @@ export default function OfficialPrayerScreen() {
       {d.scripture ? (
         <Text style={[styles.scripture, { fontSize: fsScripture, marginBottom: scrMb }]}>&ldquo;{d.scripture}&rdquo;</Text>
       ) : null}
-      <Text style={[styles.body, { fontSize: fsBody, lineHeight: lhBody }]}>{d.content}</Text>
+      {bodyText ? (
+        <View style={{ marginBottom: scrMb }}>
+          <Text
+            style={[styles.body, { fontSize: fsBody, lineHeight: lhBody }]}
+            numberOfLines={bodyExpanded || !longBody ? undefined : 6}
+          >
+            {bodyText}
+          </Text>
+          {longBody ? (
+            <Pressable
+              onPress={() => setBodyExpanded((prev) => !prev)}
+              style={styles.moreToggle}
+              accessibilityRole="button"
+              accessibilityLabel={bodyExpanded ? "Show less description" : "Show full description"}
+            >
+              <Text style={[styles.moreToggleText, { fontSize: fsHint }]}>{bodyExpanded ? "Less" : "More"}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {d.uploadedByUsername ? (
         <Text style={[styles.uploader, { fontSize: fsUpload, marginTop: uploadMt }]}>
@@ -262,6 +292,15 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   body: { fontFamily: "PlusJakartaSans_400Regular", color: colors.text },
+  moreToggle: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+  moreToggleText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.primary,
+  },
   uploader: { fontFamily: "PlusJakartaSans_400Regular", color: colors.muted },
   seeAlso: {},
   seeAlsoTitle: { fontFamily: "NotoSerif_700Bold", color: colors.primary },

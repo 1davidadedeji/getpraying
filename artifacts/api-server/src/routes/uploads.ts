@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdirSync } from "fs";
+import { mkdir, writeFile, unlink } from "fs/promises";
 import path from "path";
 import type { Request, Response, NextFunction } from "express";
 import { requireAuth } from "../lib/auth";
@@ -18,6 +19,12 @@ const MAX_VIDEO_DURATION_SEC = 10;
 
 export function getUploadDir(): string {
   return process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
+}
+
+function ensureUploadDirSync(): string {
+  const dir = getUploadDir();
+  mkdirSync(dir, { recursive: true });
+  return dir;
 }
 
 const uploadPostImage = multer({
@@ -44,8 +51,22 @@ const uploadAvatarImage = multer({
   },
 });
 
+/** Stream large media to disk to avoid holding full file in server RAM. */
 const uploadVideo = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      try {
+        cb(null, ensureUploadDirSync());
+      } catch (e) {
+        cb(e as Error, getUploadDir());
+      }
+    },
+    filename: (_req, file, cb) => {
+      const ext =
+        file.mimetype === "video/webm" ? "webm" : file.mimetype === "video/quicktime" ? "mov" : "mp4";
+      cb(null, `${randomUUID()}.${ext}`);
+    },
+  }),
   limits: { fileSize: MAX_VIDEO_BYTES },
   fileFilter: (_req, file, cb) => {
     if (!/^video\/(mp4|quicktime|webm)$/i.test(file.mimetype)) {
@@ -57,7 +78,27 @@ const uploadVideo = multer({
 });
 
 const uploadAudio = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      try {
+        cb(null, ensureUploadDirSync());
+      } catch (e) {
+        cb(e as Error, getUploadDir());
+      }
+    },
+    filename: (_req, file, cb) => {
+      let ext = "m4a";
+      const mt = file.mimetype.toLowerCase();
+      const on = (file.originalname ?? "").toLowerCase();
+      if (mt.includes("mpeg") || mt.includes("mp3") || on.endsWith(".mp3")) ext = "mp3";
+      else if (mt.includes("wav") || on.endsWith(".wav")) ext = "wav";
+      else if (mt.includes("ogg") || on.endsWith(".ogg")) ext = "ogg";
+      else if (mt.includes("webm") || on.endsWith(".webm")) ext = "webm";
+      else if (mt.includes("flac") || on.endsWith(".flac")) ext = "flac";
+      else if (mt.includes("caf") || on.endsWith(".caf")) ext = "caf";
+      cb(null, `${randomUUID()}.${ext}`);
+    },
+  }),
   limits: { fileSize: MAX_AUDIO_BYTES },
   fileFilter: (_req, file, cb) => {
     if (
@@ -197,8 +238,8 @@ router.post(
       `Video file is too large (max 12MB) or too long; clips must be ${MAX_VIDEO_DURATION_SEC} seconds or less.`,
     ),
   async (req, res): Promise<void> => {
-    const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
-    if (!file?.buffer?.length) {
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file?.path?.length) {
       res.status(400).json({ error: "No video file provided" });
       return;
     }
@@ -206,19 +247,19 @@ router.post(
     const rawDur = (req as any).body?.durationSec ?? (req as any).body?.duration;
     const durationSec = typeof rawDur === "string" ? parseFloat(rawDur) : Number(rawDur);
     if (!Number.isFinite(durationSec) || durationSec <= 0 || durationSec > MAX_VIDEO_DURATION_SEC) {
+      await unlink(file.path).catch(() => {});
       res.status(400).json({
         error: `Video must be ${MAX_VIDEO_DURATION_SEC} seconds or less. Adjust the clip length and try again.`,
       });
       return;
     }
 
-    const dir = getUploadDir();
-    await mkdir(dir, { recursive: true });
-
-    const ext =
-      file.mimetype === "video/webm" ? "webm" : file.mimetype === "video/quicktime" ? "mov" : "mp4";
-    const filename = `${randomUUID()}.${ext}`;
-    await writeFile(path.join(dir, filename), file.buffer);
+    const filename = file.filename;
+    if (!filename) {
+      await unlink(file.path).catch(() => {});
+      res.status(500).json({ error: "Upload could not be finalized." });
+      return;
+    }
 
     res.status(201).json({ url: `/api/static/uploads/${filename}`, mediaType: "video" });
   },
@@ -236,29 +277,18 @@ router.post(
       "Audio file is too large (max 15MB).",
     ),
   async (req, res): Promise<void> => {
-    const file = (req as any).file as
-      | { buffer: Buffer; mimetype: string; originalname?: string }
-      | undefined;
-    if (!file?.buffer?.length) {
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file?.path?.length) {
       res.status(400).json({ error: "No audio file provided" });
       return;
     }
 
-    const dir = getUploadDir();
-    await mkdir(dir, { recursive: true });
-
-    let ext = "m4a";
-    const mt = file.mimetype.toLowerCase();
-    const on = (file.originalname ?? "").toLowerCase();
-    if (mt.includes("mpeg") || mt.includes("mp3") || on.endsWith(".mp3")) ext = "mp3";
-    else if (mt.includes("wav") || on.endsWith(".wav")) ext = "wav";
-    else if (mt.includes("ogg") || on.endsWith(".ogg")) ext = "ogg";
-    else if (mt.includes("webm") || on.endsWith(".webm")) ext = "webm";
-    else if (mt.includes("flac") || on.endsWith(".flac")) ext = "flac";
-    else if (mt.includes("caf") || on.endsWith(".caf")) ext = "caf";
-
-    const filename = `${randomUUID()}.${ext}`;
-    await writeFile(path.join(dir, filename), file.buffer);
+    const filename = file.filename;
+    if (!filename) {
+      await unlink(file.path).catch(() => {});
+      res.status(500).json({ error: "Upload could not be finalized." });
+      return;
+    }
 
     res.status(201).json({ url: `/api/static/uploads/${filename}`, mediaType: "audio" });
   },

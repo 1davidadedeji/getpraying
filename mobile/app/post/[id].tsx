@@ -57,7 +57,11 @@ type CommentRow = {
 };
 
 export default function PostDetailScreen() {
-  const { id, focusComment } = useLocalSearchParams<{ id: string; focusComment?: string }>();
+  const { id, focusComment, focusMedia } = useLocalSearchParams<{
+    id: string;
+    focusComment?: string;
+    focusMedia?: string;
+  }>();
   const postId = Number(id);
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
@@ -77,7 +81,16 @@ export default function PostDetailScreen() {
     const v = Array.isArray(focusComment) ? focusComment[0] : focusComment;
     return v === "1" || v === "true";
   }, [focusComment]);
+  const mediaFirst = useMemo(() => {
+    const v = Array.isArray(focusMedia) ? focusMedia[0] : focusMedia;
+    return v === "1" || v === "true";
+  }, [focusMedia]);
   const [threadOpen, setThreadOpen] = useState(() => !replyFirst);
+  const [bodyExpanded, setBodyExpanded] = useState(() => mediaFirst);
+
+  useEffect(() => {
+    if (mediaFirst) setBodyExpanded(true);
+  }, [mediaFirst]);
 
   const { data, isLoading } = useGetPost(Number(id));
 
@@ -475,35 +488,63 @@ export default function PostDetailScreen() {
     ? "Anonymous"
     : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
 
+  const rawContent = post.content ?? "";
+  const displayContent = rawContent === "(Image)" ? "" : rawContent;
+  const longBody =
+    displayContent.length > 260 || (displayContent.match(/\n/g)?.length ?? 0) > 4;
+
   const listHeader = (
     <>
       <View style={[styles.authorRow, { gap: authorGap, marginBottom: authorRowMb }]}>
-        <Pressable
-          onPress={() => {
-            if (!post.isAnonymous && post.authorUsername) {
+        <View style={styles.headerLeftCluster} pointerEvents="box-none">
+          <Pressable
+            onPress={() => {
+              if (!post.isAnonymous && post.authorUsername) {
                 router.replace(`/user/${post.authorUsername}` as never);
-            }
-          }}
-          disabled={post.isAnonymous || !post.authorUsername}
-          style={[styles.authorPressable, { gap: authorGap }]}
-        >
-          {!post.isAnonymous && post.authorAvatarUrl ? (
-            <Image
-              source={{ uri: resolveMediaUrl(post.authorAvatarUrl)! }}
-              style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
-            />
-          ) : (
-            <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
-              <Text style={[styles.avatarText, { fontSize: avatarFs }]}>
-                {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
-              </Text>
-            </View>
-          )}
-          <View>
-            <Text style={[styles.authorName, { fontSize: fsAuthorName }]}>{authorName}</Text>
-            <Text style={[styles.time, { fontSize: fsTime }]}>{timeAgo(post.createdAt)}</Text>
+              }
+            }}
+            disabled={post.isAnonymous || !post.authorUsername}
+            style={styles.headerAvatarBtn}
+            hitSlop={{ top: 6, bottom: 6, left: 2, right: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Open profile for ${authorName}`}
+          >
+            {!post.isAnonymous && post.authorAvatarUrl ? (
+              <Image
+                source={{ uri: resolveMediaUrl(post.authorAvatarUrl)! }}
+                style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
+              />
+            ) : (
+              <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
+                <Text style={[styles.avatarText, { fontSize: avatarFs }]}>
+                  {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+          <View style={styles.headerNameRow} pointerEvents="box-none">
+            <Pressable
+              onPress={() => {
+                if (!post.isAnonymous && post.authorUsername) {
+                  router.replace(`/user/${post.authorUsername}` as never);
+                }
+              }}
+              disabled={post.isAnonymous || !post.authorUsername}
+              style={styles.headerNamePressable}
+              hitSlop={{ top: 4, bottom: 4, right: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Open profile for ${authorName}`}
+            >
+              <View style={styles.headerNameTextCol}>
+                <Text style={[styles.authorName, { fontSize: fsAuthorName }]} numberOfLines={1} ellipsizeMode="tail">
+                  {authorName}
+                </Text>
+                <Text style={[styles.time, { fontSize: fsTime }]}>{timeAgo(post.createdAt)}</Text>
+              </View>
+            </Pressable>
+            <View style={styles.headerTapThrough} pointerEvents="box-none" />
           </View>
-        </Pressable>
+        </View>
         <View style={[styles.authorRowRight, { gap: rightGap }]}>
           {post.category && (
             <View style={[styles.categoryBadge, { paddingHorizontal: catPadH, paddingVertical: catPadV, borderRadius: catRad }]}>
@@ -539,11 +580,29 @@ export default function PostDetailScreen() {
         mediaUrl={post.mediaUrl}
         mediaType={post.mediaType}
         style={[styles.postImage, { marginBottom: postImgMb }]}
+        mediaLayout="detail"
       />
 
-      <Text style={[styles.prayerContent, { fontSize: fsPrayer, lineHeight: lhPrayer, marginBottom: prayerMb }]}>
-        {post.content}
-      </Text>
+      {displayContent.length > 0 ? (
+        <View style={{ marginBottom: prayerMb }}>
+          <Text
+            style={[styles.prayerContent, { fontSize: fsPrayer, lineHeight: lhPrayer }]}
+            numberOfLines={bodyExpanded || !longBody ? undefined : 5}
+          >
+            {displayContent}
+          </Text>
+          {longBody ? (
+            <Pressable
+              onPress={() => setBodyExpanded((prev) => !prev)}
+              style={styles.moreToggle}
+              accessibilityRole="button"
+              accessibilityLabel={bodyExpanded ? "Show less text" : "Show full prayer text"}
+            >
+              <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>{bodyExpanded ? "Less" : "More"}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={[styles.divider, { marginBottom: dividerMb }]} />
 
@@ -829,15 +888,51 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  authorPressable: {
-    flexDirection: "row",
-    alignItems: "center",
+  headerLeftCluster: {
     flex: 1,
     minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerAvatarBtn: {
+    flexShrink: 0,
+  },
+  headerNameRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerNamePressable: {
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  headerNameTextCol: {
+    minWidth: 0,
+  },
+  headerTapThrough: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 8,
+    alignSelf: "stretch",
+    minHeight: 44,
+  },
+  moreToggle: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+  moreToggleText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.primary,
   },
   authorRowRight: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
+    maxWidth: "46%",
   },
   flagBtn: {
     padding: 4,

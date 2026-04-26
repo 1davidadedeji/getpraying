@@ -18,6 +18,7 @@ const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { clearModQueueNotificationsForPost, notifyModeratorsNewPending } from "../lib/modQueueNotifications";
+import { officialGuideTextError } from "../lib/officialGuideTextLimits";
 
 async function notifyAuthorPostDecision(
   authorId: number | null,
@@ -269,6 +270,16 @@ router.post("/admin/users/:userId/role", requireAdmin, async (req, res): Promise
 
   try {
     await db.update(usersTable).set({ role: typedRole }).where(eq(usersTable.id, userId));
+    const roleLabel =
+      typedRole === "admin" ? "an admin" : typedRole === "moderator" ? "a moderator" : "a member";
+    await db.insert(notificationsTable).values({
+      userId,
+      type: "role_updated",
+      message: `Your account role was updated — you are now ${roleLabel}.`,
+      actorId: adminUser.id,
+      postId: null,
+      isRead: false,
+    });
     res.json({ success: true, message: "Role updated", role: typedRole });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "Failed to update role" });
@@ -444,6 +455,13 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
     res.status(400).json({ error: "title and content are required" });
     return;
   }
+  const scriptureRaw =
+    typeof req.body?.scripture === "string" && req.body.scripture.trim() ? req.body.scripture.trim() : null;
+  const textErr = officialGuideTextError({ title, content, scripture: scriptureRaw });
+  if (textErr) {
+    res.status(400).json({ error: textErr });
+    return;
+  }
   const category = typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
   const [row] = await db
     .insert(officialPrayersTable)
@@ -503,6 +521,12 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
     typeof req.body?.durationMinutes === "number" && Number.isFinite(req.body.durationMinutes)
       ? Math.round(req.body.durationMinutes)
       : null;
+
+  const textErrSchedule = officialGuideTextError({ title, content, scripture });
+  if (textErrSchedule) {
+    res.status(400).json({ error: textErrSchedule });
+    return;
+  }
 
   const [slotOccupied] = await db
     .select({ id: officialPrayersTable.id })

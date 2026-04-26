@@ -9,6 +9,7 @@ import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -37,27 +38,14 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { normalizeAudioMime } from "@/lib/audioMime";
+import { parseUploadJson } from "@/lib/parseUploadResponse";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SEC = 10;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
-
-function normalizeAudioMime(mime: string, fileName: string): string {
-  const m = mime.trim().toLowerCase();
-  if (m && m !== "application/octet-stream") return mime;
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".m4a")) return "audio/mp4";
-  if (lower.endsWith(".aac")) return "audio/aac";
-  if (lower.endsWith(".wav")) return "audio/wav";
-  if (lower.endsWith(".ogg")) return "audio/ogg";
-  if (lower.endsWith(".webm")) return "audio/webm";
-  if (lower.endsWith(".flac")) return "audio/flac";
-  if (lower.endsWith(".caf")) return "audio/x-caf";
-  if (lower.endsWith(".mp3")) return "audio/mpeg";
-  return "audio/mpeg";
-}
 
 type PendingMedia =
   | { kind: "image"; uri: string }
@@ -79,13 +67,15 @@ function messageForUploadFailure(
     }
   }
   if (res.status === 413) {
+    const proxyHint =
+      " If your file is already under the limit, the hosting reverse proxy may be blocking large uploads — raise its max body size (often labeled client_max_body_size).";
     if (kind === "image") {
       return "Photo is too large for the server (max 1MB). The app resizes; try a smaller or simpler image.";
     }
     if (kind === "video") {
-      return "Video file is too large (max 12MB). Shorter or lower quality clips work best.";
+      return "Video file is too large (max 12MB). Shorter or lower quality clips work best." + proxyHint;
     }
-    return "Audio file is too large (max 15MB).";
+    return "Audio file is too large (max 15MB)." + proxyHint;
   }
   if (res.status === 408 || res.status === 504) {
     return "Upload timed out. Check your connection and try again.";
@@ -125,7 +115,7 @@ async function uploadMultipart(
     headers: authHeaders(token),
     body: form,
   });
-  const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string; mediaType?: string };
+  const data = await parseUploadJson(res);
   if (!res.ok) {
     const kind = route === "post-image" ? "image" : route === "post-video" ? "video" : "audio";
     throw new Error(messageForUploadFailure(res, data, kind));
@@ -169,7 +159,7 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
     headers: authHeaders(token),
     body: form,
   });
-  const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string };
+  const data = await parseUploadJson(res);
   if (!res.ok) {
     throw new Error(messageForUploadFailure(res, data, "image"));
   }
@@ -380,14 +370,24 @@ export default function NewPostScreen() {
       });
       return;
     }
+    const a = asset as ImagePicker.ImagePickerAsset & { durationMillis?: number };
     const rawDur =
-      "duration" in asset && typeof (asset as { duration?: number }).duration === "number"
-        ? (asset as { duration: number }).duration
-        : null;
-    // expo-image-picker returns duration in milliseconds on many platforms
+      typeof a.duration === "number"
+        ? a.duration
+        : typeof a.durationMillis === "number"
+          ? a.durationMillis
+          : null;
+    // expo-image-picker: duration is often in seconds on iOS and milliseconds on Android
     const durSec =
       rawDur == null ? null : rawDur > 1000 ? rawDur / 1000 : rawDur;
-    if (durSec == null || durSec <= 0 || durSec > MAX_VIDEO_DURATION_SEC) {
+    if (durSec == null || durSec <= 0 || !Number.isFinite(durSec)) {
+      showAppAlert({
+        title: "Could not read video length",
+        message: `Pick another clip or trim it to ${MAX_VIDEO_DURATION_SEC} seconds or less, then try again.`,
+      });
+      return;
+    }
+    if (durSec > MAX_VIDEO_DURATION_SEC) {
       showAppAlert({
         title: "Video too long",
         message: `Choose a clip of ${MAX_VIDEO_DURATION_SEC} seconds or less.`,
@@ -423,9 +423,14 @@ export default function NewPostScreen() {
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
+    const pickerReported =
+      "size" in asset && typeof (asset as { size?: number }).size === "number"
+        ? (asset as { size: number }).size
+        : 0;
     const info = await FileSystem.getInfoAsync(asset.uri);
-    const sz =
+    const infoSize =
       info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
+    const sz = pickerReported > 0 ? pickerReported : infoSize;
     if (sz > MAX_AUDIO_BYTES) {
       showAppAlert({
         title: "Audio too large",
@@ -534,14 +539,16 @@ export default function NewPostScreen() {
           setSelectedCategories([]);
           setAiCategories([]);
           setPendingMedia(null);
-          queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
-          if (user?.username) {
-            queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
-          }
-          requestAnimationFrame(() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/(tabs)" as Href);
+          InteractionManager.runAfterInteractions(() => {
+            queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
+            queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
+            if (user?.username) {
+              queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
+            }
+            requestAnimationFrame(() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/(tabs)" as Href);
+            });
           });
         },
         onError: (err: unknown) => {

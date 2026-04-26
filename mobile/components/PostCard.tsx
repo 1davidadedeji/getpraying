@@ -193,35 +193,57 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         accessibilityLabel={`Open prayer from ${authorName}`}
       >
         <View style={styles.header}>
-          <Pressable
-            onPress={(e) => {
-              if (!localPost.isAnonymous && localPost.authorUsername) {
+          <View style={styles.headerLeftCluster} pointerEvents="box-none">
+            <Pressable
+              onPress={(e) => {
                 e.stopPropagation?.();
-                navigate(`/user/${localPost.authorUsername}` as any);
-              }
-            }}
-            disabled={localPost.isAnonymous || !localPost.authorUsername}
-            style={styles.authorPressable}
-          >
-            {!localPost.isAnonymous && localPost.authorAvatarUrl ? (
-              <Image
-                source={{ uri: resolveMediaUrl(localPost.authorAvatarUrl)! }}
-                style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
-              />
-            ) : (
-              <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
-                <Text style={[styles.avatarText, { fontSize: Math.round(16 * uiScale) }]}>
-                  {localPost.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <View style={styles.headerInfo}>
-              <Text style={styles.authorName} numberOfLines={1} ellipsizeMode="tail">
-                {authorName}
-              </Text>
-              <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
+                if (!localPost.isAnonymous && localPost.authorUsername) {
+                  navigate(`/user/${localPost.authorUsername}` as any);
+                }
+              }}
+              disabled={localPost.isAnonymous || !localPost.authorUsername}
+              style={styles.headerAvatarBtn}
+              hitSlop={{ top: 6, bottom: 6, left: 2, right: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Open profile for ${authorName}`}
+            >
+              {!localPost.isAnonymous && localPost.authorAvatarUrl ? (
+                <Image
+                  source={{ uri: resolveMediaUrl(localPost.authorAvatarUrl)! }}
+                  style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
+                />
+              ) : (
+                <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
+                  <Text style={[styles.avatarText, { fontSize: Math.round(16 * uiScale) }]}>
+                    {localPost.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+            <View style={styles.headerNameRow} pointerEvents="box-none">
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  if (!localPost.isAnonymous && localPost.authorUsername) {
+                    navigate(`/user/${localPost.authorUsername}` as any);
+                  }
+                }}
+                disabled={localPost.isAnonymous || !localPost.authorUsername}
+                style={styles.headerNamePressable}
+                hitSlop={{ top: 4, bottom: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Open profile for ${authorName}`}
+              >
+                <View style={styles.headerInfo}>
+                  <Text style={styles.authorName} numberOfLines={1} ellipsizeMode="tail">
+                    {authorName}
+                  </Text>
+                  <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
+                </View>
+              </Pressable>
+              <View style={styles.headerTapThrough} pointerEvents="box-none" />
             </View>
-          </Pressable>
+          </View>
           <View style={styles.headerRight}>
             {categoryChips.length > 0 && (
               <View style={styles.headerCats}>
@@ -241,10 +263,16 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
           mediaUrl={localPost.mediaUrl}
           mediaType={localPost.mediaType}
           style={styles.media}
+          compact={localPost.mediaType === "audio"}
           feedMediaFocused={
             feedMediaFocusPostId != null &&
             feedMediaFocusPostId === localPost.id &&
             (localPost.mediaType === "video" || localPost.mediaType === "audio")
+          }
+          onOpenPostDetail={
+            localPost.mediaType === "video"
+              ? () => navigate(`/post/${localPost.id}?focusMedia=1` as any)
+              : undefined
           }
         />
 
@@ -397,11 +425,33 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 10,
   },
-  authorPressable: {
+  headerLeftCluster: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  headerAvatarBtn: {
+    flexShrink: 0,
+  },
+  headerNameRow: {
     flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerNamePressable: {
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  headerTapThrough: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 8,
+    alignSelf: "stretch",
+    minHeight: 40,
   },
   avatar: {
     backgroundColor: colors.primary,
@@ -414,7 +464,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
   },
   headerInfo: {
-    flex: 1,
     minWidth: 0,
   },
   authorName: {
