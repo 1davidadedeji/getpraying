@@ -102,7 +102,7 @@ const uploadAudio = multer({
   limits: { fileSize: MAX_AUDIO_BYTES },
   fileFilter: (_req, file, cb) => {
     if (
-      /^audio\/(mpeg|mp3|mp4|m4a|x-m4a|wav|x-wav|aac|webm|ogg|flac|x-flac|x-caf|caf)$/i.test(
+      /^audio\/(mpeg|mp3|x-mpeg|mp4|m4a|x-m4a|wav|x-wav|aac|webm|ogg|flac|x-flac|x-caf|caf|3gpp|3gp|amr|x-ms-wma)$/i.test(
         file.mimetype,
       )
     ) {
@@ -110,7 +110,7 @@ const uploadAudio = multer({
       return;
     }
     const name = file.originalname?.toLowerCase() ?? "";
-    if (/\.(mp3|m4a|aac|wav|ogg|webm|flac|caf)$/i.test(name)) {
+    if (/\.(mp3|m4a|aac|wav|ogg|webm|flac|caf|3gp|3gpp|amr|wma)$/i.test(name)) {
       cb(null, true);
       return;
     }
@@ -246,7 +246,9 @@ router.post(
 
     const rawDur = (req as any).body?.durationSec ?? (req as any).body?.duration;
     const durationSec = typeof rawDur === "string" ? parseFloat(rawDur) : Number(rawDur);
-    if (!Number.isFinite(durationSec) || durationSec <= 0 || durationSec > MAX_VIDEO_DURATION_SEC) {
+    // Only reject when the client explicitly reports a duration that exceeds the limit.
+    // A duration of 0 or NaN means the device could not read it — let size limit handle abuse.
+    if (Number.isFinite(durationSec) && durationSec > 0 && durationSec > MAX_VIDEO_DURATION_SEC) {
       await unlink(file.path).catch(() => {});
       res.status(400).json({
         error: `Video must be ${MAX_VIDEO_DURATION_SEC} seconds or less. Adjust the clip length and try again.`,

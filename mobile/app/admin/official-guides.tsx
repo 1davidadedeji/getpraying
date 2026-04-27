@@ -240,6 +240,18 @@ export default function AdminOfficialGuidesScreen() {
     try {
       let audioUrl: string;
       try {
+        // Verify the cached file is still accessible before attempting upload
+        const fileInfo = await FileSystem.getInfoAsync(audioUri);
+        if (!fileInfo.exists) {
+          showAppAlert({
+            title: "File not accessible",
+            message: "The audio file could not be read. Please re-select it and try again.",
+          });
+          setAudioUri(null);
+          setAudioMime(null);
+          setAudioName(null);
+          return;
+        }
         audioUrl = await uploadAudioFile(audioUri, token, audioName ?? "guide.m4a", audioMime);
       } catch (e) {
         showAppAlert({

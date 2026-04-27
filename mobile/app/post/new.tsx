@@ -9,7 +9,6 @@ import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -363,13 +362,23 @@ export default function NewPostScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    if (asset.fileSize != null && asset.fileSize > MAX_VIDEO_BYTES) {
+
+    // Determine actual file size — picker-reported is often wrong on Android, so fall back to FileSystem
+    let sz = asset.fileSize != null && asset.fileSize > 0 ? asset.fileSize : 0;
+    if (sz === 0) {
+      try {
+        const info = await FileSystem.getInfoAsync(asset.uri);
+        if (info.exists && "size" in info && typeof info.size === "number") sz = info.size;
+      } catch { /* ignore — let the server validate */ }
+    }
+    if (sz > 0 && sz > MAX_VIDEO_BYTES) {
       showAppAlert({
         title: "Video too large",
         message: "Choose a shorter clip (under 12MB).",
       });
       return;
     }
+
     const a = asset as ImagePicker.ImagePickerAsset & { durationMillis?: number };
     const rawDur =
       typeof a.duration === "number"
@@ -377,23 +386,20 @@ export default function NewPostScreen() {
         : typeof a.durationMillis === "number"
           ? a.durationMillis
           : null;
-    // expo-image-picker: duration is often in seconds on iOS and milliseconds on Android
+    // expo-image-picker: duration is often in seconds on iOS and milliseconds on Android.
+    // On many Android devices it is null — the server will handle duration enforcement.
     const durSec =
       rawDur == null ? null : rawDur > 1000 ? rawDur / 1000 : rawDur;
-    if (durSec == null || durSec <= 0 || !Number.isFinite(durSec)) {
-      showAppAlert({
-        title: "Could not read video length",
-        message: `Pick another clip or trim it to ${MAX_VIDEO_DURATION_SEC} seconds or less, then try again.`,
-      });
-      return;
-    }
-    if (durSec > MAX_VIDEO_DURATION_SEC) {
+
+    // Only reject if we can definitively read the duration and it exceeds the limit
+    if (durSec != null && Number.isFinite(durSec) && durSec > 0 && durSec > MAX_VIDEO_DURATION_SEC) {
       showAppAlert({
         title: "Video too long",
         message: `Choose a clip of ${MAX_VIDEO_DURATION_SEC} seconds or less.`,
       });
       return;
     }
+
     const mime =
       "mimeType" in asset && typeof (asset as { mimeType?: string }).mimeType === "string"
         ? (asset as { mimeType: string }).mimeType
@@ -404,7 +410,7 @@ export default function NewPostScreen() {
       uri: asset.uri,
       mimeType: mime,
       fileName,
-      durationSec: durSec,
+      durationSec: durSec ?? 0,
     });
   };
 
@@ -473,6 +479,18 @@ export default function NewPostScreen() {
     if (pendingMedia) {
       setUploadBusy(true);
       try {
+        // Verify the file is still accessible — on Android, cache URIs can become stale
+        // after the app returns from background or after a previous failed upload attempt.
+        const fileInfo = await FileSystem.getInfoAsync(pendingMedia.uri);
+        if (!fileInfo.exists) {
+          setPendingMedia(null);
+          showAppAlert({
+            title: "File not accessible",
+            message: "The selected file could not be read. Please re-select it and try again.",
+          });
+          return;
+        }
+
         if (pendingMedia.kind === "image") {
           mediaUrl = await uploadPostImage(pendingMedia.uri, token);
           postMediaType = CreatePostInputMediaType.image;
@@ -499,14 +517,14 @@ export default function NewPostScreen() {
           postMediaType = CreatePostInputMediaType.audio;
         }
       } catch (e) {
-        setUploadBusy(false);
         showAppAlert({
           title: "Upload failed",
           message: e instanceof Error ? e.message : "Try again.",
         });
         return;
+      } finally {
+        setUploadBusy(false);
       }
-      setUploadBusy(false);
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -534,22 +552,21 @@ export default function NewPostScreen() {
               : "Sent for review — it will appear after approval.",
             "success",
           );
+          // Reset form state first to free memory before navigation
           setContent("");
           setIsAnonymous(false);
           setSelectedCategories([]);
           setAiCategories([]);
           setPendingMedia(null);
-          InteractionManager.runAfterInteractions(() => {
-            queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
-            queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
-            if (user?.username) {
-              queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
-            }
-            requestAnimationFrame(() => {
-              if (router.canGoBack()) router.back();
-              else router.replace("/(tabs)" as Href);
-            });
-          });
+          // Invalidate feed queries so the feed refreshes when it gets focus
+          queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
+          if (user?.username) {
+            queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
+          }
+          // Always navigate to the feed tab (top-level replace avoids going to
+          // whatever was on the stack before — which could be any screen)
+          router.replace("/(tabs)" as Href);
         },
         onError: (err: unknown) => {
           showAppAlert({

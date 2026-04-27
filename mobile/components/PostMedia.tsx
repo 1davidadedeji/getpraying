@@ -3,6 +3,7 @@ import { Audio, ResizeMode, Video, type AVPlaybackStatus } from "expo-av";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AppState,
   ActivityIndicator,
   Pressable,
   StyleSheet,
@@ -96,6 +97,18 @@ function AudioAttachment({
       unregister();
       controllerIdRef.current = null;
     };
+  }, []);
+
+  // Pause audio whenever the app moves to background to release native resources
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") {
+        soundRef.current?.pauseAsync().catch(() => {});
+        setPlaying(false);
+        setFeedAudible(false);
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -397,13 +410,25 @@ function DetailVideoPlayer({
   const [playing, setPlaying] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
 
-  const iconCtl = Math.round(clamp(22 * uiScale, 20, 26));
-  const iconPlay = Math.round(clamp(28 * uiScale, 26, 34));
-  const barPad = Math.round(clamp(10 * uiScale, 8, 12));
+  const iconCtl = Math.round(clamp(24 * uiScale, 22, 28));
+  const iconPlay = Math.round(clamp(36 * uiScale, 32, 42));
+  const barPad = Math.round(clamp(12 * uiScale, 10, 14));
   const fsTime = Math.round(clamp(12 * uiScale, 11, 13));
-  const sizeStyle =
-    thumbStyle ?? (layout === "detail" ? styles.videoDetailBox : styles.videoTall);
+  const centerPlaySz = Math.round(clamp(68 * uiScale, 60, 78));
+
+  // Adapt the container to the video's natural aspect ratio
+  const rawAspect = naturalSize != null ? naturalSize.width / naturalSize.height : null;
+  const autoAspect = rawAspect != null
+    ? Math.max(9 / 16, Math.min(21 / 9, rawAspect))
+    : (layout === "detail" ? 16 / 9 : 16 / 10);
+  const sizeStyle = thumbStyle ?? {
+    width: "100%" as const,
+    aspectRatio: autoAspect,
+    ...(layout === "detail" ? { maxHeight: 520 } : {}),
+    backgroundColor: "#000",
+  };
 
   const clearHideTimer = () => {
     if (hideChromeTimer.current) {
@@ -434,6 +459,17 @@ function DetailVideoPlayer({
       controllerIdRef.current = null;
       clearHideTimer();
     };
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") {
+        videoRef.current?.pauseAsync().catch(() => {});
+        setPlaying(false);
+        clearHideTimer();
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   const onPlaybackStatusUpdate = (st: AVPlaybackStatus) => {
@@ -539,24 +575,29 @@ function DetailVideoPlayer({
         source={{ uri }}
         style={[styles.videoAbsoluteFill]}
         useNativeControls={false}
-        resizeMode={layout === "detail" ? ResizeMode.CONTAIN : ResizeMode.COVER}
+        resizeMode={ResizeMode.CONTAIN}
         onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+        onReadyForDisplay={(event: any) => {
+          if (event?.naturalSize) {
+            setNaturalSize({ width: event.naturalSize.width, height: event.naturalSize.height });
+          }
+        }}
       />
-      {!showChrome ? (
-        <Pressable
-          style={styles.detailTapLayer}
-          onPress={revealChrome}
-          accessibilityRole="button"
-          accessibilityLabel="Show video controls"
-        />
-      ) : null}
+      {/* Single tap layer — toggles chrome show/hide; controls above intercept their own presses */}
+      <Pressable
+        style={[styles.detailTapLayer]}
+        onPress={showChrome ? hideChrome : revealChrome}
+        accessibilityRole="button"
+        accessibilityLabel={showChrome ? "Hide video controls" : "Show video controls"}
+      />
       {showChrome ? (
         <>
           <View style={styles.detailDim} pointerEvents="none" />
+          {/* Center play/pause button */}
           <View style={[styles.detailCenterPlayWrap, { pointerEvents: "box-none" }]}>
             <Pressable
               onPress={() => void togglePlay()}
-              style={styles.detailCenterPlayBtn}
+              style={[styles.detailCenterPlayBtn, { width: centerPlaySz, height: centerPlaySz, borderRadius: centerPlaySz / 2 }]}
               accessibilityRole="button"
               accessibilityLabel={playing ? "Pause" : "Play"}
             >
@@ -567,20 +608,9 @@ function DetailVideoPlayer({
               />
             </Pressable>
           </View>
+          {/* Bottom control bar */}
           <View style={[styles.detailBottomBar, { padding: barPad }]}>
-            <View style={styles.detailTimeRow}>
-              <Pressable
-                onPress={hideChrome}
-                style={styles.detailIconHit}
-                accessibilityRole="button"
-                accessibilityLabel="Hide controls"
-              >
-                <Ionicons name="chevron-down" size={iconCtl} color={colors.cream} />
-              </Pressable>
-              <Text style={[styles.detailTime, { fontSize: fsTime, flex: 1, marginBottom: 0 }]}>
-                {formatTimeMs(positionMs)} · {formatTimeMs(durationMs)}
-              </Text>
-            </View>
+            {/* Main controls row: skip-back | play/pause | skip-forward | fullscreen */}
             <View style={styles.detailBtnRow}>
               <Pressable
                 onPress={() => void skipBy(-VIDEO_SKIP_MS)}
@@ -615,6 +645,11 @@ function DetailVideoPlayer({
                 <Ionicons name="expand-outline" size={iconCtl} color={colors.surface} />
               </Pressable>
             </View>
+            {/* Time below controls */}
+            <Text style={[styles.detailTime, { fontSize: fsTime }]}>
+              {formatTimeMs(positionMs)} · {formatTimeMs(durationMs)}
+            </Text>
+            {/* Seek progress bar */}
             <Pressable
               onLayout={(e: LayoutChangeEvent) => {
                 progressW.current = e.nativeEvent.layout.width;
@@ -665,6 +700,14 @@ function FeedVideo({
   const [userPaused, setUserPaused] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+
+  // Compute adaptive aspect ratio from detected video dimensions
+  const rawAspect = naturalSize != null ? naturalSize.width / naturalSize.height : null;
+  const containerAspect = rawAspect != null
+    ? (rawAspect < 1 ? Math.max(9 / 16, rawAspect) : Math.min(16 / 9, rawAspect))
+    : null;
+  const videoResizeMode = rawAspect != null && rawAspect < 1 ? ResizeMode.CONTAIN : ResizeMode.COVER;
 
   useEffect(() => {
     const { id, unregister } = registerMediaController(async () => {
@@ -685,6 +728,16 @@ function FeedVideo({
       unregister();
       controllerIdRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") {
+        setUserPaused(true);
+        setUserUnmuted(false);
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -728,7 +781,7 @@ function FeedVideo({
   const showCenterPlay = feedMediaFocused && userPaused;
 
   return (
-    <View style={[styles.videoFeedWrap, !thumbStyle && styles.videoTall, { borderRadius: feedRad }, thumbStyle, style]}>
+    <View style={[styles.videoFeedWrap, !thumbStyle && (containerAspect != null ? { aspectRatio: containerAspect } : styles.videoTall), { borderRadius: feedRad }, thumbStyle, style]}>
       <Video
         ref={videoRef}
         source={{ uri }}
@@ -737,8 +790,13 @@ function FeedVideo({
         isMuted={!userUnmuted}
         isLooping
         useNativeControls={false}
-        resizeMode={ResizeMode.COVER}
+        resizeMode={videoResizeMode}
         onPlaybackStatusUpdate={onStatus}
+        onReadyForDisplay={(event: any) => {
+          if (event?.naturalSize) {
+            setNaturalSize({ width: event.naturalSize.width, height: event.naturalSize.height });
+          }
+        }}
       />
       {feedMediaFocused ? (
         <>
@@ -930,10 +988,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   detailCenterPlayBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.overlay,
+    backgroundColor: "rgba(26,31,54,0.72)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -943,9 +998,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 4,
-    backgroundColor: "rgba(26,31,36,0.88)",
+    backgroundColor: "rgba(16,20,40,0.92)",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(249,246,240,0.2)",
+    borderTopColor: "rgba(249,246,240,0.12)",
   },
   detailTimeRow: {
     flexDirection: "row",
@@ -955,31 +1010,33 @@ const styles = StyleSheet.create({
   },
   detailTime: {
     fontFamily: "PlusJakartaSans_500Medium",
-    color: colors.cream,
+    color: "rgba(249,246,240,0.7)",
     marginBottom: 6,
+    marginTop: 2,
+    paddingHorizontal: 4,
   },
   detailBtnRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    justifyContent: "space-evenly",
+    marginBottom: 4,
   },
   detailIconHit: {
-    padding: 8,
-    minWidth: 40,
+    padding: 10,
+    minWidth: 44,
     alignItems: "center",
   },
   detailProgressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(249,246,240,0.25)",
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(249,246,240,0.2)",
     overflow: "hidden",
+    marginTop: 4,
   },
   detailProgressFill: {
     height: "100%",
     backgroundColor: colors.accent,
-    borderRadius: 2,
+    borderRadius: 3,
   },
   videoFeedWrap: {
     width: "100%",

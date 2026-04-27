@@ -48,7 +48,15 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30000, throwOnError: false },
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+      // Free cached data from memory after 2 minutes of disuse.
+      // Default is 5 minutes; shorter GC time prevents the post cache from
+      // growing unboundedly as the user browses and reduces heap pressure.
+      gcTime: 2 * 60 * 1000,
+      throwOnError: false,
+    },
     mutations: { throwOnError: false },
   },
 });
