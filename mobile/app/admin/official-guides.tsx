@@ -15,12 +15,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AudioLibraryPickerModal } from "@/components/AudioLibraryPickerModal";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import type { ApiLibraryCategory } from "@/constants/libraryFallbackPaths";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { AUDIO_DOCUMENT_PICKER_TYPES } from "@/lib/audioDocumentTypes";
 import { normalizeAudioMime } from "@/lib/audioMime";
 import {
   OFFICIAL_GUIDE_CONTENT_MAX,
@@ -90,6 +92,7 @@ export default function AdminOfficialGuidesScreen() {
   const [existingPrayers, setExistingPrayers] = useState<OfficialPrayerRow[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [audioLibraryOpen, setAudioLibraryOpen] = useState(false);
 
   const loadExistingPrayers = useCallback(async () => {
     if (!token) return;
@@ -166,11 +169,11 @@ export default function AdminOfficialGuidesScreen() {
     void loadExistingPrayers();
   }, [loadPaths, loadExistingPrayers]);
 
-  const pickAudio = async () => {
+  const pickAudioFromDocuments = async () => {
     setPicking(true);
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: ["audio/*", "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav"],
+        type: AUDIO_DOCUMENT_PICKER_TYPES,
         copyToCacheDirectory: true,
       });
       if (res.canceled || !res.assets?.[0]) return;
@@ -199,6 +202,14 @@ export default function AdminOfficialGuidesScreen() {
     } finally {
       setPicking(false);
     }
+  };
+
+  const pickAudio = () => {
+    if (Platform.OS === "web") {
+      void pickAudioFromDocuments();
+      return;
+    }
+    setAudioLibraryOpen(true);
   };
 
   const submit = async () => {
@@ -365,6 +376,7 @@ export default function AdminOfficialGuidesScreen() {
   const modalScrollMaxH = Math.round(clamp(320 * uiScale, 260, 360));
 
   return (
+    <>
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.cream }}
       contentContainerStyle={{ paddingHorizontal: pad, paddingTop: pad, paddingBottom: botPad + scrollBot }}
@@ -643,6 +655,24 @@ export default function AdminOfficialGuidesScreen() {
         </Pressable>
       </Modal>
     </ScrollView>
+    <AudioLibraryPickerModal
+      visible={audioLibraryOpen}
+      maxBytes={MAX_GUIDE_AUDIO_BYTES}
+      onRequestClose={() => setAudioLibraryOpen(false)}
+      onBrowseFiles={() => void pickAudioFromDocuments()}
+      onTooLarge={() =>
+        showAppAlert({
+          title: "Audio too large",
+          message: "Choose a file under 15MB.",
+        })
+      }
+      onChosen={(r) => {
+        setAudioUri(r.uri);
+        setAudioMime(r.mimeType);
+        setAudioName(r.name);
+      }}
+    />
+    </>
   );
 }
 

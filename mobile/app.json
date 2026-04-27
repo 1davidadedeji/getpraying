@@ -28,9 +28,6 @@
         "backgroundColor": "#F9F6F0"
       }
     },
-    "web": {
-      "favicon": "./assets/images/icon.png"
-    },
     "plugins": [
       [
         "expo-router",
@@ -49,7 +46,22 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow GetPraying to access your media library to attach audio prayers.",
+          "savePhotosPermission": "Allow GetPraying to save media.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1A1F36"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

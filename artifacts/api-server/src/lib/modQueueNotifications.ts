@@ -1,5 +1,6 @@
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import { and, eq, or } from "drizzle-orm";
+import { pushForNotificationById } from "./pushForNotification";
 
 const MOD_QUEUE = "mod_queue" as const;
 
@@ -27,5 +28,6 @@ export async function notifyModeratorsNewPending(postId: number, authorId: numbe
       isRead: false,
     }));
   if (rows.length === 0) return;
-  await db.insert(notificationsTable).values(rows);
+  const inserted = await db.insert(notificationsTable).values(rows).returning({ id: notificationsTable.id });
+  for (const row of inserted) void pushForNotificationById(row.id);
 }

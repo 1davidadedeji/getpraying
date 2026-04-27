@@ -22,6 +22,7 @@ import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { LAYOUT } from "@/constants/layout";
 import { useAuth } from "@/context/auth";
+import { useFeedNotice } from "@/context/feedNotice";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -52,6 +53,7 @@ export default function FeedScreen() {
   const emptyTitleFs = Math.round(clamp(18 * uiScale, 16, 20));
   const emptySubFs = Math.round(clamp(14 * uiScale, 13, 16));
   const { user, token } = useAuth();
+  const { feedJumpToTopNonce } = useFeedNotice();
   const { pendingCount: modPending } = useModerationBadge();
   const { onScroll: onScrollHideBar } = useTabBarVisibility();
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
@@ -106,9 +108,20 @@ export default function FeedScreen() {
     }
   }, [fetchPage]);
 
+  const loadFreshRef = useRef(loadFresh);
+  loadFreshRef.current = loadFresh;
+
   useEffect(() => {
     loadFresh();
   }, [loadFresh]);
+
+  useEffect(() => {
+    if (feedJumpToTopNonce === 0) return;
+    setFeedCategory(null);
+    setNewPostCount(0);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    void loadFreshRef.current({ silent: true });
+  }, [feedJumpToTopNonce]);
 
   useFocusEffect(
     useCallback(() => {

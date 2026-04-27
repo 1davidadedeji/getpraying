@@ -3,6 +3,7 @@ import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { login as apiLogin, register as apiRegister, logout as apiLogout } from "@workspace/api-client-react";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { User } from "@workspace/api-client-react";
+import { clearPushTokenOnServer, registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 
 const TOKEN_KEY = "@getpraying/token";
 const USER_KEY = "@getpraying/user";
@@ -46,6 +47,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthTokenGetter(() => token);
   }, [token]);
 
+  useEffect(() => {
+    if (loading || !token) return;
+    void registerAndSyncPushToken(token);
+  }, [loading, token]);
+
   const login = useCallback(async (email: string, password: string): Promise<User> => {
     const res = await apiLogin({ email, password });
     const tok = res.token;
@@ -67,11 +73,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    try { await apiLogout(); } catch {}
+    const tok = token;
+    try {
+      await clearPushTokenOnServer(tok);
+    } catch {
+      /* ignore */
+    }
+    try {
+      await apiLogout();
+    } catch {
+      /* ignore */
+    }
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
     setToken(null);
     setUser(null);
-  }, []);
+  }, [token]);
 
   const refreshUser = useCallback((updated: User) => {
     setUser(updated);

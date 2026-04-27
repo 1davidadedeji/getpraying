@@ -29,6 +29,7 @@ import {
   type Post,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { AudioLibraryPickerModal } from "@/components/AudioLibraryPickerModal";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -37,6 +38,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { AUDIO_DOCUMENT_PICKER_TYPES } from "@/lib/audioDocumentTypes";
 import { normalizeAudioMime } from "@/lib/audioMime";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -177,7 +179,7 @@ export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { token, user } = useAuth();
-  const { showNotice } = useFeedNotice();
+  const { showNotice, requestFeedJumpToTop } = useFeedNotice();
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -186,6 +188,7 @@ export default function NewPostScreen() {
   const [aiLoading, setAiLoading] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [audioLibraryOpen, setAudioLibraryOpen] = useState(false);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   const { gutter, uiScale, cardRadius } = useResponsiveLayout();
@@ -317,7 +320,7 @@ export default function NewPostScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
       quality: 1,
     });
@@ -361,9 +364,10 @@ export default function NewPostScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["videos"],
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       allowsEditing: false,
       quality: 1,
+      videoMaxDuration: MAX_VIDEO_DURATION_SEC,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
@@ -419,16 +423,9 @@ export default function NewPostScreen() {
     });
   };
 
-  const pickAudio = async () => {
-    if (Platform.OS === "web") {
-      showAppAlert({
-        title: "Audio",
-        message: "Audio attach works on the iOS or Android app.",
-      });
-      return;
-    }
+  const pickAudioFromDocuments = async () => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: "audio/*",
+      type: AUDIO_DOCUMENT_PICKER_TYPES,
       copyToCacheDirectory: true,
       multiple: false,
     });
@@ -455,6 +452,17 @@ export default function NewPostScreen() {
       asset.mimeType && asset.mimeType.length > 0 ? asset.mimeType : "audio/mpeg";
     const mimeType = normalizeAudioMime(rawMime, rawName);
     setPendingMedia({ kind: "audio", uri: asset.uri, mimeType, name: rawName });
+  };
+
+  const pickAudio = () => {
+    if (Platform.OS === "web") {
+      showAppAlert({
+        title: "Audio",
+        message: "Audio attach works on the iOS or Android app.",
+      });
+      return;
+    }
+    setAudioLibraryOpen(true);
   };
 
   const canSubmit = !!(content.trim() || pendingMedia);
@@ -569,9 +577,12 @@ export default function NewPostScreen() {
           if (user?.username) {
             queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
           }
-          // Always navigate to the feed tab (top-level replace avoids going to
-          // whatever was on the stack before — which could be any screen)
-          router.replace("/(tabs)" as Href);
+          requestFeedJumpToTop();
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(tabs)" as Href);
+          }
         },
         onError: (err: unknown) => {
           showAppAlert({
@@ -584,6 +595,7 @@ export default function NewPostScreen() {
   };
 
   return (
+    <>
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -845,6 +857,22 @@ export default function NewPostScreen() {
       </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    <AudioLibraryPickerModal
+      visible={audioLibraryOpen}
+      maxBytes={MAX_AUDIO_BYTES}
+      onRequestClose={() => setAudioLibraryOpen(false)}
+      onBrowseFiles={() => void pickAudioFromDocuments()}
+      onTooLarge={() =>
+        showAppAlert({
+          title: "Audio too large",
+          message: "Choose a file under 15MB.",
+        })
+      }
+      onChosen={(r) => {
+        setPendingMedia({ kind: "audio", uri: r.uri, mimeType: r.mimeType, name: r.name });
+      }}
+    />
+    </>
   );
 }
 

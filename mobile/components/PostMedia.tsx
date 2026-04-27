@@ -25,6 +25,8 @@ type MediaType = "image" | "video" | "audio" | string | null | undefined;
 
 const VIDEO_SKIP_MS = 5000;
 const AUDIO_SKIP_MS = 10000;
+/** Placeholder aspect before `onReadyForDisplay` — portrait-first matches most prayer clips and avoids 16:9 → 9:16 layout jumps. */
+const VIDEO_UNKNOWN_ASPECT = 9 / 16;
 
 function formatTimeMs(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "0:00";
@@ -430,7 +432,7 @@ function DetailVideoPlayer({
   const rawAspect = naturalSize != null ? naturalSize.width / naturalSize.height : null;
   const autoAspect = rawAspect != null
     ? Math.max(9 / 16, Math.min(21 / 9, rawAspect))
-    : (layout === "detail" ? 16 / 9 : 16 / 10);
+    : VIDEO_UNKNOWN_ASPECT;
   const sizeStyle = thumbStyle ?? {
     width: "100%" as const,
     aspectRatio: autoAspect,
@@ -709,6 +711,7 @@ function FeedVideo({
   const videoOpacity = useRef(new Animated.Value(0)).current;
   const [userUnmuted, setUserUnmuted] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
+  const [hasPlaybackEnded, setHasPlaybackEnded] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -717,6 +720,7 @@ function FeedVideo({
   useEffect(() => {
     videoOpacity.setValue(0);
     setNaturalSize(null);
+    setHasPlaybackEnded(false);
   }, [uri]);
 
   // Compute adaptive aspect ratio from detected video dimensions
@@ -761,6 +765,7 @@ function FeedVideo({
     if (!feedMediaFocused) {
       setUserUnmuted(false);
       setUserPaused(false);
+      setHasPlaybackEnded(false);
     }
   }, [feedMediaFocused]);
 
@@ -786,7 +791,30 @@ function FeedVideo({
     }
   };
 
-  const togglePause = () => setUserPaused((p) => !p);
+  const replayFromStart = async () => {
+    const v = videoRef.current;
+    if (!v) return;
+    try {
+      await v.setPositionAsync(0);
+      setPositionMs(0);
+      setHasPlaybackEnded(false);
+      setUserPaused(false);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handlePlayPause = () => {
+    if (hasPlaybackEnded && onOpenDetail) {
+      onOpenDetail();
+      return;
+    }
+    if (hasPlaybackEnded) {
+      void replayFromStart();
+      return;
+    }
+    setUserPaused((p) => !p);
+  };
 
   const onStatus = (st: AVPlaybackStatus) => {
     if (!st.isLoaded) return;
@@ -794,16 +822,34 @@ function FeedVideo({
     if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
       setDurationMs(st.durationMillis);
     }
-    // Play once: show the center play button when the clip ends so the user can replay manually.
     if ("didJustFinish" in st && st.didJustFinish) {
       setUserPaused(true);
+      setHasPlaybackEnded(true);
+      const v = videoRef.current;
+      const dur = typeof st.durationMillis === "number" ? st.durationMillis : durationMs;
+      if (v && dur > 120) {
+        void v.setPositionAsync(Math.max(0, dur - 80)).catch(() => {});
+      }
+      if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
+        setPositionMs(st.durationMillis);
+      }
     }
   };
 
   const showCenterPlay = feedMediaFocused && userPaused;
 
   return (
-    <View style={[styles.videoFeedWrap, !thumbStyle && (containerAspect != null ? { aspectRatio: containerAspect } : styles.videoTall), { borderRadius: feedRad }, thumbStyle, style]}>
+    <View
+      style={[
+        styles.videoFeedWrap,
+        !thumbStyle && {
+          aspectRatio: containerAspect ?? VIDEO_UNKNOWN_ASPECT,
+        },
+        { borderRadius: feedRad },
+        thumbStyle,
+        style,
+      ]}
+    >
       {/* Cream placeholder visible while video metadata loads */}
       <View style={[StyleSheet.absoluteFillObject, styles.videoPlaceholder, { borderRadius: feedRad }]} />
       {/* Video fades in at its correct aspect ratio — no snap */}
@@ -835,11 +881,17 @@ function FeedVideo({
           {showCenterPlay ? (
             <Pressable
               style={[styles.feedCenterPlay, { borderRadius: feedRad }]}
-              onPress={togglePause}
+              onPress={handlePlayPause}
               accessibilityRole="button"
-              accessibilityLabel="Play video"
+              accessibilityLabel={
+                hasPlaybackEnded && onOpenDetail ? "Open full prayer" : "Play video"
+              }
             >
-              <Ionicons name="play-circle" size={centerPlaySz} color="rgba(249,246,240,0.92)" />
+              <Ionicons
+                name={hasPlaybackEnded && onOpenDetail ? "open-outline" : "play-circle"}
+                size={centerPlaySz}
+                color="rgba(249,246,240,0.92)"
+              />
             </Pressable>
           ) : null}
           <View
@@ -850,13 +902,21 @@ function FeedVideo({
             pointerEvents="box-none"
           >
             <Pressable
-              onPress={togglePause}
+              onPress={handlePlayPause}
               style={styles.feedBarBtn}
               accessibilityRole="button"
-              accessibilityLabel={userPaused ? "Play" : "Pause"}
+              accessibilityLabel={
+                hasPlaybackEnded && onOpenDetail
+                  ? "Open full prayer"
+                  : userPaused
+                    ? "Play"
+                    : "Pause"
+              }
             >
               <Ionicons
-                name={userPaused ? "play" : "pause"}
+                name={
+                  hasPlaybackEnded && onOpenDetail ? "open-outline" : userPaused ? "play" : "pause"
+                }
                 size={barIcon}
                 color={colors.surface}
               />
@@ -989,9 +1049,6 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: "#000",
     borderRadius: 16,
-  },
-  videoTall: {
-    aspectRatio: 16 / 10,
   },
   videoDetailBox: {
     width: "100%",

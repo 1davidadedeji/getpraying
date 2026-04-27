@@ -18,7 +18,7 @@ import { FeedNoticeBanner } from "@/components/FeedNoticeBanner";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
-const TAB_BAR_HEIGHT = Platform.OS === "web" ? 72 : Platform.OS === "ios" ? 52 : 58;
+const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 52 : 58;
 
 function isFeedsPath(pathname: string): boolean {
   return (
@@ -54,10 +54,7 @@ function ComposeFab() {
   const { fabSize, uiScale } = useResponsiveLayout();
   const { translateY, fabScale, fabOpacity, fabPointerEvents } = useTabBarVisibility();
   const isFeeds = isFeedsPath(pathname);
-  const tabBarChrome =
-    Platform.OS === "web"
-      ? Math.round(clamp(72 * uiScale, 64, 88))
-      : TAB_BAR_HEIGHT;
+  const tabBarChrome = TAB_BAR_HEIGHT;
   const fabIcon = Math.round(clamp(fabSize * 0.5, 24, 32));
   const fabRight = Math.round(clamp(20 * uiScale, 16, 28));
 
@@ -280,7 +277,6 @@ const nativeBadgeStyles = StyleSheet.create({
 function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
   const insets = useSafeAreaInsets();
   const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
   const isDark = useColorScheme() === "dark";
   const { translateY } = useTabBarVisibility();
   const { iconTab, tabLabelSize, uiScale } = useResponsiveLayout();
@@ -298,7 +294,6 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
   const notifUnread = useNotificationsUnreadCount();
 
   const bgColor = isIOS ? "transparent" : isDark ? "#1A1F36" : colors.surface;
-  const barHeight = isWeb ? Math.round(clamp(84 * uiScale, 72, 96)) : undefined;
 
   return (
     <Animated.View
@@ -307,18 +302,14 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
         {
           backgroundColor: bgColor,
           paddingBottom: insets.bottom,
-          borderTopWidth: isWeb ? 1 : 0,
+          borderTopWidth: 0,
           borderTopColor: colors.border,
           transform: [{ translateY }],
-          ...(barHeight ? { height: barHeight } : {}),
         },
       ]}
     >
       {isIOS && (
         <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
-      )}
-      {isWeb && !isIOS && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
       )}
       {TAB_ITEMS.map((tab, index) => {
         const focused = state.index === index;

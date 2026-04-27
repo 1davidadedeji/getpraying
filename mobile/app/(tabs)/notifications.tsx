@@ -22,6 +22,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { navigateFromNotificationData, notificationRowToPushData } from "@/lib/notificationNavigation";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type NotifType = string;
@@ -206,17 +207,10 @@ export default function NotificationsScreen() {
           queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
         });
     }
-    if (item.type === "follow" && item.actorUsername) {
-      router.push(`/user/${item.actorUsername}` as any);
-      return;
-    }
-    if (item.type === "mod_queue") {
-      router.push("/admin/queue" as any);
-      return;
-    }
-    if (item.postId) {
-      router.push(`/post/${item.postId}` as any);
-    }
+    void navigateFromNotificationData(notificationRowToPushData(item), {
+      authToken: token,
+      skipMarkRead: true,
+    });
   };
 
   return (

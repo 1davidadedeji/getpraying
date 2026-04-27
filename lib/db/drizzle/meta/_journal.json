@@ -43,6 +43,13 @@
       "when": 1775200000001,
       "tag": "0011_official_prayers_admin_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775300000000,
+      "tag": "0013_users_expo_push_token",
+      "breakpoints": true
     }
   ]
 }

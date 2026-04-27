@@ -24,6 +24,8 @@ export const usersTable = pgTable("users", {
   passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
   preferredCategories: text("preferred_categories").array().notNull().default([]),
   onboardingComplete: boolean("onboarding_complete").notNull().default(false),
+  /** Expo push token for remote alerts (mobile app). */
+  expoPushToken: text("expo_push_token"),
   prayersShared: integer("prayers_shared").notNull().default(0),
   prayedFor: integer("prayed_for").notNull().default(0),
   savedScrolls: integer("saved_scrolls").notNull().default(0),

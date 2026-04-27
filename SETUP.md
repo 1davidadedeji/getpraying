@@ -2,6 +2,10 @@
 
 This repo is a **pnpm monorepo**: API (`artifacts/api-server`), mobile app (`mobile/`), shared DB (`lib/db`), and generated API clients.
 
+**Product scope:** the shipped client is the **native mobile app** (iOS/Android). The API server is the backend. Do not treat web as a supported surface; `react-dom` may appear only to satisfy Expo Router peer dependencies.
+
+**Push notifications:** after pulling, apply migration `0013_users_expo_push_token.sql` (see the database section below). Rebuild the app with EAS so `expo-notifications` native code is included. Android store builds need FCM configured in EAS/Google Cloud as per Expo docs.
+
 ## What you already configured
 
 If these are set, you are past the first hurdle:

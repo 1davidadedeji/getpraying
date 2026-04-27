@@ -127,7 +127,6 @@ export default function PostDetailScreen() {
   const lhPrayer = Math.round(fsPrayer * 1.65);
   const prayerMb = Math.round(clamp(24 * uiScale, 20, 28));
   const dividerMb = Math.round(clamp(16 * uiScale, 14, 18));
-  const reactMb = Math.round(clamp(20 * uiScale, 16, 24));
   const flameIcn = Math.round(clamp(18 * uiScale, 16, 20));
   const prayCountGap = Math.round(clamp(6 * uiScale, 5, 8));
   const fsPrayCount = Math.round(clamp(14 * uiScale, 13, 16));
@@ -193,6 +192,10 @@ export default function PostDetailScreen() {
   const modalDelPadV = Math.round(clamp(10 * uiScale, 8, 12));
   const modalDelPadH = Math.round(clamp(20 * uiScale, 18, 24));
   const fsModalDel = Math.round(clamp(15 * uiScale, 14, 16));
+  const detailCardPad = Math.round(clamp(16 * uiScale, 14, 18));
+  const detailCardRad = Math.round(clamp(cardRadius, 28, 40));
+  const detailCardBorder = Math.max(1, Math.round(1.5 * uiScale));
+  const detailCardOuterMb = Math.round(clamp(16 * uiScale, 14, 20));
 
   useEffect(() => {
     setThreadOpen(!replyFirst);
@@ -494,34 +497,19 @@ export default function PostDetailScreen() {
 
   const listHeader = (
     <>
-      <View style={[styles.authorRow, { gap: authorGap, marginBottom: authorRowMb }]}>
-        <View style={styles.headerLeftCluster} pointerEvents="box-none">
-          <Pressable
-            onPress={() => {
-              if (!post.isAnonymous && post.authorUsername) {
-                router.replace(`/user/${post.authorUsername}` as never);
-              }
-            }}
-            disabled={post.isAnonymous || !post.authorUsername}
-            style={styles.headerAvatarBtn}
-            hitSlop={{ top: 6, bottom: 6, left: 2, right: 6 }}
-            accessibilityRole="button"
-            accessibilityLabel={`Open profile for ${authorName}`}
-          >
-            {!post.isAnonymous && post.authorAvatarUrl ? (
-              <Image
-                source={{ uri: resolveMediaUrl(post.authorAvatarUrl)! }}
-                style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
-              />
-            ) : (
-              <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
-                <Text style={[styles.avatarText, { fontSize: avatarFs }]}>
-                  {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-          <View style={styles.headerNameRow} pointerEvents="box-none">
+      <View
+        style={[
+          styles.detailCard,
+          {
+            padding: detailCardPad,
+            borderRadius: detailCardRad,
+            borderWidth: detailCardBorder,
+            marginBottom: detailCardOuterMb,
+          },
+        ]}
+      >
+        <View style={[styles.authorRow, { gap: authorGap, marginBottom: authorRowMb }]}>
+          <View style={styles.headerLeftCluster} pointerEvents="box-none">
             <Pressable
               onPress={() => {
                 if (!post.isAnonymous && post.authorUsername) {
@@ -529,83 +517,109 @@ export default function PostDetailScreen() {
                 }
               }}
               disabled={post.isAnonymous || !post.authorUsername}
-              style={styles.headerNamePressable}
-              hitSlop={{ top: 4, bottom: 4, right: 4 }}
+              style={styles.headerAvatarBtn}
+              hitSlop={{ top: 6, bottom: 6, left: 2, right: 6 }}
               accessibilityRole="button"
               accessibilityLabel={`Open profile for ${authorName}`}
             >
-              <View style={styles.headerNameTextCol}>
-                <Text style={[styles.authorName, { fontSize: fsAuthorName }]} numberOfLines={1} ellipsizeMode="tail">
-                  {authorName}
-                </Text>
-                <Text style={[styles.time, { fontSize: fsTime }]}>{timeAgo(post.createdAt)}</Text>
-              </View>
+              {!post.isAnonymous && post.authorAvatarUrl ? (
+                <Image
+                  source={{ uri: resolveMediaUrl(post.authorAvatarUrl)! }}
+                  style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
+                />
+              ) : (
+                <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
+                  <Text style={[styles.avatarText, { fontSize: avatarFs }]}>
+                    {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </Pressable>
-            <View style={styles.headerTapThrough} pointerEvents="box-none" />
+            <View style={styles.headerNameRow} pointerEvents="box-none">
+              <Pressable
+                onPress={() => {
+                  if (!post.isAnonymous && post.authorUsername) {
+                    router.replace(`/user/${post.authorUsername}` as never);
+                  }
+                }}
+                disabled={post.isAnonymous || !post.authorUsername}
+                style={styles.headerNamePressable}
+                hitSlop={{ top: 4, bottom: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Open profile for ${authorName}`}
+              >
+                <View style={styles.headerNameTextCol}>
+                  <Text style={[styles.authorName, { fontSize: fsAuthorName }]} numberOfLines={1} ellipsizeMode="tail">
+                    {authorName}
+                  </Text>
+                  <Text style={[styles.time, { fontSize: fsTime }]}>{timeAgo(post.createdAt)}</Text>
+                </View>
+              </Pressable>
+              <View style={styles.headerTapThrough} pointerEvents="box-none" />
+            </View>
+          </View>
+          <View style={[styles.authorRowRight, { gap: rightGap }]}>
+            {post.category && (
+              <View style={[styles.categoryBadge, { paddingHorizontal: catPadH, paddingVertical: catPadV, borderRadius: catRad }]}>
+                <Text style={[styles.categoryText, { fontSize: fsCat }]}>
+                  {post.category.charAt(0).toUpperCase() + post.category.slice(1)}
+                </Text>
+              </View>
+            )}
+            {(isOwner || isAdmin) && (
+              <Pressable
+                onPress={handleDeletePost}
+                hitSlop={8}
+                style={styles.flagBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Delete or manage this prayer"
+              >
+                <Feather name="more-horizontal" size={moreIcn} color={colors.muted} />
+              </Pressable>
+            )}
+            <Pressable
+              onPress={handleReportFlag}
+              style={styles.flagBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Report prayer"
+            >
+              <Ionicons name="flag-outline" size={flagIcn} color={colors.muted} />
+            </Pressable>
           </View>
         </View>
-        <View style={[styles.authorRowRight, { gap: rightGap }]}>
-          {post.category && (
-            <View style={[styles.categoryBadge, { paddingHorizontal: catPadH, paddingVertical: catPadV, borderRadius: catRad }]}>
-              <Text style={[styles.categoryText, { fontSize: fsCat }]}>
-                {post.category.charAt(0).toUpperCase() + post.category.slice(1)}
-              </Text>
-            </View>
-          )}
-          {(isOwner || isAdmin) && (
-            <Pressable
-              onPress={handleDeletePost}
-              hitSlop={8}
-              style={styles.flagBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Delete or manage this prayer"
+
+        <PostMediaBlock
+          mediaUrl={post.mediaUrl}
+          mediaType={post.mediaType}
+          style={[styles.postImage, { marginBottom: postImgMb }]}
+          mediaLayout="detail"
+        />
+
+        {displayContent.length > 0 ? (
+          <View style={{ marginBottom: prayerMb }}>
+            <Text
+              style={[styles.prayerContent, { fontSize: fsPrayer, lineHeight: lhPrayer }]}
+              numberOfLines={bodyExpanded || !longBody ? undefined : 5}
             >
-              <Feather name="more-horizontal" size={moreIcn} color={colors.muted} />
-            </Pressable>
-          )}
-          <Pressable
-            onPress={handleReportFlag}
-            style={styles.flagBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Report prayer"
-          >
-            <Ionicons name="flag-outline" size={flagIcn} color={colors.muted} />
-          </Pressable>
-        </View>
-      </View>
+              {displayContent}
+            </Text>
+            {longBody ? (
+              <Pressable
+                onPress={() => setBodyExpanded((prev) => !prev)}
+                style={styles.moreToggle}
+                accessibilityRole="button"
+                accessibilityLabel={bodyExpanded ? "Show less text" : "Show full prayer text"}
+              >
+                <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>{bodyExpanded ? "Less" : "More"}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
-      <PostMediaBlock
-        mediaUrl={post.mediaUrl}
-        mediaType={post.mediaType}
-        style={[styles.postImage, { marginBottom: postImgMb }]}
-        mediaLayout="detail"
-      />
+        <View style={[styles.divider, { marginBottom: dividerMb }]} />
 
-      {displayContent.length > 0 ? (
-        <View style={{ marginBottom: prayerMb }}>
-          <Text
-            style={[styles.prayerContent, { fontSize: fsPrayer, lineHeight: lhPrayer }]}
-            numberOfLines={bodyExpanded || !longBody ? undefined : 5}
-          >
-            {displayContent}
-          </Text>
-          {longBody ? (
-            <Pressable
-              onPress={() => setBodyExpanded((prev) => !prev)}
-              style={styles.moreToggle}
-              accessibilityRole="button"
-              accessibilityLabel={bodyExpanded ? "Show less text" : "Show full prayer text"}
-            >
-              <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>{bodyExpanded ? "Less" : "More"}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-
-      <View style={[styles.divider, { marginBottom: dividerMb }]} />
-
-        <View style={[styles.reactionsRow, { marginBottom: reactMb }]}>
+        <View style={[styles.reactionsRow, { marginBottom: 0 }]}>
           <View style={[styles.prayCount, { gap: prayCountGap }]}>
             <Ionicons name="flame-outline" size={flameIcn} color={colors.flame} />
             <Text style={[styles.prayCountText, { fontSize: fsPrayCount }]}>
@@ -613,6 +627,7 @@ export default function PostDetailScreen() {
             </Text>
           </View>
         </View>
+      </View>
 
       {threadOpen ? (
         <>
@@ -879,6 +894,19 @@ export default function PostDetailScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
+  detailCard: {
+    alignSelf: "center" as const,
+    width: "100%" as const,
+    maxWidth: 640,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: "hidden" as const,
+  },
   listContent: {
     alignSelf: "center" as const,
     width: "100%",

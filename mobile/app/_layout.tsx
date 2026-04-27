@@ -24,6 +24,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Text, TextInput } from "react-native";
 
 import { AppAlertHost } from "@/components/AppAlert";
+import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/auth";
 import { FeedNoticeProvider } from "@/context/feedNotice";
@@ -122,6 +123,7 @@ export default function RootLayout() {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
+              <PushNotificationCoordinator />
               <FeedNoticeProvider>
                 <ModerationBadgeProvider>
                   <RevenueCatProvider>

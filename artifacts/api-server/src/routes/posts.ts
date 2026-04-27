@@ -16,6 +16,7 @@ import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
 import { notifyModeratorsNewPending } from "../lib/modQueueNotifications";
+import { pushForNotificationById } from "../lib/pushForNotification";
 import { RateLimiter } from "../lib/rateLimit";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
@@ -364,14 +365,18 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
     .returning();
 
   if (post.authorId) {
-    await db.insert(notificationsTable).values({
-      userId: post.authorId,
-      type: "post_reported",
-      message: `Your prayer was reported: ${reason}`,
-      actorId: currentUser.id,
-      postId,
-      isRead: false,
-    });
+    const [n] = await db
+      .insert(notificationsTable)
+      .values({
+        userId: post.authorId,
+        type: "post_reported",
+        message: `Your prayer was reported: ${reason}`,
+        actorId: currentUser.id,
+        postId,
+        isRead: false,
+      })
+      .returning({ id: notificationsTable.id });
+    if (n) void pushForNotificationById(n.id);
   }
 
   const shouldQueue = (updated.flagCount ?? 0) >= FLAG_THRESHOLD && post.status === "approved";
@@ -472,15 +477,20 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
       .values({ postId, authorId: user.id, content })
       .returning();
 
+    let commentNotificationId: number | null = null;
     if (post.authorId && post.authorId !== user.id) {
-      await tx.insert(notificationsTable).values({
-        userId: post.authorId,
-        type: "comment",
-        message: "commented on your prayer",
-        actorId: user.id,
-        postId,
-        isRead: false,
-      });
+      const [notif] = await tx
+        .insert(notificationsTable)
+        .values({
+          userId: post.authorId,
+          type: "comment",
+          message: "commented on your prayer",
+          actorId: user.id,
+          postId,
+          isRead: false,
+        })
+        .returning({ id: notificationsTable.id });
+      commentNotificationId = notif?.id ?? null;
 
       if (shouldBumpPrayedForComment) {
         await tx
@@ -495,8 +505,12 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
       .from(usersTable)
       .where(eq(usersTable.id, user.id));
 
-    return { created, author };
+    return { created, author, commentNotificationId };
   });
+
+  if (result.commentNotificationId != null) {
+    void pushForNotificationById(result.commentNotificationId);
+  }
 
   res.status(201).json({
     comment: {
@@ -614,6 +628,7 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
         .returning();
 
       const newCount = updated.prayCount ?? 0;
+      const pushNotificationIds: number[] = [];
 
       if (post.authorId && post.authorId !== user.id) {
         const priorComments = await tx
@@ -628,30 +643,44 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
             .where(eq(usersTable.id, post.authorId));
         }
 
-        await tx.insert(notificationsTable).values({
-          userId: post.authorId,
-          type: "prayer",
-          message: `prayed for your post`,
-          actorId: user.id,
-          postId,
-          isRead: false,
-        });
-
-        if (PRAYER_MILESTONES.includes(newCount)) {
-          await tx.insert(notificationsTable).values({
+        const [nPray] = await tx
+          .insert(notificationsTable)
+          .values({
             userId: post.authorId,
-            type: "prayer_milestone",
-            message: `${newCount} people are now praying for your post! 🙌`,
-            actorId: null,
+            type: "prayer",
+            message: `prayed for your post`,
+            actorId: user.id,
             postId,
             isRead: false,
-          });
+          })
+          .returning({ id: notificationsTable.id });
+        if (nPray) pushNotificationIds.push(nPray.id);
+
+        if (PRAYER_MILESTONES.includes(newCount)) {
+          const [nMil] = await tx
+            .insert(notificationsTable)
+            .values({
+              userId: post.authorId,
+              type: "prayer_milestone",
+              message: `${newCount} people are now praying for your post! 🙌`,
+              actorId: null,
+              postId,
+              isRead: false,
+            })
+            .returning({ id: notificationsTable.id });
+          if (nMil) pushNotificationIds.push(nMil.id);
         }
       }
 
-      return { prayCount: newCount, hasPrayed: true } as const;
+      return { prayCount: newCount, hasPrayed: true as const, pushNotificationIds };
     }
   });
+
+  const pushPrayIds = (result as { pushNotificationIds?: number[] }).pushNotificationIds;
+  if (Array.isArray(pushPrayIds)) {
+    delete (result as { pushNotificationIds?: number[] }).pushNotificationIds;
+    for (const id of pushPrayIds) void pushForNotificationById(id);
+  }
 
   res.json(result);
 });
@@ -672,6 +701,7 @@ router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
+  let savePushNotificationId: number | null = null;
   await db.transaction(async (tx) => {
     const existing = await tx
       .select()
@@ -692,17 +722,23 @@ router.post("/posts/:postId/save", requireAuth, async (req, res): Promise<void> 
         .where(eq(usersTable.id, user.id));
 
       if (post.authorId && post.authorId !== user.id) {
-        await tx.insert(notificationsTable).values({
-          userId: post.authorId,
-          type: "saved",
-          message: "saved your prayer to their library.",
-          actorId: user.id,
-          postId,
-          isRead: false,
-        });
+        const [n] = await tx
+          .insert(notificationsTable)
+          .values({
+            userId: post.authorId,
+            type: "saved",
+            message: "saved your prayer to their library.",
+            actorId: user.id,
+            postId,
+            isRead: false,
+          })
+          .returning({ id: notificationsTable.id });
+        savePushNotificationId = n?.id ?? null;
       }
     }
   });
+
+  if (savePushNotificationId != null) void pushForNotificationById(savePushNotificationId);
 
   const state = await getPostSaveState(postId, user.id);
   res.json({ success: true, message: "Post saved", ...state });

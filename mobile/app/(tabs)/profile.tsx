@@ -215,22 +215,16 @@ export default function ProfileScreen() {
   );
 
   const scrollProfileToTop = useCallback(() => {
-    if (Platform.OS === "web") {
-      if (activeTab === "my") myListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      else if (activeTab === "saved") savedListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      else categoriesScrollRef.current?.scrollTo({ y: 0, animated: true });
-      return;
-    }
     if (activeTab === "categories") {
       categoriesScrollRef.current?.scrollTo({ y: 0, animated: true });
     }
-    // Native My/Saved use Tabs.FlatList under collapsible-tab-view; scrollToOffset(0) fights Reanimated sync.
+    // My/Saved use Tabs.FlatList under collapsible-tab-view; scrollToOffset(0) fights Reanimated sync.
   }, [activeTab]);
 
   useTabScrollToTop(scrollProfileToTop);
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const topPad = insets.top;
+  const botPad = insets.bottom;
   /** Same clearance as main feed so lists aren’t clipped by the tab bar / home indicator. */
   const listTabBarClearance = Math.round(clamp(100 * uiScale, 88, 112));
   /** Space between material tab strip and first list card (does not replace collapsible list insets). */
@@ -409,17 +403,8 @@ export default function ProfileScreen() {
 
   const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
 
-  const webColumnStyle =
-    Platform.OS === "web"
-      ? {
-          maxWidth: Math.min(LAYOUT.contentMaxWidth, windowWidth),
-          width: "100%" as const,
-          alignSelf: "center" as const,
-        }
-      : null;
-
   const tabletColumnStyle =
-    Platform.OS !== "web" && windowWidth >= LAYOUT.tabletMinWidth
+    windowWidth >= LAYOUT.tabletMinWidth
       ? {
           maxWidth: LAYOUT.contentMaxWidth,
           width: "100%" as const,
@@ -667,7 +652,7 @@ export default function ProfileScreen() {
   );
 
   return (
-    <View style={[styles.flex, webColumnStyle, tabletColumnStyle]}>
+    <View style={[styles.flex, tabletColumnStyle]}>
       <View style={[styles.fixedTopBar, { paddingTop: topPad + prof.topBarPadExtra, paddingHorizontal: prof.gutter }]}>
         {topBar}
       </View>

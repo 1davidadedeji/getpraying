@@ -3,8 +3,25 @@ import { db, usersTable, postsTable, userFollowsTable, notificationsTable } from
 import { eq, and, desc, sql } from "drizzle-orm";
 import { optionalAuth, requireAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
+import { pushForNotificationById } from "../lib/pushForNotification";
 
 const router: IRouter = Router();
+
+router.post("/users/me/push-token", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const raw = req.body?.token;
+  if (raw !== null && raw !== undefined && typeof raw !== "string") {
+    res.status(400).json({ error: "token must be a string or null" });
+    return;
+  }
+  const token =
+    raw === null || raw === undefined ? null : String(raw).trim() === "" ? null : String(raw).trim();
+  await db
+    .update(usersTable)
+    .set({ expoPushToken: token, updatedAt: new Date() })
+    .where(eq(usersTable.id, user.id));
+  res.json({ success: true });
+});
 
 router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
@@ -73,14 +90,18 @@ router.post("/users/:username/follow", requireAuth, async (req, res): Promise<vo
     .returning({ id: userFollowsTable.id });
 
   if (inserted.length > 0) {
-    await db.insert(notificationsTable).values({
-      userId: target.id,
-      type: "follow",
-      message: "started following you",
-      actorId: viewer.id,
-      postId: null,
-      isRead: false,
-    });
+    const [n] = await db
+      .insert(notificationsTable)
+      .values({
+        userId: target.id,
+        type: "follow",
+        message: "started following you",
+        actorId: viewer.id,
+        postId: null,
+        isRead: false,
+      })
+      .returning({ id: notificationsTable.id });
+    if (n) void pushForNotificationById(n.id);
   }
 
   res.json({ success: true, following: true });

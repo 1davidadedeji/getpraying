@@ -19,6 +19,7 @@ import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { clearModQueueNotificationsForPost, notifyModeratorsNewPending } from "../lib/modQueueNotifications";
 import { officialGuideTextError } from "../lib/officialGuideTextLimits";
+import { pushForNotificationById } from "../lib/pushForNotification";
 
 async function notifyAuthorPostDecision(
   authorId: number | null,
@@ -31,13 +32,18 @@ async function notifyAuthorPostDecision(
     decision === "approved"
       ? "Your prayer post was approved and is now visible in the feed."
       : `Your prayer post was not approved. Reason: ${(moderationReason ?? "").trim() || "No details provided."}`;
-  await db.insert(notificationsTable).values({
-    userId: authorId,
-    type: decision === "approved" ? "post_approved" : "post_declined",
-    message,
-    postId,
-    actorId: null,
-  });
+  const [n] = await db
+    .insert(notificationsTable)
+    .values({
+      userId: authorId,
+      type: decision === "approved" ? "post_approved" : "post_declined",
+      message,
+      postId,
+      actorId: null,
+      isRead: false,
+    })
+    .returning({ id: notificationsTable.id });
+  if (n) void pushForNotificationById(n.id);
 }
 
 const router: IRouter = Router();
@@ -272,14 +278,18 @@ router.post("/admin/users/:userId/role", requireAdmin, async (req, res): Promise
     await db.update(usersTable).set({ role: typedRole }).where(eq(usersTable.id, userId));
     const roleLabel =
       typedRole === "admin" ? "an admin" : typedRole === "moderator" ? "a moderator" : "a member";
-    await db.insert(notificationsTable).values({
-      userId,
-      type: "role_updated",
-      message: `Your account role was updated — you are now ${roleLabel}.`,
-      actorId: adminUser.id,
-      postId: null,
-      isRead: false,
-    });
+    const [n] = await db
+      .insert(notificationsTable)
+      .values({
+        userId,
+        type: "role_updated",
+        message: `Your account role was updated — you are now ${roleLabel}.`,
+        actorId: adminUser.id,
+        postId: null,
+        isRead: false,
+      })
+      .returning({ id: notificationsTable.id });
+    if (n) void pushForNotificationById(n.id);
     res.json({ success: true, message: "Role updated", role: typedRole });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "Failed to update role" });
