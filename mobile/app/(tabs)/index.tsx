@@ -111,12 +111,17 @@ export default function FeedScreen() {
   const loadFreshRef = useRef(loadFresh);
   loadFreshRef.current = loadFresh;
 
+  // Tracks when the jump-to-top nonce last fired so useFocusEffect can
+  // skip its own loadFresh call when the nonce already triggered one.
+  const lastJumpAtRef = useRef(0);
+
   useEffect(() => {
     loadFresh();
   }, [loadFresh]);
 
   useEffect(() => {
     if (feedJumpToTopNonce === 0) return;
+    lastJumpAtRef.current = Date.now();
     setFeedCategory(null);
     setNewPostCount(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -125,6 +130,9 @@ export default function FeedScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Skip refresh if the jump nonce fired in the last 2 s — it already
+      // triggered loadFresh; firing again would be a duplicate round-trip.
+      if (Date.now() - lastJumpAtRef.current < 2000) return;
       if (!loading) {
         loadFresh({ silent: true });
       }

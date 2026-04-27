@@ -9,6 +9,7 @@ import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -540,6 +541,10 @@ export default function NewPostScreen() {
       }
     }
 
+    // Free the media preview now — we have the URL; no need to hold the
+    // preview in memory while the createPost mutation and navigation run.
+    setPendingMedia(null);
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     createPost(
       {
@@ -553,36 +558,47 @@ export default function NewPostScreen() {
       },
       {
         onSuccess: (res: Post) => {
-          try {
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch {
-            /* Haptics unavailable on some devices */
-          }
-          const isApproved = res?.status === "approved";
-          showNotice(
-            isApproved
-              ? "Posted — you’ll see it at the top of the feed."
-              : "Sent for review — it will appear after approval.",
-            "success",
-          );
-          // Reset form state first to free memory before navigation
-          setContent("");
-          setIsAnonymous(false);
-          setSelectedCategories([]);
-          setAiCategories([]);
-          setPendingMedia(null);
-          // Invalidate feed queries so the feed refreshes when it gets focus
-          queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
-          if (user?.username) {
-            queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
-          }
-          requestFeedJumpToTop();
+          // Navigate first so the composer screen starts unmounting before
+          // we do any state/cache/haptic work.
           if (router.canGoBack()) {
             router.back();
           } else {
             router.replace("/(tabs)" as Href);
           }
+
+          // Defer everything else until the navigation animation has a
+          // frame to run — avoids a synchronous spike that can freeze the
+          // transition or trigger a process kill on low-RAM devices.
+          InteractionManager.runAfterInteractions(() => {
+            try {
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch {
+              /* Haptics unavailable on some devices */
+            }
+
+            const isApproved = res?.status === "approved";
+            showNotice(
+              isApproved
+                ? "Posted — you’ll see it at the top of the feed."
+                : "Sent for review — it will appear after approval.",
+              "success",
+            );
+
+            // Composer is already unmounting, but clearing state here is
+            // harmless and prevents stale data if the screen is kept alive.
+            setContent("");
+            setIsAnonymous(false);
+            setSelectedCategories([]);
+            setAiCategories([]);
+
+            queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
+            queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
+            if (user?.username) {
+              queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.username) });
+            }
+
+            requestFeedJumpToTop();
+          });
         },
         onError: (err: unknown) => {
           showAppAlert({

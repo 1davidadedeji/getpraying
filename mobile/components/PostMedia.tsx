@@ -6,15 +6,20 @@ import {
   Animated,
   AppState,
   ActivityIndicator,
+  Modal,
+  Platform,
   Pressable,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type ImageStyle,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { pauseAllMediaExcept, registerMediaController } from "@/lib/mediaPlaybackCoordinator";
@@ -403,11 +408,18 @@ function DetailVideoPlayer({
   layout: "feed" | "detail";
 }) {
   const { uiScale } = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { width: winW, height: winH } = useWindowDimensions();
   const videoRef = useRef<Video | null>(null);
+  const fullscreenVideoRef = useRef<Video | null>(null);
   const controllerIdRef = useRef<symbol | null>(null);
   const wasPlayingRef = useRef(false);
   const hideChromeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fsHideChromeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fsSeekAppliedRef = useRef(false);
+  const fsStartPositionRef = useRef(0);
   const progressW = useRef(1);
+  const fsProgressW = useRef(1);
   const videoOpacity = useRef(new Animated.Value(0)).current;
 
   const [showChrome, setShowChrome] = useState(true);
@@ -415,6 +427,14 @@ function DetailVideoPlayer({
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [fullscreenSession, setFullscreenSession] = useState<{
+    positionMs: number;
+    shouldPlay: boolean;
+  } | null>(null);
+  const [fsShowChrome, setFsShowChrome] = useState(true);
+  const [fsPlaying, setFsPlaying] = useState(false);
+  const [fsPositionMs, setFsPositionMs] = useState(0);
+  const [fsDurationMs, setFsDurationMs] = useState(0);
 
   // Reset opacity + dimensions when the video source changes.
   useEffect(() => {
@@ -468,6 +488,10 @@ function DetailVideoPlayer({
       unregister();
       controllerIdRef.current = null;
       clearHideTimer();
+      if (fsHideChromeTimer.current) {
+        clearTimeout(fsHideChromeTimer.current);
+        fsHideChromeTimer.current = null;
+      }
     };
   }, []);
 
@@ -481,6 +505,37 @@ function DetailVideoPlayer({
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    fsSeekAppliedRef.current = false;
+    if (!fullscreenSession) {
+      setFsShowChrome(true);
+      setFsPlaying(false);
+      setFsPositionMs(0);
+      setFsDurationMs(0);
+    }
+  }, [fullscreenSession]);
+
+  useEffect(() => {
+    if (!fullscreenSession) return;
+    if (Platform.OS !== "android") return;
+    RNStatusBar.setHidden(true, "fade");
+    return () => {
+      RNStatusBar.setHidden(false, "fade");
+    };
+  }, [fullscreenSession]);
+
+  const clearFsHideTimer = () => {
+    if (fsHideChromeTimer.current) {
+      clearTimeout(fsHideChromeTimer.current);
+      fsHideChromeTimer.current = null;
+    }
+  };
+
+  const scheduleFsHideChrome = () => {
+    clearFsHideTimer();
+    fsHideChromeTimer.current = setTimeout(() => setFsShowChrome(false), 3200);
+  };
 
   const onPlaybackStatusUpdate = (st: AVPlaybackStatus) => {
     if (!st.isLoaded) return;
@@ -549,24 +604,133 @@ function DetailVideoPlayer({
     }
   };
 
-  const openFullscreen = async () => {
-    const v = videoRef.current as Video & {
-      presentFullscreenPlayer?: () => Promise<void>;
-      presentFullscreenPlayerAsync?: () => Promise<void>;
-    };
-    if (!v) return;
+  const closeInlineFullscreen = async () => {
+    const fsV = fullscreenVideoRef.current;
+    const main = videoRef.current;
+    let endPos = fsPositionMs;
+    let fsWasPlaying = fsPlaying;
     try {
-      if (typeof v.presentFullscreenPlayerAsync === "function") {
-        await v.presentFullscreenPlayerAsync();
-      } else if (typeof v.presentFullscreenPlayer === "function") {
-        await v.presentFullscreenPlayer();
+      if (fsV) {
+        const st = await fsV.getStatusAsync();
+        if (st.isLoaded) {
+          if (typeof st.positionMillis === "number") endPos = st.positionMillis;
+          fsWasPlaying = "isPlaying" in st && !!st.isPlaying;
+        }
+        await fsV.pauseAsync();
       }
     } catch {
-      /* Web or unsupported */
+      /* ignore */
+    }
+    clearFsHideTimer();
+    setFullscreenSession(null);
+    try {
+      if (main) {
+        await main.setPositionAsync(endPos);
+        if (fsWasPlaying) await main.playAsync();
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const openFullscreen = async () => {
+    const v = videoRef.current;
+    if (!v || fullscreenSession) return;
+    try {
+      const st = await v.getStatusAsync();
+      if (!st.isLoaded) return;
+      const positionMs = typeof st.positionMillis === "number" ? st.positionMillis : 0;
+      const shouldPlay = "isPlaying" in st && !!st.isPlaying;
+      await v.pauseAsync();
+      fsStartPositionRef.current = positionMs;
+      setFsPositionMs(positionMs);
+      setFsDurationMs(typeof st.durationMillis === "number" ? st.durationMillis : durationMs);
+      setFsPlaying(shouldPlay);
+      setFsShowChrome(true);
+      setFullscreenSession({ positionMs, shouldPlay });
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onFsPlaybackStatusUpdate = async (st: AVPlaybackStatus) => {
+    if (!st.isLoaded) return;
+    const start = fsStartPositionRef.current;
+    if (
+      !fsSeekAppliedRef.current &&
+      start > 0 &&
+      typeof st.positionMillis === "number" &&
+      st.positionMillis < 80
+    ) {
+      fsSeekAppliedRef.current = true;
+      try {
+        await fullscreenVideoRef.current?.setPositionAsync(start);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (typeof st.positionMillis === "number") setFsPositionMs(st.positionMillis);
+    if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
+      setFsDurationMs(st.durationMillis);
+    }
+    if ("isPlaying" in st) {
+      const p = !!st.isPlaying;
+      setFsPlaying(p);
+      if (p) scheduleFsHideChrome();
+    }
+  };
+
+  const fsTogglePlay = async () => {
+    const v = fullscreenVideoRef.current;
+    if (!v) return;
+    try {
+      const st = await v.getStatusAsync();
+      if (!st.isLoaded) return;
+      if (st.isPlaying) await v.pauseAsync();
+      else {
+        const cid = controllerIdRef.current;
+        if (cid != null) await pauseAllMediaExcept(cid);
+        await v.playAsync();
+      }
+      setFsShowChrome(true);
+      scheduleFsHideChrome();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const fsSkipBy = async (deltaMs: number) => {
+    const v = fullscreenVideoRef.current;
+    if (!v) return;
+    try {
+      const st = await v.getStatusAsync();
+      if (!st.isLoaded || typeof st.positionMillis !== "number") return;
+      const dur = typeof st.durationMillis === "number" ? st.durationMillis : fsDurationMs;
+      const next = Math.max(0, Math.min(dur > 0 ? dur - 250 : st.positionMillis + deltaMs, st.positionMillis + deltaMs));
+      await v.setPositionAsync(next);
+      setFsShowChrome(true);
+      scheduleFsHideChrome();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const fsSeekFromProgressPress = async (x: number) => {
+    const v = fullscreenVideoRef.current;
+    const w = fsProgressW.current;
+    if (!v || w < 8 || fsDurationMs <= 0) return;
+    const ratio = Math.max(0, Math.min(1, x / w));
+    try {
+      await v.setPositionAsync(Math.floor(ratio * fsDurationMs));
+      setFsShowChrome(true);
+      scheduleFsHideChrome();
+    } catch {
+      /* ignore */
     }
   };
 
   const progress = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
+  const fsProgress = fsDurationMs > 0 ? Math.min(1, fsPositionMs / fsDurationMs) : 0;
 
   const revealChrome = () => {
     setShowChrome(true);
@@ -578,7 +742,18 @@ function DetailVideoPlayer({
     setShowChrome(false);
   };
 
+  const revealFsChrome = () => {
+    setFsShowChrome(true);
+    scheduleFsHideChrome();
+  };
+
+  const hideFsChrome = () => {
+    clearFsHideTimer();
+    setFsShowChrome(false);
+  };
+
   return (
+    <>
     <View style={[styles.detailVideoShell, sizeStyle, style]}>
       {/* Cream placeholder visible while video metadata loads */}
       <View style={[StyleSheet.absoluteFillObject, styles.videoPlaceholder]} />
@@ -679,6 +854,110 @@ function DetailVideoPlayer({
         </>
       ) : null}
     </View>
+    <Modal
+      visible={fullscreenSession != null}
+      animationType="fade"
+      presentationStyle="fullScreen"
+      supportedOrientations={["portrait", "portrait-upside-down", "landscape", "landscape-left", "landscape-right"]}
+      onRequestClose={() => void closeInlineFullscreen()}
+      statusBarTranslucent={Platform.OS === "android"}
+    >
+      <View style={[styles.fullscreenModalRoot, { width: winW, height: winH }]}>
+        {fullscreenSession ? (
+          <>
+            <Video
+              ref={fullscreenVideoRef}
+              source={{ uri }}
+              style={styles.fullscreenVideo}
+              useNativeControls={false}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={fullscreenSession.shouldPlay}
+              onPlaybackStatusUpdate={onFsPlaybackStatusUpdate}
+            />
+            <Pressable
+              style={styles.fullscreenTapLayer}
+              onPress={fsShowChrome ? hideFsChrome : revealFsChrome}
+              accessibilityRole="button"
+              accessibilityLabel={fsShowChrome ? "Hide video controls" : "Show video controls"}
+            />
+            <Pressable
+              onPress={() => void closeInlineFullscreen()}
+              style={[
+                styles.fullscreenCloseBtn,
+                {
+                  top: insets.top + 8,
+                  left: insets.left + 10,
+                  padding: 10,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Exit fullscreen"
+            >
+              <Ionicons name="close" size={iconCtl + 4} color={colors.surface} />
+            </Pressable>
+            {fsShowChrome ? (
+              <>
+                <View style={styles.detailDim} pointerEvents="none" />
+                <View style={[styles.detailCenterPlayWrap, { pointerEvents: "box-none" }]}>
+                  <Pressable
+                    onPress={() => void fsTogglePlay()}
+                    style={[
+                      styles.detailCenterPlayBtn,
+                      { width: centerPlaySz, height: centerPlaySz, borderRadius: centerPlaySz / 2 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={fsPlaying ? "Pause" : "Play"}
+                  >
+                    <Ionicons
+                      name={fsPlaying ? "pause" : "play"}
+                      size={iconPlay}
+                      color={colors.surface}
+                    />
+                  </Pressable>
+                </View>
+                <View style={[styles.fullscreenBottomBar, { padding: barPad, paddingBottom: barPad + insets.bottom }]}>
+                  <View style={styles.detailBtnRow}>
+                    <Pressable
+                      onPress={() => void fsSkipBy(-VIDEO_SKIP_MS)}
+                      style={styles.detailIconHit}
+                      accessibilityRole="button"
+                      accessibilityLabel="Back 5 seconds"
+                    >
+                      <Ionicons name="play-back" size={iconCtl} color={colors.surface} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void fsSkipBy(VIDEO_SKIP_MS)}
+                      style={styles.detailIconHit}
+                      accessibilityRole="button"
+                      accessibilityLabel="Forward 5 seconds"
+                    >
+                      <Ionicons name="play-forward" size={iconCtl} color={colors.surface} />
+                    </Pressable>
+                  </View>
+                  <Text style={[styles.detailTime, { fontSize: fsTime }]}>
+                    {formatTimeMs(fsPositionMs)} · {formatTimeMs(fsDurationMs)}
+                  </Text>
+                  <Pressable
+                    onLayout={(e: LayoutChangeEvent) => {
+                      fsProgressW.current = e.nativeEvent.layout.width;
+                    }}
+                    style={styles.detailProgressTrack}
+                    onPress={(e) => {
+                      void fsSeekFromProgressPress(e.nativeEvent.locationX);
+                    }}
+                    accessibilityRole="adjustable"
+                    accessibilityLabel="Seek"
+                  >
+                    <View style={[styles.detailProgressFill, { width: `${fsProgress * 100}%` }]} />
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -816,6 +1095,14 @@ function FeedVideo({
     setUserPaused((p) => !p);
   };
 
+  const onPressBarPlay = () => {
+    if (hasPlaybackEnded) {
+      void replayFromStart();
+      return;
+    }
+    setUserPaused((p) => !p);
+  };
+
   const onStatus = (st: AVPlaybackStatus) => {
     if (!st.isLoaded) return;
     if (typeof st.positionMillis === "number") setPositionMs(st.positionMillis);
@@ -902,21 +1189,13 @@ function FeedVideo({
             pointerEvents="box-none"
           >
             <Pressable
-              onPress={handlePlayPause}
+              onPress={onPressBarPlay}
               style={styles.feedBarBtn}
               accessibilityRole="button"
-              accessibilityLabel={
-                hasPlaybackEnded && onOpenDetail
-                  ? "Open full prayer"
-                  : userPaused
-                    ? "Play"
-                    : "Pause"
-              }
+              accessibilityLabel={hasPlaybackEnded ? "Replay video" : userPaused ? "Play" : "Pause"}
             >
               <Ionicons
-                name={
-                  hasPlaybackEnded && onOpenDetail ? "open-outline" : userPaused ? "play" : "pause"
-                }
+                name={hasPlaybackEnded ? "play" : userPaused ? "play" : "pause"}
                 size={barIcon}
                 color={colors.surface}
               />
@@ -924,7 +1203,7 @@ function FeedVideo({
             <Text style={[styles.feedBarTime, { fontSize: fsBar }]} numberOfLines={1}>
               {formatTimeMs(positionMs)} / {formatTimeMs(durationMs)}
             </Text>
-            {onOpenDetail ? (
+            {onOpenDetail && !hasPlaybackEnded ? (
               <Pressable
                 onPress={onOpenDetail}
                 style={styles.feedBarBtn}
@@ -1061,6 +1340,35 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#000",
     position: "relative",
+  },
+  fullscreenModalRoot: {
+    flex: 1,
+    backgroundColor: "#000",
+    position: "relative",
+  },
+  fullscreenVideo: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  fullscreenTapLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  fullscreenCloseBtn: {
+    position: "absolute",
+    zIndex: 6,
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fullscreenBottomBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 4,
+    backgroundColor: "rgba(16,20,40,0.92)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(249,246,240,0.12)",
   },
   detailTapLayer: {
     ...StyleSheet.absoluteFillObject,
