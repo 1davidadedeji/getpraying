@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -185,6 +185,18 @@ export default function LibraryScreen() {
       void loadSavedOfficialIds();
     }
   }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds]);
+
+  // After admin publishes a sanctuary guide (or any server change), refetch when
+  // the user returns to Library so morning/evening cards update without leaving the app.
+  useFocusEffect(
+    useCallback(() => {
+      void loadSanctuary();
+      void loadSavedOfficialIds();
+      if (activeTab === "categories") {
+        void loadCategories();
+      }
+    }, [activeTab, loadSanctuary, loadSavedOfficialIds, loadCategories]),
+  );
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const SITUATION_COLS = getLibrarySituationCols(windowWidth, windowHeight, isTablet);

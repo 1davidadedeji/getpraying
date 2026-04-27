@@ -215,7 +215,8 @@ function AudioAttachment({
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
         try {
           await s.setVolumeAsync(1);
-          if (!playingRef.current) await s.playAsync();
+          // Silent autoplay keeps status as “playing” at volume 0 — always resume so unmute sticks on all platforms.
+          await s.playAsync();
           setPlaying(true);
           setFeedAudible(true);
         } catch {
@@ -543,6 +544,9 @@ function DetailVideoPlayer({
     if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
       setDurationMs(st.durationMillis);
     }
+    if ("didJustFinish" in st && st.didJustFinish) {
+      setPlaying(false);
+    }
     if ("isPlaying" in st) {
       const p = !!st.isPlaying;
       setPlaying(p);
@@ -565,6 +569,16 @@ function DetailVideoPlayer({
       else {
         const cid = controllerIdRef.current;
         if (cid != null) await pauseAllMediaExcept(cid);
+        const dur =
+          typeof st.durationMillis === "number" && st.durationMillis > 0
+            ? st.durationMillis
+            : durationMs;
+        const pos = typeof st.positionMillis === "number" ? st.positionMillis : positionMs;
+        const nearEnd = dur > 0 && pos >= dur - 500;
+        if (nearEnd) {
+          await v.setPositionAsync(0);
+          setPositionMs(0);
+        }
         await v.playAsync();
       }
       setShowChrome(true);
@@ -673,6 +687,9 @@ function DetailVideoPlayer({
     if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
       setFsDurationMs(st.durationMillis);
     }
+    if ("didJustFinish" in st && st.didJustFinish) {
+      setFsPlaying(false);
+    }
     if ("isPlaying" in st) {
       const p = !!st.isPlaying;
       setFsPlaying(p);
@@ -690,6 +707,16 @@ function DetailVideoPlayer({
       else {
         const cid = controllerIdRef.current;
         if (cid != null) await pauseAllMediaExcept(cid);
+        const dur =
+          typeof st.durationMillis === "number" && st.durationMillis > 0
+            ? st.durationMillis
+            : fsDurationMs;
+        const pos = typeof st.positionMillis === "number" ? st.positionMillis : fsPositionMs;
+        const nearEnd = dur > 0 && pos >= dur - 500;
+        if (nearEnd) {
+          await v.setPositionAsync(0);
+          setFsPositionMs(0);
+        }
         await v.playAsync();
       }
       setFsShowChrome(true);
@@ -1084,10 +1111,6 @@ function FeedVideo({
   };
 
   const handlePlayPause = () => {
-    if (hasPlaybackEnded && onOpenDetail) {
-      onOpenDetail();
-      return;
-    }
     if (hasPlaybackEnded) {
       void replayFromStart();
       return;
@@ -1170,12 +1193,10 @@ function FeedVideo({
               style={[styles.feedCenterPlay, { borderRadius: feedRad }]}
               onPress={handlePlayPause}
               accessibilityRole="button"
-              accessibilityLabel={
-                hasPlaybackEnded && onOpenDetail ? "Open full prayer" : "Play video"
-              }
+              accessibilityLabel="Play video"
             >
               <Ionicons
-                name={hasPlaybackEnded && onOpenDetail ? "open-outline" : "play-circle"}
+                name="play-circle"
                 size={centerPlaySz}
                 color="rgba(249,246,240,0.92)"
               />
