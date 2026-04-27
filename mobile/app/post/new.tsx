@@ -38,7 +38,6 @@ import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { normalizeAudioMime } from "@/lib/audioMime";
-import { parseUploadJson } from "@/lib/parseUploadResponse";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
@@ -96,28 +95,33 @@ async function uploadMultipart(
   localUri: string,
   token: string,
   route: string,
-  fileName: string,
+  _fileName: string,
   mimeType: string,
   opts?: { durationSec?: number },
 ): Promise<{ url: string; mediaType: string }> {
-  const form = new FormData();
-  form.append("file", {
-    uri: localUri,
-    name: fileName,
-    type: mimeType,
-  } as unknown as Blob);
+  const parameters: Record<string, string> = {};
   if (opts?.durationSec != null && Number.isFinite(opts.durationSec)) {
-    form.append("durationSec", String(opts.durationSec));
+    parameters.durationSec = String(opts.durationSec);
   }
-  const res = await fetch(apiUrl(`/uploads/${route}`), {
-    method: "POST",
-    headers: authHeaders(token),
-    body: form,
-  });
-  const data = await parseUploadJson(res);
-  if (!res.ok) {
+  // FileSystem.uploadAsync streams the file entirely in native code — the bytes
+  // never enter the Hermes JS heap, preventing the OOM kills on large media files.
+  const result = await FileSystem.uploadAsync(
+    apiUrl(`/uploads/${route}`),
+    localUri,
+    {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: "file",
+      mimeType,
+      headers: authHeaders(token),
+      parameters,
+    },
+  );
+  let data: { error?: string; url?: string; mediaType?: string } = {};
+  try { data = JSON.parse(result.body); } catch { /* non-JSON body */ }
+  if (result.status < 200 || result.status >= 300) {
     const kind = route === "post-image" ? "image" : route === "post-video" ? "video" : "audio";
-    throw new Error(messageForUploadFailure(res, data, kind));
+    throw new Error(messageForUploadFailure({ status: result.status } as Response, data, kind));
   }
   if (typeof data?.url !== "string") {
     throw new Error("Upload failed: server did not return a file URL.");
@@ -147,20 +151,21 @@ async function resizeUnderCap(uri: string): Promise<string> {
 }
 
 async function uploadPostImage(localUri: string, token: string): Promise<string> {
-  const form = new FormData();
-  form.append("file", {
-    uri: localUri,
-    name: "prayer.jpg",
-    type: "image/jpeg",
-  } as unknown as Blob);
-  const res = await fetch(apiUrl("/uploads/post-image"), {
-    method: "POST",
-    headers: authHeaders(token),
-    body: form,
-  });
-  const data = await parseUploadJson(res);
-  if (!res.ok) {
-    throw new Error(messageForUploadFailure(res, data, "image"));
+  const result = await FileSystem.uploadAsync(
+    apiUrl("/uploads/post-image"),
+    localUri,
+    {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: "file",
+      mimeType: "image/jpeg",
+      headers: authHeaders(token),
+    },
+  );
+  let data: { error?: string; url?: string } = {};
+  try { data = JSON.parse(result.body); } catch { /* non-JSON body */ }
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(messageForUploadFailure({ status: result.status } as Response, data, "image"));
   }
   if (typeof data?.url !== "string") {
     throw new Error("Upload failed: server did not return a file URL.");

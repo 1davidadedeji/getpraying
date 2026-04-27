@@ -105,13 +105,12 @@ export default function PostDetailScreen() {
   const { mutate: unsave } = useUnsavePost();
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
-  const { gutter, uiScale, cardRadius, windowWidth } = useResponsiveLayout();
+  const { gutter, uiScale, cardRadius } = useResponsiveLayout();
   const engageIcn = Math.round(clamp(24 * uiScale, 20, 28));
   const shareIcn = Math.max(16, engageIcn - 2);
   const flagIcn = Math.round(clamp(18 * uiScale, 16, 20));
   const moreIcn = Math.round(clamp(20 * uiScale, 18, 22));
   const listPad = gutter;
-  const listMaxW = Math.min(680, windowWidth);
   const authorGap = Math.round(clamp(10 * uiScale, 8, 12));
   const authorRowMb = Math.round(clamp(20 * uiScale, 16, 24));
   const avatarSz = Math.round(clamp(44 * uiScale, 40, 52));
@@ -685,7 +684,7 @@ export default function PostDetailScreen() {
             <Text style={[styles.emptyComments, { fontSize: emptyFs, marginBottom: emptyMb }]}>No comments yet</Text>
           ) : null
         }
-        contentContainerStyle={[styles.listContent, { padding: listPad, paddingBottom: 8, maxWidth: listMaxW }]}
+        contentContainerStyle={[styles.listContent, { padding: listPad, paddingBottom: 8 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       />
@@ -883,6 +882,7 @@ const styles = StyleSheet.create({
   listContent: {
     alignSelf: "center" as const,
     width: "100%",
+    maxWidth: 640,
   },
   authorRow: {
     flexDirection: "row",

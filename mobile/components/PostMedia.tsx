@@ -3,6 +3,7 @@ import { Audio, ResizeMode, Video, type AVPlaybackStatus } from "expo-av";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   AppState,
   ActivityIndicator,
   Pressable,
@@ -405,12 +406,19 @@ function DetailVideoPlayer({
   const wasPlayingRef = useRef(false);
   const hideChromeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressW = useRef(1);
+  const videoOpacity = useRef(new Animated.Value(0)).current;
 
   const [showChrome, setShowChrome] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+
+  // Reset opacity + dimensions when the video source changes.
+  useEffect(() => {
+    videoOpacity.setValue(0);
+    setNaturalSize(null);
+  }, [uri]);
 
   const iconCtl = Math.round(clamp(24 * uiScale, 22, 28));
   const iconPlay = Math.round(clamp(36 * uiScale, 32, 42));
@@ -570,19 +578,29 @@ function DetailVideoPlayer({
 
   return (
     <View style={[styles.detailVideoShell, sizeStyle, style]}>
-      <Video
-        ref={videoRef}
-        source={{ uri }}
-        style={[styles.videoAbsoluteFill]}
-        useNativeControls={false}
-        resizeMode={ResizeMode.CONTAIN}
-        onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-        onReadyForDisplay={(event: any) => {
-          if (event?.naturalSize) {
-            setNaturalSize({ width: event.naturalSize.width, height: event.naturalSize.height });
-          }
-        }}
-      />
+      {/* Cream placeholder visible while video metadata loads */}
+      <View style={[StyleSheet.absoluteFillObject, styles.videoPlaceholder]} />
+      {/* Video fades in at its correct aspect ratio — no snap */}
+      <Animated.View style={[styles.videoAbsoluteFill, { opacity: videoOpacity }]}>
+        <Video
+          ref={videoRef}
+          source={{ uri }}
+          style={StyleSheet.absoluteFillObject}
+          useNativeControls={false}
+          resizeMode={ResizeMode.CONTAIN}
+          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+          onReadyForDisplay={(event: any) => {
+            if (event?.naturalSize) {
+              setNaturalSize({ width: event.naturalSize.width, height: event.naturalSize.height });
+            }
+            Animated.timing(videoOpacity, {
+              toValue: 1,
+              duration: 240,
+              useNativeDriver: true,
+            }).start();
+          }}
+        />
+      </Animated.View>
       {/* Single tap layer — toggles chrome show/hide; controls above intercept their own presses */}
       <Pressable
         style={[styles.detailTapLayer]}
@@ -610,7 +628,7 @@ function DetailVideoPlayer({
           </View>
           {/* Bottom control bar */}
           <View style={[styles.detailBottomBar, { padding: barPad }]}>
-            {/* Main controls row: skip-back | play/pause | skip-forward | fullscreen */}
+            {/* Skip + fullscreen row — play/pause is handled exclusively by the center button above */}
             <View style={styles.detailBtnRow}>
               <Pressable
                 onPress={() => void skipBy(-VIDEO_SKIP_MS)}
@@ -619,14 +637,6 @@ function DetailVideoPlayer({
                 accessibilityLabel="Back 5 seconds"
               >
                 <Ionicons name="play-back" size={iconCtl} color={colors.surface} />
-              </Pressable>
-              <Pressable
-                onPress={() => void togglePlay()}
-                style={styles.detailIconHit}
-                accessibilityRole="button"
-                accessibilityLabel={playing ? "Pause" : "Play"}
-              >
-                <Ionicons name={playing ? "pause" : "play"} size={iconCtl} color={colors.surface} />
               </Pressable>
               <Pressable
                 onPress={() => void skipBy(VIDEO_SKIP_MS)}
@@ -696,11 +706,18 @@ function FeedVideo({
 
   const videoRef = useRef<Video | null>(null);
   const controllerIdRef = useRef<symbol | null>(null);
+  const videoOpacity = useRef(new Animated.Value(0)).current;
   const [userUnmuted, setUserUnmuted] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+
+  // Reset opacity + dimensions whenever the video source changes.
+  useEffect(() => {
+    videoOpacity.setValue(0);
+    setNaturalSize(null);
+  }, [uri]);
 
   // Compute adaptive aspect ratio from detected video dimensions
   const rawAspect = naturalSize != null ? naturalSize.width / naturalSize.height : null;
@@ -761,7 +778,8 @@ function FeedVideo({
     if (id == null) return;
     if (!userUnmuted) {
       await pauseAllMediaExcept(id);
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      // Do NOT set playsInSilentModeIOS here — video audio should respect the ringer switch.
+      // Only AudioAttachment (podcast-style) overrides silent mode.
       setUserUnmuted(true);
     } else {
       setUserUnmuted(false);
@@ -776,28 +794,42 @@ function FeedVideo({
     if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
       setDurationMs(st.durationMillis);
     }
+    // Play once: show the center play button when the clip ends so the user can replay manually.
+    if ("didJustFinish" in st && st.didJustFinish) {
+      setUserPaused(true);
+    }
   };
 
   const showCenterPlay = feedMediaFocused && userPaused;
 
   return (
     <View style={[styles.videoFeedWrap, !thumbStyle && (containerAspect != null ? { aspectRatio: containerAspect } : styles.videoTall), { borderRadius: feedRad }, thumbStyle, style]}>
-      <Video
-        ref={videoRef}
-        source={{ uri }}
-        style={[styles.videoAbsoluteFill, { borderRadius: feedRad }]}
-        shouldPlay={shouldPlay}
-        isMuted={!userUnmuted}
-        isLooping
-        useNativeControls={false}
-        resizeMode={videoResizeMode}
-        onPlaybackStatusUpdate={onStatus}
-        onReadyForDisplay={(event: any) => {
-          if (event?.naturalSize) {
-            setNaturalSize({ width: event.naturalSize.width, height: event.naturalSize.height });
-          }
-        }}
-      />
+      {/* Cream placeholder visible while video metadata loads */}
+      <View style={[StyleSheet.absoluteFillObject, styles.videoPlaceholder, { borderRadius: feedRad }]} />
+      {/* Video fades in at its correct aspect ratio — no snap */}
+      <Animated.View style={[styles.videoAbsoluteFill, { borderRadius: feedRad, opacity: videoOpacity }]}>
+        <Video
+          ref={videoRef}
+          source={{ uri }}
+          style={StyleSheet.absoluteFillObject}
+          shouldPlay={shouldPlay}
+          isMuted={!userUnmuted}
+          isLooping={false}
+          useNativeControls={false}
+          resizeMode={videoResizeMode}
+          onPlaybackStatusUpdate={onStatus}
+          onReadyForDisplay={(event: any) => {
+            if (event?.naturalSize) {
+              setNaturalSize({ width: event.naturalSize.width, height: event.naturalSize.height });
+            }
+            Animated.timing(videoOpacity, {
+              toValue: 1,
+              duration: 240,
+              useNativeDriver: true,
+            }).start();
+          }}
+        />
+      </Animated.View>
       {feedMediaFocused ? (
         <>
           {showCenterPlay ? (
@@ -1046,6 +1078,10 @@ const styles = StyleSheet.create({
   },
   videoAbsoluteFill: {
     ...StyleSheet.absoluteFillObject,
+  },
+  videoPlaceholder: {
+    backgroundColor: colors.surface,
+    zIndex: 0,
   },
   feedCenterPlay: {
     ...StyleSheet.absoluteFillObject,

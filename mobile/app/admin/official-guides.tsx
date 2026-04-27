@@ -27,7 +27,7 @@ import {
   OFFICIAL_GUIDE_SCRIPTURE_MAX,
   OFFICIAL_GUIDE_TITLE_MAX,
 } from "@/lib/officialGuideFieldLimits";
-import { parseApiJson, parseUploadJson } from "@/lib/parseUploadResponse";
+import { parseApiJson } from "@/lib/parseUploadResponse";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -38,26 +38,27 @@ type PathPick = ApiLibraryCategory & { pathId: number; category?: string };
 async function uploadAudioFile(
   localUri: string,
   token: string,
-  fileName: string,
+  _fileName: string,
   mimeType: string,
 ): Promise<string> {
-  const form = new FormData();
-  form.append("file", {
-    uri: localUri,
-    name: fileName,
-    type: mimeType,
-  } as unknown as Blob);
-  const res = await fetch(apiUrl("/uploads/post-audio"), {
-    method: "POST",
-    headers: authHeaders(token),
-    body: form,
-  });
-  const data = await parseUploadJson(res);
-  if (!res.ok) {
+  const result = await FileSystem.uploadAsync(
+    apiUrl("/uploads/post-audio"),
+    localUri,
+    {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: "file",
+      mimeType,
+      headers: authHeaders(token),
+    },
+  );
+  let data: { error?: string; url?: string } = {};
+  try { data = JSON.parse(result.body); } catch { /* non-JSON body */ }
+  if (result.status < 200 || result.status >= 300) {
     const msg =
       typeof data?.error === "string" && data.error.trim()
         ? data.error
-        : res.status === 413
+        : result.status === 413
           ? "Audio is too large (max 15MB) or blocked by the server. Try a smaller file or check hosting limits."
           : "Upload failed";
     throw new Error(msg);
