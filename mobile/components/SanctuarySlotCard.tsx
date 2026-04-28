@@ -73,10 +73,10 @@ export function SanctuarySlotCard({ slot, prayer, showSave, isSaved, onToggleSav
   const setByName =
     prayer?.uploadedByDisplayName ||
     (prayer?.uploadedByUsername ? prayer.uploadedByUsername : null);
-  const timeLabel = slot === "morning" ? "TODAY" : "TONIGHT";
+  const slotLabel = slot === "morning" ? "MORNING" : "EVENING";
   const topLabel = setByName
-    ? `${timeLabel} · SET BY ${setByName.toUpperCase()}`
-    : timeLabel;
+    ? `${slotLabel} · SET BY ${setByName.toUpperCase()}`
+    : slotLabel;
 
   return (
     <View

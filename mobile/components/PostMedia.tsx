@@ -67,6 +67,7 @@ function AudioAttachment({
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
+  const [audioEnded, setAudioEnded] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [feedAudible, setFeedAudible] = useState(false);
@@ -136,6 +137,7 @@ function AudioAttachment({
                 setDurationMs(st.durationMillis);
               }
               if (st.didJustFinish) {
+                setAudioEnded(true);
                 setPlaying(false);
                 setPositionMs(0);
               }
@@ -165,6 +167,7 @@ function AudioAttachment({
       await s.playAsync();
       setPlaying(true);
       setFeedAudible(false);
+      setAudioEnded(false);
     } catch {
       /* ignore */
     }
@@ -215,6 +218,11 @@ function AudioAttachment({
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
         try {
           await s.setVolumeAsync(1);
+          if (audioEnded) {
+            await s.setPositionAsync(0);
+            setAudioEnded(false);
+            setPositionMs(0);
+          }
           // Silent autoplay keeps status as “playing” at volume 0 — always resume so unmute sticks on all platforms.
           await s.playAsync();
           setPlaying(true);
@@ -242,6 +250,11 @@ function AudioAttachment({
         await s.setVolumeAsync(1);
       } catch {
         /* ignore */
+      }
+      if (audioEnded) {
+        await s.setPositionAsync(0);
+        setAudioEnded(false);
+        setPositionMs(0);
       }
       await s.playAsync();
       setPlaying(true);

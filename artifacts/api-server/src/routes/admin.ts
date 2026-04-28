@@ -8,11 +8,12 @@ import {
   commentsTable,
   savedPostsTable,
   officialPrayersTable,
+  savedOfficialPrayersTable,
   prayerPathsTable,
   sessionsTable,
   userFollowsTable,
 } from "@workspace/db";
-import { eq, ne, desc, sql, and, or, isNotNull, inArray, notLike } from "drizzle-orm";
+import { eq, ne, desc, sql, and, or, isNotNull, isNull, inArray, notLike } from "drizzle-orm";
 
 const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
@@ -567,7 +568,7 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
         subtitle: existing.subtitle,
         durationMinutes: existing.durationMinutes,
         scripture: existing.scripture,
-        label: existing.label,
+        label: `archived_${slot}`,
         audioVoice: existing.audioVoice,
         audioUrl: existing.audioUrl,
         pathId: archivePathId,
@@ -625,11 +626,56 @@ router.delete("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, asyn
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const [del] = await db.delete(officialPrayersTable).where(eq(officialPrayersTable.id, prayerId)).returning();
-  if (!del) {
+
+  const [target] = await db
+    .select()
+    .from(officialPrayersTable)
+    .where(eq(officialPrayersTable.id, prayerId))
+    .limit(1);
+  if (!target) {
     res.status(404).json({ error: "Not found" });
     return;
   }
+
+  const slot = target.scheduleSlot as "morning" | "evening" | null;
+
+  if (slot === "morning" || slot === "evening") {
+    // Find the most recently archived prayer for this slot (tagged by schedule-slot route)
+    const [prev] = await db
+      .select({ id: officialPrayersTable.id })
+      .from(officialPrayersTable)
+      .where(
+        and(
+          eq(officialPrayersTable.label, `archived_${slot}`),
+          isNull(officialPrayersTable.scheduleSlot),
+        ),
+      )
+      .orderBy(desc(officialPrayersTable.createdAt))
+      .limit(1);
+
+    await db.transaction(async (tx) => {
+      if (prev) {
+        // Migrate saves from deleted prayer to the restored archive
+        await tx
+          .update(savedOfficialPrayersTable)
+          .set({ officialPrayerId: prev.id })
+          .where(eq(savedOfficialPrayersTable.officialPrayerId, prayerId));
+
+        // Restore the archive to the active slot
+        await tx
+          .update(officialPrayersTable)
+          .set({ scheduleSlot: slot, label: null, pathId: null })
+          .where(eq(officialPrayersTable.id, prev.id));
+      }
+
+      await tx.delete(officialPrayersTable).where(eq(officialPrayersTable.id, prayerId));
+    });
+
+    res.json({ success: true, restoredPreviousSlot: !!prev });
+    return;
+  }
+
+  await db.delete(officialPrayersTable).where(eq(officialPrayersTable.id, prayerId));
   res.json({ success: true });
 });
 
