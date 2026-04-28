@@ -178,6 +178,14 @@ export default function LibraryScreen() {
     [token, savedOfficialIds],
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadCategories();
+      void loadSanctuary();
+      void loadSavedOfficialIds();
+    }, [loadCategories, loadSanctuary, loadSavedOfficialIds]),
+  );
+
   useEffect(() => {
     if (activeTab === "categories") {
       void loadCategories();
@@ -185,18 +193,6 @@ export default function LibraryScreen() {
       void loadSavedOfficialIds();
     }
   }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds]);
-
-  // After admin publishes a sanctuary guide (or any server change), refetch when
-  // the user returns to Library so morning/evening cards update without leaving the app.
-  useFocusEffect(
-    useCallback(() => {
-      void loadSanctuary();
-      void loadSavedOfficialIds();
-      if (activeTab === "categories") {
-        void loadCategories();
-      }
-    }, [activeTab, loadSanctuary, loadSavedOfficialIds, loadCategories]),
-  );
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const SITUATION_COLS = getLibrarySituationCols(windowWidth, windowHeight, isTablet);

@@ -425,6 +425,7 @@ function DetailVideoPlayer({
 
   const [showChrome, setShowChrome] = useState(true);
   const [playing, setPlaying] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -441,6 +442,7 @@ function DetailVideoPlayer({
   useEffect(() => {
     videoOpacity.setValue(0);
     setNaturalSize(null);
+    setVideoEnded(false);
   }, [uri]);
 
   const iconCtl = Math.round(clamp(24 * uiScale, 22, 28));
@@ -545,7 +547,13 @@ function DetailVideoPlayer({
       setDurationMs(st.durationMillis);
     }
     if ("didJustFinish" in st && st.didJustFinish) {
+      setVideoEnded(true);
       setPlaying(false);
+      wasPlayingRef.current = false;
+      // Keep chrome visible so the play button is accessible for replay
+      clearHideTimer();
+      setShowChrome(true);
+      return;
     }
     if ("isPlaying" in st) {
       const p = !!st.isPlaying;
@@ -565,18 +573,14 @@ function DetailVideoPlayer({
     try {
       const st = await v.getStatusAsync();
       if (!st.isLoaded) return;
-      if (st.isPlaying) await v.pauseAsync();
-      else {
+      if (st.isPlaying) {
+        await v.pauseAsync();
+      } else {
         const cid = controllerIdRef.current;
         if (cid != null) await pauseAllMediaExcept(cid);
-        const dur =
-          typeof st.durationMillis === "number" && st.durationMillis > 0
-            ? st.durationMillis
-            : durationMs;
-        const pos = typeof st.positionMillis === "number" ? st.positionMillis : positionMs;
-        const nearEnd = dur > 0 && pos >= dur - 500;
-        if (nearEnd) {
+        if (videoEnded) {
           await v.setPositionAsync(0);
+          setVideoEnded(false);
           setPositionMs(0);
         }
         await v.playAsync();
