@@ -74,6 +74,12 @@ export default function OfficialPrayerScreen() {
     },
   });
 
+  const bodyText = (data?.content ?? "").trim();
+  const longBody = useMemo(
+    () => bodyText.length > 280 || (bodyText.match(/\n/g)?.length ?? 0) > 4,
+    [bodyText],
+  );
+
   const checkSaved = useCallback(async () => {
     if (!token) return;
     try {
@@ -143,12 +149,6 @@ export default function OfficialPrayerScreen() {
     d.updatedAt && d.createdAt && d.updatedAt !== d.createdAt
       ? new Date(d.updatedAt)
       : null;
-
-  const bodyText = (d.content ?? "").trim();
-  const longBody = useMemo(
-    () => bodyText.length > 280 || (bodyText.match(/\n/g)?.length ?? 0) > 4,
-    [bodyText],
-  );
 
   return (
     <ScrollView

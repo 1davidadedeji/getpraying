@@ -561,26 +561,23 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
       .limit(1);
 
     if (existing && archivePathId != null) {
-      await tx.insert(officialPrayersTable).values({
-        title: existing.title,
-        content: existing.content,
-        category: existing.category,
-        subtitle: existing.subtitle,
-        durationMinutes: existing.durationMinutes,
-        scripture: existing.scripture,
-        label: `archived_${slot}`,
-        audioVoice: existing.audioVoice,
-        audioUrl: existing.audioUrl,
-        pathId: archivePathId,
-        uploadedByUserId: existing.uploadedByUserId,
-        scheduleSlot: null,
-      });
+      // Convert the existing row into the archive (keeps its ID so user saves remain valid).
+      // Saves pointing to existing.id will show old content in the Saved tab.
+      await tx
+        .update(officialPrayersTable)
+        .set({
+          scheduleSlot: null,
+          label: `archived_${slot}`,
+          pathId: archivePathId,
+        })
+        .where(eq(officialPrayersTable.id, existing.id));
     }
 
     if (existing) {
+      // Insert brand-new row for the slot — new ID means users haven't saved it yet.
       const [row] = await tx
-        .update(officialPrayersTable)
-        .set({
+        .insert(officialPrayersTable)
+        .values({
           title,
           content,
           category,
@@ -590,9 +587,9 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
           scripture,
           durationMinutes,
           pathId: null,
+          scheduleSlot: slot,
           uploadedByUserId: mod.id,
         })
-        .where(eq(officialPrayersTable.id, existing.id))
         .returning();
       return row ?? null;
     }
