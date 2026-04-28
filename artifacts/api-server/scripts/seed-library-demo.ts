@@ -10,7 +10,7 @@ import { asc, sql } from "drizzle-orm";
 
 const DEMO_PATHS = [
   {
-    name: "Anxiety & Calm",
+    name: "Anxiety",
     description: "Short anchors and breath prayers for heavy days.",
     category: "anxiety",
     tagline: "You are held.",

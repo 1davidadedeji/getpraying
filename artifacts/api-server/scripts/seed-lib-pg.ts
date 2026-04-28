@@ -73,7 +73,7 @@ async function copyLibPgAudios(): Promise<{
 
 const PATHS = [
   {
-    name: "Anxiety & Calm",
+    name: "Anxiety",
     description: "Short anchors and breath prayers for heavy, anxious days.",
     category: "anxiety",
     tagline: "You are held.",
