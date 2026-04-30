@@ -18,7 +18,7 @@ export async function parseUploadJson(res: Response): Promise<{
       error:
         text.slice(0, 400) ||
         (res.status === 413
-          ? "Upload was rejected (413). If the file is under the app’s size limit, configure the server or reverse proxy for larger request bodies."
+          ? "File is too large to upload. Try a smaller file."
           : undefined),
     };
   }
@@ -37,8 +37,8 @@ export async function parseApiJson(res: Response): Promise<Record<string, unknow
       error:
         text.slice(0, 400) ||
         (res.status === 413
-          ? "Payload too large. Shorten your text and try again."
-          : `Request failed (${res.status}).`),
+          ? "Your message is too long. Shorten it and try again."
+          : `Something went wrong (${res.status}). Please try again.`),
     };
   }
   return {};

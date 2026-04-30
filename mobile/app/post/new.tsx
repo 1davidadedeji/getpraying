@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { ResizeMode, Video } from "expo-av";
 import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -44,8 +45,8 @@ import { normalizeAudioMime } from "@/lib/audioMime";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
-const MAX_VIDEO_DURATION_SEC = 10;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_VIDEO_DURATION_SEC = 60;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 
 type PendingMedia =
@@ -59,39 +60,24 @@ function messageForUploadFailure(
   kind: "image" | "video" | "audio",
 ): string {
   const fromServer = typeof data?.error === "string" ? data.error.trim() : "";
-  if (fromServer) {
-    if (res.status === 400 || res.status === 413) {
-      return fromServer;
-    }
-    if (res.status >= 500) {
-      return `${fromServer} (${kind === "image" ? "Photo" : kind === "video" ? "Video" : "Audio"} upload)`;
-    }
+  if (fromServer && (res.status === 400 || res.status === 413)) {
+    return fromServer;
   }
   if (res.status === 413) {
-    const proxyHint =
-      " If your file is already under the limit, the hosting reverse proxy may be blocking large uploads — raise its max body size (often labeled client_max_body_size).";
-    if (kind === "image") {
-      return "Photo is too large for the server (max 1MB). The app resizes; try a smaller or simpler image.";
-    }
-    if (kind === "video") {
-      return "Video file is too large (max 12MB). Shorter or lower quality clips work best." + proxyHint;
-    }
-    return "Audio file is too large (max 15MB)." + proxyHint;
+    if (kind === "image") return "Photo is too large. Try a different image.";
+    if (kind === "video") return "Video is too large. Try a shorter or lower-quality clip.";
+    return "Audio file is too large. Choose a shorter recording.";
   }
   if (res.status === 408 || res.status === 504) {
     return "Upload timed out. Check your connection and try again.";
   }
   if (res.status === 401) {
-    return "Your session may have expired. Sign in again and try uploading the "
-      + (kind === "image" ? "photo" : kind === "video" ? "video" : "audio")
-      + " again.";
+    return "Your session has expired. Please sign in again and try once more.";
   }
   if (res.status === 0 || res.status < 0) {
-    return "No network. Check your connection, then try the "
-      + (kind === "image" ? "photo" : kind === "video" ? "video" : "audio")
-      + " again.";
+    return "No internet connection. Check your signal and try again.";
   }
-  return "Upload failed. Check your connection, file type, and limits (photo ~1MB after resize, video max 10s/12MB, audio max 15MB).";
+  return "Upload failed. Check your connection and try again.";
 }
 
 async function uploadMultipart(
@@ -127,7 +113,7 @@ async function uploadMultipart(
     throw new Error(messageForUploadFailure({ status: result.status } as Response, data, kind));
   }
   if (typeof data?.url !== "string") {
-    throw new Error("Upload failed: server did not return a file URL.");
+    throw new Error("Something went wrong with the upload. Please try again.");
   }
   return { url: data.url, mediaType: data.mediaType ?? "unknown" };
 }
@@ -171,7 +157,7 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
     throw new Error(messageForUploadFailure({ status: result.status } as Response, data, "image"));
   }
   if (typeof data?.url !== "string") {
-    throw new Error("Upload failed: server did not return a file URL.");
+    throw new Error("Something went wrong with the upload. Please try again.");
   }
   return data.url;
 }
@@ -384,7 +370,7 @@ export default function NewPostScreen() {
     if (sz > 0 && sz > MAX_VIDEO_BYTES) {
       showAppAlert({
         title: "Video too large",
-        message: "Choose a shorter clip (under 12MB).",
+        message: "Choose a shorter clip (under 50MB).",
       });
       return;
     }
@@ -682,7 +668,7 @@ export default function NewPostScreen() {
 
       <View style={[styles.imageSection, { gap: mediaSectionGap }]}>
         <Text style={[styles.sectionLabel, { fontSize: fsSection }]}>
-          Media (optional) — photos max 1MB after resize. Video max {MAX_VIDEO_DURATION_SEC}s / 12MB. Audio max 15MB. Media
+          Media (optional) — photos max 1MB after resize. Video max {MAX_VIDEO_DURATION_SEC}s / 50MB. Audio max 15MB. Media
           is reviewed before publishing.
         </Text>
         {pendingMedia ? (
@@ -694,14 +680,37 @@ export default function NewPostScreen() {
                 contentFit="cover"
               />
             ) : pendingMedia.kind === "video" ? (
-              <View style={[styles.mediaPlaceholder, { gap: mediaPhGap }]}>
-                <Ionicons name="videocam" size={mediaPhIcn} color={colors.primary} />
-                <Text style={[styles.mediaPlaceholderText, { fontSize: fsMediaPh }]}>Video selected</Text>
+              <View style={styles.videoPreviewContainer}>
+                <Video
+                  source={{ uri: pendingMedia.uri }}
+                  style={styles.imagePreview}
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay={false}
+                  useNativeControls={false}
+                  isMuted
+                />
+                <View style={styles.videoPreviewOverlay} pointerEvents="none">
+                  <View style={styles.videoPlayBadge}>
+                    <Ionicons name="play" size={Math.round(mediaPhIcn * 0.7)} color={colors.surface} />
+                  </View>
+                  <Text style={[styles.videoPreviewLabel, { fontSize: fsMediaPh }]}>
+                    {pendingMedia.durationSec > 0
+                      ? `Video · ${pendingMedia.durationSec < 60 ? Math.round(pendingMedia.durationSec) + "s" : Math.floor(pendingMedia.durationSec / 60) + "m " + (Math.round(pendingMedia.durationSec) % 60) + "s"}`
+                      : "Video selected"}
+                  </Text>
+                </View>
               </View>
             ) : (
-              <View style={[styles.mediaPlaceholder, { gap: mediaPhGap }]}>
+              <View style={[styles.audioPreviewBox, { gap: mediaPhGap }]}>
                 <Ionicons name="musical-notes" size={mediaPhIcn} color={colors.primary} />
-                <Text style={[styles.mediaPlaceholderText, { fontSize: fsMediaPh }]}>Audio selected</Text>
+                <View style={styles.audioWaveRow}>
+                  {[18, 30, 46, 26, 40, 22, 42, 32, 36, 20, 44, 28, 38, 24, 34].map((h, i) => (
+                    <View key={i} style={[styles.audioWaveBar, { height: h }]} />
+                  ))}
+                </View>
+                <Text style={[styles.mediaPlaceholderText, { fontSize: fsMediaPh }]} numberOfLines={1}>
+                  {pendingMedia.name || "Audio selected"}
+                </Text>
               </View>
             )}
             <Pressable
@@ -959,6 +968,53 @@ const styles = StyleSheet.create({
   mediaPlaceholderText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: colors.primary,
+  },
+  videoPreviewContainer: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    backgroundColor: "#000",
+    position: "relative",
+  },
+  videoPreviewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  videoPlayBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(26,31,54,0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoPreviewLabel: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.surface,
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  audioPreviewBox: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    backgroundColor: colors.cream,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  audioWaveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    height: 50,
+  },
+  audioWaveBar: {
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+    opacity: 0.7,
   },
   removeImageBtn: {
     position: "absolute",

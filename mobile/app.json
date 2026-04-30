@@ -26,7 +26,15 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#F9F6F0"
-      }
+      },
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "plugins": [
       [
@@ -41,7 +49,8 @@
           "android": {
             "usesCleartextTraffic": true,
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResources": true
+            "enableShrinkResources": true,
+            "enableMinifyInReleaseBuilds": true
           }
         }
       ],
@@ -70,9 +79,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "179fa356-743a-4ab1-ba5d-e69a40063d73"
+        "projectId": "b11d202d-876e-4839-b3d5-0051e73ad11b"
       }
     },
-    "owner": "1davidadedeji"
+    "owner": "timelesz_dave"
   }
 }

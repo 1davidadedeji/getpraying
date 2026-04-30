@@ -61,12 +61,12 @@ async function uploadAudioFile(
       typeof data?.error === "string" && data.error.trim()
         ? data.error
         : result.status === 413
-          ? "Audio is too large (max 15MB) or blocked by the server. Try a smaller file or check hosting limits."
-          : "Upload failed";
+          ? "Audio file is too large. Choose a shorter recording."
+          : "Upload failed. Please try again.";
     throw new Error(msg);
   }
   if (typeof data?.url !== "string") {
-    throw new Error("Upload failed: server did not return a file URL.");
+    throw new Error("Something went wrong with the upload. Please try again.");
   }
   return data.url;
 }

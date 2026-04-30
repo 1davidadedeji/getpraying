@@ -13,9 +13,9 @@ import { eq } from "drizzle-orm";
 const MAX_POST_IMAGE_BYTES = 1 * 1024 * 1024;
 const MAX_AVATAR_IMAGE_BYTES = 2 * 1024 * 1024;
 /** Short clips only; duration validated separately */
-const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
-const MAX_VIDEO_DURATION_SEC = 10;
+const MAX_VIDEO_DURATION_SEC = 60;
 
 export function getUploadDir(): string {
   return process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
@@ -70,7 +70,7 @@ const uploadVideo = multer({
   limits: { fileSize: MAX_VIDEO_BYTES },
   fileFilter: (_req, file, cb) => {
     if (!/^video\/(mp4|quicktime|webm)$/i.test(file.mimetype)) {
-      cb(new Error("Only MP4, MOV, or WebM video is allowed (max 12MB, 10s)"));
+      cb(new Error("That video format isn't supported. Try an MP4 or MOV file."));
       return;
     }
     cb(null, true);
@@ -114,7 +114,7 @@ const uploadAudio = multer({
       cb(null, true);
       return;
     }
-    cb(new Error("Only common audio formats are allowed (max 15MB)"));
+    cb(new Error("That audio format isn't supported. Try an MP3, M4A, or WAV file."));
   },
 });
 
@@ -140,7 +140,7 @@ function handleMulterError(
         res.status(413).json({
           error:
             fileTooLargeMessage ??
-            "That file is too large for the server. Try a smaller or shorter file.",
+            "That file is too large. Try a smaller or shorter file.",
         });
         return;
       }
@@ -163,7 +163,7 @@ router.post(
       req,
       res,
       next,
-      "Photo is too large for the server (max 1MB). The app resizes; try a smaller or simpler image.",
+      "Photo is too large. Try a different image.",
     ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
@@ -197,7 +197,7 @@ router.post(
       req,
       res,
       next,
-      "Profile image is too large (max 2MB).",
+      "Profile photo is too large. Choose a smaller image.",
     ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as { buffer: Buffer; mimetype: string } | undefined;
@@ -235,7 +235,7 @@ router.post(
       req,
       res,
       next,
-      `Video file is too large (max 12MB) or too long; clips must be ${MAX_VIDEO_DURATION_SEC} seconds or less.`,
+      `Video is too large or too long. Keep clips under ${MAX_VIDEO_DURATION_SEC} seconds.`,
     ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as Express.Multer.File | undefined;
@@ -251,7 +251,7 @@ router.post(
     if (Number.isFinite(durationSec) && durationSec > 0 && durationSec > MAX_VIDEO_DURATION_SEC) {
       await unlink(file.path).catch(() => {});
       res.status(400).json({
-        error: `Video must be ${MAX_VIDEO_DURATION_SEC} seconds or less. Adjust the clip length and try again.`,
+        error: `Video is too long. Please use a clip under ${MAX_VIDEO_DURATION_SEC} seconds.`,
       });
       return;
     }
@@ -276,7 +276,7 @@ router.post(
       req,
       res,
       next,
-      "Audio file is too large (max 15MB).",
+      "Audio file is too large. Choose a shorter recording.",
     ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as Express.Multer.File | undefined;
