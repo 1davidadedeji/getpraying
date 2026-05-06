@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -50,7 +51,17 @@ export default function ProfileScreen() {
   const webPagerRef = useRef<PagerView | null>(null);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [likedPosts, setLikedPosts] = useState<Post[]>([]);
+  const [commentedPosts, setCommentedPosts] = useState<Post[]>([]);
+  const [loadingInteractions, setLoadingInteractions] = useState(false);
+  const likedListRef = useRef<FlatList<Post>>(null);
+  const commentedListRef = useRef<FlatList<Post>>(null);
+  const [interactionsSubTab, setInteractionsSubTab] = useState<"liked" | "commented">("liked");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [locationDraft, setLocationDraft] = useState<string>("");
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const locationInputRef = useRef<TextInput>(null);
   const [activeTab, setActiveTab] = useState<ProfileMainTabKey>("my");
   const activeTabRef = useRef<ProfileMainTabKey>(activeTab);
   activeTabRef.current = activeTab;
@@ -91,6 +102,12 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (freshUser) refreshUser(freshUser as User);
   }, [freshUser, refreshUser]);
+
+  useEffect(() => {
+    if (me && !editingLocation) {
+      setLocationDraft((me as any).location ?? "");
+    }
+  }, [me?.id, editingLocation]);
 
   const { data: savedPrayersData, isLoading: loadingSavedTab } = useGetSavedPrayers({
     query: {
@@ -144,6 +161,27 @@ export default function ProfileScreen() {
     }
   };
 
+  const saveLocation = useCallback(async () => {
+    if (!token) return;
+    setSavingLocation(true);
+    try {
+      const res = await fetch(apiUrl("/users/me"), {
+        method: "PATCH",
+        headers: authHeaders(token, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ location: locationDraft.trim() }),
+      });
+      if (res.ok) {
+        setEditingLocation(false);
+        void refetchMe();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setSavingLocation(false);
+    }
+  }, [token, locationDraft, refetchMe]);
+
   const loadMyPosts = useCallback(async () => {
     if (!user?.username || !token) return;
     setLoadingPosts(true);
@@ -162,12 +200,30 @@ export default function ProfileScreen() {
     }
   }, [user?.username, token]);
 
+  const loadInteractions = useCallback(async () => {
+    if (!token) return;
+    setLoadingInteractions(true);
+    try {
+      const [likedRes, commentedRes] = await Promise.all([
+        fetch(apiUrl("/users/me/liked-posts"), { headers: authHeaders(token) }),
+        fetch(apiUrl("/users/me/commented-posts"), { headers: authHeaders(token) }),
+      ]);
+      if (likedRes.ok) setLikedPosts(((await likedRes.json()) as { posts?: Post[] }).posts ?? []);
+      if (commentedRes.ok) setCommentedPosts(((await commentedRes.json()) as { posts?: Post[] }).posts ?? []);
+    } catch {
+      /* silent */
+    } finally {
+      setLoadingInteractions(false);
+    }
+  }, [token]);
+
   useFocusEffect(
     useCallback(() => {
       if (token) void refetchMe();
       void refreshModBadge();
       void loadMyPosts();
-    }, [token, refetchMe, refreshModBadge, loadMyPosts]),
+      void loadInteractions();
+    }, [token, refetchMe, refreshModBadge, loadMyPosts, loadInteractions]),
   );
 
   const scrollActiveProfileListToTop = useCallback((tab: ProfileMainTabKey) => {
@@ -377,17 +433,50 @@ export default function ProfileScreen() {
           <Text style={[styles.displayName, { fontSize: p.displayNameFs }]}>{displayName}</Text>
           <Text style={[styles.username, { fontSize: p.usernameFs }]}>@{me.username}</Text>
           <Text style={[styles.joinDate, { fontSize: p.joinDateFs }]}>Member since {joinYear}</Text>
+          {/* Location field */}
+          {editingLocation ? (
+            <View style={styles.locationEditRow}>
+              <TextInput
+                ref={locationInputRef}
+                style={styles.locationInput}
+                value={locationDraft}
+                onChangeText={setLocationDraft}
+                placeholder="Add your location…"
+                placeholderTextColor={colors.muted}
+                maxLength={100}
+                returnKeyType="done"
+                onSubmitEditing={saveLocation}
+                autoFocus
+              />
+              <Pressable onPress={saveLocation} disabled={savingLocation} style={styles.locationSaveBtn}>
+                {savingLocation
+                  ? <ActivityIndicator size="small" color={colors.surface} />
+                  : <Feather name="check" size={14} color={colors.surface} />}
+              </Pressable>
+              <Pressable onPress={() => setEditingLocation(false)} style={styles.locationCancelBtn}>
+                <Feather name="x" size={14} color={colors.muted} />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={() => { setEditingLocation(true); setTimeout(() => locationInputRef.current?.focus(), 80); }} style={styles.locationDisplayRow}>
+              <Ionicons name="location-outline" size={13} color={colors.muted} />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {(me as any).location ? String((me as any).location) : "Add location"}
+              </Text>
+              <Feather name="edit-2" size={11} color={colors.muted} style={{ marginLeft: 4 }} />
+            </Pressable>
+          )}
         </View>
 
         <View style={[styles.statsRow, { gap: p.statsGap }]}>
           <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
           <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
-          <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
+          <StatCard label="Saved Prayers" value={me.savedScrolls ?? 0} />
         </View>
         </View>
       </View>
     );
-  }, [me, uploadingAvatar, pickAndUploadAvatar, prof]);
+  }, [me, uploadingAvatar, pickAndUploadAvatar, prof, editingLocation, locationDraft, savingLocation, saveLocation]);
 
   if (!user || !me) {
     return (
@@ -492,24 +581,62 @@ export default function ProfileScreen() {
     </View>
   );
 
+  const interactionsData = interactionsSubTab === "liked" ? likedPosts : commentedPosts;
+  const interactionsEmpty = (
+    <View style={[styles.emptyHistory, { paddingVertical: prof.emptyPadV, gap: prof.emptyGap }]}>
+      <Ionicons name={interactionsSubTab === "liked" ? "flame-outline" : "chatbubble-outline"} size={prof.emptyIcon} color={colors.muted} />
+      <Text style={[styles.emptyHistoryText, { fontSize: prof.emptyTitleFs }]}>
+        {interactionsSubTab === "liked" ? "No liked prayers yet" : "No commented prayers yet"}
+      </Text>
+      <Text style={[styles.emptyHistorySubtext, { fontSize: prof.emptySubFs }]}>
+        {interactionsSubTab === "liked" ? "Prayers you pray for will appear here" : "Prayers you comment on will appear here"}
+      </Text>
+    </View>
+  );
+  const interactionsSubTabBar = (
+    <View style={[styles.interactionsSubTabRow, { paddingHorizontal: prof.gutter, paddingTop: tabListTopSpacer }]}>
+      {(["liked", "commented"] as const).map((tab) => (
+        <Pressable
+          key={tab}
+          style={[styles.interactionsSubTab, interactionsSubTab === tab && styles.interactionsSubTabActive]}
+          onPress={() => setInteractionsSubTab(tab)}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: interactionsSubTab === tab }}
+        >
+          <Text style={[styles.interactionsSubTabText, interactionsSubTab === tab && styles.interactionsSubTabTextActive]}>
+            {tab === "liked" ? "Liked" : "Commented"}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
   const webCategoriesPage = (
     <View style={styles.page} collapsable={false}>
-      <ScrollView
-        ref={categoriesScrollRef}
+      {interactionsSubTabBar}
+      <FlatList<Post>
+        ref={interactionsSubTab === "liked" ? likedListRef : commentedListRef}
+        data={interactionsData}
+        keyExtractor={(p) => `int-${interactionsSubTab}-${p.id}`}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: prof.gutter }}>
+            <PostCard post={item} feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null} />
+          </View>
+        )}
+        ListEmptyComponent={
+          loadingInteractions ? (
+            <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
+          ) : (
+            interactionsEmpty
+          )
+        }
         contentContainerStyle={[
-          styles.catScrollInner,
-          {
-            paddingTop: prof.catScrollPadV + tabListTopSpacer,
-            paddingBottom: listTabBarClearance + botPad + prof.listBottomPad,
-          },
+          styles.pagerListContent,
+          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
+          interactionsData.length === 0 && !loadingInteractions ? { flexGrow: 1, justifyContent: "center" } : null,
         ]}
         showsVerticalScrollIndicator={false}
-      >
-        <PreferredCategoriesContent
-          preferredCategories={me.preferredCategories ?? []}
-          onOpenPreferences={() => router.push("/settings" as Href)}
-        />
-      </ScrollView>
+      />
     </View>
   );
 
@@ -595,12 +722,44 @@ export default function ProfileScreen() {
         <Text style={[styles.displayName, { fontSize: p.displayNameFs }]}>{displayName}</Text>
         <Text style={[styles.username, { fontSize: p.usernameFs }]}>@{me.username}</Text>
         <Text style={[styles.joinDate, { fontSize: p.joinDateFs }]}>Member since {joinYear}</Text>
+        {editingLocation ? (
+          <View style={styles.locationEditRow}>
+            <TextInput
+              ref={locationInputRef}
+              style={styles.locationInput}
+              value={locationDraft}
+              onChangeText={setLocationDraft}
+              placeholder="Add your location…"
+              placeholderTextColor={colors.muted}
+              maxLength={100}
+              returnKeyType="done"
+              onSubmitEditing={saveLocation}
+              autoFocus
+            />
+            <Pressable onPress={saveLocation} disabled={savingLocation} style={styles.locationSaveBtn}>
+              {savingLocation
+                ? <ActivityIndicator size="small" color={colors.surface} />
+                : <Feather name="check" size={14} color={colors.surface} />}
+            </Pressable>
+            <Pressable onPress={() => setEditingLocation(false)} style={styles.locationCancelBtn}>
+              <Feather name="x" size={14} color={colors.muted} />
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => { setEditingLocation(true); setTimeout(() => locationInputRef.current?.focus(), 80); }} style={styles.locationDisplayRow}>
+            <Ionicons name="location-outline" size={13} color={colors.muted} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {(me as any).location ? String((me as any).location) : "Add location"}
+            </Text>
+            <Feather name="edit-2" size={11} color={colors.muted} style={{ marginLeft: 4 }} />
+          </Pressable>
+        )}
       </View>
 
       <View style={[styles.statsRow, { gap: p.statsGap }]}>
         <StatCard label="Prayers Shared" value={me.prayersShared ?? 0} />
         <StatCard label="Prayed For" value={me.prayedFor ?? 0} />
-        <StatCard label="Saved Scrolls" value={me.savedScrolls ?? 0} />
+        <StatCard label="Saved Prayers" value={me.savedScrolls ?? 0} />
       </View>
     </>
   );
@@ -754,28 +913,35 @@ export default function ProfileScreen() {
               showsVerticalScrollIndicator={false}
             />
           </Tabs.Tab>
-          <Tabs.Tab name="categories" label="Categories">
-            <Tabs.ScrollView
-              ref={categoriesScrollRef}
+          <Tabs.Tab name="categories" label="Interactions">
+            <Tabs.FlatList
+              ref={interactionsSubTab === "liked" ? likedListRef : commentedListRef}
+              data={interactionsData}
+              keyExtractor={(p: Post) => `int-${interactionsSubTab}-${p.id}`}
+              ListHeaderComponent={
+                <View style={{ paddingHorizontal: prof.gutter, paddingTop: tabListTopSpacer + prof.catScrollPadV }}>
+                  {interactionsSubTabBar}
+                </View>
+              }
+              renderItem={({ item }: { item: Post }) => (
+                <View style={{ paddingHorizontal: prof.gutter }}>
+                  <PostCard post={item} feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null} />
+                </View>
+              )}
+              ListEmptyComponent={
+                loadingInteractions ? (
+                  <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
+                ) : (
+                  interactionsEmpty
+                )
+              }
               contentContainerStyle={[
-                styles.catScrollInner,
-                {
-                  paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad,
-                  flexGrow: 1,
-                },
+                styles.pagerListContent,
+                { paddingBottom: listTabBarClearance + insets.bottom + prof.listBottomPad },
+                interactionsData.length === 0 && !loadingInteractions ? { flexGrow: 1, justifyContent: "center" } : null,
               ]}
               showsVerticalScrollIndicator={false}
-            >
-              {/*
-                Do not set paddingTop on contentContainerStyle — collapsible-tab-view merges its own
-                paddingTop; overriding it hid Categories content. Spacer + default cat padding lives in children.
-              */}
-              <View style={{ height: tabListTopSpacer + prof.catScrollPadV }} />
-              <PreferredCategoriesContent
-                preferredCategories={me.preferredCategories ?? []}
-                onOpenPreferences={() => router.push("/settings" as Href)}
-              />
-            </Tabs.ScrollView>
+            />
           </Tabs.Tab>
         </Tabs.Container>
       )}
@@ -889,6 +1055,55 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 2,
   },
+  locationDisplayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  locationText: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+    maxWidth: 160,
+  },
+  locationEditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  locationInput: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 140,
+    maxWidth: 200,
+  },
+  locationSaveBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    padding: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationCancelBtn: {
+    padding: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   statsRow: {
     flexDirection: "row",
     gap: 10,
@@ -959,8 +1174,32 @@ const styles = StyleSheet.create({
   },
   /** Do not set paddingTop — collapsible-tab-view merges paddingTop into Tabs.FlatList. */
   pagerListContent: {},
-  /** Horizontal inset: `PreferredCategoriesContent` uses `gutter`. Vertical/bottom padding set inline. */
   catScrollInner: {},
+  interactionsSubTabRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 12,
+  },
+  interactionsSubTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  interactionsSubTabActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  interactionsSubTabText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.muted,
+  },
+  interactionsSubTabTextActive: {
+    color: colors.surface,
+  },
   emptyHistory: {
     alignItems: "center",
     paddingVertical: 40,

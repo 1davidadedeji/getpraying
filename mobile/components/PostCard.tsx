@@ -148,7 +148,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
       : localPost.authorDisplayName ?? localPost.authorUsername ?? "Someone";
     const message =
       `"${localPost.content.slice(0, 200)}${localPost.content.length > 200 ? "\u2026" : ""}"\n\n` +
-      `\u2014 shared by ${authorName} on GetPraying\n` +
+      `\u2014 shared by ${authorName} on Get Praying\n` +
       `${localPost.prayCount} ${localPost.prayCount === 1 ? "person" : "people"} praying`;
 
     try {

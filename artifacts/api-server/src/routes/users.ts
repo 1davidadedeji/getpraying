@@ -1,11 +1,35 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, postsTable, userFollowsTable, notificationsTable } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { db, usersTable, postsTable, userFollowsTable, notificationsTable, postPrayersTable, commentsTable, savedPostsTable } from "@workspace/db";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { optionalAuth, requireAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { pushForNotificationById } from "../lib/pushForNotification";
 
 const router: IRouter = Router();
+
+router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const { location, displayName } = req.body ?? {};
+  const updates: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
+
+  if (typeof location === "string") {
+    updates.location = location.trim().slice(0, 100) || null;
+  }
+  if (typeof displayName === "string") {
+    updates.displayName = displayName.trim().slice(0, 60) || null;
+  }
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id)).returning();
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+
+  res.json({
+    id: updated.id,
+    username: updated.username,
+    displayName: updated.displayName,
+    location: updated.location ?? null,
+    avatarUrl: updated.avatarUrl,
+  });
+});
 
 router.post("/users/me/push-token", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user as { id: number };
@@ -16,10 +40,14 @@ router.post("/users/me/push-token", requireAuth, async (req, res): Promise<void>
   }
   const token =
     raw === null || raw === undefined ? null : String(raw).trim() === "" ? null : String(raw).trim();
-  await db
-    .update(usersTable)
-    .set({ expoPushToken: token, updatedAt: new Date() })
-    .where(eq(usersTable.id, user.id));
+
+  const updates: Partial<typeof usersTable.$inferInsert> = { expoPushToken: token, updatedAt: new Date() };
+  const tz = req.body?.timezone;
+  if (typeof tz === "string" && tz.trim().length > 0) {
+    updates.timezone = tz.trim().slice(0, 64);
+  }
+
+  await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
   res.json({ success: true });
 });
 
@@ -58,6 +86,7 @@ router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => 
     username: user.username,
     displayName: user.displayName,
     bio: null,
+    location: user.location ?? null,
     avatarUrl: user.avatarUrl,
     prayersShared: user.prayersShared,
     prayedFor: user.prayedFor,
@@ -163,6 +192,55 @@ router.get("/users/:username/posts", optionalAuth, async (req, res): Promise<voi
     nextCursor: hasMore ? page[page.length - 1]?.id : null,
     total: page.length,
   });
+});
+
+/** Posts this user has prayed for (liked) */
+router.get("/users/me/liked-posts", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const limit = Math.min(parseInt((req.query.limit as string) || "50", 10), 100);
+
+  const prays = await db
+    .select({ postId: postPrayersTable.postId })
+    .from(postPrayersTable)
+    .where(eq(postPrayersTable.userId, user.id))
+    .orderBy(desc(postPrayersTable.createdAt))
+    .limit(limit);
+
+  if (prays.length === 0) { res.json({ posts: [] }); return; }
+
+  const postIds = prays.map((r) => r.postId);
+  const posts = await db.select().from(postsTable).where(and(inArray(postsTable.id, postIds), eq(postsTable.status, "approved")));
+  const enriched = await enrichPosts(posts, user.id);
+  const idOrder = new Map(postIds.map((id, i) => [id, i]));
+  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+  res.json({ posts: enriched });
+});
+
+/** Posts this user has commented on */
+router.get("/users/me/commented-posts", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const limit = Math.min(parseInt((req.query.limit as string) || "50", 10), 100);
+
+  const comments = await db
+    .select({ postId: commentsTable.postId })
+    .from(commentsTable)
+    .where(eq(commentsTable.authorId, user.id))
+    .orderBy(desc(commentsTable.createdAt))
+    .limit(limit);
+
+  if (comments.length === 0) { res.json({ posts: [] }); return; }
+
+  const seen = new Set<number>();
+  const postIds: number[] = [];
+  for (const c of comments) {
+    if (!seen.has(c.postId)) { seen.add(c.postId); postIds.push(c.postId); }
+  }
+
+  const posts = await db.select().from(postsTable).where(and(inArray(postsTable.id, postIds), eq(postsTable.status, "approved")));
+  const enriched = await enrichPosts(posts, user.id);
+  const idOrder = new Map(postIds.map((id, i) => [id, i]));
+  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+  res.json({ posts: enriched });
 });
 
 export default router;

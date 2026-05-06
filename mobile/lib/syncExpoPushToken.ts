@@ -56,11 +56,12 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     projectId ? { projectId } : undefined,
   );
   const expoToken = tokenRes.data;
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   await fetch(apiUrl("/users/me/push-token"), {
     method: "POST",
     headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
-    body: JSON.stringify({ token: expoToken }),
+    body: JSON.stringify({ token: expoToken, timezone }),
   }).catch(() => {});
 }
 

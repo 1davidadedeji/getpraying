@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "GetPraying",
+    "name": "Get Praying",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "CFBundleDisplayName": "GetPraying",
+        "CFBundleDisplayName": "Get Praying",
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.getpraying.app"
@@ -59,8 +59,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow GetPraying to access your media library to attach audio prayers.",
-          "savePhotosPermission": "Allow GetPraying to save media.",
+          "photosPermission": "Allow Get Praying to access your media library to attach audio prayers.",
+          "savePhotosPermission": "Allow Get Praying to save media.",
           "isAccessMediaLocationEnabled": false
         }
       ],

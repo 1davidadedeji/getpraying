@@ -10,6 +10,7 @@ export const usersTable = pgTable("users", {
   username: text("username").notNull().unique(),
   displayName: text("display_name"),
   bio: text("bio"),
+  location: text("location"),
   avatarUrl: text("avatar_url"),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("user"),
@@ -26,6 +27,12 @@ export const usersTable = pgTable("users", {
   onboardingComplete: boolean("onboarding_complete").notNull().default(false),
   /** Expo push token for remote alerts (mobile app). */
   expoPushToken: text("expo_push_token"),
+  /** IANA timezone string (e.g. "America/New_York") — used for scheduled push delivery. */
+  timezone: text("timezone"),
+  /** Last time the morning-prayer scheduled notification was sent (to prevent duplicates). */
+  morningNotifSentAt: timestamp("morning_notif_sent_at", { withTimezone: true }),
+  /** Last time the evening-prayer scheduled notification was sent (to prevent duplicates). */
+  eveningNotifSentAt: timestamp("evening_notif_sent_at", { withTimezone: true }),
   prayersShared: integer("prayers_shared").notNull().default(0),
   prayedFor: integer("prayed_for").notNull().default(0),
   savedScrolls: integer("saved_scrolls").notNull().default(0),

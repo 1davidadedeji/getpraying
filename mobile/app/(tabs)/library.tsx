@@ -13,8 +13,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
+import type { Post } from "@workspace/api-client-react";
 import { SanctuarySlotCard } from "@/components/SanctuarySlotCard";
-import { SavedOfficialPrayersList } from "@/components/SavedOfficialPrayersList";
+import { OfficialGuideCard } from "@/components/OfficialGuideCard";
+import PostCard from "@/components/PostCard";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -24,6 +28,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { clamp, getLibraryIconBgSize, getLibrarySituationCols } from "@/lib/responsiveMetrics";
+import { SAVED_OFFICIAL_EMPTY } from "@/constants/savedOfficialList";
 import {
   LIBRARY_FALLBACK_PATHS,
   type ApiLibraryCategory,
@@ -48,6 +53,10 @@ export default function LibraryScreen() {
   }>({ morning: null, evening: null });
   const [loadingOfficial, setLoadingOfficial] = useState(false);
   const [savedOfficialIds, setSavedOfficialIds] = useState<Set<number>>(new Set());
+  const [savedOfficialList, setSavedOfficialList] = useState<OfficialPrayerRow[]>([]);
+  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const queryClient = useQueryClient();
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<TextInput>(null);
@@ -87,14 +96,41 @@ export default function LibraryScreen() {
       const res = await fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) });
       if (!res.ok) return;
       const data = await res.json();
-      const ids = new Set<number>(
-        ((data as { prayers?: { id: number }[] }).prayers ?? []).map((p) => p.id),
-      );
+      const prayers = (data as { prayers?: OfficialPrayerRow[] }).prayers ?? [];
+      const ids = new Set<number>(prayers.map((p) => p.id));
       setSavedOfficialIds(ids);
     } catch {
       /* silent */
     }
   }, [token]);
+
+  const loadSaved = useCallback(async () => {
+    if (!token) {
+      setSavedOfficialList([]);
+      setSavedPosts([]);
+      return;
+    }
+    setLoadingSaved(true);
+    try {
+      const [officialRes, postsRes] = await Promise.all([
+        fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) }),
+        fetch(apiUrl("/library/saved"), { headers: authHeaders(token) }),
+      ]);
+      if (officialRes.ok) {
+        const data = await officialRes.json();
+        setSavedOfficialList((data as { prayers?: OfficialPrayerRow[] }).prayers ?? []);
+      }
+      if (postsRes.ok) {
+        const data = await postsRes.json();
+        setSavedPosts((data as { posts?: Post[] }).posts ?? []);
+        queryClient.setQueryData(getGetSavedPrayersQueryKey(), data);
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setLoadingSaved(false);
+    }
+  }, [token, queryClient]);
 
   const loadCategories = useCallback(async () => {
     setLoadingCats(true);
@@ -164,6 +200,8 @@ export default function LibraryScreen() {
             else next.delete(id);
             return next;
           });
+        } else if (activeTab === "saved") {
+          void loadSaved();
         }
       } catch {
         // Revert on network error
@@ -175,7 +213,7 @@ export default function LibraryScreen() {
         });
       }
     },
-    [token, savedOfficialIds],
+    [token, savedOfficialIds, activeTab, loadSaved],
   );
 
   useFocusEffect(
@@ -183,7 +221,8 @@ export default function LibraryScreen() {
       void loadCategories();
       void loadSanctuary();
       void loadSavedOfficialIds();
-    }, [loadCategories, loadSanctuary, loadSavedOfficialIds]),
+      void loadSaved();
+    }, [loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved]),
   );
 
   useEffect(() => {
@@ -191,8 +230,10 @@ export default function LibraryScreen() {
       void loadCategories();
       void loadSanctuary();
       void loadSavedOfficialIds();
+    } else if (activeTab === "saved") {
+      void loadSaved();
     }
-  }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds]);
+  }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const SITUATION_COLS = getLibrarySituationCols(windowWidth, windowHeight, isTablet);
@@ -437,21 +478,52 @@ export default function LibraryScreen() {
         </ScrollView>
       )}
 
-      {/* Saved Tab */}
+      {/* Saved Tab — combined official guides + feed posts */}
       {activeTab === "saved" && (
-        <SavedOfficialPrayersList
-          listRef={savedListRef}
-          queryEnabled
-          invalidateOnFocus
-          paddingHorizontal={0}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollPadBottom, paddingHorizontal: 0 }]}
-          onToggleSave={(id) => {
-            setSavedOfficialIds((prev) => {
-              const next = new Set(prev);
-              next.delete(id);
-              return next;
-            });
+        <FlatList
+          ref={savedListRef}
+          data={loadingSaved ? [] : [...savedOfficialList.map(op => ({ type: "official" as const, id: `o-${op.id}`, item: op })), ...savedPosts.map(p => ({ type: "post" as const, id: `p-${p.id}`, item: p }))]}
+          keyExtractor={(row) => row.id}
+          renderItem={({ item: row }) => {
+            if (row.type === "official") {
+              const op = row.item as OfficialPrayerRow;
+              return (
+                <View style={{ paddingHorizontal: 0 }}>
+                  <OfficialGuideCard
+                    op={op}
+                    showSave
+                    isSaved
+                    onToggleSave={async () => {
+                      if (!token) return;
+                      setSavedOfficialList((prev) => prev.filter((p) => p.id !== op.id));
+                      setSavedOfficialIds((prev) => { const next = new Set(prev); next.delete(op.id); return next; });
+                      await fetch(apiUrl(`/library/saved-official/${op.id}`), { method: "DELETE", headers: authHeaders(token) }).catch(() => void loadSaved());
+                    }}
+                  />
+                </View>
+              );
+            }
+            const p = row.item as Post;
+            return (
+              <PostCard
+                post={p}
+                onUpdated={(updated) => setSavedPosts((prev) => prev.map((x) => x.id === updated.id ? updated : x))}
+              />
+            );
           }}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollPadBottom, paddingHorizontal: 0 }]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            loadingSaved ? (
+              <ActivityIndicator color={colors.accent} style={styles.loader} />
+            ) : (
+              <View style={[styles.emptySlots, { paddingTop: 40 }]}>
+                <Ionicons name="bookmark-outline" size={40} color={colors.muted} />
+                <Text style={styles.officialEmpty}>{SAVED_OFFICIAL_EMPTY.title}</Text>
+                <Text style={[styles.officialEmpty, { fontSize: 12 }]}>{SAVED_OFFICIAL_EMPTY.subtitle}</Text>
+              </View>
+            )
+          }
         />
       )}
       </View>

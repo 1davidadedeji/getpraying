@@ -423,6 +423,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     username: user.username,
     displayName: user.displayName,
     bio: null,
+    location: user.location ?? null,
     avatarUrl: user.avatarUrl,
     role: user.role,
     isBanned: user.isBanned,

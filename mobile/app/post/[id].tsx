@@ -85,7 +85,7 @@ export default function PostDetailScreen() {
     const v = Array.isArray(focusMedia) ? focusMedia[0] : focusMedia;
     return v === "1" || v === "true";
   }, [focusMedia]);
-  const [threadOpen, setThreadOpen] = useState(() => !replyFirst);
+  const [threadOpen, setThreadOpen] = useState(true);
   const [bodyExpanded, setBodyExpanded] = useState(() => mediaFirst);
 
   useEffect(() => {
@@ -198,8 +198,8 @@ export default function PostDetailScreen() {
   const detailCardOuterMb = Math.round(clamp(16 * uiScale, 14, 20));
 
   useEffect(() => {
-    setThreadOpen(!replyFirst);
-  }, [postId, replyFirst]);
+    setThreadOpen(true);
+  }, [postId]);
 
   const loadComments = useCallback(async () => {
     if (!post?.id) return;
@@ -376,7 +376,7 @@ export default function PostDetailScreen() {
       : post.authorDisplayName ?? post.authorUsername ?? "Someone";
     const message =
       `"${post.content.slice(0, 200)}${post.content.length > 200 ? "\u2026" : ""}"\n\n` +
-      `\u2014 shared by ${authorName} on GetPraying\n` +
+      `\u2014 shared by ${authorName} on Get Praying\n` +
       `${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying`;
 
     try {
@@ -629,28 +629,23 @@ export default function PostDetailScreen() {
         </View>
       </View>
 
-      {threadOpen ? (
-        <>
-          <Text style={[styles.commentsSectionTitle, { fontSize: fsCommentsTitle, marginBottom: commentsTitleMb }]}>
-            Comments
-          </Text>
-          {commentsLoading && (
-            <View style={[styles.commentsLoadingRow, { paddingVertical: commentsLoadPadV, marginBottom: commentsLoadMb }]}>
-              <ActivityIndicator color={colors.flame} size="small" />
-            </View>
-          )}
-        </>
-      ) : (
-        <Text style={[styles.replyHint, { fontSize: fsReplyHint, marginBottom: replyHintMb }]}>
-          Replying to {authorName}
+      <>
+        <Text style={[styles.commentsSectionTitle, { fontSize: fsCommentsTitle, marginBottom: commentsTitleMb }]}>
+          Comments
         </Text>
-      )}
+        {commentsLoading && (
+          <View style={[styles.commentsLoadingRow, { paddingVertical: commentsLoadPadV, marginBottom: commentsLoadMb }]}>
+            <ActivityIndicator color={colors.flame} size="small" />
+          </View>
+        )}
+      </>
     </>
   );
 
   const renderComment = ({ item }: { item: CommentRow }) => {
     const name = item.authorDisplayName ?? item.authorUsername ?? "User";
     const initial = (name[0] ?? "?").toUpperCase();
+    const canNavToProfile = !!item.authorUsername;
     return (
       <View
         style={[
@@ -663,14 +658,26 @@ export default function PostDetailScreen() {
           },
         ]}
       >
-        <View style={[styles.commentAvatar, { width: commentAv, height: commentAv, borderRadius: commentAv / 2 }]}>
-          <Text style={[styles.commentAvatarText, { fontSize: commentAvFs }]}>{initial}</Text>
-        </View>
+        <Pressable
+          onPress={() => { if (canNavToProfile) router.push(`/user/${item.authorUsername}` as never); }}
+          disabled={!canNavToProfile}
+          hitSlop={6}
+        >
+          <View style={[styles.commentAvatar, { width: commentAv, height: commentAv, borderRadius: commentAv / 2 }]}>
+            <Text style={[styles.commentAvatarText, { fontSize: commentAvFs }]}>{initial}</Text>
+          </View>
+        </Pressable>
         <View style={styles.commentBody}>
           <View style={[styles.commentMetaRow, { gap: metaGap, marginBottom: metaRowMb }]}>
-            <Text style={[styles.commentAuthorName, { fontSize: fsComAuthor }]} numberOfLines={1}>
-              {name}
-            </Text>
+            <Pressable
+              onPress={() => { if (canNavToProfile) router.push(`/user/${item.authorUsername}` as never); }}
+              disabled={!canNavToProfile}
+              hitSlop={{ top: 4, bottom: 4, left: 2, right: 4 }}
+            >
+              <Text style={[styles.commentAuthorName, { fontSize: fsComAuthor }, canNavToProfile && styles.commentAuthorNameLink]} numberOfLines={1}>
+                {name}
+              </Text>
+            </Pressable>
             <Text style={[styles.commentTime, { fontSize: fsComTime }]}>{timeAgo(item.createdAt)}</Text>
           </View>
           <Text style={[styles.commentContent, { fontSize: fsComContent, lineHeight: lhComContent }]}>
@@ -690,12 +697,12 @@ export default function PostDetailScreen() {
       <FlatList
         ref={listRef}
         style={styles.flex}
-        data={threadOpen ? comments : []}
+        data={comments}
         keyExtractor={(c) => String(c.id)}
         renderItem={renderComment}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
-          threadOpen && !commentsLoading ? (
+          !commentsLoading ? (
             <Text style={[styles.emptyComments, { fontSize: emptyFs, marginBottom: emptyMb }]}>No comments yet</Text>
           ) : null
         }
@@ -1076,6 +1083,10 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: colors.text,
     flexShrink: 1,
+  },
+  commentAuthorNameLink: {
+    color: colors.primary,
+    textDecorationLine: "underline" as const,
   },
   commentTime: {
     fontFamily: "PlusJakartaSans_400Regular",

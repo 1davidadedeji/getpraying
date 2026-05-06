@@ -254,7 +254,7 @@ export default function FeedScreen() {
             numberOfLines={2}
             ellipsizeMode="tail"
           >
-            {user?.displayName ? `Hello, ${user.displayName}` : "GetPraying"}
+            {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
           </Text>
           <Text style={[styles.subGreeting, { fontSize: subGreetSize }]}>Your prayer feed</Text>
         </View>

@@ -1,5 +1,5 @@
-/** Library tab: saved official guides (not feed posts) */
+/** Library tab: saved prayers (official guides + feed posts) */
 export const SAVED_OFFICIAL_EMPTY = {
-  title: "No saved guides yet",
-  subtitle: "Tap the bookmark on an official guide to save it here.",
+  title: "No saved prayers yet",
+  subtitle: "Tap the bookmark on official prayers to save them here.",
 } as const;

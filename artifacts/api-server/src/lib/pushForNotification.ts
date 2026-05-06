@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 function pushTitle(type: string, actorUsername: string | null): string {
   switch (type) {
     case "prayer":
-      return actorUsername ? `${actorUsername} prayed with you` : "Someone prayed with you";
+      return "Get Praying";
     case "prayer_milestone":
       return "Your prayer is spreading";
     case "saved":
@@ -28,7 +28,7 @@ function pushTitle(type: string, actorUsername: string | null): string {
     case "role_updated":
       return "Your role was updated";
     case "system":
-      return "GetPraying";
+      return "Get Praying";
     default:
       return "Notification";
   }
@@ -76,6 +76,16 @@ async function sendExpoPush(
   } catch (e) {
     console.warn("[push] Expo push failed:", e);
   }
+}
+
+/** Send a push notification directly to a token (no DB row required — for broadcast/scheduled use). */
+export async function sendDirectPush(
+  expoToken: string,
+  title: string,
+  body: string,
+  data: Record<string, string> = {},
+): Promise<void> {
+  await sendExpoPush(expoToken, title, body, data);
 }
 
 /** Fire-and-forget remote alert for a stored notification row (recipient must have an Expo token). */

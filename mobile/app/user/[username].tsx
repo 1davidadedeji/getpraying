@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -29,6 +30,7 @@ interface UserProfile {
   id: number;
   username: string;
   displayName: string | null;
+  location?: string | null;
   avatarUrl: string | null;
   prayersShared: number;
   prayedFor: number;
@@ -157,11 +159,17 @@ export default function UserProfileScreen() {
         @{profile?.username ?? username}
       </Text>
       {joinYear ? <Text style={styles.joinDate}>Member since {joinYear}</Text> : null}
+      {profile?.location ? (
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={13} color={colors.muted} />
+          <Text style={styles.locationText} numberOfLines={1}>{profile.location}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.statsRow}>
         <StatCard compact label="Prayers Shared" value={profile?.prayersShared ?? 0} />
         <StatCard compact label="Prayed For" value={profile?.prayedFor ?? 0} />
-        <StatCard compact label="Saved Scrolls" value={profile?.savedScrolls ?? 0} />
+        <StatCard compact label="Saved Prayers" value={profile?.savedScrolls ?? 0} />
       </View>
 
       {profile && me && me.username !== profile.username && token && profile.isFollowing !== undefined && (
@@ -294,6 +302,8 @@ const styles = StyleSheet.create({
   displayName: { fontFamily: "NotoSerif_700Bold", fontSize: 20, color: colors.primary },
   username: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 14, color: colors.muted },
   joinDate: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 12, color: colors.muted, marginTop: 2 },
+  locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  locationText: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 12, color: colors.muted, maxWidth: 180 },
   statsRow: { flexDirection: "row", gap: 10, width: "100%", marginTop: 12 },
   postsTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
