@@ -2,9 +2,10 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -17,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AudioLibraryPickerModal } from "@/components/AudioLibraryPickerModal";
 import { showAppAlert } from "@/components/AppAlert";
+import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import type { ApiLibraryCategory } from "@/constants/libraryFallbackPaths";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
@@ -94,12 +96,16 @@ export default function AdminOfficialGuidesScreen() {
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [audioLibraryOpen, setAudioLibraryOpen] = useState(false);
+  const [editingOfficialId, setEditingOfficialId] = useState<number | null>(null);
+  const [editKeepAudioUrl, setEditKeepAudioUrl] = useState<string | null>(null);
+  const [editCategoryBaseline, setEditCategoryBaseline] = useState("general");
+  const [existingFilter, setExistingFilter] = useState<"all" | "morning" | "evening" | "lectures">("all");
 
   const loadExistingPrayers = useCallback(async () => {
     if (!token) return;
     setLoadingExisting(true);
     try {
-      const res = await fetch(apiUrl("/library/official?limit=50"), { headers: authHeaders(token) });
+      const res = await fetch(apiUrl("/library/official?limit=100"), { headers: authHeaders(token) });
       if (!res.ok) return;
       const data = await res.json();
       setExistingPrayers((data as { prayers?: OfficialPrayerRow[] }).prayers ?? []);
@@ -143,6 +149,52 @@ export default function AdminOfficialGuidesScreen() {
       ],
     });
   };
+
+  const cancelEditMode = useCallback(() => {
+    setEditingOfficialId(null);
+    setEditKeepAudioUrl(null);
+    setEditCategoryBaseline("general");
+    setTitle("");
+    setContent("");
+    setScripture("");
+    setDurationMinutes("");
+    setAudioUri(null);
+    setAudioMime(null);
+    setAudioName(null);
+    setPublishKind("sanctuary");
+    setScheduleSlot("morning");
+  }, []);
+
+  const beginEdit = useCallback(
+    (prayer: OfficialPrayerRow) => {
+      setEditingOfficialId(prayer.id);
+      setEditKeepAudioUrl(prayer.audioUrl ?? null);
+      setEditCategoryBaseline(prayer.category);
+      setTitle(prayer.title);
+      setContent(prayer.content);
+      setScripture(prayer.scripture ?? "");
+      setDurationMinutes(prayer.durationMinutes != null ? String(prayer.durationMinutes) : "");
+      const isLecture = prayer.category === "lectures" && !prayer.scheduleSlot;
+      setPublishKind(isLecture ? "lecture" : "sanctuary");
+      if (prayer.scheduleSlot === "morning" || prayer.scheduleSlot === "evening") {
+        setScheduleSlot(prayer.scheduleSlot);
+      }
+      setSelectedPath(prayer.pathId != null ? paths.find((x) => x.pathId === prayer.pathId) ?? null : null);
+      setAudioUri(null);
+      setAudioMime(null);
+      setAudioName(null);
+      Haptics.selectionAsync();
+    },
+    [paths],
+  );
+
+  const filteredOfficial = useMemo(() => {
+    if (existingFilter === "morning") return existingPrayers.filter((p) => p.scheduleSlot === "morning");
+    if (existingFilter === "evening") return existingPrayers.filter((p) => p.scheduleSlot === "evening");
+    if (existingFilter === "lectures")
+      return existingPrayers.filter((p) => p.category === "lectures" && !p.scheduleSlot);
+    return existingPrayers;
+  }, [existingPrayers, existingFilter]);
 
   const loadPaths = useCallback(async () => {
     setPathsLoading(true);
@@ -223,23 +275,6 @@ export default function AdminOfficialGuidesScreen() {
       showAppAlert({ title: "Missing fields", message: "Add a title and description." });
       return;
     }
-    if (publishKind === "sanctuary" && !selectedPath) {
-      showAppAlert({
-        title: "Choose a path",
-        message: "Pick where previous guides are archived for this sanctuary slot.",
-      });
-      return;
-    }
-    if (!audioUri || !audioMime) {
-      showAppAlert({
-        title: "Audio required",
-        message:
-          publishKind === "lecture"
-            ? "Upload an audio file for this lecture."
-            : "Upload an audio file for this sanctuary guide.",
-      });
-      return;
-    }
     const t = title.trim();
     const c = content.trim();
     const scr = scripture.trim();
@@ -260,6 +295,90 @@ export default function AdminOfficialGuidesScreen() {
     const dm = durationMinutes.trim() ? parseInt(durationMinutes.trim(), 10) : null;
     const durationPayload =
       dm != null && !Number.isNaN(dm) && dm > 0 ? dm : undefined;
+
+    if (editingOfficialId != null) {
+      setBusy(true);
+      try {
+        let audioUrlFinal = editKeepAudioUrl;
+        if (audioUri && audioMime) {
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(audioUri);
+            if (!fileInfo.exists) {
+              showAppAlert({
+                title: "File not accessible",
+                message: "The audio file could not be read. Please re-select it and try again.",
+              });
+              setAudioUri(null);
+              setAudioMime(null);
+              setAudioName(null);
+              return;
+            }
+            audioUrlFinal = await uploadAudioFile(audioUri, token, audioName ?? "guide.m4a", audioMime);
+          } catch (e) {
+            showAppAlert({
+              title: "Upload failed",
+              message: e instanceof Error ? e.message : "Could not upload audio.",
+            });
+            return;
+          }
+        }
+        if (!audioUrlFinal || !String(audioUrlFinal).trim()) {
+          showAppAlert({
+            title: "Audio required",
+            message: "This guide needs audio. Choose a file to replace it, or keep the existing track without picking a new one.",
+          });
+          return;
+        }
+        const categoryPut = publishKind === "lecture" ? "lectures" : editCategoryBaseline;
+        const res = await fetch(apiUrl(`/admin/official-prayers/${editingOfficialId}`), {
+          method: "PUT",
+          headers: authHeaders(token, { "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            title: t,
+            content: c,
+            category: categoryPut,
+            scripture: scr || undefined,
+            durationMinutes: durationPayload,
+            audioUrl: audioUrlFinal,
+            pathId: selectedPath?.pathId ?? null,
+            label: publishKind === "lecture" ? "Lecture" : undefined,
+          }),
+        });
+        const data = await parseApiJson(res);
+        if (!res.ok) {
+          const errMsg = typeof data.error === "string" ? data.error : "Try again.";
+          showAppAlert({ title: "Could not save", message: errMsg });
+          return;
+        }
+        void loadExistingPrayers();
+        cancelEditMode();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showAppAlert({ title: "Saved", message: "Library guide updated." });
+      } catch {
+        showAppAlert({ title: "Could not save", message: "Network error." });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (publishKind === "sanctuary" && !selectedPath) {
+      showAppAlert({
+        title: "Choose a path",
+        message: "Pick where previous guides are archived for this sanctuary slot.",
+      });
+      return;
+    }
+    if (!audioUri || !audioMime) {
+      showAppAlert({
+        title: "Audio required",
+        message:
+          publishKind === "lecture"
+            ? "Upload an audio file for this lecture."
+            : "Upload an audio file for this sanctuary guide.",
+      });
+      return;
+    }
 
     setBusy(true);
     try {
@@ -430,6 +549,10 @@ export default function AdminOfficialGuidesScreen() {
 
   return (
     <>
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colors.cream, maxWidth: LAYOUT.contentMaxWidth, width: "100%", alignSelf: "center" }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.cream }}
       contentContainerStyle={{ paddingHorizontal: pad, paddingTop: pad, paddingBottom: botPad + scrollBot }}
@@ -600,9 +723,24 @@ export default function AdminOfficialGuidesScreen() {
         disabled={picking}
       >
         <Text style={[styles.pickBtnText, { fontSize: fsPick }]}>
-          {picking ? "Opening…" : audioName ? `Audio: ${audioName}` : "Choose audio file (required)"}
+          {picking
+            ? "Opening…"
+            : audioName
+              ? `Audio: ${audioName}`
+              : editingOfficialId != null && editKeepAudioUrl
+                ? "Keeping existing audio — tap to replace"
+                : "Choose audio file (required)"}
         </Text>
       </Pressable>
+
+      {editingOfficialId != null ? (
+        <Pressable
+          onPress={cancelEditMode}
+          style={[styles.cancelEditBtn, { paddingVertical: pubPadV, borderRadius: pubRad, marginBottom: pickMb }]}
+        >
+          <Text style={[styles.cancelEditBtnText, { fontSize: fsPub }]}>Cancel editing</Text>
+        </Pressable>
+      ) : null}
 
       <Pressable
         style={[
@@ -617,7 +755,11 @@ export default function AdminOfficialGuidesScreen() {
           <ActivityIndicator color={colors.surface} />
         ) : (
           <Text style={[styles.publishBtnText, { fontSize: fsPub }]}>
-            {publishKind === "sanctuary" ? "Publish sanctuary guide" : "Publish lecture"}
+            {editingOfficialId != null
+              ? "Save changes"
+              : publishKind === "sanctuary"
+                ? "Publish sanctuary guide"
+                : "Publish lecture"}
           </Text>
         )}
       </Pressable>
@@ -631,8 +773,41 @@ export default function AdminOfficialGuidesScreen() {
         </Pressable>
       </View>
       <Text style={[styles.hint, { fontSize: fsHint, lineHeight: lhHint, marginBottom: hintMb }]}>
-        Tap the trash icon to permanently remove a guide from the library.
+        Filter the list. Edit opens the form above; delete removes permanently.
       </Text>
+
+      <View style={[styles.slotRow, { gap: slotGap, marginBottom: slotMb }]}>
+        {(["all", "morning", "evening", "lectures"] as const).map((f) => (
+          <Pressable
+            key={f}
+            style={[
+              styles.slotBtn,
+              { flex: 1, minWidth: 0, paddingVertical: slotPadV, borderRadius: slotRad },
+              existingFilter === f && styles.slotBtnOn,
+            ]}
+            onPress={() => setExistingFilter(f)}
+          >
+            <Text
+              style={[
+                styles.slotBtnText,
+                { fontSize: Math.round(clamp(fsSlot * 0.92, fsSlot - 1, fsSlot)) },
+                existingFilter === f && styles.slotBtnTextOn,
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
+              {f === "all"
+                ? "All"
+                : f === "morning"
+                  ? "Morning"
+                  : f === "evening"
+                    ? "Evening"
+                    : "Lectures"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
       {loadingExisting ? (
         <ActivityIndicator color={colors.accent} style={{ marginVertical: Math.round(16 * uiScale) }} />
@@ -640,8 +815,12 @@ export default function AdminOfficialGuidesScreen() {
         <Text style={[styles.hint, { textAlign: "center", marginTop: 8, fontSize: fsHint, lineHeight: lhHint }]}>
           No guides in library yet.
         </Text>
+      ) : filteredOfficial.length === 0 ? (
+        <Text style={[styles.hint, { textAlign: "center", marginTop: 8, fontSize: fsHint, lineHeight: lhHint }]}>
+          Nothing in this filter.
+        </Text>
       ) : (
-        existingPrayers.map((prayer) => (
+        filteredOfficial.map((prayer) => (
           <View
             key={prayer.id}
             style={[
@@ -678,20 +857,32 @@ export default function AdminOfficialGuidesScreen() {
                 {prayer.durationMinutes ? ` · ${prayer.durationMinutes}min` : ""}
               </Text>
             </View>
-            <Pressable
-              onPress={() => deleteOfficialPrayer(prayer)}
-              disabled={deletingId === prayer.id}
-              hitSlop={8}
-              style={styles.deleteBtn}
-              accessibilityRole="button"
-              accessibilityLabel={`Delete ${prayer.title}`}
-            >
-              {deletingId === prayer.id ? (
-                <ActivityIndicator color={colors.danger} size="small" />
-              ) : (
-                <Feather name="trash-2" size={trashIcn} color={colors.danger} />
-              )}
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable
+                onPress={() => beginEdit(prayer)}
+                disabled={busy}
+                hitSlop={8}
+                style={styles.iconActionBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${prayer.title}`}
+              >
+                <Feather name="edit-2" size={Math.round(trashIcn * 0.94)} color={colors.primary} />
+              </Pressable>
+              <Pressable
+                onPress={() => deleteOfficialPrayer(prayer)}
+                disabled={deletingId === prayer.id}
+                hitSlop={8}
+                style={styles.iconActionBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${prayer.title}`}
+              >
+                {deletingId === prayer.id ? (
+                  <ActivityIndicator color={colors.danger} size="small" />
+                ) : (
+                  <Feather name="trash-2" size={trashIcn} color={colors.danger} />
+                )}
+              </Pressable>
+            </View>
           </View>
         ))
       )}
@@ -768,6 +959,7 @@ export default function AdminOfficialGuidesScreen() {
         </Pressable>
       </Modal>
     </ScrollView>
+      </KeyboardAvoidingView>
     <AudioLibraryPickerModal
       visible={audioLibraryOpen}
       maxBytes={MAX_GUIDE_AUDIO_BYTES}
@@ -999,7 +1191,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
   },
-  deleteBtn: {
+  cancelEditBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+  },
+  cancelEditBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.primary,
+  },
+  iconActionBtn: {
     padding: 6,
   },
 });

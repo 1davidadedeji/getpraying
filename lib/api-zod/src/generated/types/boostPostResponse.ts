@@ -8,6 +8,7 @@
 import type { Post } from "./post";
 
 export interface BoostPostResponse {
-  boostedAt: Date;
+  /** Set when boosting; null after you remove your boost */
+  boostedAt?: Date | null;
   post: Post;
 }

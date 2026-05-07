@@ -779,6 +779,7 @@ const styles = StyleSheet.create({
   shell: {
     flex: 1,
     width: "100%",
+    maxWidth: LAYOUT.contentMaxWidth,
   },
   header: {
     paddingBottom: 12,

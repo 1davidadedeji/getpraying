@@ -22,6 +22,8 @@ export const postsTable = pgTable("posts", {
   moderatedByUserId: integer("moderated_by_user_id").references(() => usersTable.id),
   /** Premium “boost”: surfaces post in feed; used for ordering + broadcasts. */
   boostedAt: timestamp("boosted_at", { withTimezone: true }),
+  /** Last premium member who applied the active boost (for toggle / unboost). */
+  boostedByUserId: integer("boosted_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

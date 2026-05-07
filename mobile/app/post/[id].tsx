@@ -38,6 +38,7 @@ import {
 import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
+import { CommentLinkPreview } from "@/components/CommentLinkPreview";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -55,6 +56,7 @@ type CommentRow = {
   createdAt: string;
   authorUsername: string | null;
   authorDisplayName: string | null;
+  authorAvatarUrl: string | null;
 };
 
 export default function PostDetailScreen() {
@@ -646,6 +648,7 @@ export default function PostDetailScreen() {
   const renderComment = ({ item }: { item: CommentRow }) => {
     const name = item.authorDisplayName ?? item.authorUsername ?? "User";
     const initial = (name[0] ?? "?").toUpperCase();
+    const avatarUri = item.authorAvatarUrl ? resolveMediaUrl(item.authorAvatarUrl) : null;
     const canNavToProfile = !!item.authorUsername;
     return (
       <View
@@ -665,7 +668,14 @@ export default function PostDetailScreen() {
           hitSlop={6}
         >
           <View style={[styles.commentAvatar, { width: commentAv, height: commentAv, borderRadius: commentAv / 2 }]}>
-            <Text style={[styles.commentAvatarText, { fontSize: commentAvFs }]}>{initial}</Text>
+            {avatarUri ? (
+              <Image
+                source={{ uri: avatarUri }}
+                style={[styles.commentAvatarImg, { width: commentAv, height: commentAv, borderRadius: commentAv / 2 }]}
+              />
+            ) : (
+              <Text style={[styles.commentAvatarText, { fontSize: commentAvFs }]}>{initial}</Text>
+            )}
           </View>
         </Pressable>
         <View style={styles.commentBody}>
@@ -684,6 +694,7 @@ export default function PostDetailScreen() {
           <Text style={[styles.commentContent, { fontSize: fsComContent, lineHeight: lhComContent }]}>
             {item.content}
           </Text>
+          <CommentLinkPreview content={item.content} />
         </View>
       </View>
     );
@@ -1067,7 +1078,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  commentAvatarImg: {},
   commentAvatarText: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: colors.accent,

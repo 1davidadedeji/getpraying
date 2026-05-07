@@ -34,4 +34,6 @@ export interface Post {
   createdAt: Date;
   /** When a premium member last boosted this post (feed priority) */
   boostedAt?: Date | null;
+  /** User id of the member whose boost is currently active (for unboost toggle) */
+  boostedByUserId?: number | null;
 }

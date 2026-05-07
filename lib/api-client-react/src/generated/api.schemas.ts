@@ -157,6 +157,8 @@ export interface Post {
   createdAt: string;
   /** When a premium member last boosted this post (feed priority) */
   boostedAt?: string | null;
+  /** User id of the member whose boost is currently active (for unboost toggle) */
+  boostedByUserId?: number | null;
 }
 
 export interface Comment {
@@ -167,6 +169,8 @@ export interface Comment {
   createdAt: string;
   authorUsername?: string | null;
   authorDisplayName?: string | null;
+  /** Optional profile image path; resolve with the same media URL rules as post authors */
+  authorAvatarUrl?: string | null;
 }
 
 export interface PostCommentsResponse {
@@ -245,7 +249,8 @@ export interface SearchResponse {
 }
 
 export interface BoostPostResponse {
-  boostedAt: string;
+  /** Set when boosting; null after you remove your boost */
+  boostedAt?: string | null;
   post: Post;
 }
 

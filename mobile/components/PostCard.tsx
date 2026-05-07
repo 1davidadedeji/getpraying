@@ -109,6 +109,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
     post.mediaUrl,
     post.mediaType,
     post.boostedAt,
+    post.boostedByUserId,
     (post as PostWithCounts).hasCommented,
     (post as PostWithCounts).commentCount,
     (post as PostWithCounts).saveCount,
@@ -209,7 +210,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         showAppAlert({
-          title: "Could not boost",
+          title: "Could not update boost",
           message: err.error ?? "Please try again.",
         });
         return;
@@ -221,11 +222,16 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
           queueMicrotask(() => onUpdated?.(next));
           return next;
         });
+        const cleared = !data.post.boostedAt && data.post.boostedByUserId == null;
+        if (cleared) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
       }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       showAppAlert({
-        title: "Could not boost",
+        title: "Could not update boost",
         message: "Check your connection.",
       });
     } finally {
@@ -271,8 +277,11 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
 
   const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
   const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
-  const boosted = Boolean(localPost.boostedAt);
-  const boostColor = boosted ? colors.flame : colors.muted;
+  const iBoosted =
+    localPost.boostedByUserId != null &&
+    user?.id != null &&
+    localPost.boostedByUserId === user.id;
+  const boostColor = iBoosted ? colors.flame : colors.muted;
 
   const previewHost = useMemo(() => {
     const base = urlFromPost ?? ogPreview?.url;
@@ -496,14 +505,14 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
             }}
             style={styles.actionBtn}
             accessibilityRole="button"
-            accessibilityLabel={boosted ? "Boosted prayer" : "Boost prayer"}
+            accessibilityLabel={iBoosted ? "Remove boost from this prayer" : "Boost this prayer"}
             accessibilityState={{ disabled: boosting }}
           >
             {boosting ? (
               <ActivityIndicator size="small" color={colors.flame} />
             ) : (
               <Ionicons
-                name={boosted ? "megaphone" : "megaphone-outline"}
+                name={iBoosted ? "megaphone" : "megaphone-outline"}
                 size={iconSm}
                 color={boostColor}
               />

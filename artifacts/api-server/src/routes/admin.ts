@@ -500,6 +500,100 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
   res.status(201).json(row);
 });
 
+router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.prayerId) ? req.params.prayerId[0] : req.params.prayerId;
+  const prayerId = parseInt(String(rawId), 10);
+  if (Number.isNaN(prayerId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(officialPrayersTable)
+    .where(eq(officialPrayersTable.id, prayerId))
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : existing.title;
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : existing.content;
+  let scriptureNext: string | null = existing.scripture;
+  if (req.body != null && "scripture" in req.body) {
+    const s = req.body.scripture;
+    scriptureNext = typeof s === "string" && s.trim() ? s.trim() : null;
+  }
+
+  const textErrPut = officialGuideTextError({
+    title,
+    content,
+    scripture: scriptureNext,
+  });
+  if (textErrPut) {
+    res.status(400).json({ error: textErrPut });
+    return;
+  }
+
+  const categoryNext =
+    typeof req.body?.category === "string" && req.body.category.trim()
+      ? req.body.category.trim()
+      : existing.category;
+
+  let subtitleNext = existing.subtitle;
+  if (req.body != null && "subtitle" in req.body) {
+    subtitleNext = typeof req.body.subtitle === "string" ? req.body.subtitle : null;
+  }
+
+  let labelNext = existing.label;
+  if (req.body != null && "label" in req.body) {
+    labelNext = typeof req.body.label === "string" ? req.body.label : null;
+  }
+
+  let pathIdNext = existing.pathId;
+  if (req.body != null && "pathId" in req.body) {
+    pathIdNext =
+      typeof req.body.pathId === "number" && Number.isFinite(req.body.pathId) ? req.body.pathId : null;
+  }
+
+  let audioUrlNext = existing.audioUrl;
+  if (typeof req.body?.audioUrl === "string") {
+    const u = req.body.audioUrl.trim();
+    audioUrlNext = u.length > 0 ? u : null;
+  }
+
+  let durationNext = existing.durationMinutes;
+  if (req.body != null && "durationMinutes" in req.body) {
+    const dm = req.body.durationMinutes;
+    durationNext =
+      typeof dm === "number" && Number.isFinite(dm) ? Math.round(dm) : null;
+    if (durationNext != null && durationNext <= 0) durationNext = null;
+  }
+
+  await db
+    .update(officialPrayersTable)
+    .set({
+      title,
+      content,
+      category: categoryNext,
+      subtitle: subtitleNext,
+      label: labelNext,
+      scripture: scriptureNext,
+      pathId: pathIdNext,
+      audioUrl: audioUrlNext,
+      durationMinutes: durationNext,
+    })
+    .where(eq(officialPrayersTable.id, prayerId));
+
+  const [row] = await db
+    .select()
+    .from(officialPrayersTable)
+    .where(eq(officialPrayersTable.id, prayerId))
+    .limit(1);
+  res.json(row ?? { success: true });
+});
+
 /**
  * Set morning/evening sanctuary slot: optionally archive the previous slot content into a path
  * (official guides library), then update or create the scheduled row in place.

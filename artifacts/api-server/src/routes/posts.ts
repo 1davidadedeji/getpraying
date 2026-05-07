@@ -137,13 +137,38 @@ router.get("/posts/trending", optionalAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => {
+  const watermark = decodeFeedCursor(req.query.watermark as string | undefined);
+  if (watermark) {
+    const kDate = new Date(watermark.k);
+    if (Number.isNaN(kDate.getTime())) {
+      res.json({ count: 0 });
+      return;
+    }
+    const i = watermark.i;
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(postsTable)
+      .where(
+        and(
+          eq(postsTable.status, "approved"),
+          sql`(COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) > ${kDate}
+              OR (
+                COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) = ${kDate}
+                AND ${postsTable.id} > ${i}
+              ))`,
+        ),
+      );
+    res.json({ count: Math.min(Number(row?.count ?? 0), 99) });
+    return;
+  }
+
   const sinceId = parseInt(req.query.sinceId as string, 10);
   if (!sinceId || Number.isNaN(sinceId)) {
     res.json({ count: 0 });
     return;
   }
   const [row] = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)::int` })
     .from(postsTable)
     .where(and(eq(postsTable.status, "approved"), sql`${postsTable.id} > ${sinceId}`));
   res.json({ count: Math.min(Number(row?.count ?? 0), 99) });
@@ -337,9 +362,26 @@ router.post("/posts/:postId/boost", requireAuth, async (req, res): Promise<void>
   }
 
   const now = new Date();
+
+  // Same user taps again → clear boost (no push).
+  if (post.boostedByUserId === user.id && post.boostedAt != null) {
+    const [updated] = await db
+      .update(postsTable)
+      .set({ boostedAt: null, boostedByUserId: null, updatedAt: now })
+      .where(eq(postsTable.id, postId))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Post not found" });
+      return;
+    }
+    const enriched = await enrichPost(updated, user.id);
+    res.json({ boostedAt: null, post: enriched });
+    return;
+  }
+
   const [updated] = await db
     .update(postsTable)
-    .set({ boostedAt: now, updatedAt: now })
+    .set({ boostedAt: now, boostedByUserId: user.id, updatedAt: now })
     .where(eq(postsTable.id, postId))
     .returning();
 
@@ -495,6 +537,7 @@ router.get("/posts/:postId/comments", optionalAuth, async (req, res): Promise<vo
       createdAt: commentsTable.createdAt,
       authorUsername: usersTable.username,
       authorDisplayName: usersTable.displayName,
+      authorAvatarUrl: usersTable.avatarUrl,
     })
     .from(commentsTable)
     .innerJoin(usersTable, eq(usersTable.id, commentsTable.authorId))
@@ -573,7 +616,11 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
     }
 
     const [author] = await tx
-      .select({ username: usersTable.username, displayName: usersTable.displayName })
+      .select({
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        avatarUrl: usersTable.avatarUrl,
+      })
       .from(usersTable)
       .where(eq(usersTable.id, user.id));
 
@@ -593,6 +640,7 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
       createdAt: result.created.createdAt,
       authorUsername: result.author?.username ?? null,
       authorDisplayName: result.author?.displayName ?? null,
+      authorAvatarUrl: result.author?.avatarUrl ?? null,
     },
   });
 });

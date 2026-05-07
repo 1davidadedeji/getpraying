@@ -45,7 +45,7 @@ function iconForPathCategory(category: string): string {
 }
 
 router.get("/library/official", optionalAuth, async (req, res): Promise<void> => {
-  const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 50);
+  const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 120);
   const excludeScheduled =
     req.query.excludeScheduled === "1" || req.query.excludeScheduled === "true";
   const categoryFilter =

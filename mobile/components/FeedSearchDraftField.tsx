@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import colors from "@/constants/colors";
 
@@ -27,11 +27,28 @@ const chrome = StyleSheet.create({
   },
 });
 
+export type FeedSearchDraftFieldProps = {
+  committedQuery: string;
+  onSubmitQuery: (q: string) => void;
+  /** When set, runs after `debounceMs` of no typing. Do not open modals from here for the inline feed field or focus will be stolen. */
+  onDebouncedQuery?: (q: string) => void;
+  debounceMs?: number;
+  onClearCommitted?: () => void;
+  marginBottom?: number;
+  feedSearchFs: number;
+  searchIconSize: number;
+  clearIconSize?: number;
+  placeholder: string;
+  autoFocus?: boolean;
+  accessibilityLabel?: string;
+};
+
 /**
- * Keeps draft text in this subtree so the parent screen does not re-render on each keystroke.
- * Re-rendering the feed was remounting the FlatList header and dropping focus after one character.
+ * Draft text stays in this subtree so parent list headers do not re-render each keystroke.
+ * Only clears local text from `committedQuery` when the parent clears the committed string (avoids
+ * overwriting the draft when the parent updates from debounced search).
  */
-export function FeedSearchDraftField({
+function FeedSearchDraftFieldInner({
   committedQuery,
   onSubmitQuery,
   onDebouncedQuery,
@@ -44,26 +61,15 @@ export function FeedSearchDraftField({
   placeholder,
   autoFocus,
   accessibilityLabel,
-}: {
-  committedQuery: string;
-  onSubmitQuery: (q: string) => void;
-  /** Fired after typing pauses; parent should no-op when trim length < 2. */
-  onDebouncedQuery?: (q: string) => void;
-  debounceMs?: number;
-  /** Parent clears server results / committed query when user taps clear. */
-  onClearCommitted?: () => void;
-  marginBottom?: number;
-  feedSearchFs: number;
-  searchIconSize: number;
-  clearIconSize?: number;
-  placeholder: string;
-  autoFocus?: boolean;
-  accessibilityLabel?: string;
-}) {
+}: FeedSearchDraftFieldProps) {
   const [text, setText] = useState(committedQuery);
+  const prevCommitted = useRef(committedQuery);
 
   useEffect(() => {
-    setText(committedQuery);
+    if (committedQuery === "" && prevCommitted.current !== "") {
+      setText("");
+    }
+    prevCommitted.current = committedQuery;
   }, [committedQuery]);
 
   useEffect(() => {
@@ -87,6 +93,7 @@ export function FeedSearchDraftField({
         style={[chrome.feedSearchInput, { fontSize: feedSearchFs }]}
         autoFocus={autoFocus}
         accessibilityLabel={accessibilityLabel}
+        blurOnSubmit={false}
       />
       {showClear ? (
         <Pressable
@@ -105,3 +112,5 @@ export function FeedSearchDraftField({
     </View>
   );
 }
+
+export const FeedSearchDraftField = memo(FeedSearchDraftFieldInner);

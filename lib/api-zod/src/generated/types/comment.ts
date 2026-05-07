@@ -14,4 +14,6 @@ export interface Comment {
   createdAt: Date;
   authorUsername?: string | null;
   authorDisplayName?: string | null;
+  /** Optional profile image path; resolve with the same media URL rules as post authors */
+  authorAvatarUrl?: string | null;
 }

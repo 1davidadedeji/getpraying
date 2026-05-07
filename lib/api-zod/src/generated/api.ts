@@ -263,6 +263,12 @@ export const GetUserPostsResponse = zod.object({
         .describe(
           "When a premium member last boosted this post (feed priority)",
         ),
+      boostedByUserId: zod
+        .number()
+        .nullish()
+        .describe(
+          "User id of the member whose boost is currently active (for unboost toggle)",
+        ),
     }),
   ),
   nextCursor: zod
@@ -327,6 +333,12 @@ export const GetPostsResponse = zod.object({
         .nullish()
         .describe(
           "When a premium member last boosted this post (feed priority)",
+        ),
+      boostedByUserId: zod
+        .number()
+        .nullish()
+        .describe(
+          "User id of the member whose boost is currently active (for unboost toggle)",
         ),
     }),
   ),
@@ -408,6 +420,12 @@ export const GetTrendingPostsResponseItem = zod.object({
     .date()
     .nullish()
     .describe("When a premium member last boosted this post (feed priority)"),
+  boostedByUserId: zod
+    .number()
+    .nullish()
+    .describe(
+      "User id of the member whose boost is currently active (for unboost toggle)",
+    ),
 });
 export const GetTrendingPostsResponse = zod.array(GetTrendingPostsResponseItem);
 
@@ -479,6 +497,12 @@ export const GlobalSearchResponse = zod.object({
         .describe(
           "When a premium member last boosted this post (feed priority)",
         ),
+      boostedByUserId: zod
+        .number()
+        .nullish()
+        .describe(
+          "User id of the member whose boost is currently active (for unboost toggle)",
+        ),
     }),
   ),
 });
@@ -491,7 +515,10 @@ export const BoostPostParams = zod.object({
 });
 
 export const BoostPostResponse = zod.object({
-  boostedAt: zod.coerce.date(),
+  boostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Set when boosting; null after you remove your boost"),
   post: zod.object({
     id: zod.number(),
     content: zod.string(),
@@ -524,6 +551,12 @@ export const BoostPostResponse = zod.object({
       .date()
       .nullish()
       .describe("When a premium member last boosted this post (feed priority)"),
+    boostedByUserId: zod
+      .number()
+      .nullish()
+      .describe(
+        "User id of the member whose boost is currently active (for unboost toggle)",
+      ),
   }),
 });
 
@@ -566,6 +599,12 @@ export const GetPostResponse = zod.object({
     .date()
     .nullish()
     .describe("When a premium member last boosted this post (feed priority)"),
+  boostedByUserId: zod
+    .number()
+    .nullish()
+    .describe(
+      "User id of the member whose boost is currently active (for unboost toggle)",
+    ),
 });
 
 /**
@@ -649,6 +688,12 @@ export const GetPostCommentsResponse = zod.object({
       createdAt: zod.coerce.date(),
       authorUsername: zod.string().nullish(),
       authorDisplayName: zod.string().nullish(),
+      authorAvatarUrl: zod
+        .string()
+        .nullish()
+        .describe(
+          "Optional profile image path; resolve with the same media URL rules as post authors",
+        ),
     }),
   ),
 });
@@ -750,6 +795,12 @@ export const GetSavedPrayersResponseItem = zod.object({
     .date()
     .nullish()
     .describe("When a premium member last boosted this post (feed priority)"),
+  boostedByUserId: zod
+    .number()
+    .nullish()
+    .describe(
+      "User id of the member whose boost is currently active (for unboost toggle)",
+    ),
 });
 export const GetSavedPrayersResponse = zod.array(GetSavedPrayersResponseItem);
 
@@ -845,6 +896,12 @@ export const GetPathResponse = zod.object({
         .nullish()
         .describe(
           "When a premium member last boosted this post (feed priority)",
+        ),
+      boostedByUserId: zod
+        .number()
+        .nullish()
+        .describe(
+          "User id of the member whose boost is currently active (for unboost toggle)",
         ),
     }),
   ),
@@ -963,6 +1020,12 @@ export const GetPendingPostsResponse = zod.object({
         .describe(
           "When a premium member last boosted this post (feed priority)",
         ),
+      boostedByUserId: zod
+        .number()
+        .nullish()
+        .describe(
+          "User id of the member whose boost is currently active (for unboost toggle)",
+        ),
     }),
   ),
   nextCursor: zod
@@ -1018,6 +1081,12 @@ export const GetModeratedPostsResponse = zod.object({
         .describe(
           "When a premium member last boosted this post (feed priority)",
         ),
+      boostedByUserId: zod
+        .number()
+        .nullish()
+        .describe(
+          "User id of the member whose boost is currently active (for unboost toggle)",
+        ),
     }),
   ),
   nextCursor: zod
@@ -1066,6 +1135,12 @@ export const ApprovePostResponse = zod.object({
     .date()
     .nullish()
     .describe("When a premium member last boosted this post (feed priority)"),
+  boostedByUserId: zod
+    .number()
+    .nullish()
+    .describe(
+      "User id of the member whose boost is currently active (for unboost toggle)",
+    ),
 });
 
 /**
@@ -1118,6 +1193,12 @@ export const DeclinePostResponse = zod.object({
     .date()
     .nullish()
     .describe("When a premium member last boosted this post (feed priority)"),
+  boostedByUserId: zod
+    .number()
+    .nullish()
+    .describe(
+      "User id of the member whose boost is currently active (for unboost toggle)",
+    ),
 });
 
 /**

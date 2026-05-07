@@ -8,6 +8,7 @@ import {
   FlatList,
   Image,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -30,6 +31,7 @@ import { useFeedNotice } from "@/context/feedNotice";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { encodeFeedTopWatermark } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -72,7 +74,8 @@ export default function FeedScreen() {
 
   const [newPostCount, setNewPostCount] = useState(0);
   const pillAnim = useRef(new Animated.Value(0)).current;
-  const topPostId = useRef<number | null>(null);
+  /** Base64url watermark for first post in {@link posts} (feed sort key + id); see GET /posts/new-count. */
+  const feedWatermark = useRef<string | null>(null);
   const [sanctuary, setSanctuary] = useState<{
     morning: OfficialPrayerRow | null;
     evening: OfficialPrayerRow | null;
@@ -150,7 +153,12 @@ export default function FeedScreen() {
     [clearCommittedSearchState, fetchSearchResults],
   );
 
-  /** Debounced typing: keep keyboard open, surface results in the modal once there is a real query. */
+  const onFeedSearchSubmit = useCallback(
+    (q: string) => void runCommittedSearch(q, { dismissKeyboard: true, openModal: true }),
+    [runCommittedSearch],
+  );
+
+  /** Debounced search inside the full-screen modal only (never auto-open modal from the feed bar — it steals focus). */
   const onSearchDraftDebounced = useCallback(
     (draft: string) => {
       const q = draft.trim();
@@ -207,9 +215,6 @@ export default function FeedScreen() {
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
       setError(false);
-      if (result.posts.length > 0) {
-        topPostId.current = result.posts[0].id;
-      }
       setNewPostCount(0);
     } catch {
       if (!opts?.silent) setError(true);
@@ -220,6 +225,18 @@ export default function FeedScreen() {
 
   const loadFreshRef = useRef(loadFresh);
   loadFreshRef.current = loadFresh;
+
+  useEffect(() => {
+    if (posts.length === 0) {
+      feedWatermark.current = null;
+      return;
+    }
+    try {
+      feedWatermark.current = encodeFeedTopWatermark(posts[0]);
+    } catch {
+      feedWatermark.current = null;
+    }
+  }, [posts]);
 
   // Tracks when the jump-to-top nonce last fired so useFocusEffect can
   // skip its own loadFresh call when the nonce already triggered one.
@@ -255,16 +272,17 @@ export default function FeedScreen() {
   useEffect(() => {
     if (!token || loading) return;
     const interval = setInterval(async () => {
-      if (!topPostId.current) return;
+      const wm = feedWatermark.current;
+      if (!wm) return;
       try {
         const res = await fetch(
-          apiUrl(`/posts/new-count?sinceId=${topPostId.current}`),
+          apiUrl(`/posts/new-count?watermark=${encodeURIComponent(wm)}`),
           { headers: authHeaders(token) },
         );
         if (!res.ok) return;
         const data = await res.json();
         const count = typeof data.count === "number" ? data.count : 0;
-        if (count > 0) setNewPostCount(count);
+        setNewPostCount(Math.max(0, count));
       } catch { /* silent */ }
     }, NEW_POSTS_POLL_MS);
     return () => clearInterval(interval);
@@ -288,11 +306,6 @@ export default function FeedScreen() {
       const result = await fetchPage();
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
-      if (result.posts.length > 0) {
-        topPostId.current = result.posts[0].id;
-      } else {
-        topPostId.current = null;
-      }
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
     } catch {
       setError(true);
@@ -308,9 +321,6 @@ export default function FeedScreen() {
       const result = await fetchPage();
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
-      if (result.posts.length > 0) {
-        topPostId.current = result.posts[0].id;
-      }
       void loadSanctuary();
     } catch { /* keep current data */ } finally {
       setRefreshing(false);
@@ -362,7 +372,8 @@ export default function FeedScreen() {
   const guideSlot: "morning" | "evening" = isEveningReflection ? "evening" : "morning";
   const guideMarkSize = Math.round(clamp(reflIcn * 0.92, 16, 24));
 
-  const renderHeader = () => (
+  const listHeader = useMemo(
+    () => (
     <View style={{ marginBottom: 8 }}>
       <View style={[styles.feedHeaderToolbar, { paddingTop: topPad + 6 }]}>
         <View style={styles.flex1} />
@@ -413,8 +424,7 @@ export default function FeedScreen() {
 
       <FeedSearchDraftField
         committedQuery={committedSearchQuery}
-        onSubmitQuery={(q) => void runCommittedSearch(q, { dismissKeyboard: true, openModal: true })}
-        onDebouncedQuery={onSearchDraftDebounced}
+        onSubmitQuery={onFeedSearchSubmit}
         onClearCommitted={clearCommittedSearchState}
         feedSearchFs={feedSearchFs}
         searchIconSize={feedSearchIcon}
@@ -483,6 +493,7 @@ export default function FeedScreen() {
       {(user?.preferredCategories?.length ?? 0) > 0 ? (
         <ScrollView
           horizontal
+          keyboardShouldPersistTaps="handled"
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillRow}
         >
@@ -514,6 +525,34 @@ export default function FeedScreen() {
         </ScrollView>
       ) : null}
     </View>
+    ),
+    [
+      topPad,
+      user,
+      modPending,
+      greetSize,
+      subGreetSize,
+      committedSearchQuery,
+      onFeedSearchSubmit,
+      clearCommittedSearchState,
+      feedSearchFs,
+      feedSearchIcon,
+      searchClearIcn,
+      showSanctuaryAudio,
+      guideSlot,
+      sanctuary.morning,
+      sanctuary.evening,
+      guideMarkSize,
+      heartAv,
+      heartAvRad,
+      heartAvLetterFs,
+      heartPlaceholderFs,
+      heartPrayPadH,
+      heartPrayPadV,
+      uiScale,
+      feedCategory,
+      user?.preferredCategories,
+    ],
   );
 
   const renderFooter = () => {
@@ -543,7 +582,16 @@ export default function FeedScreen() {
   });
 
   return (
-    <View style={styles.flex}>
+    <View
+      style={[
+        styles.flex,
+        {
+          maxWidth: LAYOUT.contentMaxWidth,
+          width: "100%",
+          alignSelf: "center",
+        },
+      ]}
+    >
       <FlatList
         ref={listRef}
         data={displayPosts}
@@ -558,7 +606,7 @@ export default function FeedScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         numColumns={1}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={listHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={
           error ? (
@@ -630,12 +678,16 @@ export default function FeedScreen() {
         >
           <Ionicons name="arrow-up" size={16} color={colors.surface} />
           <Text style={styles.newPostsPillText}>
-            {newPostCount >= 99 ? "99+" : newPostCount} new {newPostCount === 1 ? "post" : "posts"}
+            {newPostCount >= 99 ? "99+ new prayers" : `${newPostCount} new prayer${newPostCount === 1 ? "" : "s"}`}
           </Text>
         </Pressable>
       </Animated.View>
 
       <Modal visible={searchOpen} animationType="slide" transparent={false}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
         <View style={[styles.flex, styles.searchModal]}>
           <View style={[styles.searchModalToolbar, { paddingTop: Platform.OS === "web" ? 16 : (insets.top || 16) }]}>
             <Pressable
@@ -654,7 +706,7 @@ export default function FeedScreen() {
 
           <FeedSearchDraftField
             committedQuery={committedSearchQuery}
-            onSubmitQuery={(q) => void runCommittedSearch(q, { dismissKeyboard: true, openModal: true })}
+            onSubmitQuery={onFeedSearchSubmit}
             onDebouncedQuery={onSearchDraftDebounced}
             onClearCommitted={clearCommittedSearchState}
             marginBottom={10}
@@ -802,6 +854,7 @@ export default function FeedScreen() {
             </ScrollView>
           )}
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
