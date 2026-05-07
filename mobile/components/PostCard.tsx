@@ -1,10 +1,13 @@
 ﻿import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Image,
+  Linking,
   Platform,
   Pressable,
   Share,
@@ -25,11 +28,18 @@ import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { useRevenueCat } from "@/context/revenuecat";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
+import {
+  extractFirstHttpsUrl,
+  fetchOpenGraphPreview,
+  type LinkPreview as OgLinkPreview,
+} from "@/lib/linkPreview";
 import { clamp } from "@/lib/responsiveMetrics";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
@@ -52,6 +62,36 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<PostWithCounts>(post);
+  const urlFromPost = useMemo(() => extractFirstHttpsUrl(localPost.content), [localPost.content]);
+  const [ogPreview, setOgPreview] = useState<OgLinkPreview | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOgPreview(null);
+    if (!urlFromPost) return () => { cancelled = true; };
+    (async () => {
+      const p = await fetchOpenGraphPreview(urlFromPost);
+      if (!cancelled) setOgPreview(p);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [urlFromPost, localPost.id]);
+
+  const openOutboundLink = useCallback(async () => {
+    const href = ogPreview?.url ?? urlFromPost;
+    if (!href) return;
+    Haptics.selectionAsync();
+    try {
+      await WebBrowser.openBrowserAsync(href);
+    } catch {
+      try {
+        await Linking.openURL(href);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [ogPreview?.url, urlFromPost]);
 
   useEffect(() => {
     setLocalPost(post);
@@ -68,12 +108,15 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
     post.authorUsername,
     post.mediaUrl,
     post.mediaType,
+    post.boostedAt,
     (post as PostWithCounts).hasCommented,
     (post as PostWithCounts).commentCount,
     (post as PostWithCounts).saveCount,
   ]);
 
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const revenueCat = useRevenueCat();
+  const [boosting, setBoosting] = useState(false);
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -91,7 +134,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         onSuccess: (res) => {
           setLocalPost((prev) => {
             const next = { ...prev, hasPrayed: res.hasPrayed, prayCount: res.prayCount };
-            onUpdated?.(next);
+            queueMicrotask(() => onUpdated?.(next));
             return next;
           });
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -118,7 +161,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
           onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((prev) => {
               const next = { ...prev, isSaved: res.isSaved, saveCount: res.saveCount };
-              onUpdated?.(next);
+              queueMicrotask(() => onUpdated?.(next));
               return next;
             });
             invalidateSaved();
@@ -132,7 +175,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
           onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((prev) => {
               const next = { ...prev, isSaved: res.isSaved, saveCount: res.saveCount };
-              onUpdated?.(next);
+              queueMicrotask(() => onUpdated?.(next));
               return next;
             });
             invalidateSaved();
@@ -141,6 +184,54 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
       );
     }
   };
+
+  const handleBoost = useCallback(async () => {
+    if (!token) {
+      router.push("/login" as never);
+      return;
+    }
+    if (boosting) return;
+    if (!viewerHasPremiumCapabilities(user, revenueCat)) {
+      router.push("/(paywall)" as never);
+      return;
+    }
+    Haptics.selectionAsync();
+    setBoosting(true);
+    try {
+      const res = await fetch(apiUrl(`/posts/${localPost.id}/boost`), {
+        method: "POST",
+        headers: authHeaders(token),
+      });
+      if (res.status === 402) {
+        router.push("/(paywall)" as never);
+        return;
+      }
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        showAppAlert({
+          title: "Could not boost",
+          message: err.error ?? "Please try again.",
+        });
+        return;
+      }
+      const data = (await res.json()) as { post?: Post };
+      if (data.post) {
+        setLocalPost((prev) => {
+          const next = { ...prev, ...data.post };
+          queueMicrotask(() => onUpdated?.(next));
+          return next;
+        });
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      showAppAlert({
+        title: "Could not boost",
+        message: "Check your connection.",
+      });
+    } finally {
+      setBoosting(false);
+    }
+  }, [boosting, localPost.id, onUpdated, revenueCat, token, user]);
 
   const handleShare = async () => {
     const authorName = localPost.isAnonymous
@@ -180,6 +271,24 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
 
   const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
   const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
+  const boosted = Boolean(localPost.boostedAt);
+  const boostColor = boosted ? colors.flame : colors.muted;
+
+  const previewHost = useMemo(() => {
+    const base = urlFromPost ?? ogPreview?.url;
+    if (!base) return "";
+    try {
+      return new URL(base).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  }, [urlFromPost, ogPreview?.url]);
+
+  const previewTitle = (ogPreview?.title?.trim() || previewHost).trim();
+
+  const showLinkPreview =
+    Boolean(ogPreview && (ogPreview.title || ogPreview.imageUrl)) && Boolean(urlFromPost);
+
   return (
     <View style={[styles.card, { borderRadius: cardRadius, marginBottom: Math.round(12 * uiScale) }]}>
       <Pressable
@@ -279,6 +388,41 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         <Text style={styles.content} numberOfLines={4}>
           {localPost.content}
         </Text>
+
+        {showLinkPreview ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              void openOutboundLink();
+            }}
+            style={({ pressed }) => [styles.linkPreviewCard, pressed && styles.linkPreviewCardPressed]}
+            accessibilityRole="link"
+            accessibilityLabel={`Open link: ${previewTitle || previewHost}`}
+          >
+            {ogPreview?.imageUrl ? (
+              <Image
+                source={{ uri: ogPreview.imageUrl }}
+                style={styles.linkPreviewImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.linkPreviewImage, styles.linkPreviewImagePlaceholder]}>
+                <Ionicons name="link-outline" size={22} color={colors.muted} />
+              </View>
+            )}
+            <View style={styles.linkPreviewTextCol}>
+              <Text style={styles.linkPreviewTitle} numberOfLines={3}>
+                {previewTitle || previewHost}
+              </Text>
+              {previewHost ? (
+                <Text style={styles.linkPreviewHost} numberOfLines={1}>
+                  {previewHost}
+                </Text>
+              ) : null}
+            </View>
+            <Ionicons name="open-outline" size={18} color={colors.muted} />
+          </Pressable>
+        ) : null}
       </Pressable>
 
       <View style={styles.actions}>
@@ -345,6 +489,27 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         </View>
 
         <View style={styles.actionsSecondary}>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              void handleBoost();
+            }}
+            style={styles.actionBtn}
+            accessibilityRole="button"
+            accessibilityLabel={boosted ? "Boosted prayer" : "Boost prayer"}
+            accessibilityState={{ disabled: boosting }}
+          >
+            {boosting ? (
+              <ActivityIndicator size="small" color={colors.flame} />
+            ) : (
+              <Ionicons
+                name={boosted ? "megaphone" : "megaphone-outline"}
+                size={iconSm}
+                color={boostColor}
+              />
+            )}
+          </Pressable>
+
           <Pressable
             onPress={handleShare}
             style={styles.actionBtn}
@@ -509,6 +674,46 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     lineHeight: 22,
+  },
+  linkPreviewCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  linkPreviewCardPressed: {
+    opacity: 0.88,
+  },
+  linkPreviewImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 12,
+    backgroundColor: colors.border,
+  },
+  linkPreviewImagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  linkPreviewTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  linkPreviewTitle: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 19,
+  },
+  linkPreviewHost: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   actions: {
     flexDirection: "row",

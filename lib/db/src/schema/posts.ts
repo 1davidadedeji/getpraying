@@ -20,6 +20,8 @@ export const postsTable = pgTable("posts", {
   prayCount: integer("pray_count").notNull().default(0),
   authorId: integer("author_id").references(() => usersTable.id),
   moderatedByUserId: integer("moderated_by_user_id").references(() => usersTable.id),
+  /** Premium “boost”: surfaces post in feed; used for ordering + broadcasts. */
+  boostedAt: timestamp("boosted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

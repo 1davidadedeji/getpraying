@@ -21,14 +21,13 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
+import { goBackOrFallback } from "@/lib/goBackOrFallback";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { uiScale } = useResponsiveLayout();
   const authPadH = Math.round(clamp(24 * uiScale, 20, 30));
-  const logoRingSz = Math.round(clamp(96 * uiScale, 80, 108));
-  const logoImgSz = Math.round(clamp(80 * uiScale, 68, 92));
-  const logoRad = Math.round(clamp(18 * uiScale, 16, 22));
+  const logoImgSz = Math.round(clamp(140 * uiScale, 116, 158));
   const fsTitle = Math.round(clamp(28 * uiScale, 24, 32));
   const fsSub = Math.round(clamp(15 * uiScale, 14, 17));
   const fsLabel = Math.round(clamp(13 * uiScale, 12, 15));
@@ -104,31 +103,19 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => goBackOrFallback("/(tabs)" as Href)}
           style={[styles.backBtn, { width: backBtnSz, height: backBtnSz, marginBottom: Math.round(8 * uiScale) }]}
         >
           <Feather name="arrow-left" size={backIcn} color={colors.primary} />
         </Pressable>
 
         <View style={[styles.header, { gap: Math.round(8 * uiScale), marginBottom: headerMb, marginTop: Math.round(8 * uiScale) }]}>
-          <View
-            style={[
-              styles.logoRing,
-              {
-                width: logoRingSz,
-                height: logoRingSz,
-                borderRadius: logoRingSz / 2,
-                borderWidth: Math.max(1, Math.round(2 * uiScale)),
-              },
-            ]}
-          >
-            <Image
-              source={require("../assets/images/icon-bg.png")}
-              style={[styles.logoImage, { width: logoImgSz, height: logoImgSz, borderRadius: logoRad }]}
-              contentFit="contain"
-              accessibilityLabel="GetPraying app logo"
-            />
-          </View>
+          <Image
+            source={require("../assets/images/icon-bg.png")}
+            style={[styles.logoImage, { width: logoImgSz, height: logoImgSz }]}
+            contentFit="contain"
+            accessibilityLabel="Get Praying app logo"
+          />
           <Text style={[styles.title, { fontSize: fsTitle }]}>Welcome back</Text>
           <Text style={[styles.subtitle, { fontSize: fsSub }]}>Continue your prayer journey</Text>
         </View>
@@ -235,13 +222,6 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-  },
-  logoRing: {
-    borderColor: "rgba(212,160,67,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(212,160,67,0.1)",
-    overflow: "hidden",
   },
   logoImage: {},
   title: {

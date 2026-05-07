@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Post } from "./post";
+import type { SearchUserResult } from "./searchUserResult";
 
-export interface PostsPage {
+export interface SearchResponse {
+  users: SearchUserResult[];
   posts: Post[];
-  /** Opaque feed pagination cursor — pass as GET /posts?cursor= */
-  nextCursor?: string | null;
-  total: number;
 }

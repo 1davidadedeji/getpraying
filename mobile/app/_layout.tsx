@@ -26,7 +26,7 @@ import { Text, TextInput } from "react-native";
 import { AppAlertHost } from "@/components/AppAlert";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/context/auth";
+import { AuthProvider, useAuth } from "@/context/auth";
 import { FeedNoticeProvider } from "@/context/feedNotice";
 import { ModerationBadgeProvider } from "@/context/moderationBadge";
 import { RevenueCatProvider } from "@/context/revenuecat";
@@ -61,6 +61,21 @@ const queryClient = new QueryClient({
     mutations: { throwOnError: false },
   },
 });
+
+/**
+ * Hides the native splash only after custom fonts are ready and auth has finished
+ * hydrating from storage — avoids an intermediate blank/white frame before routes.
+ */
+function SplashHideGate({ fontsReady }: { fontsReady: boolean }) {
+  const { loading: authRestoring } = useAuth();
+
+  useEffect(() => {
+    if (!fontsReady || authRestoring) return;
+    void SplashScreen.hideAsync();
+  }, [fontsReady, authRestoring]);
+
+  return null;
+}
 
 function RootLayoutNav() {
   return (
@@ -108,21 +123,20 @@ export default function RootLayout() {
     PlusJakartaSans_700Bold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+  const fontsReady = fontsLoaded || fontError != null;
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsReady) {
+    return null;
+  }
 
   return (
     <SafeAreaProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.cream }}>
         <AppAlertHost />
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
+              <SplashHideGate fontsReady={fontsReady} />
               <PushNotificationCoordinator />
               <FeedNoticeProvider>
                 <ModerationBadgeProvider>

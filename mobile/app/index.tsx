@@ -5,7 +5,6 @@ import { router, type Href } from "expo-router";
 import React, { useEffect, useMemo, useRef } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
-  ActivityIndicator,
   Linking,
   Platform,
   Pressable,
@@ -16,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
+import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -31,9 +31,7 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { uiScale } = useResponsiveLayout();
   const { user, loading } = useAuth();
-  const logoRing = Math.round(clamp(96 * uiScale, 80, 108));
-  const logoImg = Math.round(clamp(80 * uiScale, 68, 92));
-  const logoRad = Math.round(clamp(18 * uiScale, 16, 22));
+  const logoImg = Math.round(clamp(140 * uiScale, 116, 158));
   const rc = useRevenueCat();
   /** Avoid re-running `router.replace("/(tabs)")` on every `user` object refresh (that was resetting navigation to Home). */
   const didRouteAuthedUser = useRef(false);
@@ -89,11 +87,7 @@ export default function WelcomeScreen() {
   }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled]);
 
   if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
+    return <AppLoadingScreen variant="splash" />;
   }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -119,24 +113,13 @@ export default function WelcomeScreen() {
         ]}
       >
         <View style={styles.logoSection}>
-          <View
-            style={[
-              styles.logoRing,
-              {
-                width: logoRing,
-                height: logoRing,
-                borderRadius: logoRing / 2,
-              },
-            ]}
-          >
-            <Image
-              source={require("../assets/images/icon-bg.png")}
-              style={[styles.logoImage, { width: logoImg, height: logoImg, borderRadius: logoRad }]}
-              contentFit="contain"
-              accessibilityLabel="GetPraying app logo"
-            />
-          </View>
-          <Text style={styles.appName}>GetPraying</Text>
+          <Image
+            source={require("../assets/images/icon-bg.png")}
+            style={[styles.logoImage, { width: logoImg, height: logoImg }]}
+            contentFit="contain"
+            accessibilityLabel="Get Praying app logo"
+          />
+          <Text style={styles.appName}>Get Praying</Text>
           <Text style={styles.tagline}>A sanctuary for your{"\n"}daily walk with God</Text>
         </View>
 
@@ -189,12 +172,6 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   container: {
     flex: 1,
   },
@@ -205,14 +182,6 @@ const styles = StyleSheet.create({
   logoSection: {
     alignItems: "center",
     gap: 12,
-  },
-  logoRing: {
-    borderWidth: 2,
-    borderColor: "rgba(212,160,67,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(212,160,67,0.1)",
-    overflow: "hidden",
   },
   logoImage: {},
   appName: {

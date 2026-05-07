@@ -32,4 +32,6 @@ export interface Post {
   authorDisplayName?: string | null;
   authorAvatarUrl?: string | null;
   createdAt: Date;
+  /** When a premium member last boosted this post (feed priority) */
+  boostedAt?: Date | null;
 }

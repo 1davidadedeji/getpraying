@@ -48,6 +48,10 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
   const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 50);
   const excludeScheduled =
     req.query.excludeScheduled === "1" || req.query.excludeScheduled === "true";
+  const categoryFilter =
+    typeof req.query.category === "string" && req.query.category.trim().length > 0
+      ? req.query.category.trim().toLowerCase()
+      : null;
 
   const baseOfficial = db
     .select({
@@ -71,10 +75,16 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
     .from(officialPrayersTable)
     .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id));
 
-  const prayers = await (excludeScheduled
-    ? baseOfficial.where(isNull(officialPrayersTable.scheduleSlot))
-    : baseOfficial
-  )
+  let whereClause: Parameters<typeof baseOfficial.where>[0] | undefined;
+  if (excludeScheduled && categoryFilter) {
+    whereClause = and(isNull(officialPrayersTable.scheduleSlot), eq(officialPrayersTable.category, categoryFilter));
+  } else if (excludeScheduled) {
+    whereClause = isNull(officialPrayersTable.scheduleSlot);
+  } else if (categoryFilter) {
+    whereClause = eq(officialPrayersTable.category, categoryFilter);
+  }
+
+  const prayers = await (whereClause ? baseOfficial.where(whereClause) : baseOfficial)
     .orderBy(officialPrayersTable.createdAt)
     .limit(limit);
 

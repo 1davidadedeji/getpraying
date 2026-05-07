@@ -9,7 +9,7 @@ const router: IRouter = Router();
 
 router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user as { id: number };
-  const { location, displayName } = req.body ?? {};
+  const { location, displayName, scheduledNotificationsEnabled } = req.body ?? {};
   const updates: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
 
   if (typeof location === "string") {
@@ -17,6 +17,9 @@ router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
   }
   if (typeof displayName === "string") {
     updates.displayName = displayName.trim().slice(0, 60) || null;
+  }
+  if (typeof scheduledNotificationsEnabled === "boolean") {
+    updates.scheduledNotificationsEnabled = scheduledNotificationsEnabled;
   }
 
   const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id)).returning();

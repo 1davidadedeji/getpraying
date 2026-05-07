@@ -55,7 +55,11 @@ async function sendMorningPrayers(): Promise<void> {
       morningNotifSentAt: usersTable.morningNotifSentAt,
     })
     .from(usersTable)
-    .where(and(isNotNull(usersTable.expoPushToken), isNotNull(usersTable.timezone)));
+    .where(and(
+      isNotNull(usersTable.expoPushToken),
+      isNotNull(usersTable.timezone),
+      eq(usersTable.scheduledNotificationsEnabled, true),
+    ));
 
   const toNotify: typeof users = [];
   for (const u of users) {
@@ -99,7 +103,11 @@ async function sendEveningPrayers(): Promise<void> {
       eveningNotifSentAt: usersTable.eveningNotifSentAt,
     })
     .from(usersTable)
-    .where(and(isNotNull(usersTable.expoPushToken), isNotNull(usersTable.timezone)));
+    .where(and(
+      isNotNull(usersTable.expoPushToken),
+      isNotNull(usersTable.timezone),
+      eq(usersTable.scheduledNotificationsEnabled, true),
+    ));
 
   const toNotify: typeof users = [];
   for (const u of users) {

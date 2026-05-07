@@ -1,0 +1,20 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgMorning" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EAF2FF"/>
+      <stop offset="100%" stop-color="#D6E6FF"/>
+    </linearGradient>
+    <linearGradient id="sunGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD76A"/>
+      <stop offset="100%" stop-color="#FFB347"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#bgMorning)"/>
+  <path d="M12 40 Q32 28 52 40 L52 48 L12 48 Z" fill="#6FA8FF"/>
+  <circle cx="32" cy="34" r="8" fill="url(#sunGradient)"/>
+  <g stroke="#FFD76A" stroke-width="2" stroke-linecap="round">
+    <line x1="32" y1="20" x2="32" y2="14"/>
+    <line x1="20" y1="24" x2="16" y2="20"/>
+    <line x1="44" y1="24" x2="48" y2="20"/>
+  </g>
+</svg>

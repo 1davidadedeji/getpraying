@@ -187,3 +187,18 @@ export async function requirePremiumSubscription(
     code: "SUBSCRIPTION_REQUIRED",
   });
 }
+
+/** Premium / trial / staff — usable for gated actions like boosting a prayer. */
+export function userCanUsePremiumBoost(user: {
+  role: string;
+  trialStartsAt: Date | string | null;
+  subscription?: string | null;
+}): boolean {
+  if (user.role === "admin" || user.role === "moderator") return true;
+  const trialStart = user.trialStartsAt ? new Date(user.trialStartsAt as any).getTime() : null;
+  const trialActive = trialStart != null && Date.now() - trialStart < 7 * 24 * 60 * 60 * 1000;
+  if (trialActive) return true;
+  const tier = String(user.subscription ?? "").toLowerCase();
+  return ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);
+}
+

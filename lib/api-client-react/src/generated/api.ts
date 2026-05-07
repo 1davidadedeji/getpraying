@@ -19,6 +19,7 @@ import type {
 import type {
   AdminStats,
   AuthResponse,
+  BoostPostResponse,
   Category,
   ClearDailyWordOverrideParams,
   CreateCommentInput,
@@ -38,6 +39,7 @@ import type {
   GetPostsParams,
   GetTrendingPostsParams,
   GetUserPostsParams,
+  GlobalSearchParams,
   HealthStatus,
   LoginInput,
   Notification,
@@ -53,6 +55,7 @@ import type {
   RegisterInput,
   ResendVerificationInput,
   SavePostStateResponse,
+  SearchResponse,
   SetDailyWordOverrideInput,
   SuccessResponse,
   UnfollowUser200,
@@ -1436,6 +1439,184 @@ export function useGetFeedStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Search users and approved prayers
+ */
+export const getGlobalSearchUrl = (params?: GlobalSearchParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/search?${stringifiedParams}`
+    : `/api/search`;
+};
+
+export const globalSearch = async (
+  params?: GlobalSearchParams,
+  options?: RequestInit,
+): Promise<SearchResponse> => {
+  return customFetch<SearchResponse>(getGlobalSearchUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGlobalSearchQueryKey = (params?: GlobalSearchParams) => {
+  return [`/api/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getGlobalSearchQueryOptions = <
+  TData = Awaited<ReturnType<typeof globalSearch>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GlobalSearchParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof globalSearch>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGlobalSearchQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof globalSearch>>> = ({
+    signal,
+  }) => globalSearch(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof globalSearch>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GlobalSearchQueryResult = NonNullable<
+  Awaited<ReturnType<typeof globalSearch>>
+>;
+export type GlobalSearchQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Search users and approved prayers
+ */
+
+export function useGlobalSearch<
+  TData = Awaited<ReturnType<typeof globalSearch>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GlobalSearchParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof globalSearch>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGlobalSearchQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Boost a post (premium) — prioritizes in feed and notifies all users
+ */
+export const getBoostPostUrl = (postId: number) => {
+  return `/api/posts/${postId}/boost`;
+};
+
+export const boostPost = async (
+  postId: number,
+  options?: RequestInit,
+): Promise<BoostPostResponse> => {
+  return customFetch<BoostPostResponse>(getBoostPostUrl(postId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getBoostPostMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof boostPost>>,
+    TError,
+    { postId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof boostPost>>,
+  TError,
+  { postId: number },
+  TContext
+> => {
+  const mutationKey = ["boostPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof boostPost>>,
+    { postId: number }
+  > = (props) => {
+    const { postId } = props ?? {};
+
+    return boostPost(postId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BoostPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof boostPost>>
+>;
+
+export type BoostPostMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Boost a post (premium) — prioritizes in feed and notifies all users
+ */
+export const useBoostPost = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof boostPost>>,
+    TError,
+    { postId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof boostPost>>,
+  TError,
+  { postId: number },
+  TContext
+> => {
+  return useMutation(getBoostPostMutationOptions(options));
+};
 
 /**
  * @summary Get a single post

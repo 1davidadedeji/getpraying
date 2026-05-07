@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/MorningEveningMarks";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
@@ -38,6 +39,14 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
   const hintRight = Math.round(clamp(14 * uiScale, 12, 16));
   const hintBottom = hintRight;
   const chevIcn = Math.round(clamp(14 * uiScale, 13, 16));
+  const slotMarkSz = Math.round(clamp(30 * uiScale, 26, 36));
+  const slotKey = op.scheduleSlot?.trim().toLowerCase() ?? "";
+  const leadMark =
+    slotKey === "morning" ? (
+      <MorningGuideMark size={slotMarkSz} />
+    ) : slotKey === "evening" ? (
+      <EveningGuideMark size={slotMarkSz} />
+    ) : null;
 
   return (
     <Pressable
@@ -55,7 +64,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
       accessibilityLabel={`Open guide: ${op.title}`}
     >
       <View style={[styles.officialCardTop, { gap: topGap, marginBottom: topMb }]}>
-        <Ionicons name="link-outline" size={linkIcn} color={colors.primary} />
+        {leadMark ?? <Ionicons name="link-outline" size={linkIcn} color={colors.primary} />}
         <Text style={[styles.officialBadge, { fontSize: fsBadge }]} numberOfLines={2}>
           {(op.label ?? "OFFICIAL GUIDE").toUpperCase()}
           {op.scheduleSlot ? ` · ${op.scheduleSlot}` : ""}

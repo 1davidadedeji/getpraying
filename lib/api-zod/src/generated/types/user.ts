@@ -23,5 +23,9 @@ export interface User {
   prayersShared: number;
   prayedFor: number;
   savedScrolls: number;
+  /** Billing tier slug from the server (e.g. free, active) when loaded via /auth/me */
+  subscription?: string | null;
+  /** Opt-in for scheduled morning/evening push reminders (from /auth/me) */
+  scheduledNotificationsEnabled?: boolean | null;
   createdAt: Date;
 }

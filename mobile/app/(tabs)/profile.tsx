@@ -49,13 +49,12 @@ export default function ProfileScreen() {
   const savedListRef = useRef<FlatList<Post>>(null);
   const categoriesScrollRef = useRef<ScrollView>(null);
   const webPagerRef = useRef<PagerView | null>(null);
+  const interactionsListRef = useRef<FlatList<Post>>(null);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [commentedPosts, setCommentedPosts] = useState<Post[]>([]);
   const [loadingInteractions, setLoadingInteractions] = useState(false);
-  const likedListRef = useRef<FlatList<Post>>(null);
-  const commentedListRef = useRef<FlatList<Post>>(null);
   const [interactionsSubTab, setInteractionsSubTab] = useState<"liked" | "commented">("liked");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [locationDraft, setLocationDraft] = useState<string>("");
@@ -99,6 +98,11 @@ export default function ProfileScreen() {
     query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
   });
 
+  const me = useMemo(() => {
+    if (!user) return null;
+    return { ...user, ...(freshUser as Partial<User> | undefined) } as User;
+  }, [user, freshUser]);
+
   useEffect(() => {
     if (freshUser) refreshUser(freshUser as User);
   }, [freshUser, refreshUser]);
@@ -116,11 +120,6 @@ export default function ProfileScreen() {
       enabled: !!token,
     },
   });
-
-  const me = useMemo(() => {
-    if (!user) return null;
-    return { ...user, ...(freshUser as Partial<User> | undefined) } as User;
-  }, [user, freshUser]);
 
   const pickAndUploadAvatar = async () => {
     try {
@@ -231,7 +230,10 @@ export default function ProfileScreen() {
       requestAnimationFrame(() => {
         if (tab === "my") myListRef.current?.scrollToOffset({ offset: 0, animated: false });
         else if (tab === "saved") savedListRef.current?.scrollToOffset({ offset: 0, animated: false });
-        else categoriesScrollRef.current?.scrollTo({ y: 0, animated: false });
+        else {
+          categoriesScrollRef.current?.scrollTo({ y: 0, animated: false });
+          interactionsListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        }
       });
     });
   }, []);
@@ -273,8 +275,8 @@ export default function ProfileScreen() {
   const scrollProfileToTop = useCallback(() => {
     if (activeTab === "categories") {
       categoriesScrollRef.current?.scrollTo({ y: 0, animated: true });
+      interactionsListRef.current?.scrollToOffset({ offset: 0, animated: true });
     }
-    // My/Saved use Tabs.FlatList under collapsible-tab-view; scrollToOffset(0) fights Reanimated sync.
   }, [activeTab]);
 
   useTabScrollToTop(scrollProfileToTop);
@@ -593,8 +595,8 @@ export default function ProfileScreen() {
       </Text>
     </View>
   );
-  const interactionsSubTabBar = (
-    <View style={[styles.interactionsSubTabRow, { paddingHorizontal: prof.gutter, paddingTop: tabListTopSpacer }]}>
+  const interactionsSubTabRowOnly = (
+    <View style={styles.interactionsSubTabRow}>
       {(["liked", "commented"] as const).map((tab) => (
         <Pressable
           key={tab}
@@ -611,11 +613,18 @@ export default function ProfileScreen() {
     </View>
   );
 
+  const webInteractionsListHeader = (
+    <View>
+      <View style={{ height: tabListTopSpacer }} />
+      <View style={{ paddingHorizontal: prof.gutter }}>{interactionsSubTabRowOnly}</View>
+    </View>
+  );
+
   const webCategoriesPage = (
     <View style={styles.page} collapsable={false}>
-      {interactionsSubTabBar}
       <FlatList<Post>
-        ref={interactionsSubTab === "liked" ? likedListRef : commentedListRef}
+        ref={interactionsListRef}
+        style={{ flex: 1 }}
         data={interactionsData}
         keyExtractor={(p) => `int-${interactionsSubTab}-${p.id}`}
         renderItem={({ item }) => (
@@ -623,6 +632,7 @@ export default function ProfileScreen() {
             <PostCard post={item} feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null} />
           </View>
         )}
+        ListHeaderComponent={webInteractionsListHeader}
         ListEmptyComponent={
           loadingInteractions ? (
             <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
@@ -915,12 +925,13 @@ export default function ProfileScreen() {
           </Tabs.Tab>
           <Tabs.Tab name="categories" label="Interactions">
             <Tabs.FlatList
-              ref={interactionsSubTab === "liked" ? likedListRef : commentedListRef}
+              ref={interactionsListRef}
+              style={{ flex: 1 }}
               data={interactionsData}
               keyExtractor={(p: Post) => `int-${interactionsSubTab}-${p.id}`}
               ListHeaderComponent={
                 <View style={{ paddingHorizontal: prof.gutter, paddingTop: tabListTopSpacer + prof.catScrollPadV }}>
-                  {interactionsSubTabBar}
+                  {interactionsSubTabRowOnly}
                 </View>
               }
               renderItem={({ item }: { item: Post }) => (
@@ -1181,6 +1192,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   interactionsSubTab: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,

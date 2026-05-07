@@ -84,6 +84,7 @@ export default function AdminOfficialGuidesScreen() {
   const [scripture, setScripture] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [scheduleSlot, setScheduleSlot] = useState<"morning" | "evening">("morning");
+  const [publishKind, setPublishKind] = useState<"sanctuary" | "lecture">("sanctuary");
   const [audioName, setAudioName] = useState<string | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [audioMime, setAudioMime] = useState<string | null>(null);
@@ -156,13 +157,18 @@ export default function AdminOfficialGuidesScreen() {
         .filter((p): p is PathPick => typeof p.pathId === "number" && p.pathId > 0)
         .map((p) => ({ ...p, pathId: p.pathId! }));
       setPaths(withIds);
-      setSelectedPath((prev) => prev ?? withIds[0] ?? null);
+      setSelectedPath((prev) => (prev != null ? prev : null));
     } catch {
       setPaths([]);
     } finally {
       setPathsLoading(false);
     }
   }, [token]);
+
+  useEffect(() => {
+    if (publishKind !== "sanctuary" || paths.length === 0) return;
+    setSelectedPath((p) => p ?? paths[0] ?? null);
+  }, [publishKind, paths]);
 
   useEffect(() => {
     void loadPaths();
@@ -217,12 +223,21 @@ export default function AdminOfficialGuidesScreen() {
       showAppAlert({ title: "Missing fields", message: "Add a title and description." });
       return;
     }
-    if (!selectedPath) {
-      showAppAlert({ title: "Choose a path", message: "Pick where previous guides are archived." });
+    if (publishKind === "sanctuary" && !selectedPath) {
+      showAppAlert({
+        title: "Choose a path",
+        message: "Pick where previous guides are archived for this sanctuary slot.",
+      });
       return;
     }
     if (!audioUri || !audioMime) {
-      showAppAlert({ title: "Audio required", message: "Upload an audio file for this sanctuary guide." });
+      showAppAlert({
+        title: "Audio required",
+        message:
+          publishKind === "lecture"
+            ? "Upload an audio file for this lecture."
+            : "Upload an audio file for this sanctuary guide.",
+      });
       return;
     }
     const t = title.trim();
@@ -242,8 +257,6 @@ export default function AdminOfficialGuidesScreen() {
       });
       return;
     }
-    const category = (selectedPath.category ?? "general").trim() || "general";
-    const archivePathId = selectedPath.pathId;
     const dm = durationMinutes.trim() ? parseInt(durationMinutes.trim(), 10) : null;
     const durationPayload =
       dm != null && !Number.isNaN(dm) && dm > 0 ? dm : undefined;
@@ -252,7 +265,6 @@ export default function AdminOfficialGuidesScreen() {
     try {
       let audioUrl: string;
       try {
-        // Verify the cached file is still accessible before attempting upload
         const fileInfo = await FileSystem.getInfoAsync(audioUri);
         if (!fileInfo.exists) {
           showAppAlert({
@@ -272,6 +284,46 @@ export default function AdminOfficialGuidesScreen() {
         });
         return;
       }
+
+      if (publishKind === "lecture") {
+        const res = await fetch(apiUrl("/admin/official-prayers"), {
+          method: "POST",
+          headers: authHeaders(token, { "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            title: t,
+            content: c,
+            category: "lectures",
+            scripture: scr || undefined,
+            durationMinutes: durationPayload,
+            audioUrl,
+            pathId: selectedPath?.pathId ?? null,
+            label: "Lecture",
+          }),
+        });
+        const data = await parseApiJson(res);
+        if (!res.ok) {
+          const errMsg = typeof data.error === "string" ? data.error : "Try again.";
+          showAppAlert({ title: "Could not save", message: errMsg });
+          return;
+        }
+        void loadExistingPrayers();
+        setTitle("");
+        setContent("");
+        setScripture("");
+        setDurationMinutes("");
+        setAudioUri(null);
+        setAudioMime(null);
+        setAudioName(null);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showAppAlert({
+          title: "Lecture published",
+          message: "It appears under Lectures on the Official Prayers Library tab.",
+        });
+        return;
+      }
+
+      const category = (selectedPath!.category ?? "general").trim() || "general";
+      const archivePathId = selectedPath!.pathId;
 
       const res = await fetch(apiUrl("/admin/official-prayers/schedule-slot"), {
         method: "POST",
@@ -294,6 +346,7 @@ export default function AdminOfficialGuidesScreen() {
         showAppAlert({ title: "Could not save", message: errMsg });
         return;
       }
+      void loadExistingPrayers();
       setTitle("");
       setContent("");
       setScripture("");
@@ -382,13 +435,35 @@ export default function AdminOfficialGuidesScreen() {
       contentContainerStyle={{ paddingHorizontal: pad, paddingTop: pad, paddingBottom: botPad + scrollBot }}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[styles.sectionTitle, { fontSize: fsSection, marginBottom: sectionMb }]}>Sanctuary guides</Text>
+      <Text style={[styles.sectionTitle, { fontSize: fsSection, marginBottom: sectionMb }]}>Official guides & lectures</Text>
       <Text style={[styles.hint, { fontSize: fsHint, lineHeight: lhHint, marginBottom: hintMb }]}>
-        Publish the featured morning or evening prayer. Audio uploads to the server. The previous recording for that
-        slot is copied into the path you select so it appears under Explore Paths.
+        {publishKind === "sanctuary"
+          ? "Morning and evening sanctuary slots archive the replaced recording into the path you pick. Lectures publish into the carousel under Library Official Prayers without taking a slot."
+          : "Lectures are longer listens that appear under Lectures in the Library (category “lectures”). Linking a prayer path is optional."}
       </Text>
 
-      <Text style={[styles.fieldLabel, { fontSize: fsField, marginBottom: fieldMb }]}>Path (archive &amp; category)</Text>
+      <Text style={[styles.fieldLabel, { fontSize: fsField, marginBottom: fieldMb }]}>Publish as</Text>
+      <View style={[styles.slotRow, { gap: slotGap, marginBottom: slotMb }]}>
+        {(["sanctuary", "lecture"] as const).map((k) => (
+          <Pressable
+            key={k}
+            style={[
+              styles.slotBtn,
+              { paddingVertical: slotPadV, borderRadius: slotRad },
+              publishKind === k && styles.slotBtnOn,
+            ]}
+            onPress={() => setPublishKind(k)}
+          >
+            <Text style={[styles.slotBtnText, { fontSize: fsSlot }, publishKind === k && styles.slotBtnTextOn]}>
+              {k === "sanctuary" ? "Sanctuary slot" : "Library lecture"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={[styles.fieldLabel, { fontSize: fsField, marginBottom: fieldMb }]}>
+        Path {publishKind === "sanctuary" ? "(archive & category)" : "(optional)"}
+      </Text>
       <Pressable
         style={[
           styles.selectBtn,
@@ -399,17 +474,23 @@ export default function AdminOfficialGuidesScreen() {
           },
         ]}
         onPress={() => setPathPickerOpen(true)}
-        disabled={pathsLoading || paths.length === 0}
+        disabled={pathsLoading || (publishKind === "sanctuary" && paths.length === 0)}
       >
         <Text style={[styles.selectBtnText, { fontSize: fsSelect }]} numberOfLines={2}>
           {pathsLoading
             ? "Loading paths…"
-            : selectedPath
-              ? `${selectedPath.name} — guides archived here`
-              : "No paths — create one in admin first"}
+            : publishKind === "lecture"
+              ? selectedPath
+                ? `${selectedPath.name} — tagged for lectures`
+                : "No path linked (recommended for carousel-only listens)"
+              : selectedPath
+                ? `${selectedPath.name} — guides archived here`
+                : "No paths — create one in admin first"}
         </Text>
       </Pressable>
 
+      {publishKind === "sanctuary" ? (
+        <>
       <Text style={[styles.fieldLabel, { fontSize: fsField, marginBottom: fieldMb }]}>Slot</Text>
       <View style={[styles.slotRow, { gap: slotGap, marginBottom: slotMb }]}>
         {(["morning", "evening"] as const).map((s) => (
@@ -428,6 +509,8 @@ export default function AdminOfficialGuidesScreen() {
           </Pressable>
         ))}
       </View>
+        </>
+      ) : null}
 
       <Text style={[styles.charCount, { fontSize: fsField - 1, marginBottom: fieldMb }]}>
         Title · {title.length}/{OFFICIAL_GUIDE_TITLE_MAX}
@@ -533,7 +616,9 @@ export default function AdminOfficialGuidesScreen() {
         {busy ? (
           <ActivityIndicator color={colors.surface} />
         ) : (
-          <Text style={[styles.publishBtnText, { fontSize: fsPub }]}>Publish sanctuary guide</Text>
+          <Text style={[styles.publishBtnText, { fontSize: fsPub }]}>
+            {publishKind === "sanctuary" ? "Publish sanctuary guide" : "Publish lecture"}
+          </Text>
         )}
       </Pressable>
 
@@ -579,6 +664,11 @@ export default function AdminOfficialGuidesScreen() {
                   />
                   <Text style={[styles.slotBadgeText, { fontSize: fsSlotBadge }]}>{prayer.scheduleSlot}</Text>
                 </View>
+              ) : prayer.category === "lectures" ? (
+                <View style={[styles.slotBadge, { gap: Math.round(4 * uiScale) }]}>
+                  <Feather name="headphones" size={slotBadgeIcn} color={colors.primary} />
+                  <Text style={[styles.slotBadgeText, { fontSize: fsSlotBadge }]}>lecture</Text>
+                </View>
               ) : null}
               <Text style={[styles.existingTitle, { fontSize: fsExistTitle }]} numberOfLines={1}>
                 {prayer.title}
@@ -622,9 +712,32 @@ export default function AdminOfficialGuidesScreen() {
           >
             <Text style={[styles.modalTitle, { fontSize: fsModalTitle, marginBottom: modalTitleMb }]}>Choose path</Text>
             <Text style={[styles.modalHint, { fontSize: fsModalHint, marginBottom: modalHintMb }]}>
-              Previous sessions for this slot are saved under this path.
+              {publishKind === "sanctuary"
+                ? "Previous sessions for this slot are saved under this path."
+                : "Optionally tag this lecture with a path, or leave it unlinked for the carousel only."}
             </Text>
             <ScrollView style={{ maxHeight: modalScrollMaxH }}>
+              {publishKind === "lecture" ? (
+                <Pressable
+                  style={[
+                    styles.pathRow,
+                    {
+                      paddingVertical: pathRowPadV,
+                      paddingHorizontal: pathRowPadH,
+                      borderRadius: pathRowRad,
+                      marginBottom: pathRowMb,
+                    },
+                    selectedPath == null && styles.pathRowOn,
+                  ]}
+                  onPress={() => {
+                    setSelectedPath(null);
+                    setPathPickerOpen(false);
+                  }}
+                >
+                  <Text style={[styles.pathRowText, { fontSize: fsPathTitle }]}>No path</Text>
+                  <Text style={[styles.pathRowMeta, { fontSize: fsPathMeta }]}>Lecture appears in Library only</Text>
+                </Pressable>
+              ) : null}
               {paths.map((p) => (
                 <Pressable
                   key={p.pathId}

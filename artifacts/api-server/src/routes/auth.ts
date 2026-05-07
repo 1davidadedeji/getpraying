@@ -436,6 +436,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     prayedFor: user.prayedFor,
     savedScrolls: user.savedScrolls,
     createdAt: user.createdAt,
+    scheduledNotificationsEnabled: user.scheduledNotificationsEnabled ?? true,
   });
 });
 

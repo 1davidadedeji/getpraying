@@ -9,10 +9,19 @@ import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/compone
 
 type Slot = "morning" | "evening";
 
-const SLOT_THEME: Record<
+type SlotTheme = Record<
   Slot,
-  { bg: string; accent: string; icon: React.ComponentProps<typeof Ionicons>["name"]; iconBg: string; btnBg: string; btnText: string }
-> = {
+  {
+    bg: string;
+    accent: string;
+    icon: React.ComponentProps<typeof Ionicons>["name"];
+    iconBg: string;
+    btnBg: string;
+    btnText: string;
+  }
+>;
+
+const SLOT_THEME: SlotTheme = {
   morning: {
     bg: "#E3EEF9",
     accent: colors.primary,
@@ -37,30 +46,46 @@ type Props = {
   showSave?: boolean;
   isSaved?: boolean;
   onToggleSave?: () => void;
+  /** When set, replaces the default Ionicons sun/moon in the slot circle (e.g. branded SVG/mark). */
+  leadingSlotIcon?: React.ReactNode;
+  /** Tighter layout for the home feed. */
+  compact?: boolean;
 };
 
-export function SanctuarySlotCard({ slot, prayer, showSave, isSaved, onToggleSave }: Props) {
+export function SanctuarySlotCard({
+  slot,
+  prayer,
+  showSave,
+  isSaved,
+  onToggleSave,
+  leadingSlotIcon,
+  compact = false,
+}: Props) {
   const { uiScale } = useResponsiveLayout();
   const playRef = useRef<OfficialGuidePlayHandle>(null);
   const t = SLOT_THEME[slot];
-  const slotIcon = Math.round(clamp(40 * uiScale, 36, 46));
-  const topIcn = Math.round(18 * uiScale);
-  const bookmarkIcn = Math.round(22 * uiScale);
-  const playIcn = Math.round(14 * uiScale);
-  const playCircle = Math.round(clamp(46 * uiScale, 42, 54));
-  const fsTime = Math.round(clamp(10 * uiScale, 9, 11));
-  const fsTitle = Math.round(clamp(18 * uiScale, 16, 21));
-  const fsDesc = Math.round(clamp(14 * uiScale, 13, 16));
+  const density = compact ? 0.86 : 1;
+  const slotIcon = Math.round(clamp(40 * uiScale * density, compact ? 32 : 36, compact ? 40 : 46));
+  const topIcn = Math.round(18 * uiScale * density);
+  const bookmarkIcn = Math.round(22 * uiScale * density);
+  const playIcn = Math.round(14 * uiScale * density);
+  const playCircle = Math.round(clamp(46 * uiScale * density, compact ? 36 : 42, compact ? 44 : 54));
+  const fsTime = Math.round(clamp(10 * uiScale * density, 8, compact ? 10 : 11));
+  const fsTitle = Math.round(clamp(18 * uiScale * density, compact ? 15 : 16, compact ? 19 : 21));
+  const fsDesc = Math.round(clamp(14 * uiScale * density, 12, compact ? 14 : 16));
   const lhDesc = Math.round(fsDesc * 1.35);
-  const fsScripture = Math.round(clamp(11 * uiScale, 10, 12));
-  const fsStart = Math.round(clamp(14 * uiScale, 13, 16));
-  const fsDuration = Math.round(clamp(12 * uiScale, 11, 13));
-  const rowGap = Math.round(clamp(10 * uiScale, 8, 12));
-  const topRowMb = Math.round(clamp(10 * uiScale, 8, 12));
-  const descMb = Math.round(clamp(6 * uiScale, 5, 8));
-  const scriptureMb = Math.round(clamp(14 * uiScale, 12, 16));
-  const btnPadV = Math.round(clamp(11 * uiScale, 10, 13));
-  const btnPadH = Math.round(clamp(16 * uiScale, 14, 18));
+  const fsScripture = Math.round(clamp(11 * uiScale * density, 9, compact ? 10 : 12));
+  const fsStart = Math.round(clamp(14 * uiScale * density, 12, compact ? 14 : 16));
+  const fsDuration = Math.round(clamp(12 * uiScale * density, 10, compact ? 11 : 13));
+  const rowGap = Math.round(clamp(10 * uiScale * density, 6, compact ? 8 : 12));
+  const topRowMb = Math.round(clamp(10 * uiScale * density, 6, compact ? 8 : 12));
+  const descMb = Math.round(clamp(6 * uiScale * density, 4, compact ? 6 : 8));
+  const scriptureMb = Math.round(clamp(14 * uiScale * density, 8, compact ? 12 : 16));
+  const btnPadV = Math.round(clamp(11 * uiScale * density, 8, compact ? 10 : 13));
+  const btnPadH = Math.round(clamp(16 * uiScale * density, 12, compact ? 14 : 18));
+  const outerPad = Math.round(16 * uiScale * density);
+  const cornerRad = Math.round(24 * uiScale * density);
+  const cardMb = Math.round(12 * uiScale * density);
 
   const title = prayer?.title ?? (slot === "morning" ? "Morning Prayer" : "Evening Prayer");
   const body =
@@ -84,9 +109,9 @@ export function SanctuarySlotCard({ slot, prayer, showSave, isSaved, onToggleSav
         styles.card,
         {
           backgroundColor: t.bg,
-          padding: Math.round(16 * uiScale),
-          borderRadius: Math.round(24 * uiScale),
-          marginBottom: Math.round(12 * uiScale),
+          padding: outerPad,
+          borderRadius: cornerRad,
+          marginBottom: cardMb,
         },
       ]}
     >
@@ -95,18 +120,20 @@ export function SanctuarySlotCard({ slot, prayer, showSave, isSaved, onToggleSav
           style={[
             styles.slotIconBg,
             {
-              backgroundColor: t.iconBg,
+              backgroundColor: leadingSlotIcon ? "transparent" : t.iconBg,
               width: slotIcon,
               height: slotIcon,
               borderRadius: slotIcon / 2,
             },
           ]}
         >
-          <Ionicons name={t.icon} size={topIcn} color={t.accent} />
+          {leadingSlotIcon ?? <Ionicons name={t.icon} size={topIcn} color={t.accent} />}
         </View>
         <View style={styles.topMeta}>
           <Text style={[styles.timeLabel, { color: t.accent, fontSize: fsTime }]}>{topLabel}</Text>
-          <Text style={[styles.title, { color: t.accent, fontSize: fsTitle }]}>{title}</Text>
+          <Text style={[styles.title, { color: t.accent, fontSize: fsTitle }]} numberOfLines={compact ? 2 : 3}>
+            {title}
+          </Text>
         </View>
         {showSave && prayer && onToggleSave ? (
           <Pressable onPress={onToggleSave} hitSlop={10} accessibilityRole="button">
@@ -122,12 +149,12 @@ export function SanctuarySlotCard({ slot, prayer, showSave, isSaved, onToggleSav
 
       <Text
         style={[styles.desc, { color: t.accent, fontSize: fsDesc, lineHeight: lhDesc, marginBottom: descMb }]}
-        numberOfLines={3}
+        numberOfLines={compact ? 2 : 3}
       >
         {body}
       </Text>
 
-      {prayer?.scripture ? (
+      {prayer?.scripture && !compact ? (
         <Text style={[styles.scripture, { color: t.accent, fontSize: fsScripture, marginBottom: scriptureMb }]}>
           — {prayer.scripture}
         </Text>
@@ -146,12 +173,14 @@ export function SanctuarySlotCard({ slot, prayer, showSave, isSaved, onToggleSav
             },
           ]}
           accessibilityRole="button"
-          accessibilityLabel="Start prayer audio"
+          accessibilityLabel={compact ? "Play guide" : "Start prayer audio"}
         >
-          <Ionicons name="play" size={playIcn} color={t.btnText} style={{ marginRight: 4 }} />
-          <Text style={[styles.startBtnText, { color: t.btnText, fontSize: fsStart }]}>Start Prayer</Text>
+          {!compact ? <Ionicons name="play" size={playIcn} color={t.btnText} style={{ marginRight: 4 }} /> : null}
+          <Text style={[styles.startBtnText, { color: t.btnText, fontSize: fsStart }]}>
+            {compact ? "Play" : "Start Prayer"}
+          </Text>
         </Pressable>
-        {prayer?.durationMinutes ? (
+        {prayer?.durationMinutes && !compact ? (
           <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
         ) : null}
         <OfficialGuidePlayCircle ref={playRef} audioUrl={prayer?.audioUrl} size={playCircle} color={t.btnBg} />

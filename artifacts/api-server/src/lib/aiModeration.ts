@@ -55,7 +55,7 @@ async function checkIsPrayer(content: string): Promise<"approve" | "reject"> {
           role: "user",
           content:
             `Is this a prayer, praise, devotion, testimony, or spiritual request for a Christian prayer app? ` +
-            `Say only "approve" or "reject". If it is not related to faith, prayer, or spirituality, reject it.\n\n` +
+            `Say only "approve" or "reject". Accept the content if it is a prayer, OR if it could be considered a prayer or something broadly faith-related. If it is clearly not related to faith, prayer, or spirituality in any way, reject it.\n\n` +
             `"${content}"`,
         },
       ],

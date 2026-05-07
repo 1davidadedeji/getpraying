@@ -18,6 +18,7 @@ import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
+import { goBackOrFallback } from "@/lib/goBackOrFallback";
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
@@ -88,7 +89,7 @@ export default function ForgotPasswordScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={() => router.back()} style={[styles.backBtn, { marginBottom: backMb }]}>
+        <Pressable onPress={() => goBackOrFallback("/login" as Href)} style={[styles.backBtn, { marginBottom: backMb }]}>
           <Feather name="arrow-left" size={backIcn} color={colors.primary} />
         </Pressable>
 

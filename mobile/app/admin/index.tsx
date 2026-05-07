@@ -167,7 +167,7 @@ export default function AdminHubScreen() {
           />
           <HubTile
             title="Official guides"
-            subtitle="Publish curated guides (audio)"
+            subtitle="Sanctuary slots and Library lectures"
             icon="book-open"
             onPress={() => router.push("/admin/official-guides" as Href)}
           />

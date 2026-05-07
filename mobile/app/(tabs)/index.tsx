@@ -1,13 +1,14 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   FlatList,
   Image,
+  Keyboard,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -19,6 +20,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
+import { FeedSearchDraftField } from "@/components/FeedSearchDraftField";
+import { SanctuarySlotCard } from "@/components/SanctuarySlotCard";
+import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/MorningEveningMarks";
 import colors from "@/constants/colors";
 import { LAYOUT } from "@/constants/layout";
 import { useAuth } from "@/context/auth";
@@ -30,7 +34,7 @@ import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
-import { formatLocalYMD } from "@/lib/date";
+import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const PAGE_SIZE = 20;
@@ -39,7 +43,7 @@ const NEW_POSTS_POLL_MS = 30_000;
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale } = useResponsiveLayout();
-  const greetSize = Math.round(clamp(24 * uiScale, 22, 28));
+  const greetSize = Math.round(clamp(17 * uiScale, 15, 21));
   const subGreetSize = Math.round(clamp(13 * uiScale, 12, 15));
   const listBotPad = Math.round(clamp(100 * uiScale, 88, 112));
   const reflIcn = Math.round(clamp(18 * uiScale, 16, 20));
@@ -56,17 +60,12 @@ export default function FeedScreen() {
   const { feedJumpToTopNonce } = useFeedNotice();
   const { pendingCount: modPending } = useModerationBadge();
   const { onScroll: onScrollHideBar } = useTabBarVisibility();
-  const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
-  const { data: dailyWord } = useGetDailyWord(
-    { date: todayYmd },
-    { query: { queryKey: getGetDailyWordQueryKey({ date: todayYmd }), staleTime: 60_000 } },
-  );
   const [feedCategory, setFeedCategory] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const listRef = useRef<FlatList>(null);
   const { feedMediaFocusPostId, onViewableItemsChanged, viewabilityConfig } = useFeedMediaViewability();
@@ -74,18 +73,129 @@ export default function FeedScreen() {
   const [newPostCount, setNewPostCount] = useState(0);
   const pillAnim = useRef(new Animated.Value(0)).current;
   const topPostId = useRef<number | null>(null);
+  const [sanctuary, setSanctuary] = useState<{
+    morning: OfficialPrayerRow | null;
+    evening: OfficialPrayerRow | null;
+  }>({ morning: null, evening: null });
+
+  /** Last submitted query; drives result facets. Draft typing stays in {@link FeedSearchDraftField}. */
+  const [committedSearchQuery, setCommittedSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchUsers, setSearchUsers] = useState<
+    { id: number; username: string; displayName?: string | null; avatarUrl?: string | null }[]
+  >([]);
+  const [searchPosts, setSearchPosts] = useState<Post[]>([]);
+  const [feedSearchFacet, setFeedSearchFacet] = useState<"all" | "people" | "prayers">("all");
+
+  const feedSearchFs = Math.round(clamp(15 * uiScale, 14, 17));
+  const feedSearchIcon = Math.round(clamp(18 * uiScale, 16, 22));
+  const searchClearIcn = Math.round(clamp(20 * uiScale, 18, 24));
+  const searchFacetTabH = Math.round(clamp(34 * uiScale, 30, 38));
+  const searchFacetTabRad = Math.round(searchFacetTabH / 2);
+  const searchFacetGap = Math.round(clamp(8 * uiScale, 6, 10));
+  const searchFacetIconFs = Math.round(clamp(16 * uiScale, 14, 18));
+  const searchFacetLabelFs = Math.round(clamp(13 * uiScale, 12, 15));
+  const searchFacetPadH = Math.round(clamp(10 * uiScale, 8, 12));
+
+  const clearCommittedSearchState = useCallback(() => {
+    setCommittedSearchQuery("");
+    setSearchUsers([]);
+    setSearchPosts([]);
+    setFeedSearchFacet("all");
+    setSearchLoading(false);
+  }, []);
+
+  const fetchSearchResults = useCallback(
+    async (q: string) => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(apiUrl(`/search?${new URLSearchParams({ q })}`), {
+          headers: authHeaders(token),
+        });
+        if (!res.ok) {
+          setSearchUsers([]);
+          setSearchPosts([]);
+          return;
+        }
+        const data = (await res.json()) as {
+          users?: { id: number; username: string; displayName?: string | null; avatarUrl?: string | null }[];
+          posts?: Post[];
+        };
+        setSearchUsers(Array.isArray(data.users) ? data.users : []);
+        setSearchPosts(Array.isArray(data.posts) ? data.posts : []);
+      } catch {
+        setSearchUsers([]);
+        setSearchPosts([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [token],
+  );
+
+  const runCommittedSearch = useCallback(
+    async (qRaw: string, opts?: { dismissKeyboard?: boolean; openModal?: boolean }) => {
+      const q = qRaw.trim();
+      if (opts?.dismissKeyboard) Keyboard.dismiss();
+      if (q.length < 2) {
+        clearCommittedSearchState();
+        return;
+      }
+      setCommittedSearchQuery(q);
+      setFeedSearchFacet("all");
+      if (opts?.openModal !== false) setSearchOpen(true);
+      await fetchSearchResults(q);
+    },
+    [clearCommittedSearchState, fetchSearchResults],
+  );
+
+  /** Debounced typing: keep keyboard open, surface results in the modal once there is a real query. */
+  const onSearchDraftDebounced = useCallback(
+    (draft: string) => {
+      const q = draft.trim();
+      if (q.length < 2) {
+        clearCommittedSearchState();
+        return;
+      }
+      void runCommittedSearch(q, { dismissKeyboard: false, openModal: true });
+    },
+    [clearCommittedSearchState, runCommittedSearch],
+  );
+
+  const loadSanctuary = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/library/official/sanctuary"), {
+        headers: authHeaders(token),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        morning?: OfficialPrayerRow | null;
+        evening?: OfficialPrayerRow | null;
+      };
+      setSanctuary({
+        morning: data.morning ?? null,
+        evening: data.evening ?? null,
+      });
+    } catch {
+      /* keep previous sanctuary */
+    }
+  }, [token]);
 
   const fetchPage = useCallback(
-    async (cursor?: number): Promise<{ posts: Post[]; nextCursor: number | null }> => {
+    async (cursor?: string | null): Promise<{ posts: Post[]; nextCursor: string | null }> => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (cursor) params.set("cursor", String(cursor));
+      if (cursor) params.set("cursor", cursor);
 
       const res = await fetch(apiUrl(`/posts?${params}`), {
         headers: authHeaders(token),
       });
       if (!res.ok) return { posts: [], nextCursor: null };
       const data = await res.json();
-      return { posts: data.posts ?? [], nextCursor: data.nextCursor ?? null };
+      const rawNext = data.nextCursor;
+      const nc =
+        rawNext !== null && rawNext !== undefined && String(rawNext).length > 0 ? String(rawNext) : null;
+      return { posts: data.posts ?? [], nextCursor: nc };
     },
     [token],
   );
@@ -117,7 +227,8 @@ export default function FeedScreen() {
 
   useEffect(() => {
     loadFresh();
-  }, [loadFresh]);
+    void loadSanctuary();
+  }, [loadFresh, loadSanctuary]);
 
   useEffect(() => {
     if (feedJumpToTopNonce === 0) return;
@@ -126,7 +237,8 @@ export default function FeedScreen() {
     setNewPostCount(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
     void loadFreshRef.current({ silent: true });
-  }, [feedJumpToTopNonce]);
+    void loadSanctuary();
+  }, [feedJumpToTopNonce, loadSanctuary]);
 
   useFocusEffect(
     useCallback(() => {
@@ -135,8 +247,9 @@ export default function FeedScreen() {
       if (Date.now() - lastJumpAtRef.current < 2000) return;
       if (!loading) {
         loadFresh({ silent: true });
+        void loadSanctuary();
       }
-    }, [loading, loadFresh]),
+    }, [loading, loadFresh, loadSanctuary]),
   );
 
   useEffect(() => {
@@ -198,10 +311,11 @@ export default function FeedScreen() {
       if (result.posts.length > 0) {
         topPostId.current = result.posts[0].id;
       }
+      void loadSanctuary();
     } catch { /* keep current data */ } finally {
       setRefreshing(false);
     }
-  }, [fetchPage]);
+  }, [fetchPage, loadSanctuary]);
 
   const handleLoadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
@@ -243,21 +357,15 @@ export default function FeedScreen() {
   const categoryLabel = (key: string) =>
     key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
-  const isEveningReflection = useMemo(() => new Date().getHours() >= 17, []);
+  const isEveningReflection = new Date().getHours() >= 17;
+  const showSanctuaryAudio = user?.scheduledNotificationsEnabled !== false;
+  const guideSlot: "morning" | "evening" = isEveningReflection ? "evening" : "morning";
+  const guideMarkSize = Math.round(clamp(reflIcn * 0.92, 16, 24));
 
   const renderHeader = () => (
     <View style={{ marginBottom: 8 }}>
-      <View style={[styles.header, { paddingTop: topPad + 4 }]}>
-        <View style={styles.headerTextBlock}>
-          <Text
-            style={[styles.greeting, { fontSize: greetSize }]}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-          >
-            {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
-          </Text>
-          <Text style={[styles.subGreeting, { fontSize: subGreetSize }]}>Your prayer feed</Text>
-        </View>
+      <View style={[styles.feedHeaderToolbar, { paddingTop: topPad + 6 }]}>
+        <View style={styles.flex1} />
         <View style={styles.headerRight}>
           {(user?.role === "admin" || user?.role === "moderator") && (
             <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn} accessibilityLabel="Moderation">
@@ -280,10 +388,7 @@ export default function FeedScreen() {
             accessibilityLabel="Your profile"
           >
             {user?.avatarUrl ? (
-              <Image
-                source={{ uri: resolveMediaUrl(user.avatarUrl)! }}
-                style={styles.headerAvatarImg}
-              />
+              <Image source={{ uri: resolveMediaUrl(user.avatarUrl)! }} style={styles.headerAvatarImg} />
             ) : (
               <View style={styles.headerAvatarFallback}>
                 <Text style={styles.headerAvatarLetter}>
@@ -295,29 +400,43 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      <Pressable
-        onPress={() => router.push("/library")}
-        style={({ pressed }) => [
-          styles.reflectionCard,
-          isEveningReflection && styles.reflectionCardEvening,
-          pressed && { opacity: 0.92 },
-        ]}
+      <Text
+        style={[styles.greeting, { fontSize: greetSize }]}
+        numberOfLines={2}
+        ellipsizeMode="tail"
       >
-        <View style={styles.reflectionTop}>
-          <Ionicons
-            name={isEveningReflection ? "moon-outline" : "sunny-outline"}
-            size={reflIcn}
-            color={colors.accent}
-          />
-          <Text style={styles.reflectionLabel}>
-            {isEveningReflection ? "Evening reflection" : "Morning reflection"}
-          </Text>
-        </View>
-        <Text style={styles.reflectionQuote} numberOfLines={3}>
-          &ldquo;{dailyWord?.quoteText ?? "Be still, and know that I am God."}&rdquo;
-        </Text>
-        <Text style={styles.reflectionRef}>{dailyWord?.reference ?? "Psalm 46:10"}</Text>
-      </Pressable>
+        {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
+      </Text>
+      <Text style={[styles.subGreeting, { fontSize: subGreetSize, marginBottom: 10 }]}>
+        Your prayer feed
+      </Text>
+
+      <FeedSearchDraftField
+        committedQuery={committedSearchQuery}
+        onSubmitQuery={(q) => void runCommittedSearch(q, { dismissKeyboard: true, openModal: true })}
+        onDebouncedQuery={onSearchDraftDebounced}
+        onClearCommitted={clearCommittedSearchState}
+        feedSearchFs={feedSearchFs}
+        searchIconSize={feedSearchIcon}
+        clearIconSize={searchClearIcn}
+        placeholder="Search users and prayers…"
+        accessibilityLabel="Search feed"
+      />
+
+      {showSanctuaryAudio ? (
+        <SanctuarySlotCard
+          compact
+          slot={guideSlot}
+          prayer={guideSlot === "evening" ? sanctuary.evening : sanctuary.morning}
+          leadingSlotIcon={
+            guideSlot === "evening" ? (
+              <EveningGuideMark size={guideMarkSize} />
+            ) : (
+              <MorningGuideMark size={guideMarkSize} />
+            )
+          }
+        />
+      ) : null}
 
       <Pressable
         onPress={() => router.push("/post/new" as never)}
@@ -342,7 +461,7 @@ export default function FeedScreen() {
             </Text>
           </View>
         )}
-        <Text style={[styles.heartPlaceholder, { fontSize: heartPlaceholderFs }]}>What&apos;s on your heart?</Text>
+        <Text style={[styles.heartPlaceholder, { fontSize: heartPlaceholderFs }]}>What's on your heart?</Text>
         <Pressable
           onPress={(e) => {
             e.stopPropagation?.();
@@ -378,7 +497,7 @@ export default function FeedScreen() {
               All
             </Text>
           </Pressable>
-          {user!.preferredCategories!.map((cat) => {
+          {user!.preferredCategories!.map((cat: string) => {
             const on = feedCategory === cat;
             return (
               <Pressable
@@ -486,6 +605,7 @@ export default function FeedScreen() {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.4}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         // Memory management: unmount native view trees (including Video/Audio) for
         // cards that scroll far off-screen. This is the primary defence against OOM
         // during long feed sessions. windowSize=7 keeps 3 screens above + below.
@@ -514,6 +634,175 @@ export default function FeedScreen() {
           </Text>
         </Pressable>
       </Animated.View>
+
+      <Modal visible={searchOpen} animationType="slide" transparent={false}>
+        <View style={[styles.flex, styles.searchModal]}>
+          <View style={[styles.searchModalToolbar, { paddingTop: Platform.OS === "web" ? 16 : (insets.top || 16) }]}>
+            <Pressable
+              onPress={() => {
+                setFeedSearchFacet("all");
+                setSearchOpen(false);
+                clearCommittedSearchState();
+              }}
+              style={styles.searchModalClose}
+            >
+              <Ionicons name="close" size={28} color={colors.primary} />
+            </Pressable>
+            <Text style={styles.searchModalTitle}>Search</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <FeedSearchDraftField
+            committedQuery={committedSearchQuery}
+            onSubmitQuery={(q) => void runCommittedSearch(q, { dismissKeyboard: true, openModal: true })}
+            onDebouncedQuery={onSearchDraftDebounced}
+            onClearCommitted={clearCommittedSearchState}
+            marginBottom={10}
+            feedSearchFs={feedSearchFs}
+            searchIconSize={feedSearchIcon}
+            clearIconSize={searchClearIcn}
+            placeholder="Try a name or phrase from a prayer…"
+            autoFocus
+            accessibilityLabel="Search query"
+          />
+
+          {committedSearchQuery.trim().length >= 2 ? (
+            <View
+              style={[
+                styles.searchFacetRow,
+                {
+                  gap: searchFacetGap,
+                  marginHorizontal: gutter,
+                  marginBottom: 10,
+                  opacity: searchLoading ? 0.55 : 1,
+                },
+              ]}
+            >
+              {(
+                [
+                  ["all", "All", "layers"] as const,
+                  ["people", "People", "users"] as const,
+                  ["prayers", "Prayers", "book-open"] as const,
+                ]
+              ).map(([key, label, icon]) => {
+                const active = feedSearchFacet === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setFeedSearchFacet(key)}
+                    style={[
+                      styles.searchFacetTab,
+                      {
+                        minHeight: searchFacetTabH,
+                        borderRadius: searchFacetTabRad,
+                        paddingHorizontal: searchFacetPadH,
+                        gap: Math.round(clamp(6 * uiScale, 5, 8)),
+                      },
+                      active && styles.searchFacetTabActive,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Feather
+                      name={icon}
+                      size={searchFacetIconFs}
+                      color={active ? colors.surface : colors.muted}
+                    />
+                    <Text
+                      style={[
+                        styles.searchFacetTabText,
+                        { fontSize: searchFacetLabelFs },
+                        active && styles.searchFacetTabTextActive,
+                      ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.85}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {searchLoading ? (
+            <View style={{ paddingVertical: 40 }}>
+              <ActivityIndicator size="large" color={colors.flame} />
+            </View>
+          ) : (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: insets.bottom + 40 }}
+            >
+              {(feedSearchFacet === "all" || feedSearchFacet === "people") && (
+                <>
+                  <Text style={styles.searchSectionLabel}>Users</Text>
+                  {searchUsers.length === 0 ? (
+                    <Text style={styles.searchEmpty}>No matching users.</Text>
+                  ) : (
+                    searchUsers.map((u) => (
+                      <Pressable
+                        key={u.id}
+                        style={styles.searchHitRow}
+                        onPress={() => {
+                          setFeedSearchFacet("all");
+                          setSearchOpen(false);
+                          router.push(`/user/${u.username}` as never);
+                        }}
+                      >
+                        {u.avatarUrl ? (
+                          <Image source={{ uri: resolveMediaUrl(u.avatarUrl)! }} style={styles.searchHitAvatar} />
+                        ) : (
+                          <View style={styles.searchHitAvatarFall}>
+                            <Text style={styles.searchHitLetter}>{(u.displayName ?? u.username)?.[0] ?? "?"}</Text>
+                          </View>
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.searchHitTitle} numberOfLines={1}>
+                            {u.displayName ?? u.username}
+                          </Text>
+                          <Text style={styles.searchHitSub} numberOfLines={1}>
+                            @{u.username}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))
+                  )}
+                </>
+              )}
+
+              {(feedSearchFacet === "all" || feedSearchFacet === "prayers") && (
+                <>
+                  <Text style={[styles.searchSectionLabel, { marginTop: feedSearchFacet === "all" ? 24 : 0 }]}>
+                    Prayers
+                  </Text>
+                  {searchPosts.length === 0 ? (
+                    <Text style={styles.searchEmpty}>No matching prayers.</Text>
+                  ) : (
+                    searchPosts.map((sp) => (
+                      <Pressable
+                        key={sp.id}
+                        style={styles.searchHitRowPrayer}
+                        onPress={() => {
+                          setFeedSearchFacet("all");
+                          setSearchOpen(false);
+                          router.push(`/post/${sp.id}` as never);
+                        }}
+                      >
+                        <Text style={styles.searchPrayerPreview} numberOfLines={3}>
+                          {sp.content}
+                        </Text>
+                        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                      </Pressable>
+                    ))
+                  )}
+                </>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -522,6 +811,127 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
     backgroundColor: colors.cream,
+  },
+  flex1: { flex: 1 },
+  feedHeaderToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingBottom: 4,
+  },
+  searchModal: {
+    backgroundColor: colors.cream,
+  },
+  searchModalToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchModalClose: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchModalTitle: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 20,
+    color: colors.primary,
+  },
+  searchFacetRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  searchFacetTab: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  searchFacetTabActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  searchFacetTabText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.muted,
+  },
+  searchFacetTabTextActive: {
+    color: colors.surface,
+  },
+  searchSectionLabel: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 12,
+    letterSpacing: 0.8,
+    color: colors.muted,
+    marginBottom: 10,
+    textTransform: "uppercase",
+  },
+  searchEmpty: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.muted,
+    marginBottom: 16,
+  },
+  searchHitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchHitAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  searchHitAvatarFall: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchHitLetter: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 16,
+    color: colors.accent,
+  },
+  searchHitTitle: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 15,
+    color: colors.text,
+  },
+  searchHitSub: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  searchHitRowPrayer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchPrayerPreview: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
   },
   centered: {
     flex: 1,
@@ -607,43 +1017,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
     color: colors.accent,
-  },
-  reflectionCard: {
-    backgroundColor: "#E8F0FA",
-    borderRadius: 20,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "rgba(26,43,74,0.08)",
-    gap: 4,
-  },
-  reflectionCardEvening: {
-    backgroundColor: "#F3E8DD",
-    borderColor: "rgba(92,74,58,0.12)",
-  },
-  reflectionTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  reflectionLabel: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  reflectionQuote: {
-    fontFamily: "NotoSerif_700Bold",
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  reflectionRef: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 11,
-    color: colors.muted,
-    fontStyle: "italic",
   },
   heartRow: {
     flexDirection: "row",

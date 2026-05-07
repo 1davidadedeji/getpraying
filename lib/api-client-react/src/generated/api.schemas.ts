@@ -82,6 +82,10 @@ export interface User {
   prayersShared: number;
   prayedFor: number;
   savedScrolls: number;
+  /** Billing tier slug from the server (e.g. free, active) when loaded via /auth/me */
+  subscription?: string | null;
+  /** Opt-in for scheduled morning/evening push reminders (from /auth/me) */
+  scheduledNotificationsEnabled?: boolean | null;
   createdAt: string;
 }
 
@@ -104,6 +108,8 @@ export interface UserProfile {
   followingCount: number;
   /** Present when the viewer is authenticated and not viewing their own profile */
   isFollowing?: boolean;
+  /** Present only when the API includes viewer-specific settings for this profile */
+  scheduledNotificationsEnabled?: boolean | null;
   createdAt: string;
 }
 
@@ -149,6 +155,8 @@ export interface Post {
   authorDisplayName?: string | null;
   authorAvatarUrl?: string | null;
   createdAt: string;
+  /** When a premium member last boosted this post (feed priority) */
+  boostedAt?: string | null;
 }
 
 export interface Comment {
@@ -219,8 +227,26 @@ export interface CreatePostInput {
 
 export interface PostsPage {
   posts: Post[];
-  nextCursor?: number | null;
+  /** Opaque feed pagination cursor — pass as GET /posts?cursor= */
+  nextCursor?: string | null;
   total: number;
+}
+
+export interface SearchUserResult {
+  id?: number;
+  username?: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface SearchResponse {
+  users: SearchUserResult[];
+  posts: Post[];
+}
+
+export interface BoostPostResponse {
+  boostedAt: string;
+  post: Post;
 }
 
 export interface PrayResponse {
@@ -382,7 +408,10 @@ export type GetUserPostsParams = {
 };
 
 export type GetPostsParams = {
-  cursor?: number;
+  /**
+   * Opaque keyset cursor returned as PostsPage.nextCursor
+   */
+  cursor?: string;
   limit?: number;
   category?: string;
   /**
@@ -393,6 +422,13 @@ export type GetPostsParams = {
 
 export type GetTrendingPostsParams = {
   limit?: number;
+};
+
+export type GlobalSearchParams = {
+  /**
+   * @minLength 2
+   */
+  q?: string;
 };
 
 export type GetOfficialPrayersParams = {

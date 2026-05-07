@@ -10,7 +10,9 @@
     "build:replit": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "round-icons": "node ./scripts/round-icons.mjs"
+    "round-icons": "node ./scripts/round-icons.mjs",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -70,6 +72,9 @@
     "expo-sharing": "~14.0.8",
     "react-native-collapsible-tab-view": "^8.0.1",
     "react-native-pager-view": "6.9.1",
-    "react-native-purchases": "^9.15.0"
+    "react-native-purchases": "^9.15.0",
+    "expo": "~54.0.33",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }

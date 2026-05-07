@@ -25,6 +25,7 @@ export type PostWithMeta = {
   authorDisplayName: string | null;
   authorAvatarUrl: string | null;
   createdAt: Date;
+  boostedAt: Date | null;
 };
 
 export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: number): Promise<PostWithMeta> {
@@ -99,6 +100,7 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     authorDisplayName: post.isAnonymous ? null : (author?.displayName ?? null),
     authorAvatarUrl: post.isAnonymous ? null : (author?.avatarUrl ?? null),
     createdAt: post.createdAt,
+    boostedAt: post.boostedAt ?? null,
   };
 }
 
@@ -180,6 +182,7 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       authorDisplayName: author?.displayName ?? null,
       authorAvatarUrl: author?.avatarUrl ?? null,
       createdAt: post.createdAt,
+      boostedAt: post.boostedAt ?? null,
     };
   });
 }

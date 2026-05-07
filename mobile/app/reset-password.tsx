@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +18,7 @@ import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
+import { goBackOrFallback } from "@/lib/goBackOrFallback";
 
 const OTP_LENGTH = 6;
 
@@ -255,7 +256,7 @@ export default function ResetPasswordScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={() => router.back()} style={[styles.backBtn, { marginBottom: backMb }]}>
+        <Pressable onPress={() => goBackOrFallback("/login" as Href)} style={[styles.backBtn, { marginBottom: backMb }]}>
           <Feather name="arrow-left" size={backIcn} color={colors.primary} />
         </Pressable>
 
@@ -315,7 +316,7 @@ export default function ResetPasswordScreen() {
               )}
             </Pressable>
 
-            <Pressable onPress={() => router.back()}>
+            <Pressable onPress={() => goBackOrFallback("/login" as Href)}>
               <Text style={[styles.linkText, { fontSize: fsLink, paddingVertical: linkPadV }]}>
                 Didn't get a code? Go back to resend
               </Text>

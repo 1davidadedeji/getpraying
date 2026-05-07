@@ -9,6 +9,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -92,6 +93,28 @@ export default function SettingsScreen() {
   const { pendingCount: modPending } = useModerationBadge();
   const queryClient = useQueryClient();
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [scheduledNotifsEnabled, setScheduledNotifsEnabled] = useState(
+    () => (user as any)?.scheduledNotificationsEnabled ?? true,
+  );
+  const [savingNotifPref, setSavingNotifPref] = useState(false);
+
+  const handleNotifToggle = async (value: boolean) => {
+    setScheduledNotifsEnabled(value);
+    if (!token) return;
+    setSavingNotifPref(true);
+    try {
+      await fetch(apiUrl("/users/me"), {
+        method: "PATCH",
+        headers: authHeaders(token, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ scheduledNotificationsEnabled: value }),
+      });
+    } catch {
+      /* revert on failure */
+      setScheduledNotifsEnabled(!value);
+    } finally {
+      setSavingNotifPref(false);
+    }
+  };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -200,6 +223,25 @@ export default function SettingsScreen() {
             <Text style={[styles.menuItemText, { fontSize: sui.menuTextFs }]}>Prayer preferences</Text>
             <Feather name="chevron-right" size={sui.chevIcon} color={colors.muted} />
           </Pressable>
+          <View
+            style={[
+              styles.menuItem,
+              styles.menuItemLast,
+              { paddingHorizontal: sui.menuPadH, paddingVertical: sui.menuPadV, gap: sui.menuGap },
+            ]}
+          >
+            <Ionicons name="notifications-outline" size={sui.menuIcon} color={colors.primary} />
+            <Text style={[styles.menuItemText, { fontSize: sui.menuTextFs }]}>
+              Morning &amp; Evening Reminders
+            </Text>
+            <Switch
+              value={scheduledNotifsEnabled}
+              onValueChange={(v) => void handleNotifToggle(v)}
+              disabled={savingNotifPref}
+              trackColor={{ false: colors.border, true: colors.accent }}
+              thumbColor={colors.surface}
+            />
+          </View>
         </View>
       </View>
 

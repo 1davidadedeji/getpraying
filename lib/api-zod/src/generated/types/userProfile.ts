@@ -19,5 +19,7 @@ export interface UserProfile {
   followingCount: number;
   /** Present when the viewer is authenticated and not viewing their own profile */
   isFollowing?: boolean;
+  /** Present only when the API includes viewer-specific settings for this profile */
+  scheduledNotificationsEnabled?: boolean | null;
   createdAt: Date;
 }

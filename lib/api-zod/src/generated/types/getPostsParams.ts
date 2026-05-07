@@ -7,7 +7,10 @@
  */
 
 export type GetPostsParams = {
-  cursor?: number;
+  /**
+   * Opaque keyset cursor returned as PostsPage.nextCursor
+   */
+  cursor?: string;
   limit?: number;
   category?: string;
   /**

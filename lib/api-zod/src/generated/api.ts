@@ -57,6 +57,18 @@ export const LoginResponse = zod.object({
     prayersShared: zod.number(),
     prayedFor: zod.number(),
     savedScrolls: zod.number(),
+    subscription: zod
+      .string()
+      .nullish()
+      .describe(
+        "Billing tier slug from the server (e.g. free, active) when loaded via \/auth\/me",
+      ),
+    scheduledNotificationsEnabled: zod
+      .boolean()
+      .nullish()
+      .describe(
+        "Opt-in for scheduled morning\/evening push reminders (from \/auth\/me)",
+      ),
     createdAt: zod.coerce.date(),
   }),
   message: zod.string().nullish(),
@@ -89,6 +101,18 @@ export const GetMeResponse = zod.object({
   prayersShared: zod.number(),
   prayedFor: zod.number(),
   savedScrolls: zod.number(),
+  subscription: zod
+    .string()
+    .nullish()
+    .describe(
+      "Billing tier slug from the server (e.g. free, active) when loaded via \/auth\/me",
+    ),
+  scheduledNotificationsEnabled: zod
+    .boolean()
+    .nullish()
+    .describe(
+      "Opt-in for scheduled morning\/evening push reminders (from \/auth\/me)",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -155,6 +179,12 @@ export const GetUserProfileResponse = zod.object({
     .optional()
     .describe(
       "Present when the viewer is authenticated and not viewing their own profile",
+    ),
+  scheduledNotificationsEnabled: zod
+    .boolean()
+    .nullish()
+    .describe(
+      "Present only when the API includes viewer-specific settings for this profile",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -227,9 +257,18 @@ export const GetUserPostsResponse = zod.object({
       authorDisplayName: zod.string().nullish(),
       authorAvatarUrl: zod.string().nullish(),
       createdAt: zod.coerce.date(),
+      boostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When a premium member last boosted this post (feed priority)",
+        ),
     }),
   ),
-  nextCursor: zod.number().nullish(),
+  nextCursor: zod
+    .string()
+    .nullish()
+    .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
 });
 
@@ -239,7 +278,10 @@ export const GetUserPostsResponse = zod.object({
 export const getPostsQueryLimitDefault = 20;
 
 export const GetPostsQueryParams = zod.object({
-  cursor: zod.coerce.number().optional(),
+  cursor: zod.coerce
+    .string()
+    .optional()
+    .describe("Opaque keyset cursor returned as PostsPage.nextCursor"),
   limit: zod.coerce.number().default(getPostsQueryLimitDefault),
   category: zod.coerce.string().optional(),
   personalize: zod.coerce
@@ -280,9 +322,18 @@ export const GetPostsResponse = zod.object({
       authorDisplayName: zod.string().nullish(),
       authorAvatarUrl: zod.string().nullish(),
       createdAt: zod.coerce.date(),
+      boostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When a premium member last boosted this post (feed priority)",
+        ),
     }),
   ),
-  nextCursor: zod.number().nullish(),
+  nextCursor: zod
+    .string()
+    .nullish()
+    .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
 });
 
@@ -353,6 +404,10 @@ export const GetTrendingPostsResponseItem = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorAvatarUrl: zod.string().nullish(),
   createdAt: zod.coerce.date(),
+  boostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When a premium member last boosted this post (feed priority)"),
 });
 export const GetTrendingPostsResponse = zod.array(GetTrendingPostsResponseItem);
 
@@ -369,6 +424,107 @@ export const GetFeedStatsResponse = zod.object({
     }),
   ),
   dailyReflection: zod.string(),
+});
+
+/**
+ * @summary Search users and approved prayers
+ */
+export const globalSearchQueryQMin = 2;
+
+export const GlobalSearchQueryParams = zod.object({
+  q: zod.coerce.string().min(globalSearchQueryQMin).optional(),
+});
+
+export const GlobalSearchResponse = zod.object({
+  users: zod.array(
+    zod.object({
+      id: zod.number().optional(),
+      username: zod.string().optional(),
+      displayName: zod.string().nullish(),
+      avatarUrl: zod.string().nullish(),
+    }),
+  ),
+  posts: zod.array(
+    zod.object({
+      id: zod.number(),
+      content: zod.string(),
+      mediaUrl: zod.string().nullish(),
+      mediaType: zod.enum(["image", "video", "audio"]).nullish(),
+      category: zod.string().nullish(),
+      categories: zod
+        .array(zod.string())
+        .optional()
+        .describe("All tag slugs for this post (primary is usually first)"),
+      isAnonymous: zod.boolean(),
+      status: zod.enum(["pending", "approved", "declined"]),
+      flagReason: zod.string().nullish(),
+      moderationReason: zod
+        .string()
+        .nullish()
+        .describe("Shown to the author when a moderator declines the post"),
+      prayCount: zod.number(),
+      commentCount: zod.number(),
+      saveCount: zod.number(),
+      hasPrayed: zod.boolean(),
+      hasCommented: zod.boolean(),
+      isSaved: zod.boolean(),
+      authorId: zod.number().nullish(),
+      authorUsername: zod.string().nullish(),
+      authorDisplayName: zod.string().nullish(),
+      authorAvatarUrl: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      boostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When a premium member last boosted this post (feed priority)",
+        ),
+    }),
+  ),
+});
+
+/**
+ * @summary Boost a post (premium) — prioritizes in feed and notifies all users
+ */
+export const BoostPostParams = zod.object({
+  postId: zod.coerce.number(),
+});
+
+export const BoostPostResponse = zod.object({
+  boostedAt: zod.coerce.date(),
+  post: zod.object({
+    id: zod.number(),
+    content: zod.string(),
+    mediaUrl: zod.string().nullish(),
+    mediaType: zod.enum(["image", "video", "audio"]).nullish(),
+    category: zod.string().nullish(),
+    categories: zod
+      .array(zod.string())
+      .optional()
+      .describe("All tag slugs for this post (primary is usually first)"),
+    isAnonymous: zod.boolean(),
+    status: zod.enum(["pending", "approved", "declined"]),
+    flagReason: zod.string().nullish(),
+    moderationReason: zod
+      .string()
+      .nullish()
+      .describe("Shown to the author when a moderator declines the post"),
+    prayCount: zod.number(),
+    commentCount: zod.number(),
+    saveCount: zod.number(),
+    hasPrayed: zod.boolean(),
+    hasCommented: zod.boolean(),
+    isSaved: zod.boolean(),
+    authorId: zod.number().nullish(),
+    authorUsername: zod.string().nullish(),
+    authorDisplayName: zod.string().nullish(),
+    authorAvatarUrl: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+    boostedAt: zod.coerce
+      .date()
+      .nullish()
+      .describe("When a premium member last boosted this post (feed priority)"),
+  }),
 });
 
 /**
@@ -406,6 +562,10 @@ export const GetPostResponse = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorAvatarUrl: zod.string().nullish(),
   createdAt: zod.coerce.date(),
+  boostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When a premium member last boosted this post (feed priority)"),
 });
 
 /**
@@ -586,6 +746,10 @@ export const GetSavedPrayersResponseItem = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorAvatarUrl: zod.string().nullish(),
   createdAt: zod.coerce.date(),
+  boostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When a premium member last boosted this post (feed priority)"),
 });
 export const GetSavedPrayersResponse = zod.array(GetSavedPrayersResponseItem);
 
@@ -676,6 +840,12 @@ export const GetPathResponse = zod.object({
       authorDisplayName: zod.string().nullish(),
       authorAvatarUrl: zod.string().nullish(),
       createdAt: zod.coerce.date(),
+      boostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When a premium member last boosted this post (feed priority)",
+        ),
     }),
   ),
 });
@@ -787,9 +957,18 @@ export const GetPendingPostsResponse = zod.object({
       authorDisplayName: zod.string().nullish(),
       authorAvatarUrl: zod.string().nullish(),
       createdAt: zod.coerce.date(),
+      boostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When a premium member last boosted this post (feed priority)",
+        ),
     }),
   ),
-  nextCursor: zod.number().nullish(),
+  nextCursor: zod
+    .string()
+    .nullish()
+    .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
 });
 
@@ -833,9 +1012,18 @@ export const GetModeratedPostsResponse = zod.object({
       authorDisplayName: zod.string().nullish(),
       authorAvatarUrl: zod.string().nullish(),
       createdAt: zod.coerce.date(),
+      boostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When a premium member last boosted this post (feed priority)",
+        ),
     }),
   ),
-  nextCursor: zod.number().nullish(),
+  nextCursor: zod
+    .string()
+    .nullish()
+    .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
 });
 
@@ -874,6 +1062,10 @@ export const ApprovePostResponse = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorAvatarUrl: zod.string().nullish(),
   createdAt: zod.coerce.date(),
+  boostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When a premium member last boosted this post (feed priority)"),
 });
 
 /**
@@ -922,6 +1114,10 @@ export const DeclinePostResponse = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorAvatarUrl: zod.string().nullish(),
   createdAt: zod.coerce.date(),
+  boostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When a premium member last boosted this post (feed priority)"),
 });
 
 /**
@@ -964,6 +1160,18 @@ export const GetAdminUsersResponse = zod.object({
       prayersShared: zod.number(),
       prayedFor: zod.number(),
       savedScrolls: zod.number(),
+      subscription: zod
+        .string()
+        .nullish()
+        .describe(
+          "Billing tier slug from the server (e.g. free, active) when loaded via \/auth\/me",
+        ),
+      scheduledNotificationsEnabled: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "Opt-in for scheduled morning\/evening push reminders (from \/auth\/me)",
+        ),
       createdAt: zod.coerce.date(),
     }),
   ),

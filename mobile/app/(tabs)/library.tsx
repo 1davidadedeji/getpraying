@@ -11,12 +11,16 @@ import {
   Text,
   TextInput,
   View,
+  type ListRenderItemInfo,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import { SanctuarySlotCard } from "@/components/SanctuarySlotCard";
+import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/MorningEveningMarks";
 import { OfficialGuideCard } from "@/components/OfficialGuideCard";
 import PostCard from "@/components/PostCard";
 import { LAYOUT } from "@/constants/layout";
@@ -32,11 +36,53 @@ import { SAVED_OFFICIAL_EMPTY } from "@/constants/savedOfficialList";
 import {
   LIBRARY_FALLBACK_PATHS,
   type ApiLibraryCategory,
+  emojiForLibraryCategory,
   type LibraryPathCard,
 } from "@/constants/libraryFallbackPaths";
 
 type Tab = "categories" | "saved";
 type CategoryItem = LibraryPathCard | ApiLibraryCategory;
+
+type LectureCarouselItem = OfficialPrayerRow | { _explorePlaceholder: true };
+
+/** Solid card themes rotating through the carousel (match reference: blue / tan / navy). */
+const LECTURE_VISUAL_THEMES = [
+  {
+    bg: "#E8F0FA",
+    titleColor: "#1A1F36",
+    subColor: "rgba(26,31,54,0.68)",
+    iconBg: "rgba(255,255,255,0.82)",
+    iconColor: "#1A1F36",
+    chevronBg: "#FFFFFF",
+    chevronColor: "#1A1F36",
+  },
+  {
+    bg: "#EDE4D9",
+    titleColor: "#3D3429",
+    subColor: "rgba(61,52,41,0.72)",
+    iconBg: "rgba(255,255,255,0.75)",
+    iconColor: "#5C4A3A",
+    chevronBg: "#FFFFFF",
+    chevronColor: "#5C4A3A",
+  },
+  {
+    bg: "#1E2D4A",
+    titleColor: "#FFFFFF",
+    subColor: "rgba(255,255,255,0.76)",
+    iconBg: "rgba(255,255,255,0.14)",
+    iconColor: "#FFFFFF",
+    chevronBg: "#FFFFFF",
+    chevronColor: "#1E2D4A",
+  },
+] as const;
+
+const LECTURE_ARTWORK_ICONS = ["book-outline", "sunny-outline", "mic-outline"] as const;
+
+function truncateLecturePreview(s: string, maxLen: number): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  if (t.length <= maxLen) return t;
+  return `${t.slice(0, Math.max(0, maxLen - 1)).trim()}…`;
+}
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
@@ -52,6 +98,8 @@ export default function LibraryScreen() {
     evening: OfficialPrayerRow | null;
   }>({ morning: null, evening: null });
   const [loadingOfficial, setLoadingOfficial] = useState(false);
+  const [lecturesGuides, setLecturesGuides] = useState<OfficialPrayerRow[]>([]);
+  const [loadingLectures, setLoadingLectures] = useState(false);
   const [savedOfficialIds, setSavedOfficialIds] = useState<Set<number>>(new Set());
   const [savedOfficialList, setSavedOfficialList] = useState<OfficialPrayerRow[]>([]);
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
@@ -60,6 +108,16 @@ export default function LibraryScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<TextInput>(null);
+  const [lectureScrollIndex, setLectureScrollIndex] = useState(0);
+
+  const lectureCarouselData = useMemo<LectureCarouselItem[]>(() => {
+    if (lecturesGuides.length === 0) return [];
+    return [...lecturesGuides, { _explorePlaceholder: true }];
+  }, [lecturesGuides]);
+
+  useEffect(() => {
+    setLectureScrollIndex(0);
+  }, [lecturesGuides]);
 
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) return categories;
@@ -173,6 +231,23 @@ export default function LibraryScreen() {
     }
   }, [token]);
 
+  const loadLectures = useCallback(async () => {
+    setLoadingLectures(true);
+    try {
+      const res = await fetch(apiUrl("/library/official?category=lectures&limit=20"), {
+        headers: authHeaders(token),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { prayers?: OfficialPrayerRow[] };
+        setLecturesGuides(data.prayers ?? []);
+      }
+    } catch {
+      setLecturesGuides([]);
+    } finally {
+      setLoadingLectures(false);
+    }
+  }, [token]);
+
   /** Optimistic toggle — updates UI immediately, reverts on failure */
   const toggleSaveOfficial = useCallback(
     async (id: number) => {
@@ -222,7 +297,8 @@ export default function LibraryScreen() {
       void loadSanctuary();
       void loadSavedOfficialIds();
       void loadSaved();
-    }, [loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved]),
+      void loadLectures();
+    }, [loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures]),
   );
 
   useEffect(() => {
@@ -230,10 +306,11 @@ export default function LibraryScreen() {
       void loadCategories();
       void loadSanctuary();
       void loadSavedOfficialIds();
+      void loadLectures();
     } else if (activeTab === "saved") {
       void loadSaved();
     }
-  }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved]);
+  }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const SITUATION_COLS = getLibrarySituationCols(windowWidth, windowHeight, isTablet);
@@ -247,6 +324,16 @@ export default function LibraryScreen() {
   }, [filteredCategories, SITUATION_COLS]);
   const situationIconSize = Math.round(20 * uiScale);
   const situationIconBg = getLibraryIconBgSize(uiScale);
+  const situationEmojiSize = Math.round(clamp(26 * uiScale, 24, 30));
+  const lectureCarouselGap = Math.round(10 * uiScale);
+  const lectureCardWidth = Math.round(
+    clamp(
+      Math.min(windowWidth, LAYOUT.contentMaxWidth) - gutter * 2 - lectureCarouselGap,
+      200,
+      258,
+    ),
+  );
+  const lectureSnapInterval = lectureCardWidth + lectureCarouselGap;
   const scrollPadBottom = Math.round(clamp(100 * uiScale, 88, 112)) + insets.bottom;
   const searchBtnSz = Math.round(clamp(40 * uiScale, 36, 46));
   const searchBtnRad = Math.round(searchBtnSz / 2);
@@ -259,11 +346,105 @@ export default function LibraryScreen() {
   const tabFs = Math.round(clamp(13 * uiScale, 12, 15));
   const tabH = Math.round(clamp(34 * uiScale, 30, 38));
   const tabRad = Math.round(tabH / 2);
+  const sanctuaryLeadSz = Math.round(clamp(40 * uiScale, 34, 48));
 
   const tabs: { key: Tab; label: string; icon: "book-open" | "bookmark" }[] = [
     { key: "categories", label: "Official Prayers", icon: "book-open" },
     { key: "saved", label: "Saved", icon: "bookmark" },
   ];
+
+  const onLectureScrollSettle = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const step = lectureSnapInterval;
+      if (step <= 0 || lectureCarouselData.length === 0) return;
+      const x = e.nativeEvent.contentOffset.x;
+      const ix = Math.round(x / step);
+      setLectureScrollIndex(Math.max(0, Math.min(ix, lectureCarouselData.length - 1)));
+    },
+    [lectureSnapInterval, lectureCarouselData.length],
+  );
+
+  const renderLectureCarouselItem = useCallback(
+    (info: ListRenderItemInfo<LectureCarouselItem>) => {
+      const { item } = info;
+      if (!("id" in item)) {
+        return (
+          <View style={[styles.lectureCardTall, { width: lectureCardWidth }, styles.lectureExploreCard]}>
+            <View style={[styles.lectureIconOrb, styles.lectureExploreIconOrb]}>
+              <Ionicons name="ellipsis-horizontal" size={Math.round(22 * uiScale)} color={colors.muted} />
+            </View>
+            <Text style={styles.lectureExploreTitle} numberOfLines={2}>
+              Explore More
+            </Text>
+            <Text style={styles.lectureExploreSub} numberOfLines={2}>
+              More lectures coming soon.
+            </Text>
+          </View>
+        );
+      }
+
+      const op = item;
+      const lectureIx = lecturesGuides.findIndex((g) => g.id === op.id);
+      const themeIx =
+        lectureIx >= 0 ? lectureIx % LECTURE_VISUAL_THEMES.length : 0;
+      const theme = LECTURE_VISUAL_THEMES[themeIx];
+      const artIx = lectureIx >= 0 ? lectureIx % LECTURE_ARTWORK_ICONS.length : 0;
+
+      const sub = truncateLecturePreview(
+        (op.subtitle?.trim() ?? op.content?.trim() ?? "").trim() || "Listen to this guide.",
+        100,
+      );
+
+      return (
+        <Pressable
+          style={({ pressed }) => [
+            styles.lectureCardTall,
+            {
+              width: lectureCardWidth,
+              backgroundColor: theme.bg,
+            },
+            pressed && styles.cardPressed,
+          ]}
+          onPress={() => router.push(`/official/${op.id}` as never)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open lecture: ${op.title}`}
+        >
+          <View style={[styles.lectureIconOrb, { backgroundColor: theme.iconBg }]}>
+            <Ionicons
+              name={LECTURE_ARTWORK_ICONS[artIx]}
+              size={Math.round(26 * uiScale)}
+              color={theme.iconColor}
+            />
+          </View>
+          <Text style={[styles.lectureCardTitleSerif, { color: theme.titleColor }]} numberOfLines={2}>
+            {op.title}
+          </Text>
+          <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={4}>
+            {sub}
+          </Text>
+          {op.durationMinutes != null ? (
+            <Text style={[styles.lectureDurHint, { color: theme.subColor }]}>
+              {op.durationMinutes} min listen
+            </Text>
+          ) : null}
+          <View
+            pointerEvents="none"
+            style={[
+              styles.lectureChevronFab,
+              { bottom: Math.round(14 * uiScale), right: Math.round(14 * uiScale), backgroundColor: theme.chevronBg },
+            ]}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={Math.round(17 * uiScale)}
+              color={theme.chevronColor}
+            />
+          </View>
+        </Pressable>
+      );
+    },
+    [lectureCardWidth, lecturesGuides, uiScale],
+  );
 
   const openPath = (cat: CategoryItem) => {
     if (cat.pathId != null && cat.pathId > 0) {
@@ -281,6 +462,7 @@ export default function LibraryScreen() {
   };
 
   const renderSituationCard = (cat: CategoryItem) => {
+    const emojiChar = emojiForLibraryCategory(cat);
     return (
       <Pressable
         style={({ pressed }) => [
@@ -289,23 +471,31 @@ export default function LibraryScreen() {
           pressed && styles.cardPressed,
         ]}
         onPress={() => openPath(cat)}
+        accessibilityRole="button"
+        accessibilityLabel={`Browse ${cat.name}`}
       >
-        <View
-          style={[
-            styles.situationIconBg,
-            {
-              width: situationIconBg,
-              height: situationIconBg,
-              borderRadius: situationIconBg / 2,
-            },
-          ]}
-        >
-          <Feather
-            name={(FEATHER_ICON_MAP[cat.icon] ?? "star") as any}
-            size={situationIconSize}
-            color={colors.surface}
-          />
-        </View>
+        {emojiChar ? (
+          <Text style={[styles.situationEmoji, { fontSize: situationEmojiSize }]} allowFontScaling>
+            {emojiChar}
+          </Text>
+        ) : (
+          <View
+            style={[
+              styles.situationIconBg,
+              {
+                width: situationIconBg,
+                height: situationIconBg,
+                borderRadius: situationIconBg / 2,
+              },
+            ]}
+          >
+            <Feather
+              name={(FEATHER_ICON_MAP[cat.icon] ?? "star") as any}
+              size={situationIconSize}
+              color={colors.surface}
+            />
+          </View>
+        )}
         <Text style={styles.situationName} numberOfLines={2}>
           {cat.name}
         </Text>
@@ -427,6 +617,7 @@ export default function LibraryScreen() {
                 <SanctuarySlotCard
                   slot="morning"
                   prayer={sanctuary.morning}
+                  leadingSlotIcon={<MorningGuideMark size={sanctuaryLeadSz} />}
                   showSave={!!token}
                   isSaved={savedOfficialIds.has(sanctuary.morning.id)}
                   onToggleSave={() => void toggleSaveOfficial(sanctuary.morning!.id)}
@@ -436,11 +627,59 @@ export default function LibraryScreen() {
                 <SanctuarySlotCard
                   slot="evening"
                   prayer={sanctuary.evening}
+                  leadingSlotIcon={<EveningGuideMark size={sanctuaryLeadSz} />}
                   showSave={!!token}
                   isSaved={savedOfficialIds.has(sanctuary.evening.id)}
                   onToggleSave={() => void toggleSaveOfficial(sanctuary.evening!.id)}
                 />
               ) : null}
+            </>
+          )}
+
+          {/* Lectures */}
+          {(loadingLectures || lecturesGuides.length > 0) && (
+            <>
+              <View style={[styles.lecturesHeaderBlock, { marginTop: 24, marginBottom: 12 }]}>
+                <View>
+                  <Text style={styles.lecturesKicker}>LECTURES</Text>
+                  <Text style={styles.lecturesSubhead}>Deepen your prayer life</Text>
+                </View>
+                <Feather name="headphones" size={Math.round(22 * uiScale)} color={colors.primary} />
+              </View>
+              {loadingLectures ? (
+                <ActivityIndicator color={colors.accent} style={styles.loader} />
+              ) : (
+                <>
+                  <FlatList
+                    horizontal
+                    data={lectureCarouselData}
+                    keyExtractor={(it) =>
+                      !("id" in it) ? "__explore_more" : String((it as OfficialPrayerRow).id)}
+                    renderItem={renderLectureCarouselItem}
+                    ItemSeparatorComponent={() => <View style={{ width: lectureCarouselGap }} />}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 12, paddingRight: 4 }}
+                    snapToInterval={lectureSnapInterval}
+                    snapToAlignment="start"
+                    decelerationRate="fast"
+                    onMomentumScrollEnd={onLectureScrollSettle}
+                    style={{ overflow: "visible" }}
+                  />
+                  {lectureCarouselData.length > 1 ? (
+                    <View style={styles.lectureDotRow}>
+                      {lectureCarouselData.map((_, i) => (
+                        <View
+                          key={`lect-dot-${i}`}
+                          style={[
+                            styles.lectureDot,
+                            i === lectureScrollIndex && styles.lectureDotActive,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  ) : null}
+                </>
+              )}
             </>
           )}
 
@@ -692,6 +931,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  situationEmoji: {
+    textAlign: "center",
+    paddingVertical: 2,
+    marginBottom: 2,
+  },
   situationName: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
@@ -702,5 +946,125 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 11,
     color: colors.muted,
+  },
+  lecturesHeaderBlock: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  lecturesKicker: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 11,
+    letterSpacing: 1.1,
+    color: colors.muted,
+  },
+  lecturesSubhead: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  lectureCardTall: {
+    minHeight: 172,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 40,
+    alignItems: "center",
+    position: "relative",
+    overflow: "visible",
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  lectureExploreCard: {
+    backgroundColor: "#F0EEE8",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+  },
+  lectureIconOrb: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  lectureExploreIconOrb: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  lectureCardTitleSerif: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 17,
+    lineHeight: 22,
+    textAlign: "center",
+    width: "100%",
+  },
+  lectureCardSubSans: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+    width: "100%",
+  },
+  lectureDurHint: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 11,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  lectureChevronFab: {
+    position: "absolute",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  lectureExploreTitle: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 17,
+    color: colors.text,
+    textAlign: "center",
+    width: "100%",
+  },
+  lectureExploreSub: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: 6,
+    width: "100%",
+  },
+  lectureDotRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  lectureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+  },
+  lectureDotActive: {
+    backgroundColor: colors.primary,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

@@ -11,13 +11,15 @@ import {
 } from "@workspace/db";
 import { eq, and, or, desc, sql, asc } from "drizzle-orm";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
-import { requireAuth, optionalAuth } from "../lib/auth";
+import { requireAuth, optionalAuth, userCanUsePremiumBoost } from "../lib/auth";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
 import { notifyModeratorsNewPending } from "../lib/modQueueNotifications";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { RateLimiter } from "../lib/rateLimit";
+import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
+import { broadcastPushToRegisteredDevices } from "../lib/broadcastPush";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
@@ -149,11 +151,11 @@ router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => 
 
 router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const limit = Math.min(parseInt((req.query.limit as string) || "20", 10), 50);
-  const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
+  const cursorDecoded = decodeFeedCursor(req.query.cursor as string | undefined);
   const category = req.query.category as string | undefined;
   const currentUser = (req as any).user as { id: number } | undefined;
 
-  let conditions: any = eq(postsTable.status, "approved");
+  let conditions: ReturnType<typeof eq> | ReturnType<typeof and> = eq(postsTable.status, "approved");
   if (category && String(category).trim()) {
     const c = String(category).trim();
     conditions = and(
@@ -162,26 +164,44 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
         eq(postsTable.category, c),
         sql`coalesce(${postsTable.categoryTags}, '[]')::jsonb @> ${JSON.stringify([c])}::jsonb`,
       )!,
-    );
+    )!;
   }
-  if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
+  if (cursorDecoded) {
+    const kDate = new Date(cursorDecoded.k);
+    conditions = and(
+      conditions,
+      sql`(COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) < ${kDate}
+          OR (
+            COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) = ${kDate}
+            AND ${postsTable.id} < ${cursorDecoded.i}
+          ))`,
+    )!;
+  }
 
-  /** Pure reverse-chronological feed so new posts (including the viewer's) stay on top. */
   const posts = await db
     .select()
     .from(postsTable)
     .where(conditions)
-    .orderBy(desc(postsTable.createdAt), desc(postsTable.id))
+    .orderBy(
+      desc(sql`COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt})`),
+      desc(postsTable.id),
+    )
     .limit(limit + 1);
 
   const hasMore = posts.length > limit;
   const page = posts.slice(0, limit);
   const enriched = await enrichPosts(page, currentUser?.id);
 
+  let nextCursor: string | null = null;
+  if (hasMore && enriched.length > 0) {
+    const last = enriched[enriched.length - 1]!;
+    nextCursor = encodeFeedCursor(last);
+  }
+
   res.json({
     posts: enriched,
-    nextCursor: hasMore ? page[page.length - 1]?.id : null,
-    total: page.length,
+    nextCursor,
+    total: enriched.length,
   });
 });
 
@@ -249,15 +269,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     postStatus = "approved";
   } else if (hasMedia) {
     postStatus = "pending";
-    if (storedContent && storedContent !== "(Image)") {
-      const modResult = await moderatePost(storedContent);
-      if (modResult.outcome === "rejected") {
-        postStatus = "declined";
-        moderationReason = modResult.reason;
-      } else if (modResult.outcome === "queue" && modResult.reason) {
-        moderationReason = modResult.reason;
-      }
-    }
+    moderationReason = "Media requires manual review.";
   } else if (storedContent && storedContent !== "(Image)") {
     const modResult = await moderatePost(storedContent);
     if (modResult.outcome === "approved") {
@@ -302,6 +314,66 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
 
   const enriched = await enrichPost(post, user.id);
   res.status(201).json(enriched);
+});
+
+router.post("/posts/:postId/boost", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user;
+  if (!userCanUsePremiumBoost(user)) {
+    res.status(402).json({ error: "An active subscription is required.", code: "SUBSCRIPTION_REQUIRED" });
+    return;
+  }
+
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(rawId, 10);
+  if (Number.isNaN(postId)) {
+    res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
+  if (!post || post.status !== "approved") {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
+  const now = new Date();
+  const [updated] = await db
+    .update(postsTable)
+    .set({ boostedAt: now, updatedAt: now })
+    .where(eq(postsTable.id, postId))
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
+  let authorUsername: string | null = null;
+  if (!updated.isAnonymous && updated.authorId != null) {
+    const [a] = await db
+      .select({ username: usersTable.username })
+      .from(usersTable)
+      .where(eq(usersTable.id, updated.authorId))
+      .limit(1);
+    authorUsername = a?.username ?? null;
+  }
+
+  const nameForPush = updated.isAnonymous ? "Someone" : (authorUsername ?? "A member");
+  const bodyPush = `A member needs help: ${nameForPush}`;
+
+  void broadcastPushToRegisteredDevices({
+    title: "Get Praying",
+    body: bodyPush,
+    data: {
+      type: "boost_alert",
+      postId: String(postId),
+      boostedByUserId: String(user.id),
+    },
+    excludeUserIds: new Set<number>([user.id]),
+  });
+
+  const enriched = await enrichPost(updated, user.id);
+  res.json({ boostedAt: now.toISOString(), post: enriched });
 });
 
 router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {

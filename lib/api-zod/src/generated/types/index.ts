@@ -8,6 +8,7 @@
 
 export * from "./adminStats";
 export * from "./authResponse";
+export * from "./boostPostResponse";
 export * from "./category";
 export * from "./clearDailyWordOverrideParams";
 export * from "./comment";
@@ -31,6 +32,7 @@ export * from "./getPendingPostsParams";
 export * from "./getPostsParams";
 export * from "./getTrendingPostsParams";
 export * from "./getUserPostsParams";
+export * from "./globalSearchParams";
 export * from "./healthStatus";
 export * from "./loginInput";
 export * from "./notification";
@@ -49,6 +51,8 @@ export * from "./preferencesInput";
 export * from "./registerInput";
 export * from "./resendVerificationInput";
 export * from "./savePostStateResponse";
+export * from "./searchResponse";
+export * from "./searchUserResult";
 export * from "./setDailyWordOverrideInput";
 export * from "./successResponse";
 export * from "./unfollowUser200";

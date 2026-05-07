@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -44,6 +44,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -283,7 +284,7 @@ export default function PostDetailScreen() {
         }
         setStaffDeleteOpen(false);
         setStaffDeleteReason("");
-        router.back();
+        goBackOrFallback("/(tabs)" as Href);
       } else {
         const err = await res.json().catch(() => ({}));
         showAppAlert({ title: "Could not delete", message: (err as any).error ?? "Please try again." });

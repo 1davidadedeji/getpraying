@@ -7,9 +7,10 @@ import { useGetNotifications, getGetNotificationsQueryKey } from "@workspace/api
 import type { Notification } from "@workspace/api-client-react";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useRef } from "react";
-import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
+import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -481,11 +482,7 @@ export default function TabLayout() {
   const rc = useRevenueCat();
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
+    return <AppLoadingScreen variant="splash" />;
   }
 
   if (!user) {

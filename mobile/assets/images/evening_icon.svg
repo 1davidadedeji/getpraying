@@ -1,0 +1,18 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgEvening" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3E8D9"/>
+      <stop offset="100%" stop-color="#EADFCC"/>
+    </linearGradient>
+    <linearGradient id="moonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE6A7"/>
+      <stop offset="100%" stop-color="#FFC96B"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#bgEvening)"/>
+  <circle cx="32" cy="32" r="30" fill="#5B4A6B" opacity="0.25"/>
+  <path d="M38 20 A10 10 0 1 0 44 40 A8 8 0 1 1 38 20 Z" fill="url(#moonGradient)"/>
+  <circle cx="22" cy="22" r="1.5" fill="#FFE6A7"/>
+  <circle cx="46" cy="26" r="1.2" fill="#FFE6A7"/>
+  <circle cx="40" cy="18" r="1" fill="#FFE6A7"/>
+</svg>

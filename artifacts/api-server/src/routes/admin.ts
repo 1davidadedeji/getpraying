@@ -474,6 +474,10 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
     return;
   }
   const category = typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
+  const durationMinutesGeneral =
+    typeof req.body?.durationMinutes === "number" && Number.isFinite(req.body.durationMinutes)
+      ? Math.round(req.body.durationMinutes)
+      : null;
   const [row] = await db
     .insert(officialPrayersTable)
     .values({
@@ -483,6 +487,7 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
       subtitle: typeof req.body?.subtitle === "string" ? req.body.subtitle : null,
       pathId: typeof req.body?.pathId === "number" ? req.body.pathId : null,
       audioUrl: typeof req.body?.audioUrl === "string" ? req.body.audioUrl.trim() : null,
+      durationMinutes: durationMinutesGeneral != null && durationMinutesGeneral > 0 ? durationMinutesGeneral : null,
       scheduleSlot:
         typeof req.body?.scheduleSlot === "string" && ["morning", "evening"].includes(req.body.scheduleSlot)
           ? req.body.scheduleSlot

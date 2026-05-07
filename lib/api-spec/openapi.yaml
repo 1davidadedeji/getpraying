@@ -23,6 +23,8 @@ tags:
     description: Notifications
   - name: admin
     description: Moderation/admin
+  - name: search
+    description: Search users and prayers
 
 paths:
   /healthz:
@@ -305,8 +307,9 @@ paths:
       parameters:
         - name: cursor
           in: query
+          description: Opaque keyset cursor returned as PostsPage.nextCursor
           schema:
-            type: integer
+            type: string
         - name: limit
           in: query
           schema:
@@ -380,6 +383,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeedStats"
+
+  /search:
+    get:
+      operationId: globalSearch
+      tags: [search]
+      summary: Search users and approved prayers
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: Matching users and posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+
+  /posts/{postId}/boost:
+    post:
+      operationId: boostPost
+      tags: [posts]
+      summary: Boost a post (premium) — prioritizes in feed and notifies all users
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post boosted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoostPostResponse"
+        "402":
+          description: Subscription required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /posts/{postId}:
     get:
@@ -1105,6 +1161,14 @@ components:
           type: integer
         savedScrolls:
           type: integer
+        subscription:
+          type: string
+          nullable: true
+          description: Billing tier slug from the server (e.g. free, active) when loaded via /auth/me
+        scheduledNotificationsEnabled:
+          type: boolean
+          nullable: true
+          description: Opt-in for scheduled morning/evening push reminders (from /auth/me)
         createdAt:
           type: string
           format: date-time
@@ -1151,6 +1215,10 @@ components:
         isFollowing:
           type: boolean
           description: Present when the viewer is authenticated and not viewing their own profile
+        scheduledNotificationsEnabled:
+          type: boolean
+          nullable: true
+          description: Present only when the API includes viewer-specific settings for this profile
         createdAt:
           type: string
           format: date-time
@@ -1225,6 +1293,11 @@ components:
         createdAt:
           type: string
           format: date-time
+        boostedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When a premium member last boosted this post (feed priority)
       required:
         - id
         - content
@@ -1347,13 +1420,55 @@ components:
           items:
             $ref: "#/components/schemas/Post"
         nextCursor:
-          type: integer
+          type: string
           nullable: true
+          description: Opaque feed pagination cursor — pass as GET /posts?cursor=
         total:
           type: integer
       required:
         - posts
         - total
+
+    SearchUserResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+
+    SearchResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchUserResult"
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+      required:
+        - users
+        - posts
+
+    BoostPostResponse:
+      type: object
+      properties:
+        boostedAt:
+          type: string
+          format: date-time
+        post:
+          $ref: "#/components/schemas/Post"
+      required:
+        - boostedAt
+        - post
 
     PrayResponse:
       type: object
