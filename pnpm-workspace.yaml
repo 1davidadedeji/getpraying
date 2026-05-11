@@ -75,12 +75,14 @@ minimumReleaseAgeExclude:
 # https://docs.expo.dev/guides/monorepos/#package-managers-with-isolated-dependencies).
 nodeLinker: hoisted
 
-onlyBuiltDependencies:
-  - '@swc/core'
-  - esbuild
-  - msw
-  - sharp
-  - unrs-resolver
+# pnpm v11+: dependency install scripts (replaces onlyBuiltDependencies / ignoredBuiltDependencies).
+# Required for Vercel/CI where strictDepBuilds rejects unapproved builds (esbuild native binary, sharp, etc.).
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  msw: true
+  sharp: true
+  unrs-resolver: true
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms
