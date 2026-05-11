@@ -34,8 +34,6 @@ catalog:
   tsx: ^4.21.0
   vite: ^7.3.0
   zod: ^3.25.76
-ignoredBuiltDependencies:
-  - sharp
 # ============================================================================
 # SECURITY: Minimum release age for npm packages (supply-chain attack defense)
 # ============================================================================
@@ -81,6 +79,7 @@ onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
   - msw
+  - sharp
   - unrs-resolver
 
 overrides:
