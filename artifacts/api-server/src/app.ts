@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import { existsSync, mkdirSync } from "fs";
+import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { getUploadDir } from "./routes/uploads";
@@ -14,6 +15,12 @@ if (!existsSync(uploadDir)) {
   mkdirSync(uploadDir, { recursive: true });
 }
 app.use("/api/static/uploads", express.static(uploadDir));
+
+// Serve seed audio files for development/demo official guides
+const seedAudioDir = path.join(process.cwd(), "data", "seed-audio");
+if (existsSync(seedAudioDir)) {
+  app.use("/api/static/seed-audio", express.static(seedAudioDir));
+}
 
 app.use(
   pinoHttp({

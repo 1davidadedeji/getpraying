@@ -193,7 +193,11 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
     }
     if (boosting) return;
     if (!viewerHasPremiumCapabilities(user, revenueCat)) {
-      router.push("/(paywall)" as never);
+      showAppAlert({
+        title: "Boost",
+        message: "Boost your prayer to the top of others' feeds with Boost, available for subscribers.",
+        buttons: [{ text: "OK", style: "cancel" }],
+      });
       return;
     }
     Haptics.selectionAsync();
@@ -277,6 +281,10 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
 
   const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
   const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
+  const isOwnPost =
+    user != null &&
+    !localPost.isAnonymous &&
+    (localPost.authorId === user.id || localPost.authorUsername === user.username);
   const iBoosted =
     localPost.boostedByUserId != null &&
     user?.id != null &&
@@ -498,26 +506,28 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         </View>
 
         <View style={styles.actionsSecondary}>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              void handleBoost();
-            }}
-            style={styles.actionBtn}
-            accessibilityRole="button"
-            accessibilityLabel={iBoosted ? "Remove boost from this prayer" : "Boost this prayer"}
-            accessibilityState={{ disabled: boosting }}
-          >
-            {boosting ? (
-              <ActivityIndicator size="small" color={colors.flame} />
-            ) : (
-              <Ionicons
-                name={iBoosted ? "megaphone" : "megaphone-outline"}
-                size={iconSm}
-                color={boostColor}
-              />
-            )}
-          </Pressable>
+          {isOwnPost && (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                void handleBoost();
+              }}
+              style={styles.actionBtn}
+              accessibilityRole="button"
+              accessibilityLabel={iBoosted ? "Remove boost from this prayer" : "Boost this prayer"}
+              accessibilityState={{ disabled: boosting }}
+            >
+              {boosting ? (
+                <ActivityIndicator size="small" color={colors.flame} />
+              ) : (
+                <Ionicons
+                  name={iBoosted ? "megaphone" : "megaphone-outline"}
+                  size={iconSm}
+                  color={boostColor}
+                />
+              )}
+            </Pressable>
+          )}
 
           <Pressable
             onPress={handleShare}

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "preinstall": "node -e \"const fs=require('node:fs'); const ua=process.env.npm_config_user_agent||''; for (const f of ['package-lock.json','yarn.lock']) { try { fs.rmSync(f, { force: true }); } catch {} } if (!ua.startsWith('pnpm/')) { console.error('Use pnpm instead'); process.exit(1); }\"",
+    "preinstall": "node -e \"const fs=require('node:fs'); const ua=process.env.npm_config_user_agent||''; const ex=String(process.env.npm_execpath||''); for (const f of ['package-lock.json','yarn.lock']) { try { fs.rmSync(f, { force: true }); } catch {} } if (!ua.startsWith('pnpm/') && !ex.includes('pnpm')) { console.error('Use pnpm instead'); process.exit(1); }\"",
     "eas:android": "corepack pnpm --dir mobile exec eas build -p android --profile preview",
     "build": "corepack pnpm run typecheck && corepack pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
@@ -13,5 +13,6 @@
   "devDependencies": {
     "typescript": "~5.9.2",
     "prettier": "^3.8.1"
-  }
+  },
+  "packageManager": "pnpm@11.0.9+sha512.34ce82e6780233cf9cad8685029a8f81d2e06196c5a9bad98879f7424940c6817c4e4524fb7d38b8553ceed48b9758b8ebaf1abd3600c232c4c8cf7366086f38"
 }

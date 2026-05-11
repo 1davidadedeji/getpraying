@@ -232,7 +232,8 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
 
 router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
-  const { content, mediaUrl, mediaType, category, isAnonymous, categories: categoriesBody } = req.body;
+  const { content, mediaUrl, mediaType, category, isAnonymous, categories: categoriesBody, applyBoost } = req.body;
+  const wantsBoost = applyBoost === true;
 
   const contentTrimmed = typeof content === "string" ? content.trim() : "";
   if (contentTrimmed.length > 5000) {
@@ -337,7 +338,50 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     await notifyModeratorsNewPending(post.id, user.id);
   }
 
-  const enriched = await enrichPost(post, user.id);
+  let postForResponse = post;
+  if (
+    wantsBoost &&
+    postStatus === "approved" &&
+    userCanUsePremiumBoost(user) &&
+    post.boostedAt == null &&
+    post.boostedByUserId == null
+  ) {
+    const now = new Date();
+    const [boosted] = await db
+      .update(postsTable)
+      .set({ boostedAt: now, boostedByUserId: user.id, updatedAt: now })
+      .where(and(eq(postsTable.id, post.id), sql`${postsTable.boostedAt} is null`))
+      .returning();
+    if (boosted) {
+      postForResponse = boosted;
+
+      let authorUsername: string | null = null;
+      if (!boosted.isAnonymous && boosted.authorId != null) {
+        const [a] = await db
+          .select({ username: usersTable.username })
+          .from(usersTable)
+          .where(eq(usersTable.id, boosted.authorId))
+          .limit(1);
+        authorUsername = a?.username ?? null;
+      }
+
+      const nameForPush = boosted.isAnonymous ? "Someone" : (authorUsername ?? "A member");
+      const bodyPush = `A member needs help: ${nameForPush}`;
+
+      void broadcastPushToRegisteredDevices({
+        title: "Get Praying",
+        body: bodyPush,
+        data: {
+          type: "boost_alert",
+          postId: String(post.id),
+          boostedByUserId: String(user.id),
+        },
+        excludeUserIds: new Set<number>([user.id]),
+      });
+    }
+  }
+
+  const enriched = await enrichPost(postForResponse, user.id);
   res.status(201).json(enriched);
 });
 

@@ -17,6 +17,7 @@ import { setBaseUrl } from "@workspace/api-client-react";
 import { getApiBaseUrl } from "@/lib/apiBase";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as SystemUI from "expo-system-ui";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -24,6 +25,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Text, TextInput } from "react-native";
 
 import { AppAlertHost } from "@/components/AppAlert";
+import { SplashBrandedFill, SplashBrandedOverlay } from "@/components/AppLoadingScreen";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/auth";
@@ -63,18 +65,23 @@ const queryClient = new QueryClient({
 });
 
 /**
- * Hides the native splash only after custom fonts are ready and auth has finished
- * hydrating from storage — avoids an intermediate blank/white frame before routes.
+ * Hides the native splash once custom fonts are ready, so the JS splash (larger mark +
+ * “Get Praying”) can show until auth finishes hydrating — avoids trapping the tagline
+ * behind the static native layer.
  */
 function SplashHideGate({ fontsReady }: { fontsReady: boolean }) {
-  const { loading: authRestoring } = useAuth();
-
   useEffect(() => {
-    if (!fontsReady || authRestoring) return;
+    if (!fontsReady) return;
     void SplashScreen.hideAsync();
-  }, [fontsReady, authRestoring]);
+  }, [fontsReady]);
 
   return null;
+}
+
+function AuthHydrationSplash() {
+  const { loading: authRestoring } = useAuth();
+  if (!authRestoring) return null;
+  return <SplashBrandedOverlay />;
 }
 
 function RootLayoutNav() {
@@ -113,6 +120,10 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(colors.cream);
+  }, []);
+
   const [fontsLoaded, fontError] = useFonts({
     NotoSerif_400Regular,
     NotoSerif_600SemiBold,
@@ -126,7 +137,7 @@ export default function RootLayout() {
   const fontsReady = fontsLoaded || fontError != null;
 
   if (!fontsReady) {
-    return null;
+    return <SplashBrandedFill />;
   }
 
   return (
@@ -147,6 +158,7 @@ export default function RootLayout() {
                   </RevenueCatProvider>
                 </ModerationBadgeProvider>
               </FeedNoticeProvider>
+              <AuthHydrationSplash />
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>

@@ -1,12 +1,15 @@
 /**
  * Inserts demo prayer paths + official guides (incl. morning/evening slots) when the library is empty.
  * Safe to run multiple times — skips if official_prayers already has rows.
+ * Audio URLs use /api/static/uploads (files under data/uploads/).
  *
  *   pnpm --filter @workspace/api-server run seed:library
  */
 import "dotenv/config";
 import { db, officialPrayersTable, pool, prayerPathsTable } from "@workspace/db";
 import { asc, sql } from "drizzle-orm";
+
+const UPLOADS_AUDIO_BASE = "/api/static/uploads";
 
 const DEMO_PATHS = [
   {
@@ -83,6 +86,7 @@ async function main(): Promise<void> {
       scheduleSlot: "morning",
       label: "Official Guide",
       scripture: "Lamentations 3:22–23",
+      audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-morning-sanctuary.mp3`,
     },
     {
       title: "Evening release (demo)",
@@ -94,10 +98,12 @@ async function main(): Promise<void> {
       scheduleSlot: "evening",
       label: "Official Guide",
       scripture: "Psalm 4:8",
+      audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-evening-sanctuary.mp3`,
     },
   ];
 
-  for (const p of paths.slice(0, 5)) {
+  const pathAudio = ["prayer-hope", "prayer-wisdom", "prayer-peace", "prayer-gratitude", "prayer-anxiety"] as const;
+  paths.slice(0, 5).forEach((p, i) => {
     rows.push({
       title: `On the path: ${p.name}`,
       subtitle: "Sample official guide",
@@ -106,8 +112,9 @@ async function main(): Promise<void> {
       pathId: p.id,
       label: "Official Guide",
       scripture: "Philippians 4:6",
+      audioUrl: `${UPLOADS_AUDIO_BASE}/${pathAudio[i]}.mp3`,
     });
-  }
+  });
 
   await db.insert(officialPrayersTable).values(rows);
   console.log(`[seed-library-demo] Inserted ${rows.length} official prayers (incl. morning/evening).`);

@@ -298,6 +298,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/PostsPage"
 
+  /users/{username}/saved-posts:
+    get:
+      operationId: getUserSavedPosts
+      tags: [users]
+      summary: Get a user's saved feed posts (approved only, most recently saved first)
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        "200":
+          description: Saved posts visible on the user's public Saved tab
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedPostsList"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # POSTS / FEED
   /posts:
     get:
@@ -1419,6 +1450,23 @@ components:
         isAnonymous:
           type: boolean
           default: false
+        applyBoost:
+          type: boolean
+          default: false
+          description: >
+            If true, applies subscriber Boost when the post is immediately approved
+            (same ordering as POST /posts/{postId}/boost). Ignored for pending/declined posts
+            or if the author cannot use Boost.
+
+    SavedPostsList:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+      required:
+        - posts
 
     PostsPage:
       type: object

@@ -227,6 +227,10 @@ export interface CreatePostInput {
    */
   categories?: string[];
   isAnonymous?: boolean;
+  /**
+   * If true, server applies Boost when the post is immediately approved (ignored when pending).
+   */
+  applyBoost?: boolean;
 }
 
 export interface PostsPage {

@@ -10,6 +10,8 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   RefreshControl,
@@ -40,7 +42,10 @@ import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const PAGE_SIZE = 20;
-const NEW_POSTS_POLL_MS = 30_000;
+const NEW_POSTS_POLL_MS = 45_000;
+/** Only show the floating “new prayers” pill after the user has scrolled into the feed (not on first paint at top). */
+const NEW_POSTS_SCROLL_GATE_PX = 96;
+const NEW_POSTS_COUNT_DEBOUNCE_MS = 550;
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
@@ -74,6 +79,9 @@ export default function FeedScreen() {
 
   const [newPostCount, setNewPostCount] = useState(0);
   const pillAnim = useRef(new Animated.Value(0)).current;
+  const newPostsCountDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const newPostsScrollGateRef = useRef(false);
+  const [newPostsScrollGate, setNewPostsScrollGate] = useState(false);
   /** Base64url watermark for first post in {@link posts} (feed sort key + id); see GET /posts/new-count. */
   const feedWatermark = useRef<string | null>(null);
   const [sanctuary, setSanctuary] = useState<{
@@ -209,6 +217,10 @@ export default function FeedScreen() {
   );
 
   const loadFresh = useCallback(async (opts?: { silent?: boolean }) => {
+    if (newPostsCountDebounceRef.current) {
+      clearTimeout(newPostsCountDebounceRef.current);
+      newPostsCountDebounceRef.current = null;
+    }
     if (!opts?.silent) setLoading(true);
     try {
       const result = await fetchPage();
@@ -250,6 +262,8 @@ export default function FeedScreen() {
   useEffect(() => {
     if (feedJumpToTopNonce === 0) return;
     lastJumpAtRef.current = Date.now();
+    newPostsScrollGateRef.current = false;
+    setNewPostsScrollGate(false);
     setFeedCategory(null);
     setNewPostCount(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -271,6 +285,7 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (!token || loading) return;
+    if (feedCategory != null) return;
     const interval = setInterval(async () => {
       const wm = feedWatermark.current;
       if (!wm) return;
@@ -282,23 +297,41 @@ export default function FeedScreen() {
         if (!res.ok) return;
         const data = await res.json();
         const count = typeof data.count === "number" ? data.count : 0;
-        setNewPostCount(Math.max(0, count));
-      } catch { /* silent */ }
+        const safe = Math.max(0, count);
+        if (newPostsCountDebounceRef.current) clearTimeout(newPostsCountDebounceRef.current);
+        newPostsCountDebounceRef.current = setTimeout(() => {
+          newPostsCountDebounceRef.current = null;
+          setNewPostCount(safe);
+        }, NEW_POSTS_COUNT_DEBOUNCE_MS);
+      } catch {
+        /* silent */
+      }
     }, NEW_POSTS_POLL_MS);
-    return () => clearInterval(interval);
-  }, [token, loading]);
+    return () => {
+      clearInterval(interval);
+      if (newPostsCountDebounceRef.current) {
+        clearTimeout(newPostsCountDebounceRef.current);
+        newPostsCountDebounceRef.current = null;
+      }
+    };
+  }, [token, loading, feedCategory]);
 
   useEffect(() => {
+    const showPill = newPostCount > 0 && newPostsScrollGate && !feedCategory;
     Animated.spring(pillAnim, {
-      toValue: newPostCount > 0 ? 1 : 0,
+      toValue: showPill ? 1 : 0,
       useNativeDriver: true,
       tension: 60,
       friction: 10,
     }).start();
-  }, [newPostCount, pillAnim]);
+  }, [newPostCount, newPostsScrollGate, feedCategory, pillAnim]);
 
   const handleNewPostsTap = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (newPostsCountDebounceRef.current) {
+      clearTimeout(newPostsCountDebounceRef.current);
+      newPostsCountDebounceRef.current = null;
+    }
     setNewPostCount(0);
     setFeedCategory(null);
     setRefreshing(true);
@@ -316,6 +349,10 @@ export default function FeedScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    if (newPostsCountDebounceRef.current) {
+      clearTimeout(newPostsCountDebounceRef.current);
+      newPostsCountDebounceRef.current = null;
+    }
     setNewPostCount(0);
     try {
       const result = await fetchPage();
@@ -351,8 +388,14 @@ export default function FeedScreen() {
   useTabScrollToTop(handleTabPressScroll);
 
   const handleScroll = useCallback(
-    (event: any) => {
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       onScrollHideBar(event);
+      const y = event.nativeEvent.contentOffset.y;
+      const passed = y >= NEW_POSTS_SCROLL_GATE_PX;
+      if (passed !== newPostsScrollGateRef.current) {
+        newPostsScrollGateRef.current = passed;
+        setNewPostsScrollGate(passed);
+      }
     },
     [onScrollHideBar],
   );
@@ -367,7 +410,7 @@ export default function FeedScreen() {
   const categoryLabel = (key: string) =>
     key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
-  const isEveningReflection = new Date().getHours() >= 17;
+  const isEveningReflection = new Date().getHours() >= 12;
   const showSanctuaryAudio = user?.scheduledNotificationsEnabled !== false;
   const guideSlot: "morning" | "evening" = isEveningReflection ? "evening" : "morning";
   const guideMarkSize = Math.round(clamp(reflIcn * 0.92, 16, 24));
@@ -572,6 +615,8 @@ export default function FeedScreen() {
     );
   }
 
+  const showNewPostsPill = newPostCount > 0 && newPostsScrollGate && !feedCategory;
+
   const pillTranslateY = pillAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [-60, 0],
@@ -666,7 +711,7 @@ export default function FeedScreen() {
 
       {/* "New Posts" floating pill */}
       <Animated.View
-        pointerEvents={newPostCount > 0 ? "auto" : "none"}
+        pointerEvents={showNewPostsPill ? "auto" : "none"}
         style={[
           styles.newPostsPillWrap,
           { top: topPad + 60, transform: [{ translateY: pillTranslateY }], opacity: pillOpacity },

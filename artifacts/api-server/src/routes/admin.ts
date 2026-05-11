@@ -13,7 +13,7 @@ import {
   sessionsTable,
   userFollowsTable,
 } from "@workspace/db";
-import { eq, ne, desc, sql, and, or, isNotNull, isNull, inArray, notLike } from "drizzle-orm";
+import { eq, ne, desc, sql, and, or, isNotNull, isNull, inArray, notLike, type SQL } from "drizzle-orm";
 
 const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
@@ -49,6 +49,52 @@ async function notifyAuthorPostDecision(
 
 const router: IRouter = Router();
 
+const ADMIN_POSTS_MAX_LIMIT = 50;
+
+/** Mobile admin (`mobile/app/admin/users.tsx`) requests up to 200 users without paging; keep cap generous. */
+const ADMIN_USERS_MAX_LIMIT = 500;
+
+function clampAdminPostsLimit(raw: unknown, fallback: number): number {
+  const n = parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(n, ADMIN_POSTS_MAX_LIMIT);
+}
+
+function adminPostSearchPattern(q: string): string | null {
+  const t = q.trim();
+  if (!t) return null;
+  return `%${t.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+}
+
+function adminPostsSearchCondition(pattern: string): SQL {
+  return or(
+    sql`${postsTable.content} ilike ${pattern}`,
+    sql`exists (select 1 from users u where u.id = ${postsTable.authorId} and (u.username ilike ${pattern} or coalesce(u.display_name,'') ilike ${pattern}))`,
+  )!;
+}
+
+function adminUsersSearchCondition(pattern: string): SQL {
+  return or(
+    sql`${usersTable.username} ilike ${pattern}`,
+    sql`${usersTable.email} ilike ${pattern}`,
+    sql`coalesce(${usersTable.displayName}, '') ilike ${pattern}`,
+  )!;
+}
+
+function adminPostsCategoryCondition(category: string): SQL | undefined {
+  const c = category.trim();
+  if (!c) return undefined;
+  return eq(postsTable.category, c);
+}
+
+function adminPostsMediaCondition(media: string): SQL | undefined {
+  const m = media.trim().toLowerCase();
+  if (m === "image") return eq(postsTable.mediaType, "image");
+  if (m === "video") return eq(postsTable.mediaType, "video");
+  if (m === "none" || m === "text") return or(isNull(postsTable.mediaUrl), eq(postsTable.mediaUrl, ""));
+  return undefined;
+}
+
 router.get("/admin/pending-count", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const result = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -58,62 +104,116 @@ router.get("/admin/pending-count", requireModeratorOrAdmin, async (req, res): Pr
 });
 
 router.get("/admin/posts/pending", requireModeratorOrAdmin, async (req, res): Promise<void> => {
-  const limit = parseInt((req.query.limit as string) || "20", 10);
-  const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
+  const limit = clampAdminPostsLimit(req.query.limit, 20);
+  const pageReq = Math.max(1, parseInt((req.query.page as string) || "1", 10));
 
-  let conditions: any = eq(postsTable.status, "pending");
-  if (cursor) conditions = and(conditions, sql`${postsTable.id} < ${cursor}`);
+  const qRaw = typeof req.query.q === "string" ? req.query.q : "";
+  const categoryRaw = typeof req.query.category === "string" ? req.query.category : "";
+  const mediaRaw = typeof req.query.media === "string" ? req.query.media : "";
 
-  const posts = await db
+  const parts: SQL[] = [eq(postsTable.status, "pending")];
+  const catSql = adminPostsCategoryCondition(categoryRaw);
+  if (catSql) parts.push(catSql);
+  const mediaSql = adminPostsMediaCondition(mediaRaw);
+  if (mediaSql) parts.push(mediaSql);
+  const qPat = adminPostSearchPattern(qRaw);
+  if (qPat) parts.push(adminPostsSearchCondition(qPat));
+
+  const whereBase = and(...parts)!;
+
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(postsTable)
+    .where(whereBase);
+
+  const totalMatching = Number(countRow?.count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalMatching / limit));
+  const page = Math.min(pageReq, totalPages);
+  const offset = (page - 1) * limit;
+
+  const slice = await db
     .select()
     .from(postsTable)
-    .where(conditions)
-    .orderBy(postsTable.createdAt)
-    .limit(limit + 1);
+    .where(whereBase)
+    .orderBy(postsTable.createdAt, postsTable.id)
+    .limit(limit)
+    .offset(offset);
 
-  const hasMore = posts.length > limit;
-  const page = posts.slice(0, limit);
-  const enriched = await enrichPosts(page);
+  const enriched = await enrichPosts(slice);
 
   res.json({
     posts: enriched,
-    nextCursor: hasMore ? page[page.length - 1]?.id : null,
-    total: page.length,
+    page,
+    limit,
+    totalMatching,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1,
   });
 });
 
 router.get("/admin/posts/moderated", requireAdmin, async (req, res): Promise<void> => {
-  const limit = parseInt((req.query.limit as string) || "20", 10);
-  const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
+  const limit = clampAdminPostsLimit(req.query.limit, 25);
+  const pageReq = Math.max(1, parseInt((req.query.page as string) || "1", 10));
+
+  const qRaw = typeof req.query.q === "string" ? req.query.q : "";
+  const categoryRaw = typeof req.query.category === "string" ? req.query.category : "";
+  const mediaRaw = typeof req.query.media === "string" ? req.query.media : "";
+  const statusRaw = typeof req.query.status === "string" ? req.query.status.toLowerCase() : "all";
 
   // Exclude posts authored by seed accounts
   const seedUserIds = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(sql`${usersTable.email} LIKE ${'%' + SEED_EMAIL_SUFFIX}`);
+    .where(sql`${usersTable.email} LIKE ${"%" + SEED_EMAIL_SUFFIX}`);
   const seedIds = seedUserIds.map((u) => u.id);
 
-  let condition: any = ne(postsTable.status, "pending");
-  if (seedIds.length > 0) {
-    condition = and(condition, sql`${postsTable.authorId} NOT IN (${sql.join(seedIds.map((id) => sql`${id}`), sql`, `)})`);
-  }
-  if (cursor) condition = and(condition, sql`${postsTable.id} < ${cursor}`);
+  const parts: SQL[] = [];
+  if (statusRaw === "approved") parts.push(eq(postsTable.status, "approved"));
+  else if (statusRaw === "declined") parts.push(eq(postsTable.status, "declined"));
+  else parts.push(ne(postsTable.status, "pending"));
 
-  const posts = await db
+  if (seedIds.length > 0) {
+    parts.push(sql`${postsTable.authorId} NOT IN (${sql.join(seedIds.map((id) => sql`${id}`), sql`, `)})`);
+  }
+
+  const catSql = adminPostsCategoryCondition(categoryRaw);
+  if (catSql) parts.push(catSql);
+  const mediaSql = adminPostsMediaCondition(mediaRaw);
+  if (mediaSql) parts.push(mediaSql);
+  const qPat = adminPostSearchPattern(qRaw);
+  if (qPat) parts.push(adminPostsSearchCondition(qPat));
+
+  const whereBase = and(...parts)!;
+
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(postsTable)
+    .where(whereBase);
+
+  const totalMatching = Number(countRow?.count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalMatching / limit));
+  const page = Math.min(pageReq, totalPages);
+  const offset = (page - 1) * limit;
+
+  const slice = await db
     .select()
     .from(postsTable)
-    .where(condition)
-    .orderBy(desc(postsTable.updatedAt))
-    .limit(limit + 1);
+    .where(whereBase)
+    .orderBy(desc(postsTable.updatedAt), desc(postsTable.id))
+    .limit(limit)
+    .offset(offset);
 
-  const hasMore = posts.length > limit;
-  const page = posts.slice(0, limit);
-  const enriched = await enrichPosts(page);
+  const enriched = await enrichPosts(slice);
 
   res.json({
     posts: enriched,
-    nextCursor: hasMore ? page[page.length - 1]?.id : null,
-    total: page.length,
+    page,
+    limit,
+    totalMatching,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1,
   });
 });
 
@@ -298,24 +398,35 @@ router.post("/admin/users/:userId/role", requireAdmin, async (req, res): Promise
 });
 
 router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
-  const limit = Math.min(parseInt((req.query.limit as string) || "30", 10), 500);
-  const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
+  const limitRaw = parseInt((req.query.limit as string) || "30", 10);
+  const limit = Math.min(Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 30), ADMIN_USERS_MAX_LIMIT);
+  const pageReq = Math.max(1, parseInt((req.query.page as string) || "1", 10));
+  const qRaw = typeof req.query.q === "string" ? req.query.q : "";
 
-  let userCondition: any = notLike(usersTable.email, `%${SEED_EMAIL_SUFFIX}`);
-  if (cursor) userCondition = and(userCondition, sql`${usersTable.id} < ${cursor}`);
+  let userCondition: SQL = notLike(usersTable.email, `%${SEED_EMAIL_SUFFIX}`);
+  const qPat = adminPostSearchPattern(qRaw);
+  if (qPat) userCondition = and(userCondition, adminUsersSearchCondition(qPat))!;
 
-  const users = await db
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(usersTable)
+    .where(userCondition);
+
+  const totalMatching = Number(countRow?.count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalMatching / limit));
+  const page = Math.min(pageReq, totalPages);
+  const offset = (page - 1) * limit;
+
+  const rows = await db
     .select()
     .from(usersTable)
     .where(userCondition)
-    .orderBy(desc(usersTable.createdAt))
-    .limit(limit + 1);
-
-  const hasMore = users.length > limit;
-  const page = users.slice(0, limit);
+    .orderBy(desc(usersTable.createdAt), desc(usersTable.id))
+    .limit(limit)
+    .offset(offset);
 
   res.json({
-    users: page.map((u) => ({
+    users: rows.map((u) => ({
       id: u.id,
       email: u.email,
       username: u.username,
@@ -333,8 +444,12 @@ router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
       savedScrolls: u.savedScrolls,
       createdAt: u.createdAt,
     })),
-    nextCursor: hasMore ? page[page.length - 1]?.id : null,
-    total: page.length,
+    page,
+    limit,
+    totalMatching,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1,
   });
 });
 

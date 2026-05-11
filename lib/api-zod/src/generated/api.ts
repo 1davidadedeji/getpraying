@@ -355,6 +355,7 @@ export const GetPostsResponse = zod.object({
 export const createPostBodyCategoriesMax = 30;
 
 export const createPostBodyIsAnonymousDefault = false;
+export const createPostBodyApplyBoostDefault = false;
 
 export const CreatePostBody = zod.object({
   content: zod
@@ -377,6 +378,12 @@ export const CreatePostBody = zod.object({
       "Additional category slugs; merged with category, stored in order after allowlist filter",
     ),
   isAnonymous: zod.boolean().default(createPostBodyIsAnonymousDefault),
+  applyBoost: zod
+    .boolean()
+    .default(createPostBodyApplyBoostDefault)
+    .describe(
+      "If true, applies subscriber Boost when the post is immediately approved (same ordering as POST \/posts\/{postId}\/boost). Ignored for pending\/declined posts or if the author cannot use Boost.\n",
+    ),
 });
 
 /**

@@ -20,4 +20,7 @@ export interface CreatePostInput {
    */
   categories?: string[];
   isAnonymous?: boolean;
+  /** If true, applies subscriber Boost when the post is immediately approved (same ordering as POST /posts/{postId}/boost). Ignored for pending/declined posts or if the author cannot use Boost.
+   */
+  applyBoost?: boolean;
 }

@@ -1,0 +1,8 @@
+{
+  "/dashboard/posts/page": "app/dashboard/posts/page.js",
+  "/dashboard/moderation/page": "app/dashboard/moderation/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/notifications/page": "app/dashboard/notifications/page.js",
+  "/dashboard/official-prayers/page": "app/dashboard/official-prayers/page.js",
+  "/dashboard/users/page": "app/dashboard/users/page.js"
+}

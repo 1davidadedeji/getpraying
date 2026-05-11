@@ -1,11 +1,106 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, postsTable, userFollowsTable, notificationsTable, postPrayersTable, commentsTable, savedPostsTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  postsTable,
+  userFollowsTable,
+  notificationsTable,
+  postPrayersTable,
+  commentsTable,
+  savedPostsTable,
+} from "@workspace/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { optionalAuth, requireAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { pushForNotificationById } from "../lib/pushForNotification";
 
 const router: IRouter = Router();
+
+async function fetchLikedPostsForUser(
+  userId: number,
+  viewerId: number | undefined,
+  limit: number,
+) {
+  const cap = Math.min(Math.max(limit, 1), 100);
+  const prays = await db
+    .select({ postId: postPrayersTable.postId })
+    .from(postPrayersTable)
+    .where(eq(postPrayersTable.userId, userId))
+    .orderBy(desc(postPrayersTable.createdAt))
+    .limit(cap);
+
+  if (prays.length === 0) return [];
+
+  const postIds = prays.map((r) => r.postId);
+  const posts = await db
+    .select()
+    .from(postsTable)
+    .where(and(inArray(postsTable.id, postIds), eq(postsTable.status, "approved")));
+  const enriched = await enrichPosts(posts, viewerId);
+  const idOrder = new Map(postIds.map((id, i) => [id, i]));
+  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+  return enriched;
+}
+
+async function fetchSavedPostsForUser(
+  userId: number,
+  viewerId: number | undefined,
+  limit: number,
+) {
+  const cap = Math.min(Math.max(limit, 1), 100);
+  const savedRows = await db
+    .select()
+    .from(savedPostsTable)
+    .where(eq(savedPostsTable.userId, userId))
+    .orderBy(desc(savedPostsTable.createdAt))
+    .limit(cap);
+
+  if (savedRows.length === 0) return [];
+
+  const postIds = savedRows.map((r) => r.postId);
+  const posts = await db
+    .select()
+    .from(postsTable)
+    .where(and(inArray(postsTable.id, postIds), eq(postsTable.status, "approved")));
+  const enriched = await enrichPosts(posts, viewerId);
+  const idOrder = new Map(postIds.map((id, i) => [id, i]));
+  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+  return enriched;
+}
+
+async function fetchCommentedPostsForUser(
+  userId: number,
+  viewerId: number | undefined,
+  limit: number,
+) {
+  const cap = Math.min(Math.max(limit, 1), 100);
+  const comments = await db
+    .select({ postId: commentsTable.postId })
+    .from(commentsTable)
+    .where(eq(commentsTable.authorId, userId))
+    .orderBy(desc(commentsTable.createdAt))
+    .limit(cap);
+
+  if (comments.length === 0) return [];
+
+  const seen = new Set<number>();
+  const postIds: number[] = [];
+  for (const c of comments) {
+    if (!seen.has(c.postId)) {
+      seen.add(c.postId);
+      postIds.push(c.postId);
+    }
+  }
+
+  const posts = await db
+    .select()
+    .from(postsTable)
+    .where(and(inArray(postsTable.id, postIds), eq(postsTable.status, "approved")));
+  const enriched = await enrichPosts(posts, viewerId);
+  const idOrder = new Map(postIds.map((id, i) => [id, i]));
+  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+  return enriched;
+}
 
 router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user as { id: number };
@@ -52,6 +147,22 @@ router.post("/users/me/push-token", requireAuth, async (req, res): Promise<void>
 
   await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
   res.json({ success: true });
+});
+
+/** Posts the signed-in user has prayed for (liked) — registered before /users/:username/*. */
+router.get("/users/me/liked-posts", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const limit = parseInt((req.query.limit as string) || "50", 10);
+  const posts = await fetchLikedPostsForUser(user.id, user.id, limit);
+  res.json({ posts });
+});
+
+/** Posts the signed-in user has commented on */
+router.get("/users/me/commented-posts", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const limit = parseInt((req.query.limit as string) || "50", 10);
+  const posts = await fetchCommentedPostsForUser(user.id, user.id, limit);
+  res.json({ posts });
 });
 
 router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => {
@@ -197,53 +308,50 @@ router.get("/users/:username/posts", optionalAuth, async (req, res): Promise<voi
   });
 });
 
-/** Posts this user has prayed for (liked) */
-router.get("/users/me/liked-posts", requireAuth, async (req, res): Promise<void> => {
-  const user = (req as any).user as { id: number };
-  const limit = Math.min(parseInt((req.query.limit as string) || "50", 10), 100);
+router.get("/users/:username/liked-posts", optionalAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
+  const limit = parseInt((req.query.limit as string) || "50", 10);
+  const viewer = (req as any).user as { id: number } | undefined;
 
-  const prays = await db
-    .select({ postId: postPrayersTable.postId })
-    .from(postPrayersTable)
-    .where(eq(postPrayersTable.userId, user.id))
-    .orderBy(desc(postPrayersTable.createdAt))
-    .limit(limit);
-
-  if (prays.length === 0) { res.json({ posts: [] }); return; }
-
-  const postIds = prays.map((r) => r.postId);
-  const posts = await db.select().from(postsTable).where(and(inArray(postsTable.id, postIds), eq(postsTable.status, "approved")));
-  const enriched = await enrichPosts(posts, user.id);
-  const idOrder = new Map(postIds.map((id, i) => [id, i]));
-  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-  res.json({ posts: enriched });
-});
-
-/** Posts this user has commented on */
-router.get("/users/me/commented-posts", requireAuth, async (req, res): Promise<void> => {
-  const user = (req as any).user as { id: number };
-  const limit = Math.min(parseInt((req.query.limit as string) || "50", 10), 100);
-
-  const comments = await db
-    .select({ postId: commentsTable.postId })
-    .from(commentsTable)
-    .where(eq(commentsTable.authorId, user.id))
-    .orderBy(desc(commentsTable.createdAt))
-    .limit(limit);
-
-  if (comments.length === 0) { res.json({ posts: [] }); return; }
-
-  const seen = new Set<number>();
-  const postIds: number[] = [];
-  for (const c of comments) {
-    if (!seen.has(c.postId)) { seen.add(c.postId); postIds.push(c.postId); }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
   }
 
-  const posts = await db.select().from(postsTable).where(and(inArray(postsTable.id, postIds), eq(postsTable.status, "approved")));
-  const enriched = await enrichPosts(posts, user.id);
-  const idOrder = new Map(postIds.map((id, i) => [id, i]));
-  enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-  res.json({ posts: enriched });
+  const posts = await fetchLikedPostsForUser(user.id, viewer?.id, limit);
+  res.json({ posts });
+});
+
+router.get("/users/:username/commented-posts", optionalAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
+  const limit = parseInt((req.query.limit as string) || "50", 10);
+  const viewer = (req as any).user as { id: number } | undefined;
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const posts = await fetchCommentedPostsForUser(user.id, viewer?.id, limit);
+  res.json({ posts });
+});
+
+/** Public saved feed posts for a user (approved only), most-recently-saved first. */
+router.get("/users/:username/saved-posts", optionalAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
+  const limit = parseInt((req.query.limit as string) || "50", 10);
+  const viewer = (req as any).user as { id: number } | undefined;
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const posts = await fetchSavedPostsForUser(user.id, viewer?.id, limit);
+  res.json({ posts });
 });
 
 export default router;

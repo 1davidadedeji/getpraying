@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/web-admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "clean": "rm -rf .next",
+    "dev": "node scripts/check-dev-port.mjs && next dev --port 3100",
+    "dev:fresh": "pnpm run clean && pnpm run dev",
+    "build": "next build",
+    "start": "next start --port 3100",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "lucide-react": "catalog:",
+    "next": "15.3.2",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "^5.7.2"
+  }
+}

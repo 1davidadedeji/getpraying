@@ -36,6 +36,7 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
+import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
@@ -43,6 +44,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { AUDIO_DOCUMENT_PICKER_TYPES } from "@/lib/audioDocumentTypes";
 import { normalizeAudioMime } from "@/lib/audioMime";
 import { clamp } from "@/lib/responsiveMetrics";
+import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
 
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -166,6 +168,8 @@ export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { token, user } = useAuth();
+  const revenueCat = useRevenueCat();
+  const canBoost = viewerHasPremiumCapabilities(user ?? null, revenueCat);
   const { showNotice, requestFeedJumpToTop } = useFeedNotice();
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -176,27 +180,29 @@ export default function NewPostScreen() {
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [audioLibraryOpen, setAudioLibraryOpen] = useState(false);
+  const [applyBoost, setApplyBoost] = useState(false);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   const { gutter, uiScale, cardRadius } = useResponsiveLayout();
   const containerGap = Math.round(clamp(16 * uiScale, 14, 18));
   const scrollPadT = Math.round(clamp(12 * uiScale, 10, 14));
   const scrollPadB = Math.round(clamp(32 * uiScale, 24, 40));
-  const fsLead = Math.round(clamp(13 * uiScale, 12, 15));
+  const fsLead = Math.round(clamp(12 * uiScale, 11, 14));
   const lhLead = Math.round(fsLead * 1.35);
   const cardPad = Math.round(clamp(16 * uiScale, 14, 20));
   const cardRad = Math.round(clamp(cardRadius, 28, 40));
   const cardBorder = Math.max(1, Math.round(1.5 * uiScale));
-  const fsPrayer = Math.round(clamp(16 * uiScale, 15, 18));
-  const lhPrayer = Math.round(fsPrayer * 1.5);
-  const minPrayerH = Math.round(clamp(180 * uiScale, 140, 220));
-  const fsChar = Math.round(clamp(12 * uiScale, 11, 13));
-  const submitPadV = Math.round(clamp(16 * uiScale, 14, 18));
-  const submitRad = Math.round(clamp(32 * uiScale, 28, 36));
+  const fsPrayer = Math.round(clamp(15 * uiScale, 14, 16));
+  const lhPrayer = Math.round(fsPrayer * (22 / 15));
+  const minPrayerH = Math.round(clamp(160 * uiScale, 120, 200));
+  const fsChar = Math.round(clamp(11 * uiScale, 10, 12));
+  const submitPadV = Math.round(clamp(11 * uiScale, 10, 14));
+  const submitRad = Math.round(clamp(28 * uiScale, 24, 32));
+  const submitMaxW = Math.round(clamp(300 * uiScale, 240, 320));
   const submitGap = Math.round(clamp(8 * uiScale, 6, 10));
   const sendIcn = Math.round(clamp(18 * uiScale, 16, 20));
-  const fsSubmit = Math.round(clamp(16 * uiScale, 15, 18));
-  const fsSection = Math.round(clamp(13 * uiScale, 12, 15));
+  const fsSubmit = Math.round(clamp(13 * uiScale, 12, 15));
+  const fsSection = Math.round(clamp(12 * uiScale, 11, 14));
   const mediaSectionGap = Math.round(clamp(10 * uiScale, 8, 12));
   const mediaGridGap = Math.round(clamp(10 * uiScale, 8, 12));
   const addMediaPadV = Math.round(clamp(16 * uiScale, 14, 18));
@@ -540,6 +546,7 @@ export default function NewPostScreen() {
           category,
           ...(categories ? { categories } : {}),
           ...(mediaUrl && postMediaType ? { mediaUrl, mediaType: postMediaType } : {}),
+          ...(applyBoost && canBoost ? { applyBoost: true } : {}),
         },
       },
       {
@@ -563,12 +570,19 @@ export default function NewPostScreen() {
             }
 
             const isApproved = res?.status === "approved";
-            showNotice(
-              isApproved
-                ? "Posted — you’ll see it at the top of the feed."
-                : "Sent for review — it will appear after approval.",
-              "success",
-            );
+            const boostedNow = Boolean(res?.boostedAt);
+            let message: string;
+            if (isApproved) {
+              message = applyBoost && canBoost && boostedNow
+                ? "Posted and boosted — it’s prioritized in the feed."
+                : "Posted — you’ll see it at the top of the feed.";
+            } else {
+              message =
+                applyBoost && canBoost
+                  ? "Sent for review — Boost will be available after approval."
+                  : "Sent for review — it will appear after approval.";
+            }
+            showNotice(message, "success");
 
             // Composer is already unmounting, but clearing state here is
             // harmless and prevents stale data if the screen is kept alive.
@@ -576,6 +590,7 @@ export default function NewPostScreen() {
             setIsAnonymous(false);
             setSelectedCategories([]);
             setAiCategories([]);
+            setApplyBoost(false);
 
             queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
             queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
@@ -649,6 +664,9 @@ export default function NewPostScreen() {
             paddingVertical: submitPadV,
             borderRadius: submitRad,
             gap: submitGap,
+            maxWidth: submitMaxW,
+            alignSelf: "center",
+            width: "100%",
           },
           (busy || !canSubmit) && styles.submitBtnDisabled,
         ]}
@@ -667,9 +685,8 @@ export default function NewPostScreen() {
       </Pressable>
 
       <View style={[styles.imageSection, { gap: mediaSectionGap }]}>
-        <Text style={[styles.sectionLabel, { fontSize: fsSection }]}>
-          Media (optional) — photos max 1MB after resize. Video max {MAX_VIDEO_DURATION_SEC}s / 50MB. Audio max 15MB. Media
-          is reviewed before publishing.
+        <Text style={[styles.mediaHint, { fontSize: fsSection }]}>
+          Add photos (1 MB), audio (15 MB), or video (50 MB). All uploads are reviewed before posting.
         </Text>
         {pendingMedia ? (
           <View style={[styles.imagePreviewWrap, { borderRadius: prevRad }]}>
@@ -705,7 +722,9 @@ export default function NewPostScreen() {
                 <Ionicons name="musical-notes" size={mediaPhIcn} color={colors.primary} />
                 <View style={styles.audioWaveRow}>
                   {[18, 30, 46, 26, 40, 22, 42, 32, 36, 20, 44, 28, 38, 24, 34].map((h, i) => (
-                    <View key={i} style={[styles.audioWaveBar, { height: h }]} />
+                    <React.Fragment key={i}>
+                      <View style={[styles.audioWaveBar, { height: h }]} />
+                    </React.Fragment>
                   ))}
                 </View>
                 <Text style={[styles.mediaPlaceholderText, { fontSize: fsMediaPh }]} numberOfLines={1}>
@@ -804,6 +823,50 @@ export default function NewPostScreen() {
           thumbColor={colors.surface}
           testID="anonymous-toggle"
         />
+      </View>
+
+      <View style={[styles.option, { padding: optPad, borderRadius: optRad }]}>
+        <View style={[styles.optionLeft, { gap: optLeftGap, flex: 1 }]}>
+          <Ionicons name="megaphone-outline" size={optFeather} color={colors.primary} />
+          <View style={styles.optionTextCol}>
+            <Text style={[styles.optionLabel, { fontSize: fsOptLabel }]}>Boost in feed</Text>
+            <Text style={[styles.optionDesc, { fontSize: fsOptDesc }]}>
+              {canBoost
+                ? "Subscribers: boost your posts higher in others’ feeds."
+                : "Subscribers can boost their own posts toward the top."}
+            </Text>
+          </View>
+        </View>
+        {canBoost ? (
+          <Switch
+            value={applyBoost}
+            onValueChange={setApplyBoost}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor={colors.surface}
+            testID="boost-toggle"
+          />
+        ) : (
+          <Pressable
+            onPress={() =>
+              showAppAlert({
+                title: "Boost",
+                message: "Boost moves your prayer higher in the feed for subscribers.",
+                buttons: [{ text: "OK", style: "cancel" }],
+              })
+            }
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Boost unavailable. Learn about subscribers."
+          >
+            <Switch
+              value={false}
+              disabled
+              pointerEvents="none"
+              trackColor={{ true: colors.primary, false: colors.border }}
+              thumbColor={colors.surface}
+            />
+          </Pressable>
+        )}
       </View>
 
       <View style={[styles.categorySection, { gap: catSectionGap }]}>
@@ -911,6 +974,10 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: colors.textSecondary,
+  },
+  mediaHint: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.muted,
   },
   card: {
     backgroundColor: colors.surface,
@@ -1043,6 +1110,10 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 1,
   },
+  optionTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   categorySection: {},
   categoryHeader: {
     flexDirection: "row",
@@ -1130,7 +1201,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
+    marginTop: 8,
   },
   submitBtnDisabled: {
     opacity: 0.5,
