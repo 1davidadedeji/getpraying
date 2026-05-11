@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "lucide-react": "catalog:",
-    "next": "15.3.2",
+    "next": "15.3.6",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
