@@ -5,10 +5,12 @@
   },
   "build": {
     "development": {
+      "node": "22.13.1",
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "node": "22.13.1",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -24,6 +26,7 @@
       }
     },
     "production": {
+      "node": "22.13.1",
       "autoIncrement": true,
       "env": {
         "NODE_ENV": "production",
@@ -31,6 +34,7 @@
       }
     },
     "simulator": {
+      "node": "22.13.1",
       "ios": {
         "simulator": true
       },
