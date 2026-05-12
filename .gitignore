@@ -48,5 +48,8 @@ Thumbs.db
 .cache/
 .local/
 
+# Next.js (local build output — never commit)
+web-admin/.next
+
 # Environment secrets
 .env

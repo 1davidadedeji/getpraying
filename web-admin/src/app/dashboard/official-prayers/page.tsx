@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { LibraryContentFiltersCard } from "@/components/dashboard/LibraryContentFiltersCard";
 import { AdminSelect } from "@/components/ui/AdminSelect";
+import { AdminAudioField } from "@/components/dashboard/AdminAudioField";
 import { inputCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
@@ -168,7 +169,13 @@ export default function OfficialPrayersPage() {
               <option value="morning">Morning</option>
               <option value="evening">Evening</option>
             </AdminSelect>
-            <Field label="Audio URL"><input className={inputCls} placeholder="/api/static/..." value={newDraft.audioUrl ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, audioUrl: e.target.value }))} /></Field>
+            <AdminAudioField
+              className="sm:col-span-2"
+              token={token}
+              disabled={createSaving}
+              value={newDraft.audioUrl ?? ""}
+              onChange={(audioUrl) => setNewDraft((d) => ({ ...d, audioUrl }))}
+            />
             <Field label="Duration (min)"><input className={inputCls} type="number" value={newDraft.durationMinutes ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))} /></Field>
           </div>
           <div className="flex gap-2 mt-4">
@@ -218,7 +225,13 @@ export default function OfficialPrayersPage() {
                   </Field>
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Field label="Scripture"><input className={inputCls} value={draft.scripture ?? ""} onChange={(e) => setDraft((d) => ({ ...d, scripture: e.target.value }))} /></Field>
-                    <Field label="Audio URL"><input className={inputCls} value={draft.audioUrl ?? ""} onChange={(e) => setDraft((d) => ({ ...d, audioUrl: e.target.value }))} /></Field>
+                    <AdminAudioField
+                      className="sm:col-span-2"
+                      token={token}
+                      disabled={saving}
+                      value={draft.audioUrl ?? ""}
+                      onChange={(audioUrl) => setDraft((d) => ({ ...d, audioUrl }))}
+                    />
                     <Field label="Duration (min)"><input className={inputCls} type="number" value={draft.durationMinutes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))} /></Field>
                   </div>
                   <div className="flex gap-2 mt-4">
