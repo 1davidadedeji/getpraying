@@ -25,6 +25,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
+import { formatPlaybackTime } from "@/lib/formatPlaybackTime";
 
 function toOfficialRow(p: OfficialPrayer & { audioUrl?: string | null; scheduleSlot?: string | null }): OfficialPrayerRow {
   return {
@@ -59,6 +60,8 @@ function PathSessionCard({
   const { uiScale, iconAction, cardRadius } = useResponsiveLayout();
   const playRef = useRef<OfficialGuidePlayHandle>(null);
   const [playProgress, setPlayProgress] = useState(0);
+  const [playPositionMs, setPlayPositionMs] = useState(0);
+  const [playDurationMs, setPlayDurationMs] = useState(0);
   const mins = op.durationMinutes;
   const progressInnerStyle: ViewStyle = {
     width: `${Math.round(Math.min(1, Math.max(0, playProgress)) * 100)}%`,
@@ -80,6 +83,7 @@ function PathSessionCard({
   const listenPadV = Math.round(clamp(12 * uiScale, 10, 14));
   const listenMr = Math.round(clamp(12 * uiScale, 10, 14));
   const fsListen = Math.round(clamp(14 * uiScale, 13, 16));
+  const fsTime = Math.round(clamp(11 * uiScale, 10, 12));
   const hit = Math.round(clamp(8 * uiScale, 6, 10));
 
   return (
@@ -106,6 +110,11 @@ function PathSessionCard({
       <View style={[styles.progressOuter, { height: progH, borderRadius: progH / 2, marginBottom: progMb }]}>
         <View style={[styles.progressInner, progressInnerStyle, { borderRadius: progH / 2 }]} />
       </View>
+      {playDurationMs > 0 ? (
+        <Text style={[styles.sessionTimeRow, { fontSize: fsTime, marginBottom: progMb }]}>
+          {formatPlaybackTime(playPositionMs)} — {formatPlaybackTime(playDurationMs)}
+        </Text>
+      ) : null}
       <View style={styles.sessionCardFooter}>
         <Pressable
           style={[styles.listenPill, { paddingVertical: listenPadV, marginRight: listenMr }]}
@@ -120,6 +129,10 @@ function PathSessionCard({
           audioUrl={op.audioUrl}
           size={playSz}
           onPlaybackProgress={setPlayProgress}
+          onPlaybackTimes={(pos, dur) => {
+            setPlayPositionMs(pos);
+            setPlayDurationMs(dur);
+          }}
         />
       </View>
     </View>
@@ -338,6 +351,10 @@ const styles = StyleSheet.create({
   progressInner: {
     height: "100%",
     backgroundColor: colors.primary,
+  },
+  sessionTimeRow: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: colors.muted,
   },
   sessionCardFooter: {
     flexDirection: "row",

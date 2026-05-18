@@ -22,6 +22,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
+import { formatPlaybackTime } from "@/lib/formatPlaybackTime";
 
 export default function OfficialPrayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -62,7 +63,14 @@ export default function OfficialPrayerScreen() {
   const refreshMt = Math.round(clamp(20 * uiScale, 16, 24));
   const fsRefresh = Math.round(clamp(12 * uiScale, 11, 13));
   const botPad = Math.round(clamp(32 * uiScale, 24, 40));
+  const audioBtnPadV = Math.round(clamp(12 * uiScale, 10, 14));
+  const audioBtnPadH = Math.round(clamp(18 * uiScale, 14, 22));
+  const audioPlayIcn = Math.round(clamp(16 * uiScale, 14, 18));
   const playRef = useRef<OfficialGuidePlayHandle | null>(null);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioPositionMs, setAudioPositionMs] = useState(0);
+  const [audioDurationMs, setAudioDurationMs] = useState(0);
   const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
@@ -98,6 +106,9 @@ export default function OfficialPrayerScreen() {
 
   React.useEffect(() => {
     setBodyExpanded(false);
+    setAudioPositionMs(0);
+    setAudioDurationMs(0);
+    setAudioProgress(0);
   }, [prayerId]);
 
   const toggleSave = async () => {
@@ -145,10 +156,16 @@ export default function OfficialPrayerScreen() {
   }
 
   const d = data;
+  const isLecture = (d.category ?? "").toLowerCase() === "lectures";
   const updated =
     d.updatedAt && d.createdAt && d.updatedAt !== d.createdAt
       ? new Date(d.updatedAt)
       : null;
+
+  const showSeeAlsoRowPath = Boolean(d.pathId && d.pathId > 0 && !isLecture);
+  const showSeeAlsoRowCategory = Boolean(d.category && !isLecture);
+  const showSanctuaryHint = Boolean(!d.pathId && d.scheduleSlot);
+  const showSeeAlso = showSeeAlsoRowPath || showSeeAlsoRowCategory || showSanctuaryHint;
 
   return (
     <ScrollView
@@ -156,8 +173,7 @@ export default function OfficialPrayerScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.topRow, { gap: rowGap, marginBottom: topMb }]}>
-        <OfficialGuidePlayCircle ref={playRef} audioUrl={d.audioUrl ?? null} size={playSz} />
-        <View style={[styles.topMeta, { gap: metaGap }]}>
+        <View style={[styles.topMeta, { gap: metaGap, flex: 1 }]}>
           <Text style={[styles.badge, { fontSize: fsBadge }]}>
             {(d.label ?? "Official guide").toUpperCase()}
             {d.scheduleSlot ? ` · ${d.scheduleSlot}` : ""}
@@ -198,6 +214,64 @@ export default function OfficialPrayerScreen() {
       {d.scripture ? (
         <Text style={[styles.scripture, { fontSize: fsScripture, marginBottom: scrMb }]}>&ldquo;{d.scripture}&rdquo;</Text>
       ) : null}
+
+      {d.audioUrl ? (
+        <>
+          <View style={[styles.audioRow, { gap: rowGap, marginBottom: scrMb }]}>
+            <Pressable
+              onPress={() => playRef.current?.toggle()}
+              style={[
+                styles.startPrayerBtn,
+                {
+                  paddingVertical: audioBtnPadV,
+                  paddingHorizontal: audioBtnPadH,
+                  backgroundColor: colors.primary,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={audioPlaying ? "Pause audio" : "Start prayer audio"}
+            >
+              <Ionicons
+                name={audioPlaying ? "pause" : "play"}
+                size={audioPlayIcn}
+                color={colors.surface}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.startPrayerBtnText, { fontSize: Math.round(clamp(15 * uiScale, 14, 17)) }]}>
+                Start Prayer
+              </Text>
+            </Pressable>
+            <OfficialGuidePlayCircle
+              ref={playRef}
+              audioUrl={d.audioUrl}
+              size={playSz}
+              onPlayingChange={setAudioPlaying}
+              onPlaybackProgress={setAudioProgress}
+              onPlaybackTimes={(pos, dur) => {
+                setAudioPositionMs(pos);
+                setAudioDurationMs(dur);
+              }}
+            />
+          </View>
+          <View style={styles.audioProgressTrack}>
+            <View
+              style={[
+                styles.audioProgressFill,
+                {
+                  width: `${Math.round(Math.min(1, Math.max(0, audioProgress)) * 100)}%`,
+                  backgroundColor: colors.primary,
+                },
+              ]}
+            />
+          </View>
+          {audioDurationMs > 0 ? (
+            <Text style={[styles.audioTimeRow, { fontSize: fsHint }]}>
+              {formatPlaybackTime(audioPositionMs)} — {formatPlaybackTime(audioDurationMs)}
+            </Text>
+          ) : null}
+        </>
+      ) : null}
+
       {bodyText ? (
         <View style={{ marginBottom: scrMb }}>
           <Text
@@ -225,35 +299,36 @@ export default function OfficialPrayerScreen() {
         </Text>
       ) : null}
 
-      <View style={[styles.seeAlso, { marginTop: seeAlsoMt, gap: seeAlsoGap }]}>
-        <Text style={[styles.seeAlsoTitle, { fontSize: fsSeeTitle }]}>See also</Text>
-        {d.pathId && d.pathId > 0 ? (
-          <Pressable
-            style={[styles.seeRow, { gap: seeRowGap, padding: seePad, borderRadius: seeRad }]}
-            onPress={() => router.push(`/path/${d.pathId}` as never)}
-          >
-            <Feather name="map" size={linkIcn} color={colors.primary} />
-            <Text style={[styles.seeText, { fontSize: fsSeeText }]}>Open related prayer path</Text>
-            <Ionicons name="chevron-forward" size={linkIcn} color={colors.muted} />
-          </Pressable>
-        ) : null}
-        {d.category ? (
-          <Pressable
-            style={[styles.seeRow, { gap: seeRowGap, padding: seePad, borderRadius: seeRad }]}
-            onPress={() => router.push(`/category/${encodeURIComponent(d.category)}` as never)}
-          >
-            <Feather name="grid" size={linkIcn} color={colors.primary} />
-            <Text style={[styles.seeText, { fontSize: fsSeeText }]}>More in &ldquo;{d.category}&rdquo;</Text>
-            <Ionicons name="chevron-forward" size={linkIcn} color={colors.muted} />
-          </Pressable>
-        ) : null}
-        {!d.pathId && d.scheduleSlot && (
-          <Text style={[styles.hint, { fontSize: fsHint, lineHeight: lhHint }]}>
-            When the team posts a new version of this slot, the featured prayer updates here; older
-            versions may be archived to a path for your library.
-          </Text>
-        )}
-      </View>
+      {showSeeAlso ? (
+        <View style={[styles.seeAlso, { marginTop: seeAlsoMt, gap: seeAlsoGap }]}>
+          <Text style={[styles.seeAlsoTitle, { fontSize: fsSeeTitle }]}>See also</Text>
+          {showSeeAlsoRowPath ? (
+            <Pressable
+              style={[styles.seeRow, { gap: seeRowGap, padding: seePad, borderRadius: seeRad }]}
+              onPress={() => router.push(`/path/${d.pathId}` as never)}
+            >
+              <Feather name="map" size={linkIcn} color={colors.primary} />
+              <Text style={[styles.seeText, { fontSize: fsSeeText }]}>Open related prayer path</Text>
+              <Ionicons name="chevron-forward" size={linkIcn} color={colors.muted} />
+            </Pressable>
+          ) : null}
+          {showSeeAlsoRowCategory ? (
+            <Pressable
+              style={[styles.seeRow, { gap: seeRowGap, padding: seePad, borderRadius: seeRad }]}
+              onPress={() => router.push(`/category/${encodeURIComponent(d.category!)}` as never)}
+            >
+              <Feather name="grid" size={linkIcn} color={colors.primary} />
+              <Text style={[styles.seeText, { fontSize: fsSeeText }]}>More in &ldquo;{d.category}&rdquo;</Text>
+              <Ionicons name="chevron-forward" size={linkIcn} color={colors.muted} />
+            </Pressable>
+          ) : null}
+          {showSanctuaryHint ? (
+            <Text style={[styles.hint, { fontSize: fsHint, lineHeight: lhHint }]}>
+              The morning prayer is set 12am your time and evening prayer 12pm your time.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <Pressable onPress={() => void refetch()} style={[styles.refresh, { marginTop: refreshMt }]}>
         <Text style={[styles.refreshText, { fontSize: fsRefresh }]}>Refresh if something looks out of date</Text>
@@ -267,7 +342,38 @@ const styles = StyleSheet.create({
   err: { fontFamily: "PlusJakartaSans_400Regular", color: colors.muted, textAlign: "center" },
   container: { paddingTop: 8 },
   topRow: { flexDirection: "row", alignItems: "flex-start" },
-  topMeta: { flex: 1 },
+  topMeta: {},
+  audioRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  startPrayerBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+  },
+  startPrayerBtnText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.surface,
+  },
+  audioProgressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(0,0,0,0.08)",
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  audioProgressFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  audioTimeRow: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: colors.muted,
+    marginBottom: 12,
+  },
   badge: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: colors.primary,

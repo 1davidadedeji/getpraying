@@ -496,7 +496,7 @@ export default function LibraryScreen() {
             />
           </View>
         )}
-        <Text style={styles.situationName} numberOfLines={2}>
+        <Text style={styles.situationName} numberOfLines={2} ellipsizeMode="tail">
           {cat.name}
         </Text>
         {cat.count > 0 ? (
@@ -917,9 +917,11 @@ const styles = StyleSheet.create({
   situationCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
+    minHeight: 108,
     paddingVertical: 14,
     paddingHorizontal: 10,
     alignItems: "center",
+    justifyContent: "center",
     gap: 7,
     borderWidth: 1,
     borderColor: colors.border,
@@ -940,8 +942,10 @@ const styles = StyleSheet.create({
   situationName: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
+    lineHeight: 16,
     color: colors.text,
     textAlign: "center",
+    minHeight: 32,
   },
   situationCount: {
     fontFamily: "PlusJakartaSans_400Regular",

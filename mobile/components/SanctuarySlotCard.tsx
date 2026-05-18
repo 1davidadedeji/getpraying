@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Svg, { Circle, G } from "react-native-svg";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -63,6 +64,8 @@ export function SanctuarySlotCard({
 }: Props) {
   const { uiScale } = useResponsiveLayout();
   const playRef = useRef<OfficialGuidePlayHandle>(null);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
   const t = SLOT_THEME[slot];
   const density = compact ? 0.86 : 1;
   const slotIcon = Math.round(clamp(40 * uiScale * density, compact ? 32 : 36, compact ? 40 : 46));
@@ -175,7 +178,12 @@ export function SanctuarySlotCard({
           accessibilityRole="button"
           accessibilityLabel={compact ? "Play guide" : "Start prayer audio"}
         >
-          {!compact ? <Ionicons name="play" size={playIcn} color={t.btnText} style={{ marginRight: 4 }} /> : null}
+          <Ionicons
+            name={audioPlaying ? "pause" : "play"}
+            size={playIcn}
+            color={t.btnText}
+            style={{ marginRight: 4 }}
+          />
           <Text style={[styles.startBtnText, { color: t.btnText, fontSize: fsStart }]}>
             {compact ? "Play" : "Start Prayer"}
           </Text>
@@ -183,11 +191,85 @@ export function SanctuarySlotCard({
         {prayer?.durationMinutes && !compact ? (
           <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
         ) : null}
-        <OfficialGuidePlayCircle ref={playRef} audioUrl={prayer?.audioUrl} size={playCircle} color={t.btnBg} />
+        {compact && prayer?.audioUrl ? (
+          (() => {
+            const ringPad = 5;
+            const strokeW = 3;
+            const outer = playCircle + ringPad * 2;
+            const cx = outer / 2;
+            const cy = outer / 2;
+            const r = (outer - strokeW) / 2;
+            const circ = 2 * Math.PI * r;
+            const p = Math.min(1, Math.max(0, audioProgress));
+            return (
+              <View style={{ width: outer, height: outer, alignItems: "center", justifyContent: "center" }}>
+                <Svg
+                  width={outer}
+                  height={outer}
+                  style={{ position: "absolute" }}
+                  pointerEvents="none"
+                >
+                  <G rotation={-90} origin={`${cx}, ${cy}`}>
+                    <Circle
+                      cx={cx}
+                      cy={cy}
+                      r={r}
+                      stroke="rgba(0,0,0,0.1)"
+                      strokeWidth={strokeW}
+                      fill="none"
+                    />
+                    <Circle
+                      cx={cx}
+                      cy={cy}
+                      r={r}
+                      stroke={t.btnBg}
+                      strokeWidth={strokeW}
+                      fill="none"
+                      strokeDasharray={`${circ}, ${circ}`}
+                      strokeDashoffset={circ * (1 - p)}
+                      strokeLinecap="round"
+                    />
+                  </G>
+                </Svg>
+                <OfficialGuidePlayCircle
+                  ref={playRef}
+                  audioUrl={prayer?.audioUrl}
+                  size={playCircle}
+                  color={t.btnBg}
+                  onPlayingChange={setAudioPlaying}
+                  onPlaybackProgress={setAudioProgress}
+                />
+              </View>
+            );
+          })()
+        ) : (
+          <OfficialGuidePlayCircle
+            ref={playRef}
+            audioUrl={prayer?.audioUrl}
+            size={playCircle}
+            color={t.btnBg}
+            onPlayingChange={setAudioPlaying}
+            onPlaybackProgress={setAudioProgress}
+          />
+        )}
       </View>
+      {prayer?.audioUrl && !compact ? (
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${Math.round(Math.min(1, Math.max(0, audioProgress)) * 100)}%`,
+                backgroundColor: t.btnBg,
+              },
+            ]}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   card: {
@@ -239,5 +321,16 @@ const styles = StyleSheet.create({
   duration: {
     fontFamily: "PlusJakartaSans_400Regular",
     opacity: 0.6,
+  },
+  progressTrack: {
+    marginTop: 10,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(0,0,0,0.08)",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
   },
 });

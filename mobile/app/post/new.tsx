@@ -48,7 +48,6 @@ import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
 
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-const MAX_VIDEO_DURATION_SEC = 60;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 
 type PendingMedia =
@@ -360,7 +359,6 @@ export default function NewPostScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       allowsEditing: false,
       quality: 1,
-      videoMaxDuration: MAX_VIDEO_DURATION_SEC,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
@@ -376,7 +374,7 @@ export default function NewPostScreen() {
     if (sz > 0 && sz > MAX_VIDEO_BYTES) {
       showAppAlert({
         title: "Video too large",
-        message: "Choose a shorter clip (under 50MB).",
+        message: "Choose a file under 50MB.",
       });
       return;
     }
@@ -389,18 +387,8 @@ export default function NewPostScreen() {
           ? a.durationMillis
           : null;
     // expo-image-picker: duration is often in seconds on iOS and milliseconds on Android.
-    // On many Android devices it is null — the server will handle duration enforcement.
     const durSec =
       rawDur == null ? null : rawDur > 1000 ? rawDur / 1000 : rawDur;
-
-    // Only reject if we can definitively read the duration and it exceeds the limit
-    if (durSec != null && Number.isFinite(durSec) && durSec > 0 && durSec > MAX_VIDEO_DURATION_SEC) {
-      showAppAlert({
-        title: "Video too long",
-        message: `Choose a clip of ${MAX_VIDEO_DURATION_SEC} seconds or less.`,
-      });
-      return;
-    }
 
     const mime =
       "mimeType" in asset && typeof (asset as { mimeType?: string }).mimeType === "string"

@@ -40,6 +40,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
+import { isEveningSanctuarySlotNow } from "@/lib/localClock";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_POLL_MS = 45_000;
@@ -410,7 +411,7 @@ export default function FeedScreen() {
   const categoryLabel = (key: string) =>
     key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
-  const isEveningReflection = new Date().getHours() >= 12;
+  const isEveningReflection = isEveningSanctuarySlotNow();
   const showSanctuaryAudio = user?.scheduledNotificationsEnabled !== false;
   const guideSlot: "morning" | "evening" = isEveningReflection ? "evening" : "morning";
   const guideMarkSize = Math.round(clamp(reflIcn * 0.92, 16, 24));
@@ -418,8 +419,19 @@ export default function FeedScreen() {
   const listHeader = useMemo(
     () => (
     <View style={{ marginBottom: 8 }}>
-      <View style={[styles.feedHeaderToolbar, { paddingTop: topPad + 6 }]}>
-        <View style={styles.flex1} />
+      <View style={[styles.feedHeaderTopRow, { paddingTop: topPad + 6 }]}>
+        <View style={styles.feedHeaderLeft}>
+          <Text
+            style={[styles.greeting, { fontSize: greetSize }]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
+          </Text>
+          <Text style={[styles.subGreeting, { fontSize: subGreetSize, marginBottom: 10 }]}>
+            Your prayer feed
+          </Text>
+        </View>
         <View style={styles.headerRight}>
           {(user?.role === "admin" || user?.role === "moderator") && (
             <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn} accessibilityLabel="Moderation">
@@ -453,17 +465,6 @@ export default function FeedScreen() {
           </Pressable>
         </View>
       </View>
-
-      <Text
-        style={[styles.greeting, { fontSize: greetSize }]}
-        numberOfLines={2}
-        ellipsizeMode="tail"
-      >
-        {user?.displayName ? `Hello, ${user.displayName}` : "Get Praying"}
-      </Text>
-      <Text style={[styles.subGreeting, { fontSize: subGreetSize, marginBottom: 10 }]}>
-        Your prayer feed
-      </Text>
 
       <FeedSearchDraftField
         committedQuery={committedSearchQuery}
@@ -911,10 +912,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
   },
   flex1: { flex: 1 },
-  feedHeaderToolbar: {
+  feedHeaderTopRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingBottom: 4,
+    gap: 10,
+  },
+  feedHeaderLeft: {
+    flex: 1,
+    minWidth: 0,
   },
   searchModal: {
     backgroundColor: colors.cream,

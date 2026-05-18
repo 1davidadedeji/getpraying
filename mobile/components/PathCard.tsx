@@ -23,9 +23,6 @@ export default function PathCard({ path }: PathCardProps) {
   const bookIcn = Math.round(clamp(12 * uiScale, 11, 13));
   const chev = Math.round(clamp(18 * uiScale, 16, 20));
   const fsTitle = Math.round(clamp(15 * uiScale, 14, 17));
-  const fsDesc = Math.round(clamp(13 * uiScale, 12, 15));
-  const lhDesc = Math.round(fsDesc * 1.35);
-  const infoGap = Math.round(clamp(3 * uiScale, 2, 4));
   const metaGap = Math.round(clamp(4 * uiScale, 3, 5));
   const fsMeta = Math.round(clamp(12 * uiScale, 11, 13));
 
@@ -46,12 +43,14 @@ export default function PathCard({ path }: PathCardProps) {
       <View style={[styles.iconBg, { width: iconBg, height: iconBg, borderRadius: iconRad }]}>
         <Feather name="compass" size={compassIcn} color={colors.surface} />
       </View>
-      <View style={[styles.info, { gap: infoGap }]}>
-        <Text style={[styles.title, { fontSize: fsTitle }]}>{path.name}</Text>
-        <Text style={[styles.desc, { fontSize: fsDesc, lineHeight: lhDesc }]} numberOfLines={2}>
-          {path.tagline ?? path.description}
+      <View style={[styles.info, { minHeight: Math.round(clamp(52 * uiScale, 48, 56)) }]}>
+        <Text
+          style={[styles.title, { fontSize: fsTitle, lineHeight: Math.round(fsTitle * 1.25) }]}
+          numberOfLines={2}
+        >
+          {path.name}
         </Text>
-        <View style={[styles.meta, { gap: metaGap }]}>
+        <View style={[styles.meta, { gap: metaGap, marginTop: 4 }]}>
           <Feather name="book-open" size={bookIcn} color={colors.muted} />
           <Text style={[styles.metaText, { fontSize: fsMeta }]}>{path.prayerCount} prayers</Text>
         </View>
@@ -84,14 +83,11 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+    justifyContent: "center",
   },
   title: {
     fontFamily: "NotoSerif_700Bold",
     color: colors.text,
-  },
-  desc: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: colors.textSecondary,
   },
   meta: {
     flexDirection: "row",

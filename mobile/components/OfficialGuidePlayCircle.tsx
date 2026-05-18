@@ -19,11 +19,17 @@ type Props = {
   color?: string;
   /** 0..1 while playing; 0 when idle or unknown */
   onPlaybackProgress?: (progress01: number) => void;
+  /** Milliseconds; duration may be 0 until loaded */
+  onPlaybackTimes?: (positionMillis: number, durationMillis: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
 };
 
 /** Circular play / pause for official guide audio (library & path sessions). */
 export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props>(
-  function OfficialGuidePlayCircle({ audioUrl, size: sizeProp, color = colors.primary, onPlaybackProgress }, ref) {
+  function OfficialGuidePlayCircle(
+    { audioUrl, size: sizeProp, color = colors.primary, onPlaybackProgress, onPlaybackTimes, onPlayingChange },
+    ref,
+  ) {
     const { uiScale } = useResponsiveLayout();
     const defaultSize = Math.round(clamp(52 * uiScale, 44, 60));
     const size = sizeProp ?? defaultSize;
@@ -37,6 +43,11 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
     const controllerIdRef = useRef<symbol | null>(null);
     const onProgressRef = useRef(onPlaybackProgress);
     onProgressRef.current = onPlaybackProgress;
+    const onPlayingChangeRef = useRef(onPlayingChange);
+    onPlayingChangeRef.current = onPlayingChange;
+    const onTimesRef = useRef(onPlaybackTimes);
+    onTimesRef.current = onPlaybackTimes;
+    const durationHeldRef = useRef(0);
 
     useEffect(() => {
       soundRef.current = sound;
@@ -59,7 +70,9 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
           /* ignore */
         } finally {
           onProgressRef.current?.(0);
+          onTimesRef.current?.(0, durationHeldRef.current);
           setPlaying(false);
+          onPlayingChangeRef.current?.(false);
         }
       });
       controllerIdRef.current = id;
@@ -73,7 +86,11 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
       if (!uri) {
         setSound(null);
         setLoading(false);
-        onPlaybackProgress?.(0);
+        setPlaying(false);
+        durationHeldRef.current = 0;
+        onPlayingChangeRef.current?.(false);
+        onProgressRef.current?.(0);
+        onTimesRef.current?.(0, 0);
         return;
       }
       let mounted = true;
@@ -87,10 +104,18 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
             setSound(s);
             s.setOnPlaybackStatusUpdate((st) => {
               if (st.isLoaded) {
-                if (typeof st.isPlaying === "boolean") setPlaying(st.isPlaying);
+                if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
+                  durationHeldRef.current = st.durationMillis;
+                }
+                if (typeof st.isPlaying === "boolean") {
+                  setPlaying(st.isPlaying);
+                  onPlayingChangeRef.current?.(st.isPlaying);
+                }
                 if (st.didJustFinish) {
                   setPlaying(false);
+                  onPlayingChangeRef.current?.(false);
                   onProgressRef.current?.(0);
+                  onTimesRef.current?.(0, durationHeldRef.current);
                 }
               }
               if (
@@ -100,6 +125,7 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
                 typeof st.positionMillis === "number"
               ) {
                 onProgressRef.current?.(Math.min(1, st.positionMillis / st.durationMillis));
+                onTimesRef.current?.(st.positionMillis, st.durationMillis);
               }
             });
           }
@@ -123,12 +149,13 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
       if (playingRef.current) {
         await s.pauseAsync();
         setPlaying(false);
-        onProgressRef.current?.(0);
+        onPlayingChangeRef.current?.(false);
       } else {
         await pauseAllMediaExcept(cid);
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
         await s.playAsync();
         setPlaying(true);
+        onPlayingChangeRef.current?.(true);
       }
     };
 
