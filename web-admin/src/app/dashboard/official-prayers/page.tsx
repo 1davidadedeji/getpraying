@@ -25,7 +25,11 @@ interface OfficialPrayer {
   durationMinutes: number | null;
 }
 
-type Draft = Partial<Pick<OfficialPrayer, "title" | "subtitle" | "content" | "scripture" | "audioUrl" | "durationMinutes">>;
+type Draft = Partial<
+  Pick<OfficialPrayer, "title" | "subtitle" | "scripture" | "audioUrl" | "durationMinutes">
+>;
+
+type SlotFilter = "all" | "morning" | "evening";
 
 export default function OfficialPrayersPage() {
   const { token } = useAuth();
@@ -35,25 +39,26 @@ export default function OfficialPrayersPage() {
   const [draft, setDraft] = useState<Draft>({});
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newDraft, setNewDraft] = useState<Partial<OfficialPrayer & { scheduleSlot: string }>>({});
+  const [newDraft, setNewDraft] = useState<
+    Partial<OfficialPrayer & { scheduleSlot: "morning" | "evening" }>
+  >({ scheduleSlot: "morning" });
   const [createSaving, setCreateSaving] = useState(false);
 
   const [listSearch, setListSearch] = useState("");
   const debouncedListSearch = useDebouncedValue(listSearch, 320);
-  const [slotFilter, setSlotFilter] = useState<"all" | "morning" | "evening" | "none">("all");
+  const [slotFilter, setSlotFilter] = useState<SlotFilter>("all");
   const [audioFilter, setAudioFilter] = useState<"all" | "yes" | "no">("all");
 
   const filteredPrayers = useMemo(() => {
     return prayers.filter((p) => {
       if (slotFilter === "morning" && p.scheduleSlot !== "morning") return false;
       if (slotFilter === "evening" && p.scheduleSlot !== "evening") return false;
-      if (slotFilter === "none" && p.scheduleSlot) return false;
       if (audioFilter === "yes" && !(p.audioUrl && String(p.audioUrl).trim())) return false;
       if (audioFilter === "no" && Boolean(p.audioUrl && String(p.audioUrl).trim())) return false;
       const q = debouncedListSearch.trim().toLowerCase();
       if (q) {
         const hay =
-          `${p.title}\n${p.subtitle ?? ""}\n${p.content}\n${p.scripture ?? ""}\n${p.label ?? ""}\n${p.category}`.toLowerCase();
+          `${p.title}\n${p.subtitle ?? ""}\n${p.scripture ?? ""}\n${p.label ?? ""}\n${p.category}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -68,21 +73,32 @@ export default function OfficialPrayersPage() {
       if (!res.ok) return;
       const data = await res.json();
       const rows: OfficialPrayer[] = data.prayers ?? data.items ?? data ?? [];
-      rows.sort((a, b) => {
+      const sanctuaryRows = rows.filter(
+        (p) => p.scheduleSlot === "morning" || p.scheduleSlot === "evening",
+      );
+      sanctuaryRows.sort((a, b) => {
         const order: Record<string, number> = { morning: 0, evening: 1 };
         return (order[a.scheduleSlot ?? ""] ?? 99) - (order[b.scheduleSlot ?? ""] ?? 99);
       });
-      setPrayers(rows);
+      setPrayers(sanctuaryRows);
     } finally {
       setLoading(false);
     }
   }, [token]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const startEdit = (p: OfficialPrayer) => {
     setEditId(p.id);
-    setDraft({ title: p.title, subtitle: p.subtitle ?? "", content: p.content, scripture: p.scripture ?? "", audioUrl: p.audioUrl ?? "", durationMinutes: p.durationMinutes ?? undefined });
+    setDraft({
+      title: p.title,
+      subtitle: p.subtitle ?? "",
+      scripture: p.scripture ?? "",
+      audioUrl: p.audioUrl ?? "",
+      durationMinutes: p.durationMinutes ?? undefined,
+    });
   };
 
   const save = async () => {
@@ -97,10 +113,12 @@ export default function OfficialPrayersPage() {
       if (res.ok) {
         const data = await res.json();
         const updated = data.prayer ?? data;
-        setPrayers((prev) => prev.map((p) => p.id === editId ? { ...p, ...updated } : p));
+        setPrayers((prev) => prev.map((p) => (p.id === editId ? { ...p, ...updated } : p)));
         setEditId(null);
       }
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -110,34 +128,44 @@ export default function OfficialPrayersPage() {
   };
 
   const createNew = async () => {
-    if (!token || !newDraft.title?.trim() || !newDraft.content?.trim()) return;
+    if (!token || !newDraft.title?.trim() || !newDraft.scheduleSlot) return;
     setCreateSaving(true);
     try {
       const res = await fetch(apiUrl("/admin/official-prayers"), {
         method: "POST",
         headers: authHeaders(token),
-        body: JSON.stringify({ ...newDraft, category: "sanctuary" }),
+        body: JSON.stringify({
+          title: newDraft.title,
+          subtitle: newDraft.subtitle ?? null,
+          scripture: newDraft.scripture?.trim() ? newDraft.scripture.trim() : null,
+          audioUrl: newDraft.audioUrl?.trim() ? newDraft.audioUrl.trim() : null,
+          durationMinutes: newDraft.durationMinutes,
+          category: "sanctuary",
+          scheduleSlot: newDraft.scheduleSlot,
+        }),
       });
       if (res.ok) {
         const row = await res.json();
         setPrayers((prev) => [...prev, row]);
         setCreating(false);
-        setNewDraft({});
+        setNewDraft({ scheduleSlot: "morning" });
       }
-    } finally { setCreateSaving(false); }
+    } finally {
+      setCreateSaving(false);
+    }
   };
 
   return (
     <>
       <PageHeader
         title="Official guides"
-        description="Morning & evening sanctuary — search and narrow the list below"
+        description="Morning and evening sanctuary audio — each guide is assigned to one slot"
         action={
           <button
             type="button"
             onClick={() => {
               setCreating(true);
-              setNewDraft({});
+              setNewDraft({ scheduleSlot: "morning" });
             }}
             className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#252c4a]"
           >
@@ -147,28 +175,47 @@ export default function OfficialPrayersPage() {
         }
       />
 
-      {/* Create form */}
       {creating && (
-        <div className="mb-4 rounded-xl border border-[color-mix(in_srgb,var(--color-flame)_40%,var(--color-border))] bg-[var(--color-surface)] p-4">
-          <p className="mb-3 text-[13px] font-semibold text-[var(--color-primary)]">New official prayer</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Title *"><input className={inputCls} placeholder="Title" value={newDraft.title ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, title: e.target.value }))} /></Field>
-            <Field label="Subtitle"><input className={inputCls} placeholder="Subtitle" value={newDraft.subtitle ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, subtitle: e.target.value }))} /></Field>
-          </div>
-          <Field label="Content *" className="mt-3">
-            <textarea className={`${inputCls} resize-none`} rows={4} value={newDraft.content ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, content: e.target.value }))} />
-          </Field>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Scripture"><input className={inputCls} placeholder="e.g. Psalm 23:1" value={newDraft.scripture ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, scripture: e.target.value }))} /></Field>
+        <div className="mb-5 rounded-xl border border-[color-mix(in_srgb,var(--color-flame)_40%,var(--color-border))] bg-[var(--color-surface)] p-5 shadow-sm">
+          <p className="mb-4 text-[13px] font-semibold text-[var(--color-primary)]">New sanctuary guide</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Title *">
+              <input
+                className={inputCls}
+                placeholder="Title"
+                value={newDraft.title ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, title: e.target.value }))}
+              />
+            </Field>
             <AdminSelect
-              label="Schedule slot"
-              value={newDraft.scheduleSlot ?? ""}
-              onChange={(v) => setNewDraft((d) => ({ ...d, scheduleSlot: v || undefined }))}
+              label="Schedule slot *"
+              value={newDraft.scheduleSlot ?? "morning"}
+              onChange={(v) =>
+                setNewDraft((d) => ({
+                  ...d,
+                  scheduleSlot: v === "evening" ? "evening" : "morning",
+                }))
+              }
             >
-              <option value="">None</option>
               <option value="morning">Morning</option>
               <option value="evening">Evening</option>
             </AdminSelect>
+            <Field label="Subtitle" className="sm:col-span-2">
+              <input
+                className={inputCls}
+                placeholder="Short line under the title (optional)"
+                value={newDraft.subtitle ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, subtitle: e.target.value }))}
+              />
+            </Field>
+            <Field label="Scripture" className="sm:col-span-2">
+              <input
+                className={inputCls}
+                placeholder="e.g. Psalm 23:1"
+                value={newDraft.scripture ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, scripture: e.target.value }))}
+              />
+            </Field>
             <AdminAudioField
               className="sm:col-span-2"
               token={token}
@@ -176,13 +223,33 @@ export default function OfficialPrayersPage() {
               value={newDraft.audioUrl ?? ""}
               onChange={(audioUrl) => setNewDraft((d) => ({ ...d, audioUrl }))}
             />
-            <Field label="Duration (min)"><input className={inputCls} type="number" value={newDraft.durationMinutes ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))} /></Field>
+            <Field label="Duration (min)">
+              <input
+                className={inputCls}
+                type="number"
+                value={newDraft.durationMinutes ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))}
+              />
+            </Field>
           </div>
-          <div className="flex gap-2 mt-4">
-            <button onClick={createNew} disabled={createSaving || !newDraft.title?.trim() || !newDraft.content?.trim()} className="px-4 py-2 bg-[#1A1F36] text-white rounded-xl text-[13px] font-semibold disabled:opacity-40">
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              onClick={() => void createNew()}
+              disabled={createSaving || !newDraft.title?.trim()}
+              className="rounded-xl bg-[#1A1F36] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+            >
               {createSaving ? "Creating…" : "Create"}
             </button>
-            <button onClick={() => { setCreating(false); setNewDraft({}); }} className="px-4 py-2 bg-[#E8E4DC] text-[#1A1F36] rounded-xl text-[13px]">Cancel</button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreating(false);
+                setNewDraft({ scheduleSlot: "morning" });
+              }}
+              className="rounded-xl bg-[#E8E4DC] px-4 py-2 text-[13px] text-[#1A1F36]"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -191,12 +258,13 @@ export default function OfficialPrayersPage() {
         search={listSearch}
         onSearchChange={setListSearch}
         slotFilter={slotFilter}
-        onSlotFilterChange={setSlotFilter}
+        onSlotFilterChange={(v) => setSlotFilter(v === "none" ? "all" : v)}
         audioFilter={audioFilter}
         onAudioFilterChange={setAudioFilter}
         showingCount={filteredPrayers.length}
         totalCount={prayers.length}
         slotFilterVisible
+        hideNoSlotFilterOption
       />
 
       {loading ? (
@@ -212,19 +280,32 @@ export default function OfficialPrayersPage() {
             <div key={p.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
               {editId === p.id ? (
                 <div>
-                  <div className="mb-3 flex items-center gap-2">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
                     {p.scheduleSlot && <SlotBadge slot={p.scheduleSlot} />}
                     <span className="text-[11px] text-[var(--color-muted)]">ID #{p.id}</span>
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Title"><input className={inputCls} value={draft.title ?? ""} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} /></Field>
-                    <Field label="Subtitle"><input className={inputCls} value={draft.subtitle ?? ""} onChange={(e) => setDraft((d) => ({ ...d, subtitle: e.target.value }))} /></Field>
-                  </div>
-                  <Field label="Content" className="mt-3">
-                    <textarea className={`${inputCls} resize-none`} rows={5} value={draft.content ?? ""} onChange={(e) => setDraft((d) => ({ ...d, content: e.target.value }))} />
-                  </Field>
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Scripture"><input className={inputCls} value={draft.scripture ?? ""} onChange={(e) => setDraft((d) => ({ ...d, scripture: e.target.value }))} /></Field>
+                    <Field label="Title">
+                      <input
+                        className={inputCls}
+                        value={draft.title ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Subtitle">
+                      <input
+                        className={inputCls}
+                        value={draft.subtitle ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, subtitle: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Scripture" className="sm:col-span-2">
+                      <input
+                        className={inputCls}
+                        value={draft.scripture ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, scripture: e.target.value }))}
+                      />
+                    </Field>
                     <AdminAudioField
                       className="sm:col-span-2"
                       token={token}
@@ -232,30 +313,70 @@ export default function OfficialPrayersPage() {
                       value={draft.audioUrl ?? ""}
                       onChange={(audioUrl) => setDraft((d) => ({ ...d, audioUrl }))}
                     />
-                    <Field label="Duration (min)"><input className={inputCls} type="number" value={draft.durationMinutes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))} /></Field>
+                    <Field label="Duration (min)">
+                      <input
+                        className={inputCls}
+                        type="number"
+                        value={draft.durationMinutes ?? ""}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))
+                        }
+                      />
+                    </Field>
                   </div>
-                  <div className="flex gap-2 mt-4">
-                    <button onClick={save} disabled={saving} className="px-4 py-2 bg-[#1A1F36] text-white rounded-xl text-[13px] font-semibold disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
-                    <button onClick={() => setEditId(null)} className="px-4 py-2 bg-[#E8E4DC] text-[#1A1F36] rounded-xl text-[13px]">Cancel</button>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => void save()}
+                      disabled={saving}
+                      className="rounded-xl bg-[#1A1F36] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+                    >
+                      {saving ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditId(null)}
+                      className="rounded-xl bg-[#E8E4DC] px-4 py-2 text-[13px] text-[#1A1F36]"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       {p.scheduleSlot && <SlotBadge slot={p.scheduleSlot} />}
-                      {p.label && <span className="text-[11px] text-[#8A8FA8] bg-[#F9F6F0] px-2 py-0.5 rounded-full">{p.label}</span>}
-                      {p.audioUrl && <span className="text-[11px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-medium">🎧 Audio</span>}
-                      {p.durationMinutes && <span className="text-[11px] text-[#8A8FA8]">{p.durationMinutes} min</span>}
+                      {p.label && (
+                        <span className="rounded-full bg-[#F9F6F0] px-2 py-0.5 text-[11px] text-[#8A8FA8]">{p.label}</span>
+                      )}
+                      {p.audioUrl && (
+                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-600">
+                          Audio
+                        </span>
+                      )}
+                      {p.durationMinutes ? (
+                        <span className="text-[11px] text-[#8A8FA8]">{p.durationMinutes} min</span>
+                      ) : null}
                     </div>
                     <p className="text-sm font-semibold text-[#1A1F36]">{p.title}</p>
-                    {p.subtitle && <p className="text-[12px] text-[#8A8FA8] mt-0.5">{p.subtitle}</p>}
-                    <p className="text-[13px] text-[#5B6280] mt-1.5 line-clamp-2 leading-relaxed">{p.content}</p>
-                    {p.scripture && <p className="text-[11px] text-[#D4A043] mt-1">📜 {p.scripture}</p>}
+                    {p.subtitle && <p className="mt-0.5 text-[12px] text-[#8A8FA8]">{p.subtitle}</p>}
+                    {p.scripture && <p className="mt-1.5 text-[11px] text-[#D4A043]">{p.scripture}</p>}
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button onClick={() => startEdit(p)} className="px-3 py-1.5 text-[12px] border border-[#E8E4DC] rounded-lg hover:border-[#F97316] transition-colors font-medium">Edit</button>
-                    <button onClick={() => void handleDelete(p.id)} className="px-3 py-1.5 text-[12px] text-[#EF4444] border border-[#EF4444]/40 rounded-lg hover:bg-red-50 transition-colors">Delete</button>
+                  <div className="flex flex-shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(p)}
+                      className="rounded-lg border border-[#E8E4DC] px-3 py-1.5 text-[12px] font-medium transition-colors hover:border-[#F97316]"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(p.id)}
+                      className="rounded-lg border border-[#EF4444]/40 px-3 py-1.5 text-[12px] text-[#EF4444] transition-colors hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               )}
@@ -281,8 +402,12 @@ function Field({ label, children, className }: { label: string; children: React.
 
 function SlotBadge({ slot }: { slot: string }) {
   return (
-    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${slot === "morning" ? "bg-yellow-100 text-yellow-700" : "bg-indigo-100 text-indigo-700"}`}>
-      {slot === "morning" ? "🌅 Morning" : "🌙 Evening"}
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+        slot === "morning" ? "bg-yellow-100 text-yellow-700" : "bg-indigo-100 text-indigo-700"
+      }`}
+    >
+      {slot === "morning" ? "Morning" : "Evening"}
     </span>
   );
 }

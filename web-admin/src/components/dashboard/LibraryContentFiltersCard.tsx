@@ -17,6 +17,7 @@ export function LibraryContentFiltersCard({
   showingCount,
   totalCount,
   slotFilterVisible,
+  hideNoSlotFilterOption = false,
 }: {
   search: string;
   onSearchChange: (v: string) => void;
@@ -27,6 +28,8 @@ export function LibraryContentFiltersCard({
   showingCount: number;
   totalCount: number;
   slotFilterVisible?: boolean;
+  /** When true, sanctuary slot filter only offers all / morning / evening (no “no slot”). */
+  hideNoSlotFilterOption?: boolean;
 }) {
   return (
     <div className="mb-5 rounded-2xl border border-[color-mix(in_srgb,var(--color-border)_90%,transparent)] bg-[var(--color-surface)] p-4 shadow-sm sm:p-5">
@@ -59,7 +62,7 @@ export function LibraryContentFiltersCard({
             <option value="all">All slots</option>
             <option value="morning">Morning</option>
             <option value="evening">Evening</option>
-            <option value="none">No slot</option>
+            {!hideNoSlotFilterOption ? <option value="none">No slot</option> : null}
           </AdminSelect>
         ) : (
           <div className="hidden lg:block" aria-hidden />

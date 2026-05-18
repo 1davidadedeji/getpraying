@@ -37,7 +37,6 @@ export default function LecturesPage() {
 
   const [listSearch, setListSearch] = useState("");
   const debouncedListSearch = useDebouncedValue(listSearch, 320);
-  const [slotFilter, setSlotFilter] = useState<"all" | "morning" | "evening" | "none">("all");
   const [audioFilter, setAudioFilter] = useState<"all" | "yes" | "no">("all");
 
   const filteredLectures = useMemo(() => {
@@ -57,18 +56,31 @@ export default function LecturesPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/official?category=lectures"), { headers: authHeaders(token) });
+      const res = await fetch(apiUrl("/library/official?category=lectures&limit=60"), {
+        headers: authHeaders(token),
+      });
       if (!res.ok) return;
       const data = await res.json();
       setLectures(data.prayers ?? data.items ?? []);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const startEdit = (l: Lecture) => {
     setEditId(l.id);
-    setDraft({ title: l.title, subtitle: l.subtitle ?? "", content: l.content, scripture: l.scripture ?? "", audioUrl: l.audioUrl ?? "", durationMinutes: l.durationMinutes ?? undefined });
+    setDraft({
+      title: l.title,
+      subtitle: l.subtitle ?? "",
+      content: l.content,
+      scripture: l.scripture ?? "",
+      audioUrl: l.audioUrl ?? "",
+      durationMinutes: l.durationMinutes ?? undefined,
+    });
   };
 
   const save = async () => {
@@ -78,21 +90,23 @@ export default function LecturesPage() {
       const res = await fetch(apiUrl(`/admin/official-prayers/${editId}`), {
         method: "PUT",
         headers: authHeaders(token),
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, category: "lectures", pathId: null }),
       });
       if (res.ok) {
         const data = await res.json();
         const updated = data.prayer ?? data;
-        setLectures((prev) => prev.map((l) => l.id === editId ? { ...l, ...updated } : l));
+        setLectures((prev) => prev.map((x) => (x.id === editId ? { ...x, ...updated } : x)));
         setEditId(null);
       }
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
     if (!token || !confirm("Delete this lecture?")) return;
     await fetch(apiUrl(`/admin/official-prayers/${id}`), { method: "DELETE", headers: authHeaders(token) });
-    setLectures((prev) => prev.filter((l) => l.id !== id));
+    setLectures((prev) => prev.filter((x) => x.id !== id));
   };
 
   const createLecture = async () => {
@@ -110,14 +124,16 @@ export default function LecturesPage() {
         setCreating(false);
         setNewDraft({});
       }
-    } finally { setCreateSaving(false); }
+    } finally {
+      setCreateSaving(false);
+    }
   };
 
   return (
     <>
       <PageHeader
         title="Lectures"
-        description="Carousel lectures — search and filter without scrolling the whole library"
+        description="Standalone listens for the Library carousel — not tied to situation categories or sanctuary slots."
         action={
           <button
             type="button"
@@ -133,19 +149,43 @@ export default function LecturesPage() {
         }
       />
 
-      {/* Create form */}
       {creating && (
-        <div className="mb-4 rounded-xl border border-[color-mix(in_srgb,var(--color-flame)_40%,var(--color-border))] bg-[var(--color-surface)] p-4">
-          <p className="mb-3 text-[13px] font-semibold text-[var(--color-primary)]">New lecture</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Title *"><input className={inputCls} placeholder="Title" value={newDraft.title ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, title: e.target.value }))} /></Field>
-            <Field label="Subtitle"><input className={inputCls} placeholder="Subtitle" value={newDraft.subtitle ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, subtitle: e.target.value }))} /></Field>
-          </div>
-          <Field label="Content *" className="mt-3">
-            <textarea className={`${inputCls} resize-none`} rows={4} value={newDraft.content ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, content: e.target.value }))} />
-          </Field>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Scripture"><input className={inputCls} placeholder="e.g. John 3:16" value={newDraft.scripture ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, scripture: e.target.value }))} /></Field>
+        <div className="mb-5 rounded-xl border border-[color-mix(in_srgb,var(--color-flame)_40%,var(--color-border))] bg-[var(--color-surface)] p-5 shadow-sm">
+          <p className="mb-4 text-[13px] font-semibold text-[var(--color-primary)]">New lecture</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Title *">
+              <input
+                className={inputCls}
+                placeholder="Title"
+                value={newDraft.title ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, title: e.target.value }))}
+              />
+            </Field>
+            <Field label="Subtitle">
+              <input
+                className={inputCls}
+                placeholder="Subtitle (optional)"
+                value={newDraft.subtitle ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, subtitle: e.target.value }))}
+              />
+            </Field>
+            <Field label="Description *" className="sm:col-span-2">
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={4}
+                placeholder="Shown in the app as detail text for this lecture"
+                value={newDraft.content ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, content: e.target.value }))}
+              />
+            </Field>
+            <Field label="Scripture" className="sm:col-span-2">
+              <input
+                className={inputCls}
+                placeholder="e.g. John 3:16"
+                value={newDraft.scripture ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, scripture: e.target.value }))}
+              />
+            </Field>
             <AdminAudioField
               className="sm:col-span-2"
               token={token}
@@ -153,13 +193,33 @@ export default function LecturesPage() {
               value={newDraft.audioUrl ?? ""}
               onChange={(audioUrl) => setNewDraft((d) => ({ ...d, audioUrl }))}
             />
-            <Field label="Duration (min)"><input className={inputCls} type="number" value={newDraft.durationMinutes ?? ""} onChange={(e) => setNewDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))} /></Field>
+            <Field label="Duration (min)">
+              <input
+                className={inputCls}
+                type="number"
+                value={newDraft.durationMinutes ?? ""}
+                onChange={(e) => setNewDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))}
+              />
+            </Field>
           </div>
-          <div className="flex gap-2 mt-4">
-            <button onClick={createLecture} disabled={createSaving || !newDraft.title?.trim() || !newDraft.content?.trim()} className="px-4 py-2 bg-[#1A1F36] text-white rounded-xl text-[13px] font-semibold disabled:opacity-40">
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              onClick={() => void createLecture()}
+              disabled={createSaving || !newDraft.title?.trim() || !newDraft.content?.trim()}
+              className="rounded-xl bg-[#1A1F36] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+            >
               {createSaving ? "Creating…" : "Create"}
             </button>
-            <button onClick={() => { setCreating(false); setNewDraft({}); }} className="px-4 py-2 bg-[#E8E4DC] text-[#1A1F36] rounded-xl text-[13px]">Cancel</button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreating(false);
+                setNewDraft({});
+              }}
+              className="rounded-xl bg-[#E8E4DC] px-4 py-2 text-[13px] text-[#1A1F36]"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -167,8 +227,8 @@ export default function LecturesPage() {
       <LibraryContentFiltersCard
         search={listSearch}
         onSearchChange={setListSearch}
-        slotFilter={slotFilter}
-        onSlotFilterChange={setSlotFilter}
+        slotFilter="all"
+        onSlotFilterChange={() => {}}
         audioFilter={audioFilter}
         onAudioFilterChange={setAudioFilter}
         showingCount={filteredLectures.length}
@@ -190,12 +250,35 @@ export default function LecturesPage() {
               {editId === l.id ? (
                 <div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Title"><input className={inputCls} value={draft.title ?? ""} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} /></Field>
-                    <Field label="Subtitle"><input className={inputCls} value={draft.subtitle ?? ""} onChange={(e) => setDraft((d) => ({ ...d, subtitle: e.target.value }))} /></Field>
-                  </div>
-                  <Field label="Content" className="mt-3"><textarea className={`${inputCls} resize-none`} rows={5} value={draft.content ?? ""} onChange={(e) => setDraft((d) => ({ ...d, content: e.target.value }))} /></Field>
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Scripture"><input className={inputCls} value={draft.scripture ?? ""} onChange={(e) => setDraft((d) => ({ ...d, scripture: e.target.value }))} /></Field>
+                    <Field label="Title">
+                      <input
+                        className={inputCls}
+                        value={draft.title ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Subtitle">
+                      <input
+                        className={inputCls}
+                        value={draft.subtitle ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, subtitle: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Description" className="sm:col-span-2">
+                      <textarea
+                        className={`${inputCls} resize-none`}
+                        rows={5}
+                        value={draft.content ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, content: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Scripture" className="sm:col-span-2">
+                      <input
+                        className={inputCls}
+                        value={draft.scripture ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, scripture: e.target.value }))}
+                      />
+                    </Field>
                     <AdminAudioField
                       className="sm:col-span-2"
                       token={token}
@@ -203,28 +286,67 @@ export default function LecturesPage() {
                       value={draft.audioUrl ?? ""}
                       onChange={(audioUrl) => setDraft((d) => ({ ...d, audioUrl }))}
                     />
-                    <Field label="Duration (min)"><input className={inputCls} type="number" value={draft.durationMinutes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))} /></Field>
+                    <Field label="Duration (min)">
+                      <input
+                        className={inputCls}
+                        type="number"
+                        value={draft.durationMinutes ?? ""}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))
+                        }
+                      />
+                    </Field>
                   </div>
-                  <div className="flex gap-2 mt-4">
-                    <button onClick={save} disabled={saving} className="px-4 py-2 bg-[#1A1F36] text-white rounded-xl text-[13px] font-semibold disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
-                    <button onClick={() => setEditId(null)} className="px-4 py-2 bg-[#E8E4DC] text-[#1A1F36] rounded-xl text-[13px]">Cancel</button>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => void save()}
+                      disabled={saving}
+                      className="rounded-xl bg-[#1A1F36] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+                    >
+                      {saving ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditId(null)}
+                      className="rounded-xl bg-[#E8E4DC] px-4 py-2 text-[13px] text-[#1A1F36]"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      {l.audioUrl && <span className="text-[11px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-medium">🎧 Audio</span>}
-                      {l.durationMinutes && <span className="text-[11px] text-[#8A8FA8]">{l.durationMinutes} min</span>}
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                      {l.audioUrl && (
+                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-600">
+                          Audio
+                        </span>
+                      )}
+                      {l.durationMinutes ? (
+                        <span className="text-[11px] text-[#8A8FA8]">{l.durationMinutes} min</span>
+                      ) : null}
                     </div>
                     <p className="text-sm font-semibold text-[#1A1F36]">{l.title}</p>
-                    {l.subtitle && <p className="text-[12px] text-[#8A8FA8] mt-0.5">{l.subtitle}</p>}
-                    <p className="text-[13px] text-[#5B6280] mt-1.5 line-clamp-2 leading-relaxed">{l.content}</p>
-                    {l.scripture && <p className="text-[11px] text-[#D4A043] mt-1">📜 {l.scripture}</p>}
+                    {l.subtitle && <p className="mt-0.5 text-[12px] text-[#8A8FA8]">{l.subtitle}</p>}
+                    <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-[#5B6280]">{l.content}</p>
+                    {l.scripture && <p className="mt-1 text-[11px] text-[#D4A043]">{l.scripture}</p>}
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button onClick={() => startEdit(l)} className="px-3 py-1.5 text-[12px] border border-[#E8E4DC] rounded-lg hover:border-[#F97316] transition-colors font-medium">Edit</button>
-                    <button onClick={() => void handleDelete(l.id)} className="px-3 py-1.5 text-[12px] text-[#EF4444] border border-[#EF4444]/40 rounded-lg hover:bg-red-50 transition-colors">Delete</button>
+                  <div className="flex flex-shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(l)}
+                      className="rounded-lg border border-[#E8E4DC] px-3 py-1.5 text-[12px] font-medium transition-colors hover:border-[#F97316]"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(l.id)}
+                      className="rounded-lg border border-[#EF4444]/40 px-3 py-1.5 text-[12px] text-[#EF4444] transition-colors hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               )}
