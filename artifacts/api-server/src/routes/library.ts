@@ -76,7 +76,13 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
     .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id));
 
   let whereClause: Parameters<typeof baseOfficial.where>[0] | undefined;
-  if (excludeScheduled && categoryFilter) {
+  /** Lectures are their own bucket — never mixed with sanctuary slots or path linkage in this list. */
+  if (categoryFilter === "lectures") {
+    whereClause = and(
+      eq(officialPrayersTable.category, "lectures"),
+      isNull(officialPrayersTable.scheduleSlot),
+    );
+  } else if (excludeScheduled && categoryFilter) {
     whereClause = and(isNull(officialPrayersTable.scheduleSlot), eq(officialPrayersTable.category, categoryFilter));
   } else if (excludeScheduled) {
     whereClause = isNull(officialPrayersTable.scheduleSlot);

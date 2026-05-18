@@ -12,10 +12,8 @@ import { eq } from "drizzle-orm";
 /** Post images: PRD max 1MB */
 const MAX_POST_IMAGE_BYTES = 1 * 1024 * 1024;
 const MAX_AVATAR_IMAGE_BYTES = 2 * 1024 * 1024;
-/** Short clips only; duration validated separately */
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
-const MAX_VIDEO_DURATION_SEC = 60;
 
 export function getUploadDir(): string {
   return process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
@@ -235,24 +233,12 @@ router.post(
       req,
       res,
       next,
-      `Video is too large or too long. Keep clips under ${MAX_VIDEO_DURATION_SEC} seconds.`,
+      "Video is too large. Keep files under the upload size limit.",
     ),
   async (req, res): Promise<void> => {
     const file = (req as any).file as Express.Multer.File | undefined;
     if (!file?.path?.length) {
       res.status(400).json({ error: "No video file provided" });
-      return;
-    }
-
-    const rawDur = (req as any).body?.durationSec ?? (req as any).body?.duration;
-    const durationSec = typeof rawDur === "string" ? parseFloat(rawDur) : Number(rawDur);
-    // Only reject when the client explicitly reports a duration that exceeds the limit.
-    // A duration of 0 or NaN means the device could not read it — let size limit handle abuse.
-    if (Number.isFinite(durationSec) && durationSec > 0 && durationSec > MAX_VIDEO_DURATION_SEC) {
-      await unlink(file.path).catch(() => {});
-      res.status(400).json({
-        error: `Video is too long. Please use a clip under ${MAX_VIDEO_DURATION_SEC} seconds.`,
-      });
       return;
     }
 

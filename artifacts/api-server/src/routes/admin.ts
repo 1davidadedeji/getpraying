@@ -577,8 +577,8 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
   const mod = (req as any).user;
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
-  if (!title || !content) {
-    res.status(400).json({ error: "title and content are required" });
+  if (!title) {
+    res.status(400).json({ error: "title is required" });
     return;
   }
   const scriptureRaw =
@@ -589,6 +589,18 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
     return;
   }
   const category = typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
+  const scheduleSlot =
+    typeof req.body?.scheduleSlot === "string" && ["morning", "evening"].includes(req.body.scheduleSlot)
+      ? req.body.scheduleSlot
+      : null;
+  if (category === "sanctuary" && !scheduleSlot) {
+    res.status(400).json({ error: "Sanctuary guides require a morning or evening slot." });
+    return;
+  }
+  let pathIdRaw = typeof req.body?.pathId === "number" ? req.body.pathId : null;
+  if (category === "lectures") {
+    pathIdRaw = null;
+  }
   const durationMinutesGeneral =
     typeof req.body?.durationMinutes === "number" && Number.isFinite(req.body.durationMinutes)
       ? Math.round(req.body.durationMinutes)
@@ -600,13 +612,11 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
       content,
       category,
       subtitle: typeof req.body?.subtitle === "string" ? req.body.subtitle : null,
-      pathId: typeof req.body?.pathId === "number" ? req.body.pathId : null,
+      scripture: scriptureRaw,
+      pathId: pathIdRaw,
       audioUrl: typeof req.body?.audioUrl === "string" ? req.body.audioUrl.trim() : null,
       durationMinutes: durationMinutesGeneral != null && durationMinutesGeneral > 0 ? durationMinutesGeneral : null,
-      scheduleSlot:
-        typeof req.body?.scheduleSlot === "string" && ["morning", "evening"].includes(req.body.scheduleSlot)
-          ? req.body.scheduleSlot
-          : null,
+      scheduleSlot,
       label: typeof req.body?.label === "string" ? req.body.label : null,
       uploadedByUserId: mod.id,
     })
@@ -671,6 +681,9 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
     pathIdNext =
       typeof req.body.pathId === "number" && Number.isFinite(req.body.pathId) ? req.body.pathId : null;
   }
+  if (categoryNext === "lectures" || existing.category === "lectures") {
+    pathIdNext = null;
+  }
 
   let audioUrlNext = existing.audioUrl;
   if (typeof req.body?.audioUrl === "string") {
@@ -710,8 +723,8 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
 });
 
 /**
- * Set morning/evening sanctuary slot: optionally archive the previous slot content into a path
- * (official guides library), then update or create the scheduled row in place.
+ * Set morning/evening sanctuary slot. If a guide already occupies the slot, it is removed
+ * (saved-user rows cleared for that id) — it is not moved into a path / situation category.
  */
 router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const mod = (req as any).user;
@@ -726,15 +739,11 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
 
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
-  if (!title || !content) {
-    res.status(400).json({ error: "title and content are required" });
+  if (!title) {
+    res.status(400).json({ error: "title is required" });
     return;
   }
 
-  const archivePathId =
-    typeof req.body?.archivePathId === "number" && Number.isFinite(req.body.archivePathId)
-      ? req.body.archivePathId
-      : null;
   const category =
     typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
   const subtitle = typeof req.body?.subtitle === "string" ? req.body.subtitle : null;
@@ -753,62 +762,21 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
     return;
   }
 
-  const [slotOccupied] = await db
-    .select({ id: officialPrayersTable.id })
-    .from(officialPrayersTable)
-    .where(eq(officialPrayersTable.scheduleSlot, slot))
-    .limit(1);
-
-  if (slotOccupied && archivePathId == null) {
-    res.status(400).json({
-      error:
-        "archivePathId is required when replacing an existing morning or evening guide (the previous version is saved to that path).",
-    });
-    return;
-  }
-
   const result = await db.transaction(async (tx) => {
     const [existing] = await tx
-      .select()
+      .select({ id: officialPrayersTable.id })
       .from(officialPrayersTable)
       .where(eq(officialPrayersTable.scheduleSlot, slot))
       .limit(1);
 
-    if (existing && archivePathId != null) {
-      // Convert the existing row into the archive (keeps its ID so user saves remain valid).
-      // Saves pointing to existing.id will show old content in the Saved tab.
-      await tx
-        .update(officialPrayersTable)
-        .set({
-          scheduleSlot: null,
-          label: `archived_${slot}`,
-          pathId: archivePathId,
-        })
-        .where(eq(officialPrayersTable.id, existing.id));
-    }
-
     if (existing) {
-      // Insert brand-new row for the slot — new ID means users haven't saved it yet.
-      const [row] = await tx
-        .insert(officialPrayersTable)
-        .values({
-          title,
-          content,
-          category,
-          subtitle,
-          audioUrl,
-          label,
-          scripture,
-          durationMinutes,
-          pathId: null,
-          scheduleSlot: slot,
-          uploadedByUserId: mod.id,
-        })
-        .returning();
-      return row ?? null;
+      await tx
+        .delete(savedOfficialPrayersTable)
+        .where(eq(savedOfficialPrayersTable.officialPrayerId, existing.id));
+      await tx.delete(officialPrayersTable).where(eq(officialPrayersTable.id, existing.id));
     }
 
-    const [inserted] = await tx
+    const [row] = await tx
       .insert(officialPrayersTable)
       .values({
         title,
@@ -818,13 +786,13 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
         audioUrl,
         label,
         scripture,
-        durationMinutes,
+        durationMinutes: durationMinutes != null && durationMinutes > 0 ? durationMinutes : null,
         pathId: null,
         scheduleSlot: slot,
         uploadedByUserId: mod.id,
       })
       .returning();
-    return inserted ?? null;
+    return row ?? null;
   });
 
   res.json(result);
@@ -851,38 +819,13 @@ router.delete("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, asyn
   const slot = target.scheduleSlot as "morning" | "evening" | null;
 
   if (slot === "morning" || slot === "evening") {
-    // Find the most recently archived prayer for this slot (tagged by schedule-slot route)
-    const [prev] = await db
-      .select({ id: officialPrayersTable.id })
-      .from(officialPrayersTable)
-      .where(
-        and(
-          eq(officialPrayersTable.label, `archived_${slot}`),
-          isNull(officialPrayersTable.scheduleSlot),
-        ),
-      )
-      .orderBy(desc(officialPrayersTable.createdAt))
-      .limit(1);
-
     await db.transaction(async (tx) => {
-      if (prev) {
-        // Migrate saves from deleted prayer to the restored archive
-        await tx
-          .update(savedOfficialPrayersTable)
-          .set({ officialPrayerId: prev.id })
-          .where(eq(savedOfficialPrayersTable.officialPrayerId, prayerId));
-
-        // Restore the archive to the active slot
-        await tx
-          .update(officialPrayersTable)
-          .set({ scheduleSlot: slot, label: null, pathId: null })
-          .where(eq(officialPrayersTable.id, prev.id));
-      }
-
+      await tx
+        .delete(savedOfficialPrayersTable)
+        .where(eq(savedOfficialPrayersTable.officialPrayerId, prayerId));
       await tx.delete(officialPrayersTable).where(eq(officialPrayersTable.id, prayerId));
     });
-
-    res.json({ success: true, restoredPreviousSlot: !!prev });
+    res.json({ success: true });
     return;
   }
 
