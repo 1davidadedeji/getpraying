@@ -4,6 +4,7 @@ import { login as apiLogin, register as apiRegister, logout as apiLogout } from 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { User } from "@workspace/api-client-react";
 import { clearPushTokenOnServer, registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
+import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 
 const TOKEN_KEY = "@getpraying/token";
 const USER_KEY = "@getpraying/user";
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading || !token) return;
+    void syncDeviceTimezone(token);
     void registerAndSyncPushToken(token);
   }, [loading, token]);
 

@@ -1,9 +1,10 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
+import type { Href } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import { getGetPathQueryKey, useGetPath } from "@workspace/api-client-react";
 import type { OfficialPrayer, Post } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -12,9 +13,9 @@ import {
   StyleSheet,
   Text,
   View,
-  type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AudioScrubberRow } from "@/components/AudioScrubberRow";
 import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
@@ -22,10 +23,10 @@ import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { iconKeyForPathCategory } from "@/constants/pathCategoryIcon";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
-import { formatPlaybackTime } from "@/lib/formatPlaybackTime";
 
 function toOfficialRow(p: OfficialPrayer & { audioUrl?: string | null; scheduleSlot?: string | null }): OfficialPrayerRow {
   return {
@@ -62,10 +63,9 @@ function PathSessionCard({
   const [playProgress, setPlayProgress] = useState(0);
   const [playPositionMs, setPlayPositionMs] = useState(0);
   const [playDurationMs, setPlayDurationMs] = useState(0);
+  const [playPlaying, setPlayPlaying] = useState(false);
+  const [playRate, setPlayRate] = useState(1);
   const mins = op.durationMinutes;
-  const progressInnerStyle: ViewStyle = {
-    width: `${Math.round(Math.min(1, Math.max(0, playProgress)) * 100)}%`,
-  };
   const playSz = Math.round(clamp(56 * uiScale, 48, 64));
   const headerGap = Math.round(clamp(10 * uiScale, 8, 12));
   const headerMb = Math.round(clamp(10 * uiScale, 8, 12));
@@ -78,13 +78,23 @@ function PathSessionCard({
   const titleMb = Math.round(clamp(6 * uiScale, 5, 8));
   const fsScripture = Math.round(clamp(13 * uiScale, 12, 15));
   const scrMb = Math.round(clamp(12 * uiScale, 10, 14));
-  const progH = Math.max(3, Math.round(clamp(4 * uiScale, 3, 5)));
+  const progH = Math.max(2, Math.round(clamp(2 * uiScale, 2, 3)));
   const progMb = Math.round(clamp(14 * uiScale, 12, 16));
+  const ratePadH = Math.round(clamp(10 * uiScale, 8, 12));
+  const ratePadV = Math.round(clamp(8 * uiScale, 6, 10));
+  const fsRate = Math.round(clamp(12 * uiScale, 11, 13));
   const listenPadV = Math.round(clamp(12 * uiScale, 10, 14));
   const listenMr = Math.round(clamp(12 * uiScale, 10, 14));
   const fsListen = Math.round(clamp(14 * uiScale, 13, 16));
-  const fsTime = Math.round(clamp(11 * uiScale, 10, 12));
   const hit = Math.round(clamp(8 * uiScale, 6, 10));
+
+  useEffect(() => {
+    setPlayProgress(0);
+    setPlayPositionMs(0);
+    setPlayDurationMs(0);
+    setPlayPlaying(false);
+    setPlayRate(1);
+  }, [op.id, op.audioUrl]);
 
   return (
     <View style={[styles.sessionCard, { padding: cardPad, borderRadius: cardRad, marginBottom: Math.round(4 * uiScale) }]}>
@@ -92,7 +102,11 @@ function PathSessionCard({
         <Ionicons name="pulse-outline" size={iconAction} color={colors.primary} />
         <View style={[styles.durationBadge, { paddingHorizontal: badgePadH, paddingVertical: badgePadV }]}>
           <Text style={[styles.durationBadgeText, { fontSize: fsBadge }]}>
-            {mins != null && mins > 0 ? `${mins} MINS` : "SESSION"}
+            {op.audioUrl
+              ? "SESSION"
+              : mins != null && mins > 0
+                ? `${mins} MINS`
+                : "SESSION"}
           </Text>
         </View>
         {showSave ? (
@@ -107,27 +121,38 @@ function PathSessionCard({
       {op.scripture ? (
         <Text style={[styles.sessionScripture, { fontSize: fsScripture, marginBottom: scrMb }]}>{op.scripture}</Text>
       ) : null}
-      <View style={[styles.progressOuter, { height: progH, borderRadius: progH / 2, marginBottom: progMb }]}>
-        <View style={[styles.progressInner, progressInnerStyle, { borderRadius: progH / 2 }]} />
-      </View>
-      {playDurationMs > 0 ? (
-        <Text style={[styles.sessionTimeRow, { fontSize: fsTime, marginBottom: progMb }]}>
-          {formatPlaybackTime(playPositionMs)} — {formatPlaybackTime(playDurationMs)}
-        </Text>
-      ) : null}
       <View style={styles.sessionCardFooter}>
         <Pressable
           style={[styles.listenPill, { paddingVertical: listenPadV, marginRight: listenMr }]}
           onPress={() => playRef.current?.toggle()}
           accessibilityRole="button"
-          accessibilityLabel="Play session"
+          accessibilityLabel={playPlaying ? "Pause audio" : "Listen to session"}
         >
-          <Text style={[styles.listenPillText, { fontSize: fsListen }]}>Listen</Text>
+          <Text style={[styles.listenPillText, { fontSize: fsListen }]}>{playPlaying ? "Pause" : "Listen"}</Text>
         </Pressable>
+        {op.audioUrl ? (
+          <Pressable
+            onPress={() => playRef.current?.cyclePlaybackRate()}
+            style={[
+              styles.sessionRateBtn,
+              {
+                paddingHorizontal: ratePadH,
+                paddingVertical: ratePadV,
+                marginRight: listenMr,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Playback speed ${playRate}×`}
+          >
+            <Text style={[styles.sessionRateBtnText, { fontSize: fsRate }]}>{playRate}×</Text>
+          </Pressable>
+        ) : null}
         <OfficialGuidePlayCircle
           ref={playRef}
           audioUrl={op.audioUrl}
           size={playSz}
+          onPlayingChange={setPlayPlaying}
+          onPlaybackRateChange={setPlayRate}
           onPlaybackProgress={setPlayProgress}
           onPlaybackTimes={(pos, dur) => {
             setPlayPositionMs(pos);
@@ -135,11 +160,22 @@ function PathSessionCard({
           }}
         />
       </View>
+      <View style={{ marginBottom: progMb }}>
+        <AudioScrubberRow
+          positionMs={playPositionMs}
+          durationMs={playDurationMs}
+          progress01={playProgress}
+          fillColor={colors.primary}
+          trackHeight={progH}
+          onSeek={(p) => playRef.current?.seekProgress(p)}
+        />
+      </View>
     </View>
   );
 }
 
 export default function PathDetailScreen() {
+  useStackHeaderBack("/(tabs)/library" as Href);
   const { id } = useLocalSearchParams<{ id: string }>();
   const pathId = Number(id);
   const insets = useSafeAreaInsets();
@@ -157,13 +193,9 @@ export default function PathDetailScreen() {
   const heroIconRad = Math.round(clamp(20 * uiScale, 16, 24));
   const heroFeather = Math.round(clamp(28 * uiScale, 24, 32));
   const fsHeroTitle = Math.round(clamp(22 * uiScale, 20, 26));
-  const fsHeroLead = Math.round(clamp(14 * uiScale, 13, 16));
-  const lhHeroLead = Math.round(fsHeroLead * 1.55);
   const sectionPadT = Math.round(clamp(20 * uiScale, 16, 24));
   const sectionGap = Math.round(clamp(12 * uiScale, 10, 14));
   const fsSectionTitle = Math.round(clamp(13 * uiScale, 12, 15));
-  const fsSectionHint = Math.round(clamp(13 * uiScale, 12, 15));
-  const lhSectionHint = Math.round(fsSectionHint * 1.35);
   const fsEmpty = Math.round(clamp(14 * uiScale, 13, 16));
   const lhEmpty = Math.round(fsEmpty * 1.4);
   const emptyPadV = Math.round(clamp(16 * uiScale, 14, 20));
@@ -226,11 +258,6 @@ export default function PathDetailScreen() {
           <Feather name={iconName} size={heroFeather} color={colors.primary} />
         </View>
         <Text style={[styles.heroPathTitle, { fontSize: fsHeroTitle }]}>{path.name}</Text>
-        <Text style={[styles.heroLead, { fontSize: fsHeroLead, lineHeight: lhHeroLead }]}>
-          {path.tagline?.trim() ||
-            path.description ||
-            "Explore curated sessions designed to anchor your heart."}
-        </Text>
       </View>
 
       <View style={[styles.section, { paddingHorizontal: gutter, paddingTop: sectionPadT, gap: sectionGap }]}>
@@ -257,9 +284,6 @@ export default function PathDetailScreen() {
       {communityPosts.length > 0 ? (
         <View style={[styles.section, { paddingHorizontal: gutter, paddingTop: sectionPadT, gap: sectionGap }]}>
           <Text style={[styles.sectionTitle, { fontSize: fsSectionTitle }]}>Saved in this path</Text>
-          <Text style={[styles.sectionHint, { fontSize: fsSectionHint, lineHeight: lhSectionHint }]}>
-            Prayers you saved that match this theme.
-          </Text>
           {communityPosts.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
@@ -295,22 +319,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textAlign: "center",
   },
-  heroLead: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
   section: {},
   sectionTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.8,
-  },
-  sectionHint: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: colors.muted,
-    marginBottom: 4,
   },
   emptyInline: {},
   emptyInlineText: {
@@ -344,18 +358,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_500Medium",
     color: colors.muted,
   },
-  progressOuter: {
-    backgroundColor: colors.border,
-    overflow: "hidden",
-  },
-  progressInner: {
-    height: "100%",
-    backgroundColor: colors.primary,
-  },
-  sessionTimeRow: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: colors.muted,
-  },
   sessionCardFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -370,5 +372,17 @@ const styles = StyleSheet.create({
   listenPillText: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: colors.surface,
+  },
+  sessionRateBtn: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+  },
+  sessionRateBtnText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.primary,
+    fontVariant: ["tabular-nums"],
   },
 });

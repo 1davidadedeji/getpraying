@@ -96,7 +96,13 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     hasPrayed,
     hasCommented,
     isSaved,
-    authorId: post.isAnonymous ? null : (post.authorId ?? null),
+    /** Present for the author even when the post is anonymous (for delete/owner flows); hidden for everyone else. */
+    authorId:
+      userId && post.authorId != null && post.authorId === userId
+        ? post.authorId
+        : post.isAnonymous
+          ? null
+          : (post.authorId ?? null),
     authorUsername: post.isAnonymous ? null : (author?.username ?? null),
     authorDisplayName: post.isAnonymous ? null : (author?.displayName ?? null),
     authorAvatarUrl: post.isAnonymous ? null : (author?.avatarUrl ?? null),
@@ -179,7 +185,12 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       hasPrayed: prayedSet.has(post.id),
       hasCommented: commentedSet.has(post.id),
       isSaved: savedSet.has(post.id),
-      authorId: post.isAnonymous ? null : (post.authorId ?? null),
+      authorId:
+        userId && post.authorId != null && post.authorId === userId
+          ? post.authorId
+          : post.isAnonymous
+            ? null
+            : (post.authorId ?? null),
       authorUsername: author?.username ?? null,
       authorDisplayName: author?.displayName ?? null,
       authorAvatarUrl: author?.avatarUrl ?? null,

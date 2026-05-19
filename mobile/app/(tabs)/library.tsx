@@ -31,7 +31,8 @@ import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
-import { clamp, getLibraryIconBgSize, getLibrarySituationCols } from "@/lib/responsiveMetrics";
+import { isEveningSanctuarySlotNow } from "@/lib/localClock";
+import * as RM from "@/lib/responsiveMetrics";
 import { SAVED_OFFICIAL_EMPTY } from "@/constants/savedOfficialList";
 import {
   LIBRARY_FALLBACK_PATHS,
@@ -86,7 +87,7 @@ function truncateLecturePreview(s: string, maxLen: number): string {
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
-  const { windowWidth, windowHeight, gutter, isTablet, uiScale } = useResponsiveLayout();
+  const { windowWidth, windowHeight, gutter, uiScale } = useResponsiveLayout();
   const { token } = useAuth();
   const categoriesScrollRef = useRef<ScrollView>(null);
   const savedListRef = useRef<FlatList>(null);
@@ -313,7 +314,15 @@ export default function LibraryScreen() {
   }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const SITUATION_COLS = getLibrarySituationCols(windowWidth, windowHeight, isTablet);
+  const SITUATION_COLS = useMemo(
+    () =>
+      RM.getLibrarySituationCols(
+        windowWidth,
+        windowHeight,
+        windowWidth >= LAYOUT.tabletMinWidth,
+      ),
+    [windowWidth, windowHeight],
+  );
   const cardGap = Math.round(10 * uiScale);
   const situationRows = useMemo(() => {
     const rows: CategoryItem[][] = [];
@@ -323,30 +332,30 @@ export default function LibraryScreen() {
     return rows;
   }, [filteredCategories, SITUATION_COLS]);
   const situationIconSize = Math.round(20 * uiScale);
-  const situationIconBg = getLibraryIconBgSize(uiScale);
-  const situationEmojiSize = Math.round(clamp(26 * uiScale, 24, 30));
+  const situationIconBg = useMemo(() => RM.getLibraryIconBgSize(uiScale), [uiScale]);
+  const situationEmojiSize = Math.round(RM.clamp(26 * uiScale, 24, 30));
   const lectureCarouselGap = Math.round(10 * uiScale);
   const lectureCardWidth = Math.round(
-    clamp(
+    RM.clamp(
       Math.min(windowWidth, LAYOUT.contentMaxWidth) - gutter * 2 - lectureCarouselGap,
       200,
       258,
     ),
   );
   const lectureSnapInterval = lectureCardWidth + lectureCarouselGap;
-  const scrollPadBottom = Math.round(clamp(100 * uiScale, 88, 112)) + insets.bottom;
-  const searchBtnSz = Math.round(clamp(40 * uiScale, 36, 46));
+  const scrollPadBottom = Math.round(RM.clamp(100 * uiScale, 88, 112)) + insets.bottom;
+  const searchBtnSz = Math.round(RM.clamp(40 * uiScale, 36, 46));
   const searchBtnRad = Math.round(searchBtnSz / 2);
-  const searchHitSlop = Math.round(clamp(8 * uiScale, 6, 10));
-  const searchInputH = Math.round(clamp(40 * uiScale, 36, 44));
-  const searchInputPadH = Math.round(clamp(16 * uiScale, 12, 18));
-  const searchInputRad = Math.round(clamp(20 * uiScale, 16, 22));
-  const searchInputFs = Math.round(clamp(14 * uiScale, 13, 15));
-  const tabIconFs = Math.round(clamp(13 * uiScale, 12, 15));
-  const tabFs = Math.round(clamp(13 * uiScale, 12, 15));
-  const tabH = Math.round(clamp(34 * uiScale, 30, 38));
+  const searchHitSlop = Math.round(RM.clamp(8 * uiScale, 6, 10));
+  const searchInputH = Math.round(RM.clamp(40 * uiScale, 36, 44));
+  const searchInputPadH = Math.round(RM.clamp(16 * uiScale, 12, 18));
+  const searchInputRad = Math.round(RM.clamp(20 * uiScale, 16, 22));
+  const searchInputFs = Math.round(RM.clamp(14 * uiScale, 13, 15));
+  const tabIconFs = Math.round(RM.clamp(13 * uiScale, 12, 15));
+  const tabFs = Math.round(RM.clamp(13 * uiScale, 12, 15));
+  const tabH = Math.round(RM.clamp(34 * uiScale, 30, 38));
   const tabRad = Math.round(tabH / 2);
-  const sanctuaryLeadSz = Math.round(clamp(40 * uiScale, 34, 48));
+  const sanctuaryLeadSz = Math.round(RM.clamp(40 * uiScale, 34, 48));
 
   const tabs: { key: Tab; label: string; icon: "book-open" | "bookmark" }[] = [
     { key: "categories", label: "Official Prayers", icon: "book-open" },
@@ -546,7 +555,7 @@ export default function LibraryScreen() {
             style={[
               styles.searchInput,
               {
-                marginTop: Math.round(clamp(10 * uiScale, 8, 12)),
+                marginTop: Math.round(RM.clamp(10 * uiScale, 8, 12)),
                 height: searchInputH,
                 borderRadius: searchInputRad,
                 paddingHorizontal: searchInputPadH,
@@ -571,7 +580,7 @@ export default function LibraryScreen() {
             key={t.key}
             style={[
               styles.tab,
-              { height: tabH, borderRadius: tabRad, paddingHorizontal: Math.round(clamp(10 * uiScale, 8, 12)) },
+              { height: tabH, borderRadius: tabRad, paddingHorizontal: Math.round(RM.clamp(10 * uiScale, 8, 12)) },
               activeTab === t.key && styles.tabActive,
             ]}
             onPress={() => setActiveTab(t.key)}
@@ -601,40 +610,51 @@ export default function LibraryScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollPadBottom, paddingHorizontal: 0 }]}
         >
           
-          {/* Today's Sanctuary — morning first */}
+          {/* Official prayer for current time of day (same rule as home) */}
           {loadingOfficial ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />
           ) : !sanctuary.morning && !sanctuary.evening ? (
             <View style={styles.emptySlots}>
               <Ionicons name="book-outline" size={36} color={colors.muted} />
               <Text style={styles.officialEmpty}>
-                Morning and evening sanctuary guides will appear here.
+                Morning and evening official prayer guides will appear here.
               </Text>
             </View>
-          ) : (
-            <>
-              {sanctuary.morning ? (
-                <SanctuarySlotCard
-                  slot="morning"
-                  prayer={sanctuary.morning}
-                  leadingSlotIcon={<MorningGuideMark size={sanctuaryLeadSz} />}
-                  showSave={!!token}
-                  isSaved={savedOfficialIds.has(sanctuary.morning.id)}
-                  onToggleSave={() => void toggleSaveOfficial(sanctuary.morning!.id)}
-                />
-              ) : null}
-              {sanctuary.evening ? (
-                <SanctuarySlotCard
-                  slot="evening"
-                  prayer={sanctuary.evening}
-                  leadingSlotIcon={<EveningGuideMark size={sanctuaryLeadSz} />}
-                  showSave={!!token}
-                  isSaved={savedOfficialIds.has(sanctuary.evening.id)}
-                  onToggleSave={() => void toggleSaveOfficial(sanctuary.evening!.id)}
-                />
-              ) : null}
-            </>
-          )}
+          ) : (() => {
+            const eveningNow = isEveningSanctuarySlotNow();
+            const active = eveningNow ? sanctuary.evening : sanctuary.morning;
+            if (!active) {
+              return (
+                <View style={styles.emptySlots}>
+                  <Ionicons name="time-outline" size={36} color={colors.muted} />
+                  <Text style={styles.officialEmpty}>
+                    {eveningNow
+                      ? "The evening official prayer will appear here when it’s available."
+                      : "The morning official prayer will appear here when it’s available."}
+                  </Text>
+                </View>
+              );
+            }
+            return eveningNow ? (
+              <SanctuarySlotCard
+                slot="evening"
+                prayer={active}
+                leadingSlotIcon={<EveningGuideMark size={sanctuaryLeadSz} />}
+                showSave={!!token}
+                isSaved={savedOfficialIds.has(active.id)}
+                onToggleSave={() => void toggleSaveOfficial(active.id)}
+              />
+            ) : (
+              <SanctuarySlotCard
+                slot="morning"
+                prayer={active}
+                leadingSlotIcon={<MorningGuideMark size={sanctuaryLeadSz} />}
+                showSave={!!token}
+                isSaved={savedOfficialIds.has(active.id)}
+                onToggleSave={() => void toggleSaveOfficial(active.id)}
+              />
+            );
+          })()}
 
           {/* Lectures */}
           {(loadingLectures || lecturesGuides.length > 0) && (

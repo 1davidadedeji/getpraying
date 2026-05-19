@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { Href } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -17,6 +18,7 @@ import colors from "@/constants/colors";
 import { LAYOUT } from "@/constants/layout";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { clamp } from "@/lib/responsiveMetrics";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -24,6 +26,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 const PAGE_SIZE = 20;
 
 export default function CategoryFeedScreen() {
+  useStackHeaderBack("/(tabs)/library" as Href);
   const { name } = useLocalSearchParams<{ name: string }>();
   const insets = useSafeAreaInsets();
   const { gutter, uiScale } = useResponsiveLayout();
@@ -115,7 +118,6 @@ export default function CategoryFeedScreen() {
           <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
             {categoryDisplay}
           </Text>
-          <Text style={styles.subtitle}>Prayers in this category</Text>
         </View>
       }
       ListFooterComponent={
@@ -180,12 +182,6 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerif_700Bold",
     fontSize: 22,
     color: colors.primary,
-  },
-  subtitle: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 13,
-    color: colors.muted,
-    marginTop: 2,
   },
   emptyState: {
     alignItems: "center",

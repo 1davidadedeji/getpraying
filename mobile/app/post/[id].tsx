@@ -8,6 +8,7 @@ import {
   Animated,
   FlatList,
   Image,
+  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -38,14 +39,18 @@ import {
 import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
-import { CommentLinkPreview } from "@/components/CommentLinkPreview";
+import { CommentRichBodyWithOgLink } from "@/components/CommentLinkPreview";
+import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
 import { showAppAlert } from "@/components/AppAlert";
+import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
+import { postShareUrl } from "@/lib/publicWebOrigin";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -60,6 +65,7 @@ type CommentRow = {
 };
 
 export default function PostDetailScreen() {
+  useStackHeaderBack("/(tabs)" as Href);
   const { id, focusComment, focusMedia } = useLocalSearchParams<{
     id: string;
     focusComment?: string;
@@ -102,6 +108,13 @@ export default function PostDetailScreen() {
   }, [data]);
 
   const post = localPost ?? (data as any);
+
+  const postOgSource =
+    post && typeof post.content === "string" && post.content !== "(Image)"
+      ? post.content
+      : "";
+
+  const ogPrayer = useOpenGraphPreviewState(postOgSource, post?.id ?? 0);
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -243,9 +256,7 @@ export default function PostDetailScreen() {
     return () => sub.remove();
   }, []);
 
-  const isOwner =
-    !!user && !!post && !post.isAnonymous &&
-    (user.id === (post as any).authorId || user.username === post.authorUsername);
+  const isOwner = !!user && !!post && user.id === (post as any).authorId;
   const isAdmin = user?.role === "admin" || user?.role === "moderator";
 
   const runDelete = async (opts?: { reason?: string }) => {
@@ -377,17 +388,17 @@ export default function PostDetailScreen() {
     const authorName = post.isAnonymous
       ? "Anonymous"
       : post.authorDisplayName ?? post.authorUsername ?? "Someone";
-    const message =
-      `"${post.content.slice(0, 200)}${post.content.length > 200 ? "\u2026" : ""}"\n\n` +
-      `\u2014 shared by ${authorName} on Get Praying\n` +
-      `${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying`;
 
     try {
       Haptics.selectionAsync();
+      const link = postShareUrl(post.id);
+      const msg =
+        `"${post.content.slice(0, 200)}${post.content.length > 200 ? "\u2026" : ""}"\n\n` +
+        `\u2014 shared by ${authorName} on Get Praying\n` +
+        `${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying\n\n` +
+        link;
       await Share.share(
-        Platform.OS === "ios"
-          ? { message, url: "https://getpraying.app" }
-          : { message },
+        Platform.OS === "ios" ? { message: msg, url: link } : { message: msg },
         { dialogTitle: "Share this prayer" },
       );
     } catch {
@@ -406,25 +417,34 @@ export default function PostDetailScreen() {
         {
           text: "Report",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await fetch(apiUrl(`/posts/${post.id}/flag`), {
-                method: "POST",
-                headers: authHeaders(token, { "Content-Type": "application/json" }),
-                body: JSON.stringify({ reason: "inappropriate" }),
-              });
-              if (res.ok) {
-                showAppAlert({ title: "Report submitted", message: "Thank you for helping keep the community safe." });
-              } else {
-                const err = await res.json().catch(() => ({}));
-                showAppAlert({
-                  title: "Could not submit report",
-                  message: typeof (err as any).error === "string" ? (err as any).error : "Please try again later.",
+          onPress: () => {
+            void (async () => {
+              try {
+                const res = await fetch(apiUrl(`/posts/${post.id}/flag`), {
+                  method: "POST",
+                  headers: authHeaders(token, { "Content-Type": "application/json" }),
+                  body: JSON.stringify({ reason: "inappropriate" }),
+                });
+                const errJson = !res.ok ? ((await res.json().catch(() => ({}))) as { error?: string }) : null;
+                InteractionManager.runAfterInteractions(() => {
+                  if (res.ok) {
+                    showAppAlert({
+                      title: "Report submitted",
+                      message: "Thank you for helping keep the community safe.",
+                    });
+                  } else {
+                    showAppAlert({
+                      title: "Could not submit report",
+                      message: typeof errJson?.error === "string" ? errJson.error : "Please try again later.",
+                    });
+                  }
+                });
+              } catch {
+                InteractionManager.runAfterInteractions(() => {
+                  showAppAlert({ title: "Could not submit report", message: "Check your connection and try again." });
                 });
               }
-            } catch {
-              showAppAlert({ title: "Could not submit report", message: "Check your connection and try again." });
-            }
+            })();
           },
         },
       ],
@@ -493,10 +513,9 @@ export default function PostDetailScreen() {
     ? "Anonymous"
     : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
 
-  const rawContent = post.content ?? "";
-  const displayContent = rawContent === "(Image)" ? "" : rawContent;
+  const prayerTextForUi = ogPrayer.showLinkPreview ? ogPrayer.displayTextWithoutUrl : postOgSource;
   const longBody =
-    displayContent.length > 260 || (displayContent.match(/\n/g)?.length ?? 0) > 4;
+    prayerTextForUi.length > 260 || (prayerTextForUi.match(/\n/g)?.length ?? 0) > 4;
 
   const listHeader = (
     <>
@@ -599,14 +618,16 @@ export default function PostDetailScreen() {
           mediaLayout="detail"
         />
 
-        {displayContent.length > 0 ? (
+        {(prayerTextForUi.trim().length > 0 || ogPrayer.showLinkPreview) ? (
           <View style={{ marginBottom: prayerMb }}>
-            <Text
-              style={[styles.prayerContent, { fontSize: fsPrayer, lineHeight: lhPrayer }]}
-              numberOfLines={bodyExpanded || !longBody ? undefined : 5}
-            >
-              {displayContent}
-            </Text>
+            {prayerTextForUi.trim().length > 0 ? (
+              <Text
+                style={[styles.prayerContent, { fontSize: fsPrayer, lineHeight: lhPrayer }]}
+                numberOfLines={bodyExpanded || !longBody ? undefined : 5}
+              >
+                {prayerTextForUi}
+              </Text>
+            ) : null}
             {longBody ? (
               <Pressable
                 onPress={() => setBodyExpanded((prev) => !prev)}
@@ -616,6 +637,15 @@ export default function PostDetailScreen() {
               >
                 <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>{bodyExpanded ? "Less" : "More"}</Text>
               </Pressable>
+            ) : null}
+            {ogPrayer.showLinkPreview ? (
+              <OutboundOgLinkCard
+                variant="detail"
+                imageUrl={ogPrayer.preview?.imageUrl}
+                previewTitle={ogPrayer.previewTitle}
+                previewHost={ogPrayer.previewHost}
+                onPress={() => void ogPrayer.openOutboundLink()}
+              />
             ) : null}
           </View>
         ) : null}
@@ -691,10 +721,10 @@ export default function PostDetailScreen() {
             </Pressable>
             <Text style={[styles.commentTime, { fontSize: fsComTime }]}>{timeAgo(item.createdAt)}</Text>
           </View>
-          <Text style={[styles.commentContent, { fontSize: fsComContent, lineHeight: lhComContent }]}>
-            {item.content}
-          </Text>
-          <CommentLinkPreview content={item.content} />
+          <CommentRichBodyWithOgLink
+            content={item.content}
+            textStyle={[styles.commentContent, { fontSize: fsComContent, lineHeight: lhComContent }]}
+          />
         </View>
       </View>
     );

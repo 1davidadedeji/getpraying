@@ -41,6 +41,22 @@ export function extractFirstHttpsUrl(text: string): string | undefined {
   return undefined;
 }
 
+/** Removes the same first `https://` span {@link extractFirstHttpsUrl} would pick so the OG card can replace the bare URL visually. */
+export function stripFirstHttpsUrlFromText(text: string): string {
+  if (!text) return text;
+  HTTPS_RE.lastIndex = 0;
+  const m = HTTPS_RE.exec(text);
+  if (!m || m.index === undefined) return text;
+  const start = m.index;
+  const end = start + m[0].length;
+  const merged = `${text.slice(0, start)}${text.slice(end)}`;
+  return merged
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[^\S\n]{2,}/g, " ")
+    .trim();
+}
+
 function pickMeta(html: string, property: string): string | null {
   const esc = property.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const rePropFirst = new RegExp(

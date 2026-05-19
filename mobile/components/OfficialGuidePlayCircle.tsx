@@ -8,8 +8,13 @@ import { clamp } from "@/lib/responsiveMetrics";
 import { pauseAllMediaExcept, registerMediaController } from "@/lib/mediaPlaybackCoordinator";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 
+const RATE_OPTIONS = [1, 1.25, 1.5, 2] as const;
+
 export type OfficialGuidePlayHandle = {
   toggle: () => void;
+  seekProgress: (progress01: number) => void;
+  cyclePlaybackRate: () => void;
+  getPlaybackRate: () => number;
 };
 
 type Props = {
@@ -22,12 +27,21 @@ type Props = {
   /** Milliseconds; duration may be 0 until loaded */
   onPlaybackTimes?: (positionMillis: number, durationMillis: number) => void;
   onPlayingChange?: (playing: boolean) => void;
+  onPlaybackRateChange?: (rate: number) => void;
 };
 
 /** Circular play / pause for official guide audio (library & path sessions). */
 export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props>(
   function OfficialGuidePlayCircle(
-    { audioUrl, size: sizeProp, color = colors.primary, onPlaybackProgress, onPlaybackTimes, onPlayingChange },
+    {
+      audioUrl,
+      size: sizeProp,
+      color = colors.primary,
+      onPlaybackProgress,
+      onPlaybackTimes,
+      onPlayingChange,
+      onPlaybackRateChange,
+    },
     ref,
   ) {
     const { uiScale } = useResponsiveLayout();
@@ -47,7 +61,10 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
     onPlayingChangeRef.current = onPlayingChange;
     const onTimesRef = useRef(onPlaybackTimes);
     onTimesRef.current = onPlaybackTimes;
+    const onRateRef = useRef(onPlaybackRateChange);
+    onRateRef.current = onPlaybackRateChange;
     const durationHeldRef = useRef(0);
+    const rateIndexRef = useRef(0);
 
     useEffect(() => {
       soundRef.current = sound;
@@ -62,15 +79,18 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
         if (!s) return;
         try {
           const st = await s.getStatusAsync();
-          if (st.isLoaded) {
+          if (st.isLoaded && st.isPlaying) {
             await s.pauseAsync();
-            await s.setPositionAsync(0);
+          }
+          if (st.isLoaded && typeof st.positionMillis === "number" && typeof st.durationMillis === "number") {
+            durationHeldRef.current = st.durationMillis > 0 ? st.durationMillis : durationHeldRef.current;
+            onTimesRef.current?.(st.positionMillis, st.durationMillis || durationHeldRef.current);
+            const dur = st.durationMillis || durationHeldRef.current;
+            onProgressRef.current?.(dur > 0 ? Math.min(1, st.positionMillis / dur) : 0);
           }
         } catch {
           /* ignore */
         } finally {
-          onProgressRef.current?.(0);
-          onTimesRef.current?.(0, durationHeldRef.current);
           setPlaying(false);
           onPlayingChangeRef.current?.(false);
         }
@@ -88,20 +108,32 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
         setLoading(false);
         setPlaying(false);
         durationHeldRef.current = 0;
+        rateIndexRef.current = 0;
         onPlayingChangeRef.current?.(false);
         onProgressRef.current?.(0);
         onTimesRef.current?.(0, 0);
         return;
       }
       let mounted = true;
+      rateIndexRef.current = 0;
       let instance: Audio.Sound | null = null;
       (async () => {
         try {
           await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-          const { sound: s } = await Audio.Sound.createAsync({ uri });
+          const { sound: s } = await Audio.Sound.createAsync(
+            { uri },
+            { shouldPlay: false, isLooping: false, positionMillis: 0 },
+          );
           instance = s;
           if (mounted) {
             setSound(s);
+            const startRate = RATE_OPTIONS[rateIndexRef.current];
+            try {
+              await s.setRateAsync(startRate, true);
+            } catch {
+              /* platform may ignore */
+            }
+            onRateRef.current?.(startRate);
             s.setOnPlaybackStatusUpdate((st) => {
               if (st.isLoaded) {
                 if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
@@ -116,6 +148,15 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
                   onPlayingChangeRef.current?.(false);
                   onProgressRef.current?.(0);
                   onTimesRef.current?.(0, durationHeldRef.current);
+                  void (async () => {
+                    try {
+                      await s.setPositionAsync(0);
+                      await s.pauseAsync();
+                    } catch {
+                      /* ignore */
+                    }
+                  })();
+                  return;
                 }
               }
               if (
@@ -141,6 +182,16 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
       };
     }, [uri]);
 
+    const applyRate = async (s: Audio.Sound, idx: number) => {
+      const r = RATE_OPTIONS[Math.max(0, Math.min(RATE_OPTIONS.length - 1, idx))];
+      try {
+        await s.setRateAsync(r, true);
+      } catch {
+        /* ignore */
+      }
+      onRateRef.current?.(r);
+    };
+
     const toggle = async () => {
       if (!uri) return;
       const s = soundRef.current;
@@ -159,7 +210,39 @@ export const OfficialGuidePlayCircle = forwardRef<OfficialGuidePlayHandle, Props
       }
     };
 
-    useImperativeHandle(ref, () => ({ toggle: () => void toggle() }), [uri]);
+    const seekProgress = async (progress01: number) => {
+      const s = soundRef.current;
+      if (!s) return;
+      const p = Math.min(1, Math.max(0, progress01));
+      try {
+        const st = await s.getStatusAsync();
+        if (!st.isLoaded || typeof st.durationMillis !== "number" || st.durationMillis <= 0) return;
+        const ms = Math.round(p * st.durationMillis);
+        await s.setPositionAsync(ms);
+        onProgressRef.current?.(p);
+        onTimesRef.current?.(ms, st.durationMillis);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const cyclePlaybackRate = async () => {
+      const s = soundRef.current;
+      if (!s) return;
+      rateIndexRef.current = (rateIndexRef.current + 1) % RATE_OPTIONS.length;
+      await applyRate(s, rateIndexRef.current);
+    };
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        toggle: () => void toggle(),
+        seekProgress: (p: number) => void seekProgress(p),
+        cyclePlaybackRate: () => void cyclePlaybackRate(),
+        getPlaybackRate: () => RATE_OPTIONS[rateIndexRef.current],
+      }),
+      [uri],
+    );
 
     if (!uri) {
       return (

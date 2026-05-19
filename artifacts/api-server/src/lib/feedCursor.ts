@@ -1,10 +1,25 @@
 import type { PostWithMeta } from "./postHelpers";
 
-/** Keyset pagination for feed ordered by COALESCE(boosted_at, created_at) DESC, id DESC. */
+/**
+ * Keyset pagination for the home feed timeline: by default `COALESCE(boosted_at, created_at)` DESC, id DESC.
+ * For authenticated viewers, boosted posts use `created_at` instead when the viewer has already
+ * prayed, saved, or commented — so boosts mostly resurface for users who have not engaged yet.
+ */
 export type FeedCursorDecoded = { k: number; i: number };
 
-export function encodeFeedCursor(row: Pick<PostWithMeta, "boostedAt" | "createdAt" | "id">): string {
-  const coalesce = row.boostedAt ?? row.createdAt;
+/** Timestamp used to order the feed and keyset cursors (must match `feedTimelineSortTsExpr` in routes). */
+export function feedSortTimestampForCursor(
+  row: Pick<PostWithMeta, "boostedAt" | "createdAt" | "id" | "hasPrayed" | "hasCommented" | "isSaved">,
+): Date {
+  const engaged =
+    row.boostedAt != null && (row.hasPrayed || row.hasCommented || row.isSaved);
+  return engaged ? row.createdAt : (row.boostedAt ?? row.createdAt);
+}
+
+export function encodeFeedCursor(
+  row: Pick<PostWithMeta, "boostedAt" | "createdAt" | "id" | "hasPrayed" | "hasCommented" | "isSaved">,
+): string {
+  const coalesce = feedSortTimestampForCursor(row);
   const payload = { k: coalesce.getTime(), i: row.id };
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }

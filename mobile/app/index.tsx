@@ -75,7 +75,7 @@ export default function WelcomeScreen() {
     const trialExpired =
       startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
     if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-      router.replace("/(paywall)" as any);
+      router.replace("/(paywall)/index" as any);
       return;
     }
 

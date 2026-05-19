@@ -37,6 +37,7 @@ import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
 import { useRevenueCat } from "@/context/revenuecat";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
@@ -164,6 +165,7 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
 }
 
 export default function NewPostScreen() {
+  useStackHeaderBack("/(tabs)" as Href);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { token, user } = useAuth();

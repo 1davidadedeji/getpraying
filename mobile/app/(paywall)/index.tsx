@@ -94,7 +94,7 @@ export default function PaywallScreen() {
         <View style={[styles.hero, { gap: heroGap, paddingHorizontal: heroPadH }]}>
           <Text style={[styles.title, { fontSize: fsTitle }]}>Your 7‑day trial has ended</Text>
           <Text style={[styles.subtitle, { fontSize: fsSub, lineHeight: lhSub }]}>
-            Continue your journey with full access to Feeds, Library, and reminders.
+            Continue your journey with full access to the home feed, Library, and reminders.
           </Text>
         </View>
 

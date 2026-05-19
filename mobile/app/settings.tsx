@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import type { Href } from "expo-router";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -20,15 +21,19 @@ import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { clamp } from "@/lib/responsiveMetrics";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
+import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 
 const TERMS_URL = "https://getpraying.app/tos";
 const PRIVACY_URL = "https://getpraying.app/privacy";
 
 export default function SettingsScreen() {
+  useStackHeaderBack("/(tabs)/profile" as Href);
   const insets = useSafeAreaInsets();
   const { gutter, uiScale } = useResponsiveLayout();
   const sui = useMemo(() => {
@@ -108,6 +113,8 @@ export default function SettingsScreen() {
         headers: authHeaders(token, { "Content-Type": "application/json" }),
         body: JSON.stringify({ scheduledNotificationsEnabled: value }),
       });
+      void syncDeviceTimezone(token);
+      void registerAndSyncPushToken(token);
     } catch {
       /* revert on failure */
       setScheduledNotifsEnabled(!value);

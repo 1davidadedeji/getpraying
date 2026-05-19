@@ -23,6 +23,37 @@ import { broadcastPushToRegisteredDevices } from "../lib/broadcastPush";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
+/**
+ * SQL expression for home feed ordering (newest first). Matches
+ * `feedSortTimestampForCursor` in `feedCursor.ts` — boosted posts fall back to `created_at`
+ * for viewers who already prayed, saved, or commented.
+ */
+function feedTimelineSortTsExpr(viewerId: number | undefined) {
+  if (viewerId == null) {
+    return sql`COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt})`;
+  }
+  const engagedPrayed = sql`exists (
+    select 1 from ${postPrayersTable}
+    where ${and(eq(postPrayersTable.postId, postsTable.id), eq(postPrayersTable.userId, viewerId))}
+  )`;
+  const engagedSaved = sql`exists (
+    select 1 from ${savedPostsTable}
+    where ${and(eq(savedPostsTable.postId, postsTable.id), eq(savedPostsTable.userId, viewerId))}
+  )`;
+  const engagedCommented = sql`exists (
+    select 1 from ${commentsTable}
+    where ${and(eq(commentsTable.postId, postsTable.id), eq(commentsTable.authorId, viewerId))}
+  )`;
+  return sql`(
+    case
+      when ${postsTable.boostedAt} is not null
+        and (${engagedPrayed} or ${engagedSaved} or ${engagedCommented})
+      then ${postsTable.createdAt}
+      else coalesce(${postsTable.boostedAt}, ${postsTable.createdAt})
+    end
+  )`;
+}
+
 const router: IRouter = Router();
 
 async function getPostSaveState(
@@ -136,41 +167,24 @@ router.get("/posts/trending", optionalAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
+/** Home feed “new prayers” pill: strictly `created_at > maxKnownCreatedAt` (`boosted_at` ignored). */
 router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => {
-  const watermark = decodeFeedCursor(req.query.watermark as string | undefined);
-  if (watermark) {
-    const kDate = new Date(watermark.k);
-    if (Number.isNaN(kDate.getTime())) {
-      res.json({ count: 0 });
-      return;
-    }
-    const i = watermark.i;
-    const [row] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(postsTable)
-      .where(
-        and(
-          eq(postsTable.status, "approved"),
-          sql`(COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) > ${kDate}
-              OR (
-                COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) = ${kDate}
-                AND ${postsTable.id} > ${i}
-              ))`,
-        ),
-      );
-    res.json({ count: Math.min(Number(row?.count ?? 0), 99) });
-    return;
-  }
-
-  const sinceId = parseInt(req.query.sinceId as string, 10);
-  if (!sinceId || Number.isNaN(sinceId)) {
+  const raw = req.query.maxKnownCreatedAt;
+  if (typeof raw !== "string" || !raw.trim()) {
     res.json({ count: 0 });
     return;
   }
+  const cutoff = new Date(raw.trim());
+  if (Number.isNaN(cutoff.getTime())) {
+    res.json({ count: 0 });
+    return;
+  }
+
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(postsTable)
-    .where(and(eq(postsTable.status, "approved"), sql`${postsTable.id} > ${sinceId}`));
+    .where(and(eq(postsTable.status, "approved"), sql`${postsTable.createdAt} > ${cutoff}`));
+
   res.json({ count: Math.min(Number(row?.count ?? 0), 99) });
 });
 
@@ -179,6 +193,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const cursorDecoded = decodeFeedCursor(req.query.cursor as string | undefined);
   const category = req.query.category as string | undefined;
   const currentUser = (req as any).user as { id: number } | undefined;
+  const sortTs = feedTimelineSortTsExpr(currentUser?.id);
 
   let conditions: ReturnType<typeof eq> | ReturnType<typeof and> = eq(postsTable.status, "approved");
   if (category && String(category).trim()) {
@@ -195,11 +210,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     const kDate = new Date(cursorDecoded.k);
     conditions = and(
       conditions,
-      sql`(COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) < ${kDate}
-          OR (
-            COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt}) = ${kDate}
-            AND ${postsTable.id} < ${cursorDecoded.i}
-          ))`,
+      or(sql`${sortTs} < ${kDate}`, sql`(${sortTs} = ${kDate} AND ${postsTable.id} < ${cursorDecoded.i})`)!,
     )!;
   }
 
@@ -207,10 +218,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     .select()
     .from(postsTable)
     .where(conditions)
-    .orderBy(
-      desc(sql`COALESCE(${postsTable.boostedAt}, ${postsTable.createdAt})`),
-      desc(postsTable.id),
-    )
+    .orderBy(desc(sortTs), desc(postsTable.id))
     .limit(limit + 1);
 
   const hasMore = posts.length > limit;

@@ -30,7 +30,7 @@ function isFeedsPath(pathname: string): boolean {
   );
 }
 
-/** Keeps tab bar + FAB chrome in sync with route: reset when entering Feeds, and when leaving Feeds so other tabs are not stuck with a hidden bar. */
+/** Keeps tab bar + FAB chrome in sync with route: reset when entering Feed, and when leaving Feed so other tabs are not stuck with a hidden bar. */
 function ScrollChromeSync() {
   const pathname = usePathname();
   const { resetScrollChrome } = useTabBarVisibility();
@@ -124,7 +124,7 @@ function NativeTabLayout() {
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "flame", selected: "flame.fill" }} />
-        <Label>Feeds</Label>
+        <Label>Feed</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="library">
         <Icon sf={{ default: "square.stack.3d.up", selected: "square.stack.3d.up.fill" }} />
@@ -156,7 +156,7 @@ type TabItemConfig = {
 };
 
 const TAB_ITEMS: TabItemConfig[] = [
-  { name: "index", title: "Feeds", iosSymbol: "flame.fill", androidIcon: "flame", iconSet: "ionicons" },
+  { name: "index", title: "Feed", iosSymbol: "flame.fill", androidIcon: "flame", iconSet: "ionicons" },
   {
     name: "library",
     title: "Library",
@@ -465,7 +465,7 @@ function ClassicTabLayout() {
         headerShown: false,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Feeds" }} />
+      <Tabs.Screen name="index" options={{ title: "Feed" }} />
       <Tabs.Screen name="library" options={{ title: "Library" }} />
       <Tabs.Screen name="notifications" options={{ title: "Alerts" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
@@ -496,7 +496,7 @@ export default function TabLayout() {
     const trialExpired =
       startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
     if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-      return <Redirect href={"/(paywall)" as any} />;
+      return <Redirect href={"/(paywall)/index" as any} />;
     }
   }
 

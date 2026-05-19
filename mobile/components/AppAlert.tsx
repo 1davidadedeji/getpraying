@@ -73,7 +73,7 @@ export function AppAlertHost() {
       dismiss();
       setTimeout(() => {
         void fn?.();
-      }, 100);
+      }, 320);
     },
     [dismiss],
   );

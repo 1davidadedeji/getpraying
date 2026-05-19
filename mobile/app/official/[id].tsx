@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
+import { Href, router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,17 +16,27 @@ import {
   useGetOfficialPrayerById,
 } from "@workspace/api-client-react";
 import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
+import { AudioScrubberRow } from "@/components/AudioScrubberRow";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
-import { formatPlaybackTime } from "@/lib/formatPlaybackTime";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
+
+function scheduleSlotBadge(s: string | null | undefined): string {
+  if (!s) return "";
+  const t = s.toLowerCase();
+  if (t === "morning") return "MORNING";
+  if (t === "evening") return "EVENING";
+  return s.trim().toUpperCase();
+}
 
 export default function OfficialPrayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const prayerId = Number(id);
+  useStackHeaderBack("/(tabs)/library" as Href);
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, iconAction } = useResponsiveLayout();
   const { token } = useAuth();
@@ -71,6 +81,7 @@ export default function OfficialPrayerScreen() {
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioPositionMs, setAudioPositionMs] = useState(0);
   const [audioDurationMs, setAudioDurationMs] = useState(0);
+  const [audioRate, setAudioRate] = useState(1);
   const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
@@ -109,6 +120,7 @@ export default function OfficialPrayerScreen() {
     setAudioPositionMs(0);
     setAudioDurationMs(0);
     setAudioProgress(0);
+    setAudioRate(1);
   }, [prayerId]);
 
   const toggleSave = async () => {
@@ -175,8 +187,8 @@ export default function OfficialPrayerScreen() {
       <View style={[styles.topRow, { gap: rowGap, marginBottom: topMb }]}>
         <View style={[styles.topMeta, { gap: metaGap, flex: 1 }]}>
           <Text style={[styles.badge, { fontSize: fsBadge }]}>
-            {(d.label ?? "Official guide").toUpperCase()}
-            {d.scheduleSlot ? ` · ${d.scheduleSlot}` : ""}
+            OFFICIAL PRAYER
+            {d.scheduleSlot ? ` · ${scheduleSlotBadge(d.scheduleSlot)}` : ""}
           </Text>
           {updated ? (
             <Text
@@ -229,7 +241,7 @@ export default function OfficialPrayerScreen() {
                 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel={audioPlaying ? "Pause audio" : "Start prayer audio"}
+              accessibilityLabel={audioPlaying ? "Pause audio" : "Listen to audio"}
             >
               <Ionicons
                 name={audioPlaying ? "pause" : "play"}
@@ -238,7 +250,17 @@ export default function OfficialPrayerScreen() {
                 style={{ marginRight: 6 }}
               />
               <Text style={[styles.startPrayerBtnText, { fontSize: Math.round(clamp(15 * uiScale, 14, 17)) }]}>
-                Start Prayer
+                {audioPlaying ? "Pause" : "Listen"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => playRef.current?.cyclePlaybackRate()}
+              style={[styles.audioRateChip, { paddingHorizontal: Math.round(clamp(12 * uiScale, 10, 14)), paddingVertical: Math.round(clamp(8 * uiScale, 6, 10)) }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Playback speed ${audioRate}×`}
+            >
+              <Text style={[styles.audioRateChipText, { fontSize: Math.round(clamp(13 * uiScale, 12, 15)) }]}>
+                {audioRate}×
               </Text>
             </Pressable>
             <OfficialGuidePlayCircle
@@ -246,6 +268,7 @@ export default function OfficialPrayerScreen() {
               audioUrl={d.audioUrl}
               size={playSz}
               onPlayingChange={setAudioPlaying}
+              onPlaybackRateChange={setAudioRate}
               onPlaybackProgress={setAudioProgress}
               onPlaybackTimes={(pos, dur) => {
                 setAudioPositionMs(pos);
@@ -253,22 +276,14 @@ export default function OfficialPrayerScreen() {
               }}
             />
           </View>
-          <View style={styles.audioProgressTrack}>
-            <View
-              style={[
-                styles.audioProgressFill,
-                {
-                  width: `${Math.round(Math.min(1, Math.max(0, audioProgress)) * 100)}%`,
-                  backgroundColor: colors.primary,
-                },
-              ]}
-            />
-          </View>
-          {audioDurationMs > 0 ? (
-            <Text style={[styles.audioTimeRow, { fontSize: fsHint }]}>
-              {formatPlaybackTime(audioPositionMs)} — {formatPlaybackTime(audioDurationMs)}
-            </Text>
-          ) : null}
+          <AudioScrubberRow
+            positionMs={audioPositionMs}
+            durationMs={audioDurationMs}
+            progress01={audioProgress}
+            fillColor={colors.primary}
+            trackHeight={Math.max(2, Math.round(2 * uiScale))}
+            onSeek={(p) => playRef.current?.seekProgress(p)}
+          />
         </>
       ) : null}
 
@@ -324,7 +339,8 @@ export default function OfficialPrayerScreen() {
           ) : null}
           {showSanctuaryHint ? (
             <Text style={[styles.hint, { fontSize: fsHint, lineHeight: lhHint }]}>
-              The morning prayer is set 12am your time and evening prayer 12pm your time.
+              With Morning & Evening Reminders on, we send a push around 4:00 a.m. and 5:00 p.m. in your account time
+              zone so the matching guide is ready.
             </Text>
           ) : null}
         </View>
@@ -346,6 +362,18 @@ const styles = StyleSheet.create({
   audioRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+  },
+  audioRateChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  audioRateChipText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.primary,
+    fontVariant: ["tabular-nums"],
   },
   startPrayerBtn: {
     flex: 1,
@@ -357,22 +385,6 @@ const styles = StyleSheet.create({
   startPrayerBtnText: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: colors.surface,
-  },
-  audioProgressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(0,0,0,0.08)",
-    overflow: "hidden",
-    marginBottom: 12,
-  },
-  audioProgressFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  audioTimeRow: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: colors.muted,
-    marginBottom: 12,
   },
   badge: {
     fontFamily: "PlusJakartaSans_600SemiBold",

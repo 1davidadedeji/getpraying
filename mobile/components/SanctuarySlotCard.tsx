@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, G } from "react-native-svg";
 import colors from "@/constants/colors";
@@ -7,6 +7,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
+import { AudioScrubberRow } from "@/components/AudioScrubberRow";
 
 type Slot = "morning" | "evening";
 
@@ -66,6 +67,9 @@ export function SanctuarySlotCard({
   const playRef = useRef<OfficialGuidePlayHandle>(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
+  const [audioPositionMs, setAudioPositionMs] = useState(0);
+  const [audioDurationMs, setAudioDurationMs] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const t = SLOT_THEME[slot];
   const density = compact ? 0.86 : 1;
   const slotIcon = Math.round(clamp(40 * uiScale * density, compact ? 32 : 36, compact ? 40 : 46));
@@ -86,9 +90,19 @@ export function SanctuarySlotCard({
   const scriptureMb = Math.round(clamp(14 * uiScale * density, 8, compact ? 12 : 16));
   const btnPadV = Math.round(clamp(11 * uiScale * density, 8, compact ? 10 : 13));
   const btnPadH = Math.round(clamp(16 * uiScale * density, 12, compact ? 14 : 18));
+  const fsRateChip = Math.round(clamp(11 * uiScale * density, 10, compact ? 11 : 12));
+  const rateChipPadH = Math.round(clamp(8 * uiScale * density, 6, compact ? 8 : 10));
+  const rateChipPadV = Math.round(clamp(5 * uiScale * density, 4, compact ? 5 : 7));
   const outerPad = Math.round(16 * uiScale * density);
   const cornerRad = Math.round(24 * uiScale * density);
   const cardMb = Math.round(12 * uiScale * density);
+
+  useEffect(() => {
+    setAudioProgress(0);
+    setAudioPositionMs(0);
+    setAudioDurationMs(0);
+    setPlaybackRate(1);
+  }, [prayer?.id, prayer?.audioUrl]);
 
   const title = prayer?.title ?? (slot === "morning" ? "Morning Prayer" : "Evening Prayer");
   const body =
@@ -163,7 +177,7 @@ export function SanctuarySlotCard({
         </Text>
       ) : null}
 
-      <View style={[styles.bottomRow, { gap: rowGap }]}>
+      <View style={[styles.bottomRow, { gap: rowGap, alignItems: "center", flexWrap: "wrap" }]}>
         <Pressable
           onPress={() => playRef.current?.toggle()}
           style={[
@@ -176,7 +190,7 @@ export function SanctuarySlotCard({
             },
           ]}
           accessibilityRole="button"
-          accessibilityLabel={compact ? "Play guide" : "Start prayer audio"}
+          accessibilityLabel={audioPlaying ? "Pause audio" : "Listen to audio"}
         >
           <Ionicons
             name={audioPlaying ? "pause" : "play"}
@@ -185,10 +199,27 @@ export function SanctuarySlotCard({
             style={{ marginRight: 4 }}
           />
           <Text style={[styles.startBtnText, { color: t.btnText, fontSize: fsStart }]}>
-            {compact ? "Play" : "Start Prayer"}
+            {audioPlaying ? "Pause" : "Listen"}
           </Text>
         </Pressable>
-        {prayer?.durationMinutes && !compact ? (
+        {prayer?.audioUrl ? (
+          <Pressable
+            onPress={() => playRef.current?.cyclePlaybackRate()}
+            style={[
+              styles.rateChip,
+              {
+                paddingHorizontal: rateChipPadH,
+                paddingVertical: rateChipPadV,
+                borderColor: t.accent,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Playback speed ${playbackRate}×`}
+          >
+            <Text style={[styles.rateChipText, { color: t.accent, fontSize: fsRateChip }]}>{playbackRate}×</Text>
+          </Pressable>
+        ) : null}
+        {prayer?.durationMinutes && !compact && !prayer?.audioUrl ? (
           <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
         ) : null}
         {compact && prayer?.audioUrl ? (
@@ -237,7 +268,12 @@ export function SanctuarySlotCard({
                   size={playCircle}
                   color={t.btnBg}
                   onPlayingChange={setAudioPlaying}
+                  onPlaybackRateChange={setPlaybackRate}
                   onPlaybackProgress={setAudioProgress}
+                  onPlaybackTimes={(pos, dur) => {
+                    setAudioPositionMs(pos);
+                    setAudioDurationMs(dur);
+                  }}
                 />
               </View>
             );
@@ -249,20 +285,23 @@ export function SanctuarySlotCard({
             size={playCircle}
             color={t.btnBg}
             onPlayingChange={setAudioPlaying}
+            onPlaybackRateChange={setPlaybackRate}
             onPlaybackProgress={setAudioProgress}
+            onPlaybackTimes={(pos, dur) => {
+              setAudioPositionMs(pos);
+              setAudioDurationMs(dur);
+            }}
           />
         )}
       </View>
       {prayer?.audioUrl && !compact ? (
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${Math.round(Math.min(1, Math.max(0, audioProgress)) * 100)}%`,
-                backgroundColor: t.btnBg,
-              },
-            ]}
+        <View style={{ marginTop: 6 }}>
+          <AudioScrubberRow
+            positionMs={audioPositionMs}
+            durationMs={audioDurationMs}
+            progress01={audioProgress}
+            fillColor={t.btnBg}
+            onSeek={prayer?.audioUrl ? (p) => playRef.current?.seekProgress(p) : undefined}
           />
         </View>
       ) : null}
@@ -315,22 +354,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  rateChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  rateChipText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontVariant: ["tabular-nums"],
+  },
   startBtnText: {
     fontFamily: "PlusJakartaSans_700Bold",
   },
   duration: {
     fontFamily: "PlusJakartaSans_400Regular",
     opacity: 0.6,
-  },
-  progressTrack: {
-    marginTop: 10,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(0,0,0,0.08)",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 2,
   },
 });

@@ -2,17 +2,26 @@
   "compilerOptions": {
     "allowJs": true,
     "baseUrl": ".",
-    "customConditions": ["react-native"],
+    "customConditions": [
+      "react-native"
+    ],
     "esModuleInterop": true,
     "jsx": "react-native",
-    "lib": ["DOM", "ESNext"],
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
     "module": "preserve",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
     "noEmit": true,
     "paths": {
-      "@/*": ["./*"],
-      "@workspace/api-client-react": ["../lib/api-client-react/src/index.ts"]
+      "@/*": [
+        "./*"
+      ],
+      "@workspace/api-client-react": [
+        "../lib/api-client-react/src/index.ts"
+      ]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,
@@ -29,5 +38,6 @@
     {
       "path": "../lib/api-client-react"
     }
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

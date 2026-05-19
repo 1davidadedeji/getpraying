@@ -456,7 +456,7 @@ export default function AdminOfficialGuidesScreen() {
           scripture: scr || undefined,
           durationMinutes: durationPayload,
           audioUrl,
-          label: scheduleSlot === "morning" ? "Official Sanctuary" : "Vesper Light",
+          label: scheduleSlot === "morning" ? "OFFICIAL PRAYER · MORNING" : "OFFICIAL PRAYER · EVENING",
         }),
       });
       const data = await parseApiJson(res);

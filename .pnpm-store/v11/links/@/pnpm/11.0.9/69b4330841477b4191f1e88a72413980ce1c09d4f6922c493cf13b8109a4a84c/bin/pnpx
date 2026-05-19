@@ -1,0 +1,17 @@
+#!/bin/sh
+basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+
+case `uname` in
+    *CYGWIN*|*MINGW*|*MSYS*)
+        if command -v cygpath > /dev/null 2>&1; then
+            basedir=`cygpath -w "$basedir"`
+        fi
+    ;;
+esac
+
+if [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  "$basedir/../node_modules/pnpm/bin/pnpx.mjs" "$@"
+else
+  exec node  "$basedir/../node_modules/pnpm/bin/pnpx.mjs" "$@"
+fi
+# cmd-shim-target=/Users/timeless/getpraying/.pnpm-store/v11/links/@/pnpm/11.0.9/69b4330841477b4191f1e88a72413980ce1c09d4f6922c493cf13b8109a4a84c/node_modules/pnpm/bin/pnpx.mjs

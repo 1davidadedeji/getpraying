@@ -16,6 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "associatedDomains": ["applinks:getpraying.app"],
       "infoPlist": {
         "CFBundleDisplayName": "Get Praying",
         "ITSAppUsesNonExemptEncryption": false
@@ -28,6 +29,25 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#F9F6F0"
       },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "getpraying.app",
+              "pathPrefix": "/post"
+            },
+            {
+              "scheme": "https",
+              "host": "www.getpraying.app",
+              "pathPrefix": "/post"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
@@ -50,7 +70,7 @@
       [
         "expo-router",
         {
-          "origin": "https://getpraying.com"
+          "origin": "https://getpraying.app"
         }
       ],
       [

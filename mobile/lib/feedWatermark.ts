@@ -1,16 +1,17 @@
 import type { Post } from "@workspace/api-client-react";
 
 /**
- * Base64url watermark for the current top feed item, matching
- * {@link encodeFeedCursor} on the server (`k` = sort key millis, `i` = post id).
+ * Latest `created_at` among posts already loaded in the client feed.
+ * Passed to GET `/posts/new-count?maxKnownCreatedAt=…` — count is strictly
+ * newer rows only (boost sorting on the feed does not affect this).
  */
-export function encodeFeedTopWatermark(post: Pick<Post, "id" | "createdAt" | "boostedAt">): string {
-  const raw = post.boostedAt ?? post.createdAt;
-  const k = typeof raw === "string" ? Date.parse(raw) : NaN;
-  if (!Number.isFinite(k)) {
-    throw new Error("feed watermark: invalid timestamps on post");
+export function computeMaxKnownCreatedAtIso(posts: Pick<Post, "createdAt">[]): string | null {
+  let bestMs = Number.NEGATIVE_INFINITY;
+  for (const p of posts) {
+    const ms = typeof p.createdAt === "string" ? Date.parse(p.createdAt) : Number.NaN;
+    if (!Number.isFinite(ms)) continue;
+    if (ms > bestMs) bestMs = ms;
   }
-  const payload = JSON.stringify({ k, i: post.id }) as string;
-  const b64 = globalThis.btoa(payload);
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  if (!Number.isFinite(bestMs)) return null;
+  return new Date(bestMs).toISOString();
 }

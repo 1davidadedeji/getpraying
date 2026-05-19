@@ -7,7 +7,7 @@ interface TabBarVisibilityContextValue {
   fabOpacity: Animated.Value;
   fabPointerEvents: "box-none" | "none";
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
-  /** Call when the Feeds tab becomes active so the FAB/tab bar are not stuck hidden. */
+  /** Call when the Feed tab becomes active so the FAB/tab bar are not stuck hidden. */
   resetScrollChrome: () => void;
 }
 

@@ -65,7 +65,8 @@ async function sendMorningPrayers(): Promise<void> {
   for (const u of users) {
     if (!u.token || !u.timezone) continue;
     const hm = localHourMinute(u.timezone);
-    if (!hm || hm.hour !== 4 || hm.minute >= 5) continue;
+    // 5-minute server poll: allow a wider local-time window so we don’t miss the slot.
+    if (!hm || hm.hour !== 4 || hm.minute >= 20) continue;
     const todayLocal = localDateString(u.timezone);
     if (u.morningNotifSentAt) {
       const lastSentLocal = new Intl.DateTimeFormat("en-CA", { timeZone: u.timezone }).format(
@@ -113,7 +114,7 @@ async function sendEveningPrayers(): Promise<void> {
   for (const u of users) {
     if (!u.token || !u.timezone) continue;
     const hm = localHourMinute(u.timezone);
-    if (!hm || hm.hour !== 17 || hm.minute >= 5) continue;
+    if (!hm || hm.hour !== 17 || hm.minute >= 20) continue;
     const todayLocal = localDateString(u.timezone);
     if (u.eveningNotifSentAt) {
       const lastSentLocal = new Intl.DateTimeFormat("en-CA", { timeZone: u.timezone }).format(

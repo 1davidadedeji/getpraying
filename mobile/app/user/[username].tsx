@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 
+import type { Href } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,6 +25,7 @@ import { StatCard } from "@/components/StatCard";
 import colors from "@/constants/colors";
 import { LAYOUT } from "@/constants/layout";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { clamp } from "@/lib/responsiveMetrics";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
@@ -56,6 +58,7 @@ type PagerViewOnPage = import("react-native").NativeSyntheticEvent<{ position: n
 const PAGE_SIZE = 20;
 
 export default function UserProfileScreen() {
+  useStackHeaderBack("/(tabs)" as Href);
   const { username } = useLocalSearchParams<{ username: string }>();
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, tabLabelSize } = useResponsiveLayout();

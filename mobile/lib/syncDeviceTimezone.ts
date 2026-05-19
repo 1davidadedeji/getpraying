@@ -1,0 +1,13 @@
+import { apiUrl, authHeaders } from "@/lib/api";
+
+/** Keeps `users.timezone` aligned for server-scheduled morning/evening pushes (works without push permission). */
+export async function syncDeviceTimezone(apiJwt: string | null): Promise<void> {
+  if (!apiJwt) return;
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (!timezone) return;
+  await fetch(apiUrl("/users/me"), {
+    method: "PATCH",
+    headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ timezone }),
+  }).catch(() => {});
+}

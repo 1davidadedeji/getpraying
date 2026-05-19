@@ -104,7 +104,7 @@ async function fetchCommentedPostsForUser(
 
 router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user as { id: number };
-  const { location, displayName, scheduledNotificationsEnabled } = req.body ?? {};
+  const { location, displayName, scheduledNotificationsEnabled, timezone } = req.body ?? {};
   const updates: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
 
   if (typeof location === "string") {
@@ -115,6 +115,9 @@ router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
   }
   if (typeof scheduledNotificationsEnabled === "boolean") {
     updates.scheduledNotificationsEnabled = scheduledNotificationsEnabled;
+  }
+  if (typeof timezone === "string" && timezone.trim().length > 0) {
+    updates.timezone = timezone.trim().slice(0, 64);
   }
 
   const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id)).returning();

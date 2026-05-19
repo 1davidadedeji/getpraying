@@ -1,13 +1,12 @@
 ﻿import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Image,
-  Linking,
+  InteractionManager,
   Platform,
   Pressable,
   Share,
@@ -26,6 +25,7 @@ import {
 } from "@workspace/api-client-react";
 import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
+import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -34,14 +34,11 @@ import { PostMediaBlock } from "@/components/PostMedia";
 import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
-import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
-import {
-  extractFirstHttpsUrl,
-  fetchOpenGraphPreview,
-  type LinkPreview as OgLinkPreview,
-} from "@/lib/linkPreview";
+import { postShareUrl } from "@/lib/publicWebOrigin";
 import { clamp } from "@/lib/responsiveMetrics";
+import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
 
 type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCommented?: boolean };
 
@@ -62,36 +59,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<PostWithCounts>(post);
-  const urlFromPost = useMemo(() => extractFirstHttpsUrl(localPost.content), [localPost.content]);
-  const [ogPreview, setOgPreview] = useState<OgLinkPreview | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setOgPreview(null);
-    if (!urlFromPost) return () => { cancelled = true; };
-    (async () => {
-      const p = await fetchOpenGraphPreview(urlFromPost);
-      if (!cancelled) setOgPreview(p);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [urlFromPost, localPost.id]);
-
-  const openOutboundLink = useCallback(async () => {
-    const href = ogPreview?.url ?? urlFromPost;
-    if (!href) return;
-    Haptics.selectionAsync();
-    try {
-      await WebBrowser.openBrowserAsync(href);
-    } catch {
-      try {
-        await Linking.openURL(href);
-      } catch {
-        /* ignore */
-      }
-    }
-  }, [ogPreview?.url, urlFromPost]);
+  const og = useOpenGraphPreviewState(localPost.content, localPost.id);
 
   useEffect(() => {
     setLocalPost(post);
@@ -208,7 +176,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         headers: authHeaders(token),
       });
       if (res.status === 402) {
-        router.push("/(paywall)" as never);
+        router.push("/(paywall)/index" as never);
         return;
       }
       if (!res.ok) {
@@ -247,16 +215,18 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
     const authorName = localPost.isAnonymous
       ? "Anonymous"
       : localPost.authorDisplayName ?? localPost.authorUsername ?? "Someone";
+    const url = postShareUrl(localPost.id);
     const message =
       `"${localPost.content.slice(0, 200)}${localPost.content.length > 200 ? "\u2026" : ""}"\n\n` +
       `\u2014 shared by ${authorName} on Get Praying\n` +
-      `${localPost.prayCount} ${localPost.prayCount === 1 ? "person" : "people"} praying`;
+      `${localPost.prayCount} ${localPost.prayCount === 1 ? "person" : "people"} praying\n\n` +
+      url;
 
     try {
       Haptics.selectionAsync();
       await Share.share(
         Platform.OS === "ios"
-          ? { message, url: "https://getpraying.app" }
+          ? { message, url }
           : { message },
         { dialogTitle: "Share this prayer" },
       );
@@ -290,21 +260,6 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
     user?.id != null &&
     localPost.boostedByUserId === user.id;
   const boostColor = iBoosted ? colors.flame : colors.muted;
-
-  const previewHost = useMemo(() => {
-    const base = urlFromPost ?? ogPreview?.url;
-    if (!base) return "";
-    try {
-      return new URL(base).hostname.replace(/^www\./, "");
-    } catch {
-      return "";
-    }
-  }, [urlFromPost, ogPreview?.url]);
-
-  const previewTitle = (ogPreview?.title?.trim() || previewHost).trim();
-
-  const showLinkPreview =
-    Boolean(ogPreview && (ogPreview.title || ogPreview.imageUrl)) && Boolean(urlFromPost);
 
   return (
     <View style={[styles.card, { borderRadius: cardRadius, marginBottom: Math.round(12 * uiScale) }]}>
@@ -403,42 +358,21 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         />
 
         <Text style={styles.content} numberOfLines={4}>
-          {localPost.content}
+          {og.displayTextWithoutUrl}
         </Text>
 
-        {showLinkPreview ? (
-          <Pressable
+        {og.showLinkPreview ? (
+          <OutboundOgLinkCard
+            imageUrl={og.preview?.imageUrl}
+            previewTitle={og.previewTitle}
+            previewHost={og.previewHost}
+            variant="card"
             onPress={(e) => {
               e.stopPropagation?.();
-              void openOutboundLink();
+              void og.openOutboundLink();
             }}
-            style={({ pressed }) => [styles.linkPreviewCard, pressed && styles.linkPreviewCardPressed]}
-            accessibilityRole="link"
-            accessibilityLabel={`Open link: ${previewTitle || previewHost}`}
-          >
-            {ogPreview?.imageUrl ? (
-              <Image
-                source={{ uri: ogPreview.imageUrl }}
-                style={styles.linkPreviewImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.linkPreviewImage, styles.linkPreviewImagePlaceholder]}>
-                <Ionicons name="link-outline" size={22} color={colors.muted} />
-              </View>
-            )}
-            <View style={styles.linkPreviewTextCol}>
-              <Text style={styles.linkPreviewTitle} numberOfLines={3}>
-                {previewTitle || previewHost}
-              </Text>
-              {previewHost ? (
-                <Text style={styles.linkPreviewHost} numberOfLines={1}>
-                  {previewHost}
-                </Text>
-              ) : null}
-            </View>
-            <Ionicons name="open-outline" size={18} color={colors.muted} />
-          </Pressable>
+            accessibilityLabel={`Open link: ${og.previewTitle || og.previewHost}`}
+          />
         ) : null}
       </Pressable>
 
@@ -558,14 +492,24 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
                           headers: authHeaders(token, { "Content-Type": "application/json" }),
                           body: JSON.stringify({ reason: "inappropriate" }),
                         });
-                        if (res.ok) {
-                          showAppAlert({ title: "Report submitted", message: "Thank you for helping keep the community safe." });
-                        } else {
-                          const err = await res.json().catch(() => ({}));
-                          showAppAlert({ title: "Could not submit report", message: (err as any).error ?? "Please try again." });
-                        }
+                        const errJson = !res.ok ? ((await res.json().catch(() => ({}))) as { error?: string }) : null;
+                        InteractionManager.runAfterInteractions(() => {
+                          if (res.ok) {
+                            showAppAlert({
+                              title: "Report submitted",
+                              message: "Thank you for helping keep the community safe.",
+                            });
+                          } else {
+                            showAppAlert({
+                              title: "Could not submit report",
+                              message: errJson?.error ?? "Please try again.",
+                            });
+                          }
+                        });
                       } catch {
-                        showAppAlert({ title: "Could not submit report", message: "Check your connection." });
+                        InteractionManager.runAfterInteractions(() => {
+                          showAppAlert({ title: "Could not submit report", message: "Check your connection." });
+                        });
                       }
                     },
                   },
@@ -693,46 +637,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     lineHeight: 22,
-  },
-  linkPreviewCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: colors.cream,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  linkPreviewCardPressed: {
-    opacity: 0.88,
-  },
-  linkPreviewImage: {
-    width: 76,
-    height: 76,
-    borderRadius: 12,
-    backgroundColor: colors.border,
-  },
-  linkPreviewImagePlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  linkPreviewTextCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  linkPreviewTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 19,
-  },
-  linkPreviewHost: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
   },
   actions: {
     flexDirection: "row",

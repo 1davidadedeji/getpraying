@@ -26,3 +26,17 @@ cd mobile && pnpm exec expo run:ios
 ```
 
 If the default destination fails, pass `--device "<Simulator Name>"` as above.
+
+## Universal Links (open shared prayers in the app)
+
+Shared prayers use **`https://getpraying.app/post/{id}`** (see `lib/publicWebOrigin.ts`). Production builds declare:
+
+- **iOS:** `associatedDomains`: `applinks:getpraying.app` (in `app.json`).
+- **Android:** `intentFilters` for `https://getpraying.app/post` (and `www`).
+
+Apple and Google **must** be able to fetch verification files **on `getpraying.app`**:
+
+- **`https://getpraying.app/.well-known/apple-app-site-association`** (no extension, correct `Content-Type`, includes your Team ID + bundle id `com.getpraying.app`).
+- **`https://getpraying.app/.well-known/assetlinks.json`** for the Android signing cert fingerprints.
+
+Until those are live, taps may open Safari/Chrome instead of the app; the **`getpraying://`** scheme still works from other entry points Expo registers.

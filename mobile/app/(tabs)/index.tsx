@@ -33,7 +33,7 @@ import { useFeedNotice } from "@/context/feedNotice";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
-import { encodeFeedTopWatermark } from "@/lib/feedWatermark";
+import { computeMaxKnownCreatedAtIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -45,7 +45,7 @@ import { isEveningSanctuarySlotNow } from "@/lib/localClock";
 const PAGE_SIZE = 20;
 const NEW_POSTS_POLL_MS = 45_000;
 /** Only show the floating “new prayers” pill after the user has scrolled into the feed (not on first paint at top). */
-const NEW_POSTS_SCROLL_GATE_PX = 96;
+const NEW_POSTS_SCROLL_GATE_PX = 40;
 const NEW_POSTS_COUNT_DEBOUNCE_MS = 550;
 
 export default function FeedScreen() {
@@ -83,8 +83,8 @@ export default function FeedScreen() {
   const newPostsCountDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newPostsScrollGateRef = useRef(false);
   const [newPostsScrollGate, setNewPostsScrollGate] = useState(false);
-  /** Base64url watermark for first post in {@link posts} (feed sort key + id); see GET /posts/new-count. */
-  const feedWatermark = useRef<string | null>(null);
+  /** Max `created_at` among every post currently loaded; see GET `/posts/new-count?maxKnownCreatedAt`. */
+  const maxKnownCreatedAtRef = useRef<string | null>(null);
   const [sanctuary, setSanctuary] = useState<{
     morning: OfficialPrayerRow | null;
     evening: OfficialPrayerRow | null;
@@ -240,15 +240,7 @@ export default function FeedScreen() {
   loadFreshRef.current = loadFresh;
 
   useEffect(() => {
-    if (posts.length === 0) {
-      feedWatermark.current = null;
-      return;
-    }
-    try {
-      feedWatermark.current = encodeFeedTopWatermark(posts[0]);
-    } catch {
-      feedWatermark.current = null;
-    }
+    maxKnownCreatedAtRef.current = computeMaxKnownCreatedAtIso(posts);
   }, [posts]);
 
   // Tracks when the jump-to-top nonce last fired so useFocusEffect can
@@ -288,11 +280,11 @@ export default function FeedScreen() {
     if (!token || loading) return;
     if (feedCategory != null) return;
     const interval = setInterval(async () => {
-      const wm = feedWatermark.current;
-      if (!wm) return;
+      const maxKnown = maxKnownCreatedAtRef.current;
+      if (!maxKnown) return;
       try {
         const res = await fetch(
-          apiUrl(`/posts/new-count?watermark=${encodeURIComponent(wm)}`),
+          apiUrl(`/posts/new-count?maxKnownCreatedAt=${encodeURIComponent(maxKnown)}`),
           { headers: authHeaders(token) },
         );
         if (!res.ok) return;
@@ -335,16 +327,18 @@ export default function FeedScreen() {
     }
     setNewPostCount(0);
     setFeedCategory(null);
-    setRefreshing(true);
+    newPostsScrollGateRef.current = false;
+    setNewPostsScrollGate(false);
     try {
       const result = await fetchPage();
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
-      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      setError(false);
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      });
     } catch {
       setError(true);
-    } finally {
-      setRefreshing(false);
     }
   }, [fetchPage]);
 
@@ -402,6 +396,7 @@ export default function FeedScreen() {
   );
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const newPostsPillTop = topPad + Math.round(clamp(56 * uiScale, 52, 76));
 
   const displayPosts = useMemo(() => {
     if (!feedCategory) return posts;
@@ -515,7 +510,7 @@ export default function FeedScreen() {
             </Text>
           </View>
         )}
-        <Text style={[styles.heartPlaceholder, { fontSize: heartPlaceholderFs }]}>What's on your heart?</Text>
+        <Text style={[styles.heartPlaceholder, { fontSize: heartPlaceholderFs }]}>What can we pray for?</Text>
         <Pressable
           onPress={(e) => {
             e.stopPropagation?.();
@@ -715,7 +710,7 @@ export default function FeedScreen() {
         pointerEvents={showNewPostsPill ? "auto" : "none"}
         style={[
           styles.newPostsPillWrap,
-          { top: topPad + 60, transform: [{ translateY: pillTranslateY }], opacity: pillOpacity },
+          { top: newPostsPillTop, transform: [{ translateY: pillTranslateY }], opacity: pillOpacity },
         ]}
       >
         <Pressable

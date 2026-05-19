@@ -106,14 +106,68 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="post/new"
-        options={{ title: "Share a prayer", headerBackTitle: "Back", headerShown: true }}
+        options={{
+          title: "Share a prayer",
+          headerBackTitle: "Back",
+          headerShown: true,
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
       />
-      <Stack.Screen name="post/[id]" options={{ title: "Prayer", headerBackTitle: "Back" }} />
-      <Stack.Screen name="official/[id]" options={{ title: "Official guide", headerBackTitle: "Back" }} />
-      <Stack.Screen name="path/[id]" options={{ title: "Prayer Path", headerBackTitle: "Back" }} />
-      <Stack.Screen name="user/[username]" options={{ title: "Profile", headerBackTitle: "Back" }} />
-      <Stack.Screen name="category/[name]" options={{ title: "Category", headerBackTitle: "Back" }} />
-      <Stack.Screen name="settings" options={{ title: "Settings", headerBackTitle: "Back" }} />
+      <Stack.Screen
+        name="post/[id]"
+        options={{
+          title: "Prayer",
+          headerBackTitle: "Back",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="official/[id]"
+        options={{
+          title: "Official guide",
+          headerBackTitle: "Back",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="path/[id]"
+        options={{
+          title: "Prayer Path",
+          headerBackTitle: "Back",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="user/[username]"
+        options={{
+          title: "Profile",
+          headerBackTitle: "Back",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="category/[name]"
+        options={{
+          title: "Category",
+          headerBackTitle: "Back",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          headerBackTitle: "Back",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
     </Stack>
   );
