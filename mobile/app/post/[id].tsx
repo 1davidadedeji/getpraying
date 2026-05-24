@@ -51,7 +51,7 @@ import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { submitPostReport } from "@/lib/reportPost";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
-import { postShareUrl } from "@/lib/publicWebOrigin";
+import { buildPostSharePayload } from "@/lib/sharePost";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -391,20 +391,12 @@ export default function PostDetailScreen() {
 
   const handleShare = async () => {
     if (!post) return;
-    const authorName = post.isAnonymous
-      ? "Anonymous"
-      : post.authorDisplayName ?? post.authorUsername ?? "Someone";
 
     try {
       Haptics.selectionAsync();
-      const link = postShareUrl(post.id);
-      const msg =
-        `"${post.content.slice(0, 200)}${post.content.length > 200 ? "\u2026" : ""}"\n\n` +
-        `\u2014 shared by ${authorName} on Get Praying\n` +
-        `${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying\n\n` +
-        link;
+      const { message, url } = buildPostSharePayload(post);
       await Share.share(
-        Platform.OS === "ios" ? { message: msg, url: link } : { message: msg },
+        Platform.OS === "ios" ? { message, url } : { message },
         { dialogTitle: "Share this prayer" },
       );
     } catch {

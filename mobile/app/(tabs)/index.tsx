@@ -283,7 +283,7 @@ export default function FeedScreen() {
   );
 
   useEffect(() => {
-    if (!token || loading) return;
+    if (loading) return;
     if (feedCategory != null) return;
     const interval = setInterval(async () => {
       const maxKnown = maxKnownCreatedAtRef.current;
@@ -294,9 +294,15 @@ export default function FeedScreen() {
           { headers: authHeaders(token) },
         );
         if (!res.ok) return;
-        const data = await res.json();
+        const data = (await res.json()) as {
+          count?: number;
+          globalNewestCreatedAt?: string | null;
+        };
         const count = typeof data.count === "number" ? data.count : 0;
         const safe = Math.max(0, count);
+        if (safe === 0 && data.globalNewestCreatedAt) {
+          applyFeedWatermark(data.globalNewestCreatedAt);
+        }
         if (newPostsCountDebounceRef.current) clearTimeout(newPostsCountDebounceRef.current);
         newPostsCountDebounceRef.current = setTimeout(() => {
           newPostsCountDebounceRef.current = null;
@@ -313,7 +319,7 @@ export default function FeedScreen() {
         newPostsCountDebounceRef.current = null;
       }
     };
-  }, [token, loading, feedCategory]);
+  }, [loading, feedCategory, token, applyFeedWatermark]);
 
   useEffect(() => {
     const showPill = newPostCount > 0 && newPostsScrollGate && !feedCategory;

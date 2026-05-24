@@ -168,25 +168,54 @@ router.get("/posts/trending", optionalAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
-/** Home feed “new prayers” pill: strictly `created_at > maxKnownCreatedAt` (`boosted_at` ignored). */
+/** Home feed “new prayers” pill: `created_at > maxKnownCreatedAt` (`boosted_at` ignored). */
 router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => {
   const raw = req.query.maxKnownCreatedAt;
+  const newestRowPromise = db
+    .select({ newest: sql<Date | null>`max(${postsTable.createdAt})` })
+    .from(postsTable)
+    .where(eq(postsTable.status, "approved"));
+
   if (typeof raw !== "string" || !raw.trim()) {
-    res.json({ count: 0 });
+    const newestRows = await newestRowPromise;
+    const globalNewestCreatedAt = newestRows[0]?.newest
+      ? new Date(newestRows[0].newest).toISOString()
+      : null;
+    res.json({ count: 0, globalNewestCreatedAt });
     return;
   }
   const cutoff = new Date(raw.trim());
   if (Number.isNaN(cutoff.getTime())) {
-    res.json({ count: 0 });
+    const newestRows = await newestRowPromise;
+    const globalNewestCreatedAt = newestRows[0]?.newest
+      ? new Date(newestRows[0].newest).toISOString()
+      : null;
+    res.json({ count: 0, globalNewestCreatedAt });
     return;
   }
 
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(postsTable)
-    .where(and(eq(postsTable.status, "approved"), sql`${postsTable.createdAt} > ${cutoff}`));
+  // Compare at millisecond precision — client watermarks are ISO strings with ms only.
+  const [countRows, newestRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(postsTable)
+      .where(
+        and(
+          eq(postsTable.status, "approved"),
+          sql`date_trunc('millisecond', ${postsTable.createdAt}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
+        ),
+      ),
+    newestRowPromise,
+  ]);
 
-  res.json({ count: Math.min(Number(row?.count ?? 0), 99) });
+  const globalNewestCreatedAt = newestRows[0]?.newest
+    ? new Date(newestRows[0].newest).toISOString()
+    : null;
+
+  res.json({
+    count: Math.min(Number(countRows[0]?.count ?? 0), 99),
+    globalNewestCreatedAt,
+  });
 });
 
 router.get("/posts", optionalAuth, async (req, res): Promise<void> => {

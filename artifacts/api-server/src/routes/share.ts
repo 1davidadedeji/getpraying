@@ -16,11 +16,16 @@
  */
 import { Router, type IRouter } from "express";
 import { db, appSettingsTable, postsTable, usersTable, officialPrayersTable, prayerPathsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-const APP_ORIGIN = "https://share.getpraying.com";
+const APP_ORIGIN = (process.env.SHARE_WEB_ORIGIN ?? "https://api.getpraying.com").replace(/\/$/, "");
+const API_PUBLIC_BASE = (
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  process.env.API_PUBLIC_BASE_URL ??
+  "https://api.getpraying.com"
+).replace(/\/$/, "");
 const APP_NAME = "Get Praying";
 const APP_SCHEME = "getpraying";
 const BUNDLE_ID = "com.getpraying.app";
@@ -49,6 +54,34 @@ async function getSettings(): Promise<Record<string, string>> {
 function resolveOgImageUrl(settings: Record<string, string>): string {
   const configured = settings.og_image_url?.trim();
   return configured || DEFAULT_OG_IMAGE_URL;
+}
+
+function resolveApiAssetUrl(pathOrUrl: string | null | undefined): string {
+  if (!pathOrUrl?.trim()) return "";
+  const value = pathOrUrl.trim();
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  return `${API_PUBLIC_BASE}${value.startsWith("/") ? value : `/${value}`}`;
+}
+
+function pickPostOgImage(
+  settings: Record<string, string>,
+  mediaUrl: string | null | undefined,
+  mediaType: string | null | undefined,
+): string {
+  if (mediaType === "image" && mediaUrl) {
+    const absolute = resolveApiAssetUrl(mediaUrl);
+    if (absolute) return absolute;
+  }
+  return resolveOgImageUrl(settings);
+}
+
+function postSharePreviewText(content: string, mediaType: string | null | undefined): string {
+  const trimmed = content.trim();
+  if (trimmed.length > 0) return trimmed;
+  if (mediaType === "image") return "A photo prayer";
+  if (mediaType === "video") return "A video prayer";
+  if (mediaType === "audio") return "An audio prayer";
+  return "A prayer on Get Praying";
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +160,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sa
     <div class="body">${esc(body)}</div>
   </div>
   <div class="actions">
-    <a id="open-btn" class="btn btn-primary" href="${esc(deepLink)}">Open in ${esc(APP_NAME)}</a>
+    <a id="open-btn" class="btn btn-primary" href="${esc(canonicalUrl)}">Open in ${esc(APP_NAME)}</a>
     <div id="store-row" class="store-row" style="display:none">
       ${iosStoreUrl ? `<a class="btn btn-secondary" href="${esc(iosStoreUrl)}" id="ios-btn">App Store</a>` : ""}
       ${androidStoreUrl ? `<a class="btn btn-secondary" href="${esc(androidStoreUrl)}" id="android-btn">Google Play</a>` : ""}
@@ -140,12 +173,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sa
 (function(){
   var isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
   var isAndroid=/Android/.test(navigator.userAgent);
+  var universalLink=${JSON.stringify(canonicalUrl)};
   var deepLink=${JSON.stringify(deepLink)};
   var iosStore=${JSON.stringify(iosStoreUrl)};
   var androidStore=${JSON.stringify(androidStoreUrl)};
 
   // Show the correct store button for this platform
-  if(isIOS&&iosStore||isAndroid&&androidStore){
+  if((isIOS&&iosStore)||(isAndroid&&androidStore)){
     document.getElementById('store-row').style.display='flex';
     if(isIOS&&!iosStore)document.getElementById('ios-btn')&&document.getElementById('ios-btn').remove();
     if(isAndroid&&!androidStore)document.getElementById('android-btn')&&document.getElementById('android-btn').remove();
@@ -161,7 +195,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sa
   // Give the page 800 ms to settle before trying (avoids partial render)
   setTimeout(function(){
     setStatus('Opening app…');
-    window.location.href=deepLink;
+    var openTarget=(isIOS||isAndroid)?deepLink:universalLink;
+    window.location.href=openTarget;
     setTimeout(function(){
       if(hidden)return; // app opened
       var storeUrl=isIOS?iosStore:isAndroid?androidStore:'';
@@ -192,31 +227,36 @@ router.get("/post/:id", async (req, res): Promise<void> => {
       .select({
         id: postsTable.id,
         content: postsTable.content,
+        mediaUrl: postsTable.mediaUrl,
+        mediaType: postsTable.mediaType,
         prayCount: postsTable.prayCount,
         isAnonymous: postsTable.isAnonymous,
+        status: postsTable.status,
         authorDisplayName: usersTable.displayName,
         authorUsername: usersTable.username,
       })
       .from(postsTable)
       .leftJoin(usersTable, eq(postsTable.authorId, usersTable.id))
-      .where(eq(postsTable.id, id))
+      .where(and(eq(postsTable.id, id), eq(postsTable.status, "approved")))
       .limit(1),
   ]);
 
   const post = rows[0];
   if (!post) { res.status(404).send("Not found"); return; }
 
-  const snippet = post.content.slice(0, 240) + (post.content.length > 240 ? "…" : "");
+  const previewText = postSharePreviewText(post.content, post.mediaType);
+  const snippet = previewText.slice(0, 240) + (previewText.length > 240 ? "…" : "");
   const author = post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Someone");
   const title = `"${snippet.slice(0, 80)}${snippet.length > 80 ? "…" : ""}" — ${APP_NAME}`;
   const description = `${author} shared a prayer on ${APP_NAME}. ${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying.`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=60");
   res.send(
     buildPage({
       title,
       description,
-      ogImageUrl: resolveOgImageUrl(settings),
+      ogImageUrl: pickPostOgImage(settings, post.mediaUrl, post.mediaType),
       canonicalUrl: `${APP_ORIGIN}/post/${id}`,
       deepLink: `${APP_SCHEME}://post/${id}`,
       iosStoreUrl: settings.ios_app_store_url ?? "",
@@ -258,6 +298,7 @@ router.get("/official/:id", async (req, res): Promise<void> => {
   const description = guide.subtitle ?? snippet;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=60");
   res.send(
     buildPage({
       title,
@@ -303,6 +344,7 @@ router.get("/path/:id", async (req, res): Promise<void> => {
   const description = path.tagline ?? path.description.slice(0, 200);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=60");
   res.send(
     buildPage({
       title,
@@ -315,6 +357,63 @@ router.get("/path/:id", async (req, res): Promise<void> => {
       eyebrow: path.category ?? "Prayer Path",
       headline: path.name,
       body: path.tagline ?? path.description.slice(0, 160),
+    }),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Route: User profile share page  /user/:username
+// ---------------------------------------------------------------------------
+router.get("/user/:username", async (req, res): Promise<void> => {
+  const username = String(req.params.username ?? "").trim();
+  if (!username) {
+    res.status(404).send("Not found");
+    return;
+  }
+
+  const [settings, rows] = await Promise.all([
+    getSettings(),
+    db
+      .select({
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        bio: usersTable.bio,
+        avatarUrl: usersTable.avatarUrl,
+        prayersShared: usersTable.prayersShared,
+        isBanned: usersTable.isBanned,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.username, username))
+      .limit(1),
+  ]);
+
+  const profile = rows[0];
+  if (!profile || profile.isBanned) {
+    res.status(404).send("Not found");
+    return;
+  }
+
+  const displayName = profile.displayName?.trim() || profile.username;
+  const bio = profile.bio?.trim() || `See prayers shared by ${displayName} on ${APP_NAME}.`;
+  const title = `${displayName} on ${APP_NAME}`;
+  const description = bio.slice(0, 200);
+  const avatarOg = resolveApiAssetUrl(profile.avatarUrl);
+  const ogImageUrl = avatarOg || resolveOgImageUrl(settings);
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.send(
+    buildPage({
+      title,
+      description,
+      ogImageUrl,
+      canonicalUrl: `${APP_ORIGIN}/user/${encodeURIComponent(profile.username)}`,
+      deepLink: `${APP_SCHEME}://user/${profile.username}`,
+      iosStoreUrl: settings.ios_app_store_url ?? "",
+      androidStoreUrl: settings.android_play_store_url ?? "",
+      eyebrow: "Profile",
+      headline: displayName,
+      body: `${profile.prayersShared} ${profile.prayersShared === 1 ? "prayer" : "prayers"} shared · @${profile.username}`,
     }),
   );
 });

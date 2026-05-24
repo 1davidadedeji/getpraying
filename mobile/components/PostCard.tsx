@@ -35,7 +35,7 @@ import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { submitPostReport } from "@/lib/reportPost";
-import { postShareUrl } from "@/lib/publicWebOrigin";
+import { buildPostSharePayload } from "@/lib/sharePost";
 import { clamp } from "@/lib/responsiveMetrics";
 import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -225,15 +225,7 @@ export default function PostCard({
   }, [boosting, localPost.id, onUpdated, revenueCat, token, user]);
 
   const handleShare = async () => {
-    const authorName = localPost.isAnonymous
-      ? "Anonymous"
-      : localPost.authorDisplayName ?? localPost.authorUsername ?? "Someone";
-    const url = postShareUrl(localPost.id);
-    const message =
-      `"${localPost.content.slice(0, 200)}${localPost.content.length > 200 ? "\u2026" : ""}"\n\n` +
-      `\u2014 shared by ${authorName} on Get Praying\n` +
-      `${localPost.prayCount} ${localPost.prayCount === 1 ? "person" : "people"} praying\n\n` +
-      url;
+    const { message, url } = buildPostSharePayload(localPost);
 
     try {
       Haptics.selectionAsync();
@@ -384,30 +376,34 @@ export default function PostCard({
           }
         />
 
-        <Pressable
-          onPress={() => navigate(postHref as any)}
-          style={({ pressed }) => [pressed && styles.cardBodyPressed]}
-          accessibilityRole="button"
-          accessibilityLabel={`Open prayer from ${authorName}`}
-        >
-          <Text style={styles.content} numberOfLines={4}>
-            {og.displayTextWithoutUrl}
-          </Text>
+        {(og.displayTextWithoutUrl.trim().length > 0 || og.showLinkPreview) ? (
+          <Pressable
+            onPress={() => navigate(postHref as any)}
+            style={({ pressed }) => [pressed && styles.cardBodyPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Open prayer from ${authorName}`}
+          >
+            {og.displayTextWithoutUrl.trim().length > 0 ? (
+              <Text style={styles.content} numberOfLines={4}>
+                {og.displayTextWithoutUrl}
+              </Text>
+            ) : null}
 
-          {og.showLinkPreview ? (
-            <OutboundOgLinkCard
-              imageUrl={og.preview?.imageUrl}
-              previewTitle={og.previewTitle}
-              previewHost={og.previewHost}
-              variant="card"
-              onPress={(e) => {
-                e.stopPropagation?.();
-                void og.openOutboundLink();
-              }}
-              accessibilityLabel={`Open link: ${og.previewTitle || og.previewHost}`}
-            />
-          ) : null}
-        </Pressable>
+            {og.showLinkPreview ? (
+              <OutboundOgLinkCard
+                imageUrl={og.preview?.imageUrl}
+                previewTitle={og.previewTitle}
+                previewHost={og.previewHost}
+                variant="card"
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  void og.openOutboundLink();
+                }}
+                accessibilityLabel={`Open link: ${og.previewTitle || og.previewHost}`}
+              />
+            ) : null}
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.actions}>

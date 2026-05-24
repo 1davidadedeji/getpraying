@@ -16,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "associatedDomains": ["applinks:share.getpraying.com"],
+      "associatedDomains": ["applinks:api.getpraying.com"],
       "infoPlist": {
         "CFBundleDisplayName": "Get Praying",
         "ITSAppUsesNonExemptEncryption": false
@@ -36,22 +36,22 @@
           "data": [
             {
               "scheme": "https",
-              "host": "share.getpraying.com",
+              "host": "api.getpraying.com",
               "pathPrefix": "/post"
             },
             {
               "scheme": "https",
-              "host": "share.getpraying.com",
+              "host": "api.getpraying.com",
               "pathPrefix": "/official"
             },
             {
               "scheme": "https",
-              "host": "share.getpraying.com",
+              "host": "api.getpraying.com",
               "pathPrefix": "/path"
             },
             {
               "scheme": "https",
-              "host": "share.getpraying.com",
+              "host": "api.getpraying.com",
               "pathPrefix": "/user"
             }
           ],
@@ -80,7 +80,7 @@
       [
         "expo-router",
         {
-          "origin": "https://share.getpraying.com"
+          "origin": "https://api.getpraying.com"
         }
       ],
       [

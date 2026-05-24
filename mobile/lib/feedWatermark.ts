@@ -9,7 +9,9 @@ export function pickFeedWatermarkIso(
   if (typeof globalNewestCreatedAt !== "string" || !globalNewestCreatedAt.trim()) {
     return null;
   }
-  const ms = Date.parse(globalNewestCreatedAt);
+  const trimmed = globalNewestCreatedAt.trim();
+  const ms = Date.parse(trimmed);
   if (!Number.isFinite(ms)) return null;
-  return new Date(ms).toISOString();
+  // Keep the server ISO as-is (already ms-precision); re-stringifying can drift vs Postgres.
+  return trimmed;
 }

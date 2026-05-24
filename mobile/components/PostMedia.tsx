@@ -182,12 +182,15 @@ export function PostMediaBlock({
   const thumbH = Math.round(clamp(100 * uiScale, 88, 120));
   const radiusStyle = { borderRadius: mediaRad };
   const thumbStyle = thumbnail ? { height: thumbH } : undefined;
+  const { width: winW } = useWindowDimensions();
   const [imgNaturalAspect, setImgNaturalAspect] = useState<number | null>(null);
   const [imgLightboxOpen, setImgLightboxOpen] = useState(false);
+  const [wrapWidth, setWrapWidth] = useState(0);
 
   useEffect(() => {
     setImgNaturalAspect(null);
     setImgLightboxOpen(false);
+    setWrapWidth(0);
   }, [uri]);
 
   if (!uri) return null;
@@ -234,18 +237,28 @@ export function PostMediaBlock({
         : Math.min(16 / 9, imgNaturalAspect)
       : 16 / 10;
 
+  const layoutWidth = wrapWidth > 0 ? wrapWidth : Math.max(0, winW - 32);
+  const imgHeight = Math.max(140, Math.round(layoutWidth / clampedImgAspect));
+
   return (
     <>
-      <View style={[styles.imageWrap, style, radiusStyle]}>
+      <View
+        style={[styles.imageWrap, style, radiusStyle, { minHeight: imgHeight }]}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0 && Math.abs(w - wrapWidth) > 0.5) setWrapWidth(w);
+        }}
+      >
         <Pressable
           onPress={() => setImgLightboxOpen(true)}
-          style={styles.imagePressable}
+          style={[styles.imagePressable, { height: imgHeight }]}
           accessibilityRole="button"
           accessibilityLabel="View full image"
         >
           <Image
             source={{ uri }}
-            style={[styles.image, { aspectRatio: clampedImgAspect }] as StyleProp<ImageStyle>[]}
+            recyclingKey={uri}
+            style={[styles.image, { width: "100%", height: imgHeight }] as StyleProp<ImageStyle>[]}
             contentFit="cover"
             transition={200}
             onLoad={(e) => {
