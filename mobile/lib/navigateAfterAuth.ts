@@ -25,7 +25,7 @@ export function getPostAuthRoute(
 
   const trialExpired = isTrialExpired(user.trialStartsAt);
   if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-    return "/(paywall)/index" as Href;
+    return "/(paywall)" as Href;
   }
 
   if (!user.onboardingComplete) return "/onboarding" as Href;

@@ -14,6 +14,7 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useRevenueCat } from "@/context/revenuecat";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
 function pickPackages(pkgs: PurchasesPackage[]): { monthly?: PurchasesPackage; annual?: PurchasesPackage } {

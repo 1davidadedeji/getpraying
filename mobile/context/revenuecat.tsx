@@ -88,12 +88,22 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
         await Purchases.configure({ apiKey });
         setEnabled(true);
 
-        const [o, info] = await Promise.all([
-          Purchases.getOfferings(),
-          Purchases.getCustomerInfo(),
-        ]);
-        setOfferings(o);
-        setCustomerInfo(info);
+        try {
+          const [o, info] = await Promise.all([
+            Purchases.getOfferings(),
+            Purchases.getCustomerInfo(),
+          ]);
+          setOfferings(o);
+          setCustomerInfo(info);
+        } catch {
+          // Offerings can fail before App Store products are linked in RevenueCat.
+          try {
+            const info = await Purchases.getCustomerInfo();
+            setCustomerInfo(info);
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
         setEnabled(false);
       } finally {

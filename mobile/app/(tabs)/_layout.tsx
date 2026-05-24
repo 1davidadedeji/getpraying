@@ -496,7 +496,7 @@ export default function TabLayout() {
   if (user.role !== "admin" && user.role !== "moderator") {
     const trialExpired = isTrialExpired(user.trialStartsAt);
     if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-      return <Redirect href={"/(paywall)/index" as any} />;
+      return <Redirect href={"/(paywall)" as Href} />;
     }
   }
 
