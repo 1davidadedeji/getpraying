@@ -12,4 +12,6 @@ export interface PostsPage {
   /** Opaque feed pagination cursor — pass as GET /posts?cursor= */
   nextCursor?: string | null;
   total: number;
+  /** Latest approved post created_at in the database — use as the new-prayer poll watermark (independent of boost sort order on the current page). */
+  globalNewestCreatedAt?: Date | null;
 }

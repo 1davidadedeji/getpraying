@@ -1511,6 +1511,11 @@ components:
           description: Opaque feed pagination cursor — pass as GET /posts?cursor=
         total:
           type: integer
+        globalNewestCreatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Latest approved post created_at in the database — use as the new-prayer poll watermark (independent of boost sort order on the current page).
       required:
         - posts
         - total

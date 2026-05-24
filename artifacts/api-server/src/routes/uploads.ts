@@ -5,7 +5,7 @@ import { mkdirSync } from "fs";
 import { mkdir, writeFile, unlink } from "fs/promises";
 import path from "path";
 import type { Request, Response, NextFunction } from "express";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireModeratorOrAdmin } from "../lib/auth";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -91,45 +91,65 @@ const uploadVideo = multer({
   },
 });
 
-const uploadAudio = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      try {
-        cb(null, ensureUploadDirSync());
-      } catch (e) {
-        cb(e as Error, getUploadDir());
-      }
-    },
-    filename: (_req, file, cb) => {
-      let ext = "m4a";
-      const mt = file.mimetype.toLowerCase();
-      const on = (file.originalname ?? "").toLowerCase();
-      if (mt.includes("mpeg") || mt.includes("mp3") || on.endsWith(".mp3")) ext = "mp3";
-      else if (mt.includes("wav") || on.endsWith(".wav")) ext = "wav";
-      else if (mt.includes("ogg") || on.endsWith(".ogg")) ext = "ogg";
-      else if (mt.includes("webm") || on.endsWith(".webm")) ext = "webm";
-      else if (mt.includes("flac") || on.endsWith(".flac")) ext = "flac";
-      else if (mt.includes("caf") || on.endsWith(".caf")) ext = "caf";
-      cb(null, `${randomUUID()}.${ext}`);
-    },
-  }),
-  limits: { fileSize: MAX_AUDIO_BYTES },
-  fileFilter: (_req, file, cb) => {
-    if (
-      /^audio\/(mpeg|mp3|x-mpeg|mp4|m4a|x-m4a|wav|x-wav|aac|webm|ogg|flac|x-flac|x-caf|caf|3gpp|3gp|amr|x-ms-wma)$/i.test(
-        file.mimetype,
-      )
-    ) {
-      cb(null, true);
-      return;
+function audioUploadFilename(
+  _req: Request,
+  file: Express.Multer.File,
+  cb: (error: Error | null, filename: string) => void,
+) {
+  let ext = "m4a";
+  const mt = file.mimetype.toLowerCase();
+  const on = (file.originalname ?? "").toLowerCase();
+  if (mt.includes("mpeg") || mt.includes("mp3") || on.endsWith(".mp3")) ext = "mp3";
+  else if (mt.includes("wav") || on.endsWith(".wav")) ext = "wav";
+  else if (mt.includes("ogg") || on.endsWith(".ogg")) ext = "ogg";
+  else if (mt.includes("webm") || on.endsWith(".webm")) ext = "webm";
+  else if (mt.includes("flac") || on.endsWith(".flac")) ext = "flac";
+  else if (mt.includes("caf") || on.endsWith(".caf")) ext = "caf";
+  cb(null, `${randomUUID()}.${ext}`);
+}
+
+function audioUploadFileFilter(
+  _req: Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
+) {
+  if (
+    /^audio\/(mpeg|mp3|x-mpeg|mp4|m4a|x-m4a|wav|x-wav|aac|webm|ogg|flac|x-flac|x-caf|caf|3gpp|3gp|amr|x-ms-wma)$/i.test(
+      file.mimetype,
+    )
+  ) {
+    cb(null, true);
+    return;
+  }
+  const name = file.originalname?.toLowerCase() ?? "";
+  if (/\.(mp3|m4a|aac|wav|ogg|webm|flac|caf|3gp|3gpp|amr|wma)$/i.test(name)) {
+    cb(null, true);
+    return;
+  }
+  cb(new Error("That audio format isn't supported. Try an MP3, M4A, or WAV file."));
+}
+
+const audioDiskStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    try {
+      cb(null, ensureUploadDirSync());
+    } catch (e) {
+      cb(e as Error, getUploadDir());
     }
-    const name = file.originalname?.toLowerCase() ?? "";
-    if (/\.(mp3|m4a|aac|wav|ogg|webm|flac|caf|3gp|3gpp|amr|wma)$/i.test(name)) {
-      cb(null, true);
-      return;
-    }
-    cb(new Error("That audio format isn't supported. Try an MP3, M4A, or WAV file."));
   },
+  filename: audioUploadFilename,
+});
+
+const uploadAudio = multer({
+  storage: audioDiskStorage,
+  limits: { fileSize: MAX_AUDIO_BYTES },
+  fileFilter: audioUploadFileFilter,
+});
+
+/** Web admin CMS uploads — no app-level size cap (reverse proxy may still enforce its own limit). */
+const uploadAdminAudio = multer({
+  storage: audioDiskStorage,
+  fileFilter: audioUploadFileFilter,
 });
 
 function isLimitFileSize(err: unknown): boolean {
@@ -269,6 +289,23 @@ router.post(
   },
 );
 
+async function finalizeDiskAudioUpload(req: Request, res: Response): Promise<void> {
+  const file = (req as any).file as Express.Multer.File | undefined;
+  if (!file?.path?.length) {
+    res.status(400).json({ error: "No audio file provided" });
+    return;
+  }
+
+  const filename = file.filename;
+  if (!filename) {
+    await unlink(file.path).catch(() => {});
+    res.status(500).json({ error: "Upload could not be finalized." });
+    return;
+  }
+
+  res.status(201).json({ url: `/api/static/uploads/${filename}`, mediaType: "audio" });
+}
+
 router.post(
   "/uploads/post-audio",
   requireAuth,
@@ -280,22 +317,21 @@ router.post(
       next,
       "Audio file is too large. Choose a shorter recording.",
     ),
-  async (req, res): Promise<void> => {
-    const file = (req as any).file as Express.Multer.File | undefined;
-    if (!file?.path?.length) {
-      res.status(400).json({ error: "No audio file provided" });
-      return;
-    }
+  finalizeDiskAudioUpload,
+);
 
-    const filename = file.filename;
-    if (!filename) {
-      await unlink(file.path).catch(() => {});
-      res.status(500).json({ error: "Upload could not be finalized." });
-      return;
-    }
-
-    res.status(201).json({ url: `/api/static/uploads/${filename}`, mediaType: "audio" });
-  },
+router.post(
+  "/uploads/admin-audio",
+  requireModeratorOrAdmin,
+  (req, res, next) =>
+    handleMulterError(
+      uploadAdminAudio.single("file"),
+      req,
+      res,
+      next,
+      "Audio file is too large for the server upload limit.",
+    ),
+  finalizeDiskAudioUpload,
 );
 
 export default router;

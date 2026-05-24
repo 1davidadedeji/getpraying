@@ -293,78 +293,76 @@ export default function PostCard({
 
   return (
     <View style={[styles.card, { borderRadius: cardRadius, marginBottom: Math.round(12 * uiScale) }]}>
-      <Pressable
-        onPress={() => navigate(postHref as any)}
-        style={({ pressed }) => [
-          styles.cardBody,
-          { padding: cardPad, paddingBottom: Math.round(cardPad * 0.75) },
-          pressed && styles.cardBodyPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={`Open prayer from ${authorName}`}
-      >
-        <View style={styles.header}>
-          <View style={styles.headerLeftCluster} pointerEvents="box-none">
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation?.();
-                openAuthorProfile();
-              }}
-              disabled={localPost.isAnonymous || !localPost.authorUsername}
-              style={styles.headerAvatarBtn}
-              hitSlop={{ top: 6, bottom: 6, left: 2, right: 6 }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open profile for ${authorName}`}
-            >
-              {!localPost.isAnonymous && localPost.authorAvatarUrl ? (
-                <Image
-                  source={{ uri: resolveMediaUrl(localPost.authorAvatarUrl)! }}
-                  style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
-                />
-              ) : (
-                <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
-                  <Text style={[styles.avatarText, { fontSize: Math.round(16 * uiScale) }]}>
-                    {localPost.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-            <View style={styles.headerNameRow} pointerEvents="box-none">
+      <View style={[styles.cardBody, { padding: cardPad, paddingBottom: Math.round(cardPad * 0.75) }]}>
+        <Pressable
+          onPress={() => navigate(postHref as any)}
+          style={({ pressed }) => [pressed && styles.cardBodyPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={`Open prayer from ${authorName}`}
+        >
+          <View style={styles.header}>
+            <View style={styles.headerLeftCluster} pointerEvents="box-none">
               <Pressable
                 onPress={(e) => {
                   e.stopPropagation?.();
                   openAuthorProfile();
                 }}
                 disabled={localPost.isAnonymous || !localPost.authorUsername}
-                style={styles.headerNamePressable}
-                hitSlop={{ top: 4, bottom: 4, right: 4 }}
+                style={styles.headerAvatarBtn}
+                hitSlop={{ top: 6, bottom: 6, left: 2, right: 6 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Open profile for ${authorName}`}
               >
-                <View style={styles.headerInfo}>
-                  <Text style={styles.authorName} numberOfLines={1} ellipsizeMode="tail">
-                    {authorName}
-                  </Text>
-                  <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
-                </View>
-              </Pressable>
-              <View style={styles.headerTapThrough} pointerEvents="box-none" />
-            </View>
-          </View>
-          <View style={styles.headerRight}>
-            {categoryChips.length > 0 && (
-              <View style={styles.headerCats}>
-                {categoryChips.map((c) => (
-                  <View key={c} style={styles.categoryBadge}>
-                    <Text style={styles.categoryText} numberOfLines={1}>
-                      {CATEGORY_LABELS[c as keyof typeof CATEGORY_LABELS] ?? c}
+                {!localPost.isAnonymous && localPost.authorAvatarUrl ? (
+                  <Image
+                    source={{ uri: resolveMediaUrl(localPost.authorAvatarUrl)! }}
+                    style={[styles.avatarImg, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}
+                  />
+                ) : (
+                  <View style={[styles.avatar, { width: avatarSz, height: avatarSz, borderRadius: avatarSz / 2 }]}>
+                    <Text style={[styles.avatarText, { fontSize: Math.round(16 * uiScale) }]}>
+                      {localPost.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
                     </Text>
                   </View>
-                ))}
+                )}
+              </Pressable>
+              <View style={styles.headerNameRow} pointerEvents="box-none">
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    openAuthorProfile();
+                  }}
+                  disabled={localPost.isAnonymous || !localPost.authorUsername}
+                  style={styles.headerNamePressable}
+                  hitSlop={{ top: 4, bottom: 4, right: 4 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open profile for ${authorName}`}
+                >
+                  <View style={styles.headerInfo}>
+                    <Text style={styles.authorName} numberOfLines={1} ellipsizeMode="tail">
+                      {authorName}
+                    </Text>
+                    <Text style={styles.timeAgo}>{timeAgo(localPost.createdAt)}</Text>
+                  </View>
+                </Pressable>
+                <View style={styles.headerTapThrough} pointerEvents="box-none" />
               </View>
-            )}
+            </View>
+            <View style={styles.headerRight}>
+              {categoryChips.length > 0 && (
+                <View style={styles.headerCats}>
+                  {categoryChips.map((c) => (
+                    <View key={c} style={styles.categoryBadge}>
+                      <Text style={styles.categoryText} numberOfLines={1}>
+                        {CATEGORY_LABELS[c as keyof typeof CATEGORY_LABELS] ?? c}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
-        </View>
+        </Pressable>
 
         <PostMediaBlock
           mediaUrl={localPost.mediaUrl}
@@ -386,24 +384,31 @@ export default function PostCard({
           }
         />
 
-        <Text style={styles.content} numberOfLines={4}>
-          {og.displayTextWithoutUrl}
-        </Text>
+        <Pressable
+          onPress={() => navigate(postHref as any)}
+          style={({ pressed }) => [pressed && styles.cardBodyPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={`Open prayer from ${authorName}`}
+        >
+          <Text style={styles.content} numberOfLines={4}>
+            {og.displayTextWithoutUrl}
+          </Text>
 
-        {og.showLinkPreview ? (
-          <OutboundOgLinkCard
-            imageUrl={og.preview?.imageUrl}
-            previewTitle={og.previewTitle}
-            previewHost={og.previewHost}
-            variant="card"
-            onPress={(e) => {
-              e.stopPropagation?.();
-              void og.openOutboundLink();
-            }}
-            accessibilityLabel={`Open link: ${og.previewTitle || og.previewHost}`}
-          />
-        ) : null}
-      </Pressable>
+          {og.showLinkPreview ? (
+            <OutboundOgLinkCard
+              imageUrl={og.preview?.imageUrl}
+              previewTitle={og.previewTitle}
+              previewHost={og.previewHost}
+              variant="card"
+              onPress={(e) => {
+                e.stopPropagation?.();
+                void og.openOutboundLink();
+              }}
+              accessibilityLabel={`Open link: ${og.previewTitle || og.previewHost}`}
+            />
+          ) : null}
+        </Pressable>
+      </View>
 
       <View style={styles.actions}>
         <View style={styles.actionsPrimary}>

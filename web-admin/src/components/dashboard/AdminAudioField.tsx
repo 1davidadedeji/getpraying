@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { inputCls } from "@/components/dashboard/form-styles";
 import { cn } from "@/lib/cn";
-import { uploadPostAudio } from "@/lib/uploadAudio";
+import { uploadAdminAudio } from "@/lib/uploadAudio";
 
 export function AdminAudioField({
   label = "Audio",
@@ -33,7 +33,7 @@ export function AdminAudioField({
       setError(null);
       setUploading(true);
       try {
-        const url = await uploadPostAudio(token, file);
+        const url = await uploadAdminAudio(token, file);
         onChange(url);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -50,7 +50,7 @@ export function AdminAudioField({
     <div className={cn("min-w-0", className)}>
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">{label}</p>
       <p className="mb-1.5 text-[11px] text-[var(--color-muted)]">
-        Paste a URL or upload a file (MP3, M4A, WAV, etc. — max ~15&nbsp;MB).
+        Paste a URL or upload a file (MP3, M4A, WAV, etc.).
       </p>
       <input
         type="text"

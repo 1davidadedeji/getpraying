@@ -1,43 +1,48 @@
-# EAS upload ignore (replaces .gitignore for archive when this file is used).
+# EAS upload ignore — must live at the GIT REPO ROOT (Expo archives from here, not mobile/).
 # https://expo.fyi/eas-build-archive
-# In pnpm monorepos the project root is often the repo root — keep this file to trim uploads.
+# Do not use trailing slashes on directory patterns (eas-cli copy bug with "dir/").
 
-# --- From repo .gitignore (Expo: include .gitignore rules in .easignore) ---
+# --- Dependencies & caches (EAS runs pnpm install on the server) ---
+node_modules
+.pnpm-store
+
+# --- Native project dirs (EAS prebuild generates these; local copies are huge) ---
+mobile/ios
+mobile/android
+
+# --- Secrets & local tooling ---
+.env
+.env.*
+!.env.example
+.cursor
+.git
+.cache
+.local
+.DS_Store
+Thumbs.db
+
+# --- Build / IDE artifacts ---
 dist
 tmp
 out-tsc
 *.tsbuildinfo
 .expo
 .expo-shared
-node_modules
-**/.idea
-**/.project
-**/.classpath
-**/.c9/
-**/*.launch
-**/.settings
-**/*.sublime-workspace
-**/.sass-cache
-/connect.lock
-/coverage
-/libpeerconnection.log
+web-build
+coverage
+**/.next
+.vercel
+*.tsbuildinfo
 npm-debug.log
 yarn-error.log
 testem.log
-/typings
-.DS_Store
-Thumbs.db
-.cache/
-.local/
-.env
-.cursor
 
-# --- Not needed to build the mobile app; drops tens–hundreds of MB (API, DB tooling) ---
-artifacts/api-server
+# --- Not needed to build the mobile app ---
+artifacts
+web-admin
 lib/db
 lib/api-zod
 lib/api-spec
 scripts
 
-# Git metadata (sometimes included; safe to drop on server)
-.git
+# Keep: mobile/, lib/api-client-react/, pnpm-lock.yaml, package.json, pnpm-workspace.yaml

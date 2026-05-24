@@ -276,6 +276,75 @@ export const GetUserPostsResponse = zod.object({
     .nullish()
     .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
+  globalNewestCreatedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Latest approved post created_at in the database — use as the new-prayer poll watermark (independent of boost sort order on the current page).",
+    ),
+});
+
+/**
+ * @summary Get a user's saved feed posts (approved only, most recently saved first)
+ */
+export const GetUserSavedPostsParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const getUserSavedPostsQueryLimitDefault = 50;
+export const getUserSavedPostsQueryLimitMax = 100;
+
+export const GetUserSavedPostsQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .max(getUserSavedPostsQueryLimitMax)
+    .default(getUserSavedPostsQueryLimitDefault),
+});
+
+export const GetUserSavedPostsResponse = zod.object({
+  posts: zod.array(
+    zod.object({
+      id: zod.number(),
+      content: zod.string(),
+      mediaUrl: zod.string().nullish(),
+      mediaType: zod.enum(["image", "video", "audio"]).nullish(),
+      category: zod.string().nullish(),
+      categories: zod
+        .array(zod.string())
+        .optional()
+        .describe("All tag slugs for this post (primary is usually first)"),
+      isAnonymous: zod.boolean(),
+      status: zod.enum(["pending", "approved", "declined"]),
+      flagReason: zod.string().nullish(),
+      moderationReason: zod
+        .string()
+        .nullish()
+        .describe("Shown to the author when a moderator declines the post"),
+      prayCount: zod.number(),
+      commentCount: zod.number(),
+      saveCount: zod.number(),
+      hasPrayed: zod.boolean(),
+      hasCommented: zod.boolean(),
+      isSaved: zod.boolean(),
+      authorId: zod.number().nullish(),
+      authorUsername: zod.string().nullish(),
+      authorDisplayName: zod.string().nullish(),
+      authorAvatarUrl: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      boostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When a premium member last boosted this post (feed priority)",
+        ),
+      boostedByUserId: zod
+        .number()
+        .nullish()
+        .describe(
+          "User id of the member whose boost is currently active (for unboost toggle)",
+        ),
+    }),
+  ),
 });
 
 /**
@@ -347,6 +416,12 @@ export const GetPostsResponse = zod.object({
     .nullish()
     .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
+  globalNewestCreatedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Latest approved post created_at in the database — use as the new-prayer poll watermark (independent of boost sort order on the current page).",
+    ),
 });
 
 /**
@@ -925,7 +1000,7 @@ export const GetCategoriesResponseItem = zod.object({
 export const GetCategoriesResponse = zod.array(GetCategoriesResponseItem);
 
 /**
- * Returns an admin override for the given calendar date if set; otherwise a deterministic default from the built-in yearly rotation.
+ * Returns an admin override for the given calendar date if set; otherwise the static default (Psalm 34:17) when auto-rotation is off, or a deterministic daily rotation when auto-rotation is on.
  * @summary Get daily scripture for the welcome screen
  */
 export const GetDailyWordQueryParams = zod.object({
@@ -945,6 +1020,12 @@ export const GetDailyWordResponse = zod.object({
   prayingWithYou: zod
     .number()
     .describe("Approximate count of community members for social proof"),
+  autoRotation: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, non-override dates use the built-in daily rotation; when false, Psalm 34:17 is the default",
+    ),
 });
 
 /**
@@ -1040,6 +1121,12 @@ export const GetPendingPostsResponse = zod.object({
     .nullish()
     .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
+  globalNewestCreatedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Latest approved post created_at in the database — use as the new-prayer poll watermark (independent of boost sort order on the current page).",
+    ),
 });
 
 /**
@@ -1101,6 +1188,12 @@ export const GetModeratedPostsResponse = zod.object({
     .nullish()
     .describe("Opaque feed pagination cursor — pass as GET \/posts?cursor="),
   total: zod.number(),
+  globalNewestCreatedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Latest approved post created_at in the database — use as the new-prayer poll watermark (independent of boost sort order on the current page).",
+    ),
 });
 
 /**
@@ -1322,6 +1415,12 @@ export const SetDailyWordOverrideResponse = zod.object({
   prayingWithYou: zod
     .number()
     .describe("Approximate count of community members for social proof"),
+  autoRotation: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, non-override dates use the built-in daily rotation; when false, Psalm 34:17 is the default",
+    ),
 });
 
 /**
@@ -1334,4 +1433,22 @@ export const ClearDailyWordOverrideQueryParams = zod.object({
 export const ClearDailyWordOverrideResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
+});
+
+/**
+ * @summary Get daily word update mode (manual vs auto rotation)
+ */
+export const GetDailyWordSettingsResponse = zod.object({
+  autoRotation: zod.boolean(),
+});
+
+/**
+ * @summary Set daily word update mode
+ */
+export const SetDailyWordSettingsBody = zod.object({
+  autoRotation: zod.boolean(),
+});
+
+export const SetDailyWordSettingsResponse = zod.object({
+  autoRotation: zod.boolean(),
 });

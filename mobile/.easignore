@@ -1,40 +1,23 @@
-# EAS: run `eas build` from this app directory. Merge .gitignore here per Expo (see
-# https://docs.expo.dev/build-reference/easignore/) so node_modules and local artifacts stay out.
+# NOTE: EAS archives from the git repo root and uses /.easignore at the repo root only.
+# Edit /Users/timeless/getpraying/.easignore (repo root) to trim uploads — this file is kept for reference.
 
-# --- From mobile/.gitignore ---
-node_modules/
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-ios/
-android/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-.metro-health-check*
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-.DS_Store
-*.pem
-.env*.local
-*.tsbuildinfo
-.vercel
+# If you ever run with EAS_PROJECT_ROOT=mobile, these patterns apply relative to mobile/:
+node_modules
+.expo
+dist
+web-build
+ios
+android
 .env
+.env.local
 
-# --- Monorepo paths (relative to this file) not needed for the mobile bundle ---
-# Backend and seed audio (large assets)
-../artifacts/api-server
-# Server-only and codegen-only packages (mobile only depends on @workspace/api-client-react)
+../artifacts
+../web-admin
 ../lib/db
 ../lib/api-zod
 ../lib/api-spec
 ../scripts
-# Root install tree — EAS runs pnpm install on the server; keep lockfiles out of “fat” if present
 ../node_modules
+../.pnpm-store
 ../.git
 ../.cursor

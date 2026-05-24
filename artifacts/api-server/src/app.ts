@@ -23,6 +23,12 @@ if (existsSync(seedAudioDir)) {
   app.use("/api/static/seed-audio", express.static(seedAudioDir));
 }
 
+// Share-page assets (app icon for OG previews)
+const shareStaticDir = path.join(process.cwd(), "data", "share");
+if (existsSync(shareStaticDir)) {
+  app.use("/static", express.static(shareStaticDir));
+}
+
 app.use(
   pinoHttp({
     logger,

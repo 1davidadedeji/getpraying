@@ -215,12 +215,18 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     )!;
   }
 
-  const posts = await db
-    .select()
-    .from(postsTable)
-    .where(conditions)
-    .orderBy(desc(sortTs), desc(postsTable.id))
-    .limit(limit + 1);
+  const [posts, newestRow] = await Promise.all([
+    db
+      .select()
+      .from(postsTable)
+      .where(conditions)
+      .orderBy(desc(sortTs), desc(postsTable.id))
+      .limit(limit + 1),
+    db
+      .select({ newest: sql<Date | null>`max(${postsTable.createdAt})` })
+      .from(postsTable)
+      .where(eq(postsTable.status, "approved")),
+  ]);
 
   const hasMore = posts.length > limit;
   const page = posts.slice(0, limit);
@@ -232,10 +238,15 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     nextCursor = encodeFeedCursor(last);
   }
 
+  const globalNewestCreatedAt = newestRow[0]?.newest
+    ? new Date(newestRow[0].newest).toISOString()
+    : null;
+
   res.json({
     posts: enriched,
     nextCursor,
     total: enriched.length,
+    globalNewestCreatedAt,
   });
 });
 

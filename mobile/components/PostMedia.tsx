@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   Platform,
@@ -184,8 +184,11 @@ export function PostMediaBlock({
   const thumbStyle = thumbnail ? { height: thumbH } : undefined;
   const [imgNaturalAspect, setImgNaturalAspect] = useState<number | null>(null);
   const [imgLightboxOpen, setImgLightboxOpen] = useState(false);
-  const { width: winW, height: winH } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    setImgNaturalAspect(null);
+    setImgLightboxOpen(false);
+  }, [uri]);
 
   if (!uri) return null;
 
@@ -229,27 +232,29 @@ export function PostMediaBlock({
       ? imgNaturalAspect < 1
         ? Math.max(9 / 16, imgNaturalAspect)
         : Math.min(16 / 9, imgNaturalAspect)
-      : 4 / 3;
+      : 16 / 10;
 
   return (
     <>
-      <Pressable
-        onPress={() => setImgLightboxOpen(true)}
-        style={style}
-        accessibilityRole="button"
-        accessibilityLabel="View full image"
-      >
-        <Image
-          source={{ uri }}
-          style={[styles.image, radiusStyle, { aspectRatio: clampedImgAspect }] as StyleProp<ImageStyle>[]}
-          contentFit="contain"
-          transition={200}
-          onLoad={(e) => {
-            const { width, height } = e.source;
-            if (width > 0 && height > 0) setImgNaturalAspect(width / height);
-          }}
-        />
-      </Pressable>
+      <View style={[styles.imageWrap, style, radiusStyle]}>
+        <Pressable
+          onPress={() => setImgLightboxOpen(true)}
+          style={styles.imagePressable}
+          accessibilityRole="button"
+          accessibilityLabel="View full image"
+        >
+          <Image
+            source={{ uri }}
+            style={[styles.image, { aspectRatio: clampedImgAspect }] as StyleProp<ImageStyle>[]}
+            contentFit="cover"
+            transition={200}
+            onLoad={(e) => {
+              const { width, height } = e.source;
+              if (width > 0 && height > 0) setImgNaturalAspect(width / height);
+            }}
+          />
+        </Pressable>
+      </View>
       <Modal
         visible={imgLightboxOpen}
         animationType="fade"
@@ -265,6 +270,15 @@ export function PostMediaBlock({
 }
 
 const styles = StyleSheet.create({
+  imageWrap: {
+    width: "100%",
+    alignSelf: "stretch",
+    overflow: "hidden",
+    backgroundColor: colors.cream,
+  },
+  imagePressable: {
+    width: "100%",
+  },
   image: {
     width: "100%",
     backgroundColor: colors.cream,

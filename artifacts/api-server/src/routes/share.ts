@@ -25,6 +25,8 @@ const APP_NAME = "Get Praying";
 const APP_SCHEME = "getpraying";
 const BUNDLE_ID = "com.getpraying.app";
 const PACKAGE_NAME = "com.getpraying.app";
+/** Fallback when `og_image_url` is unset in app_settings. */
+const DEFAULT_OG_IMAGE_URL = `${APP_ORIGIN}/static/app-icon.png`;
 
 // ---------------------------------------------------------------------------
 // Settings cache (60 s TTL — changes to store URLs need no server restart)
@@ -42,6 +44,11 @@ async function getSettings(): Promise<Record<string, string>> {
     // keep stale cache on DB error rather than crashing
   }
   return _settingsCache;
+}
+
+function resolveOgImageUrl(settings: Record<string, string>): string {
+  const configured = settings.og_image_url?.trim();
+  return configured || DEFAULT_OG_IMAGE_URL;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +216,7 @@ router.get("/post/:id", async (req, res): Promise<void> => {
     buildPage({
       title,
       description,
-      ogImageUrl: settings.og_image_url ?? "",
+      ogImageUrl: resolveOgImageUrl(settings),
       canonicalUrl: `${APP_ORIGIN}/post/${id}`,
       deepLink: `${APP_SCHEME}://post/${id}`,
       iosStoreUrl: settings.ios_app_store_url ?? "",
@@ -255,7 +262,7 @@ router.get("/official/:id", async (req, res): Promise<void> => {
     buildPage({
       title,
       description,
-      ogImageUrl: settings.og_image_url ?? "",
+      ogImageUrl: resolveOgImageUrl(settings),
       canonicalUrl: `${APP_ORIGIN}/official/${id}`,
       deepLink: `${APP_SCHEME}://official/${id}`,
       iosStoreUrl: settings.ios_app_store_url ?? "",
@@ -300,7 +307,7 @@ router.get("/path/:id", async (req, res): Promise<void> => {
     buildPage({
       title,
       description,
-      ogImageUrl: settings.og_image_url ?? "",
+      ogImageUrl: resolveOgImageUrl(settings),
       canonicalUrl: `${APP_ORIGIN}/path/${id}`,
       deepLink: `${APP_SCHEME}://path/${id}`,
       iosStoreUrl: settings.ios_app_store_url ?? "",

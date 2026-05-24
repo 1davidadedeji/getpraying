@@ -14,4 +14,6 @@ export interface DailyWordResponse {
   source: DailyWordResponseSource;
   /** Approximate count of community members for social proof */
   prayingWithYou: number;
+  /** When true, non-override dates use the built-in daily rotation; when false, Psalm 34:17 is the default */
+  autoRotation?: boolean;
 }

@@ -26,6 +26,8 @@ import type {
   CreateCommentResponse,
   CreatePostInput,
   DailyWordResponse,
+  DailyWordSettings,
+  DailyWordSettingsInput,
   DeclinePostInput,
   DeletePostInput,
   ErrorResponse,
@@ -39,6 +41,7 @@ import type {
   GetPostsParams,
   GetTrendingPostsParams,
   GetUserPostsParams,
+  GetUserSavedPostsParams,
   GlobalSearchParams,
   HealthStatus,
   LoginInput,
@@ -55,6 +58,7 @@ import type {
   RegisterInput,
   ResendVerificationInput,
   SavePostStateResponse,
+  SavedPostsList,
   SearchResponse,
   SetDailyWordOverrideInput,
   SuccessResponse,
@@ -1080,6 +1084,126 @@ export function useGetUserPosts<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetUserPostsQueryOptions(username, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a user's saved feed posts (approved only, most recently saved first)
+ */
+export const getGetUserSavedPostsUrl = (
+  username: string,
+  params?: GetUserSavedPostsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/users/${username}/saved-posts?${stringifiedParams}`
+    : `/api/users/${username}/saved-posts`;
+};
+
+export const getUserSavedPosts = async (
+  username: string,
+  params?: GetUserSavedPostsParams,
+  options?: RequestInit,
+): Promise<SavedPostsList> => {
+  return customFetch<SavedPostsList>(
+    getGetUserSavedPostsUrl(username, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetUserSavedPostsQueryKey = (
+  username: string,
+  params?: GetUserSavedPostsParams,
+) => {
+  return [
+    `/api/users/${username}/saved-posts`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetUserSavedPostsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserSavedPosts>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  params?: GetUserSavedPostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserSavedPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUserSavedPostsQueryKey(username, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUserSavedPosts>>
+  > = ({ signal }) =>
+    getUserSavedPosts(username, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!username,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserSavedPosts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserSavedPostsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserSavedPosts>>
+>;
+export type GetUserSavedPostsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a user's saved feed posts (approved only, most recently saved first)
+ */
+
+export function useGetUserSavedPosts<
+  TData = Awaited<ReturnType<typeof getUserSavedPosts>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  username: string,
+  params?: GetUserSavedPostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserSavedPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserSavedPostsQueryOptions(
+    username,
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2688,7 +2812,7 @@ export function useGetCategories<
 }
 
 /**
- * Returns an admin override for the given calendar date if set; otherwise a deterministic default from the built-in yearly rotation.
+ * Returns an admin override for the given calendar date if set; otherwise the static default (Psalm 34:17) when auto-rotation is off, or a deterministic daily rotation when auto-rotation is on.
  * @summary Get daily scripture for the welcome screen
  */
 export const getGetDailyWordUrl = (params?: GetDailyWordParams) => {
@@ -3904,4 +4028,165 @@ export const useClearDailyWordOverride = <
   TContext
 > => {
   return useMutation(getClearDailyWordOverrideMutationOptions(options));
+};
+
+/**
+ * @summary Get daily word update mode (manual vs auto rotation)
+ */
+export const getGetDailyWordSettingsUrl = () => {
+  return `/api/admin/daily-word/settings`;
+};
+
+export const getDailyWordSettings = async (
+  options?: RequestInit,
+): Promise<DailyWordSettings> => {
+  return customFetch<DailyWordSettings>(getGetDailyWordSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDailyWordSettingsQueryKey = () => {
+  return [`/api/admin/daily-word/settings`] as const;
+};
+
+export const getGetDailyWordSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDailyWordSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDailyWordSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDailyWordSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDailyWordSettings>>
+  > = ({ signal }) => getDailyWordSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDailyWordSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDailyWordSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDailyWordSettings>>
+>;
+export type GetDailyWordSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get daily word update mode (manual vs auto rotation)
+ */
+
+export function useGetDailyWordSettings<
+  TData = Awaited<ReturnType<typeof getDailyWordSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDailyWordSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDailyWordSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set daily word update mode
+ */
+export const getSetDailyWordSettingsUrl = () => {
+  return `/api/admin/daily-word/settings`;
+};
+
+export const setDailyWordSettings = async (
+  dailyWordSettingsInput: DailyWordSettingsInput,
+  options?: RequestInit,
+): Promise<DailyWordSettings> => {
+  return customFetch<DailyWordSettings>(getSetDailyWordSettingsUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(dailyWordSettingsInput),
+  });
+};
+
+export const getSetDailyWordSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDailyWordSettings>>,
+    TError,
+    { data: BodyType<DailyWordSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setDailyWordSettings>>,
+  TError,
+  { data: BodyType<DailyWordSettingsInput> },
+  TContext
+> => {
+  const mutationKey = ["setDailyWordSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setDailyWordSettings>>,
+    { data: BodyType<DailyWordSettingsInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setDailyWordSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetDailyWordSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setDailyWordSettings>>
+>;
+export type SetDailyWordSettingsMutationBody = BodyType<DailyWordSettingsInput>;
+export type SetDailyWordSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set daily word update mode
+ */
+export const useSetDailyWordSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDailyWordSettings>>,
+    TError,
+    { data: BodyType<DailyWordSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setDailyWordSettings>>,
+  TError,
+  { data: BodyType<DailyWordSettingsInput> },
+  TContext
+> => {
+  return useMutation(getSetDailyWordSettingsMutationOptions(options));
 };

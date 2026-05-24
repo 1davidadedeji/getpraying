@@ -33,7 +33,7 @@ import { useFeedNotice } from "@/context/feedNotice";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
-import { computeMaxKnownCreatedAtIso } from "@/lib/feedWatermark";
+import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -83,8 +83,13 @@ export default function FeedScreen() {
   const newPostsCountDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newPostsScrollGateRef = useRef(false);
   const [newPostsScrollGate, setNewPostsScrollGate] = useState(false);
-  /** Max `created_at` among every post currently loaded; see GET `/posts/new-count?maxKnownCreatedAt`. */
+  /** Server watermark from GET `/posts` — see GET `/posts/new-count?maxKnownCreatedAt`. */
   const maxKnownCreatedAtRef = useRef<string | null>(null);
+
+  const applyFeedWatermark = useCallback((globalNewestCreatedAt: string | null | undefined) => {
+    const iso = pickFeedWatermarkIso(globalNewestCreatedAt);
+    if (iso) maxKnownCreatedAtRef.current = iso;
+  }, []);
   const [sanctuary, setSanctuary] = useState<{
     morning: OfficialPrayerRow | null;
     evening: OfficialPrayerRow | null;
@@ -200,19 +205,23 @@ export default function FeedScreen() {
   }, [token]);
 
   const fetchPage = useCallback(
-    async (cursor?: string | null): Promise<{ posts: Post[]; nextCursor: string | null }> => {
+    async (
+      cursor?: string | null,
+    ): Promise<{ posts: Post[]; nextCursor: string | null; globalNewestCreatedAt: string | null }> => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("cursor", cursor);
 
       const res = await fetch(apiUrl(`/posts?${params}`), {
         headers: authHeaders(token),
       });
-      if (!res.ok) return { posts: [], nextCursor: null };
+      if (!res.ok) return { posts: [], nextCursor: null, globalNewestCreatedAt: null };
       const data = await res.json();
       const rawNext = data.nextCursor;
       const nc =
         rawNext !== null && rawNext !== undefined && String(rawNext).length > 0 ? String(rawNext) : null;
-      return { posts: data.posts ?? [], nextCursor: nc };
+      const globalNewestCreatedAt =
+        typeof data.globalNewestCreatedAt === "string" ? data.globalNewestCreatedAt : null;
+      return { posts: data.posts ?? [], nextCursor: nc, globalNewestCreatedAt };
     },
     [token],
   );
@@ -227,6 +236,7 @@ export default function FeedScreen() {
       const result = await fetchPage();
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
+      applyFeedWatermark(result.globalNewestCreatedAt);
       setError(false);
       setNewPostCount(0);
     } catch {
@@ -234,14 +244,10 @@ export default function FeedScreen() {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [fetchPage]);
+  }, [fetchPage, applyFeedWatermark]);
 
   const loadFreshRef = useRef(loadFresh);
   loadFreshRef.current = loadFresh;
-
-  useEffect(() => {
-    maxKnownCreatedAtRef.current = computeMaxKnownCreatedAtIso(posts);
-  }, [posts]);
 
   // Tracks when the jump-to-top nonce last fired so useFocusEffect can
   // skip its own loadFresh call when the nonce already triggered one.
@@ -333,6 +339,7 @@ export default function FeedScreen() {
       const result = await fetchPage();
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
+      applyFeedWatermark(result.globalNewestCreatedAt);
       setError(false);
       requestAnimationFrame(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -340,7 +347,7 @@ export default function FeedScreen() {
     } catch {
       setError(true);
     }
-  }, [fetchPage]);
+  }, [fetchPage, applyFeedWatermark]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -353,11 +360,12 @@ export default function FeedScreen() {
       const result = await fetchPage();
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
+      applyFeedWatermark(result.globalNewestCreatedAt);
       void loadSanctuary();
     } catch { /* keep current data */ } finally {
       setRefreshing(false);
     }
-  }, [fetchPage, loadSanctuary]);
+  }, [fetchPage, loadSanctuary, applyFeedWatermark]);
 
   const handleLoadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;

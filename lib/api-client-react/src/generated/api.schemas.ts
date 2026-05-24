@@ -227,10 +227,13 @@ export interface CreatePostInput {
    */
   categories?: string[];
   isAnonymous?: boolean;
-  /**
-   * If true, server applies Boost when the post is immediately approved (ignored when pending).
+  /** If true, applies subscriber Boost when the post is immediately approved (same ordering as POST /posts/{postId}/boost). Ignored for pending/declined posts or if the author cannot use Boost.
    */
   applyBoost?: boolean;
+}
+
+export interface SavedPostsList {
+  posts: Post[];
 }
 
 export interface PostsPage {
@@ -238,6 +241,8 @@ export interface PostsPage {
   /** Opaque feed pagination cursor — pass as GET /posts?cursor= */
   nextCursor?: string | null;
   total: number;
+  /** Latest approved post created_at in the database — use as the new-prayer poll watermark (independent of boost sort order on the current page). */
+  globalNewestCreatedAt?: string | null;
 }
 
 export interface SearchUserResult {
@@ -393,12 +398,22 @@ export interface DailyWordResponse {
   source: DailyWordResponseSource;
   /** Approximate count of community members for social proof */
   prayingWithYou: number;
+  /** When true, non-override dates use the built-in daily rotation; when false, Psalm 34:17 is the default */
+  autoRotation?: boolean;
 }
 
 export interface SetDailyWordOverrideInput {
   effectiveDate: string;
   quoteText: string;
   reference: string;
+}
+
+export interface DailyWordSettings {
+  autoRotation: boolean;
+}
+
+export interface DailyWordSettingsInput {
+  autoRotation: boolean;
 }
 
 export type FollowUser200 = {
@@ -413,6 +428,13 @@ export type UnfollowUser200 = {
 
 export type GetUserPostsParams = {
   cursor?: number;
+  limit?: number;
+};
+
+export type GetUserSavedPostsParams = {
+  /**
+   * @maximum 100
+   */
   limit?: number;
 };
 
