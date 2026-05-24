@@ -52,10 +52,10 @@ const uploadAvatarImage = multer({
 /** Stream large media to disk to avoid holding full file in server RAM. */
 function isAllowedVideoUpload(mimetype: string, originalname: string): boolean {
   const mt = mimetype.toLowerCase();
-  if (/^video\/(mp4|quicktime|webm|x-m4v|3gpp|3gpp2)$/i.test(mt)) return true;
+  if (/^video\//i.test(mt)) return true;
   const name = originalname.toLowerCase();
   if (/\.(mp4|mov|m4v|webm|3gp|3gpp)$/i.test(name)) return true;
-  if (mt === "application/octet-stream" && /\.(mp4|mov|m4v|webm)$/i.test(name)) return true;
+  if (mt === "application/octet-stream" && /\.(mp4|mov|m4v|webm|3gp|3gpp)$/i.test(name)) return true;
   return false;
 }
 
@@ -113,16 +113,17 @@ function audioUploadFileFilter(
   file: Express.Multer.File,
   cb: multer.FileFilterCallback,
 ) {
-  if (
-    /^audio\/(mpeg|mp3|x-mpeg|mp4|m4a|x-m4a|wav|x-wav|aac|webm|ogg|flac|x-flac|x-caf|caf|3gpp|3gp|amr|x-ms-wma)$/i.test(
-      file.mimetype,
-    )
-  ) {
+  const mt = file.mimetype.toLowerCase();
+  if (/^audio\//i.test(mt)) {
     cb(null, true);
     return;
   }
   const name = file.originalname?.toLowerCase() ?? "";
   if (/\.(mp3|m4a|aac|wav|ogg|webm|flac|caf|3gp|3gpp|amr|wma)$/i.test(name)) {
+    cb(null, true);
+    return;
+  }
+  if (mt === "application/octet-stream" && /\.(mp3|m4a|aac|wav|ogg|webm|flac|caf|3gp|3gpp|amr|wma)$/i.test(name)) {
     cb(null, true);
     return;
   }

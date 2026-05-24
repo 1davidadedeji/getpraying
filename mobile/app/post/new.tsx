@@ -44,87 +44,28 @@ import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { AUDIO_DOCUMENT_PICKER_TYPES } from "@/lib/audioDocumentTypes";
 import { normalizeAudioMime } from "@/lib/audioMime";
-import { copyMediaToCache, parseUploadBody } from "@/lib/mediaUpload";
+import {
+  assertMediaWithinLimit,
+  MAX_POST_AUDIO_BYTES,
+  MAX_POST_IMAGE_BYTES,
+  MAX_POST_VIDEO_BYTES,
+  uploadPostImage,
+  uploadPostMediaFile,
+} from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { clamp } from "@/lib/responsiveMetrics";
 import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
 import {
   normalizeVideoMime,
-  videoCacheExtension,
   videoFileNameForMime,
 } from "@/lib/videoMime";
 
-const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = MAX_POST_IMAGE_BYTES;
 
 type PendingMedia =
   | { kind: "image"; uri: string }
   | { kind: "video"; uri: string; mimeType: string; fileName: string; durationSec: number }
   | { kind: "audio"; uri: string; mimeType: string; name: string };
-
-function messageForUploadFailure(
-  res: Response,
-  data: { error?: string },
-  kind: "image" | "video" | "audio",
-): string {
-  const fromServer = typeof data?.error === "string" ? data.error.trim() : "";
-  if (fromServer && (res.status === 400 || res.status === 413)) {
-    return fromServer;
-  }
-  if (res.status === 413) {
-    if (kind === "image") return "Photo is too large. Try a different image.";
-    if (kind === "video") return "Video is too large. Try a shorter or lower-quality clip.";
-    return "Audio file is too large. Choose a shorter recording.";
-  }
-  if (res.status === 408 || res.status === 504) {
-    return "Upload timed out. Check your connection and try again.";
-  }
-  if (res.status === 401) {
-    return "Your session has expired. Please sign in again and try once more.";
-  }
-  if (res.status === 0 || res.status < 0) {
-    return "No internet connection. Check your signal and try again.";
-  }
-  return "Upload failed. Check your connection and try again.";
-}
-
-async function uploadMultipart(
-  localUri: string,
-  token: string,
-  route: string,
-  _fileName: string,
-  mimeType: string,
-  opts?: { durationSec?: number },
-): Promise<{ url: string; mediaType: string }> {
-  const parameters: Record<string, string> = {};
-  if (opts?.durationSec != null && Number.isFinite(opts.durationSec)) {
-    parameters.durationSec = String(opts.durationSec);
-  }
-  // FileSystem.uploadAsync streams the file entirely in native code — the bytes
-  // never enter the Hermes JS heap, preventing the OOM kills on large media files.
-  const result = await FileSystem.uploadAsync(
-    apiUrl(`/uploads/${route}`),
-    localUri,
-    {
-      httpMethod: "POST",
-      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-      fieldName: "file",
-      mimeType,
-      headers: authHeaders(token),
-      parameters,
-    },
-  );
-  const data = parseUploadBody(result.status, result.body ?? "");
-  if (result.status < 200 || result.status >= 300) {
-    const kind = route === "post-image" ? "image" : route === "post-video" ? "video" : "audio";
-    throw new Error(messageForUploadFailure({ status: result.status } as Response, data, kind));
-  }
-  if (typeof data?.url !== "string") {
-    throw new Error("Something went wrong with the upload. Please try again.");
-  }
-  return { url: data.url, mediaType: data.mediaType ?? "unknown" };
-}
 
 async function resizeUnderCap(uri: string): Promise<string> {
   let current = uri;
@@ -145,28 +86,6 @@ async function resizeUnderCap(uri: string): Promise<string> {
     quality = Math.max(0.45, quality - 0.1);
   }
   throw new Error("Photo is still too large. Try another image.");
-}
-
-async function uploadPostImage(localUri: string, token: string): Promise<string> {
-  const result = await FileSystem.uploadAsync(
-    apiUrl("/uploads/post-image"),
-    localUri,
-    {
-      httpMethod: "POST",
-      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-      fieldName: "file",
-      mimeType: "image/jpeg",
-      headers: authHeaders(token),
-    },
-  );
-  let data: { error?: string; url?: string } = parseUploadBody(result.status, result.body ?? "");
-  if (result.status < 200 || result.status >= 300) {
-    throw new Error(messageForUploadFailure({ status: result.status } as Response, data, "image"));
-  }
-  if (typeof data?.url !== "string") {
-    throw new Error("Something went wrong with the upload. Please try again.");
-  }
-  return data.url;
 }
 
 export default function NewPostScreen() {
@@ -364,22 +283,6 @@ export default function NewPostScreen() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
 
-    // Determine actual file size — picker-reported is often wrong on Android, so fall back to FileSystem
-    let sz = asset.fileSize != null && asset.fileSize > 0 ? asset.fileSize : 0;
-    if (sz === 0) {
-      try {
-        const info = await FileSystem.getInfoAsync(asset.uri);
-        if (info.exists && "size" in info && typeof info.size === "number") sz = info.size;
-      } catch { /* ignore — let the server validate */ }
-    }
-    if (sz > 0 && sz > MAX_VIDEO_BYTES) {
-      showAppAlert({
-        title: "Video too large",
-        message: "Choose a file under 50MB.",
-      });
-      return;
-    }
-
     const a = asset as ImagePicker.ImagePickerAsset & { durationMillis?: number };
     const rawDur =
       typeof a.duration === "number"
@@ -401,13 +304,12 @@ export default function NewPostScreen() {
 
     try {
       setUploadBusy(true);
-      const ext = videoCacheExtension(mime, fileName);
-      const cacheUri = await copyMediaToCache(asset.uri, ext);
+      const prepared = await assertMediaWithinLimit(asset.uri, fileName, MAX_POST_VIDEO_BYTES, "video");
       setPendingMedia({
         kind: "video",
-        uri: cacheUri,
+        uri: prepared.uri,
         mimeType: mime,
-        fileName,
+        fileName: prepared.fileName,
         durationSec: durSec ?? 0,
       });
     } catch (e) {
@@ -428,27 +330,23 @@ export default function NewPostScreen() {
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
-    const pickerReported =
-      "size" in asset && typeof (asset as { size?: number }).size === "number"
-        ? (asset as { size: number }).size
-        : 0;
-    const info = await FileSystem.getInfoAsync(asset.uri);
-    const infoSize =
-      info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
-    const sz = pickerReported > 0 ? pickerReported : infoSize;
-    if (sz > MAX_AUDIO_BYTES) {
-      showAppAlert({
-        title: "Audio too large",
-        message: "Choose a file under 15MB.",
-      });
-      return;
-    }
     const rawName =
       asset.name && asset.name.length > 0 ? asset.name.replace(/[^\w.\-]+/g, "_") : "audio.m4a";
     const rawMime =
       asset.mimeType && asset.mimeType.length > 0 ? asset.mimeType : "audio/mpeg";
     const mimeType = normalizeAudioMime(rawMime, rawName);
-    setPendingMedia({ kind: "audio", uri: asset.uri, mimeType, name: rawName });
+    try {
+      setUploadBusy(true);
+      const prepared = await assertMediaWithinLimit(asset.uri, rawName, MAX_POST_AUDIO_BYTES, "audio");
+      setPendingMedia({ kind: "audio", uri: prepared.uri, mimeType, name: prepared.fileName });
+    } catch (e) {
+      showAppAlert({
+        title: "Could not use audio",
+        message: e instanceof Error ? e.message : "Try a different file.",
+      });
+    } finally {
+      setUploadBusy(false);
+    }
   };
 
   const pickAudio = () => {
@@ -505,24 +403,25 @@ export default function NewPostScreen() {
           mediaUrl = await uploadPostImage(pendingMedia.uri, token);
           postMediaType = CreatePostInputMediaType.image;
         } else if (pendingMedia.kind === "video") {
-          const r = await uploadMultipart(
-            pendingMedia.uri,
+          const r = await uploadPostMediaFile({
+            localUri: pendingMedia.uri,
             token,
-            "post-video",
-            pendingMedia.fileName,
-            pendingMedia.mimeType,
-            { durationSec: pendingMedia.durationSec },
-          );
+            fileName: pendingMedia.fileName,
+            mimeType: pendingMedia.mimeType,
+            kind: "video",
+            maxBytes: MAX_POST_VIDEO_BYTES,
+          });
           mediaUrl = r.url;
           postMediaType = CreatePostInputMediaType.video;
         } else {
-          const r = await uploadMultipart(
-            pendingMedia.uri,
+          const r = await uploadPostMediaFile({
+            localUri: pendingMedia.uri,
             token,
-            "post-audio",
-            pendingMedia.name,
-            pendingMedia.mimeType,
-          );
+            fileName: pendingMedia.name,
+            mimeType: pendingMedia.mimeType,
+            kind: "audio",
+            maxBytes: MAX_POST_AUDIO_BYTES,
+          });
           mediaUrl = r.url;
           postMediaType = CreatePostInputMediaType.audio;
         }
@@ -929,7 +828,7 @@ export default function NewPostScreen() {
     </KeyboardAvoidingView>
     <AudioLibraryPickerModal
       visible={audioLibraryOpen}
-      maxBytes={MAX_AUDIO_BYTES}
+      maxBytes={MAX_POST_AUDIO_BYTES}
       onRequestClose={() => setAudioLibraryOpen(false)}
       onBrowseFiles={() => void pickAudioFromDocuments()}
       onTooLarge={() =>
@@ -938,7 +837,7 @@ export default function NewPostScreen() {
           message: "Choose a file under 15MB.",
         })
       }
-      onChosen={(r) => {
+      onChosen={async (r) => {
         setPendingMedia({ kind: "audio", uri: r.uri, mimeType: r.mimeType, name: r.name });
       }}
     />

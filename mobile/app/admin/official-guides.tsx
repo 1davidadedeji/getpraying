@@ -32,46 +32,17 @@ import {
   OFFICIAL_GUIDE_TITLE_MAX,
 } from "@/lib/officialGuideFieldLimits";
 import { parseApiJson } from "@/lib/parseUploadResponse";
+import {
+  assertMediaWithinLimit,
+  MAX_POST_AUDIO_BYTES,
+  uploadPostMediaFile,
+} from "@/lib/mediaUpload";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
-const MAX_GUIDE_AUDIO_BYTES = 15 * 1024 * 1024;
+const MAX_GUIDE_AUDIO_BYTES = MAX_POST_AUDIO_BYTES;
 
 type PathPick = ApiLibraryCategory & { pathId: number; category?: string };
-
-async function uploadAudioFile(
-  localUri: string,
-  token: string,
-  _fileName: string,
-  mimeType: string,
-): Promise<string> {
-  const result = await FileSystem.uploadAsync(
-    apiUrl("/uploads/post-audio"),
-    localUri,
-    {
-      httpMethod: "POST",
-      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-      fieldName: "file",
-      mimeType,
-      headers: authHeaders(token),
-    },
-  );
-  let data: { error?: string; url?: string } = {};
-  try { data = JSON.parse(result.body); } catch { /* non-JSON body */ }
-  if (result.status < 200 || result.status >= 300) {
-    const msg =
-      typeof data?.error === "string" && data.error.trim()
-        ? data.error
-        : result.status === 413
-          ? "Audio file is too large. Choose a shorter recording."
-          : "Upload failed. Please try again.";
-    throw new Error(msg);
-  }
-  if (typeof data?.url !== "string") {
-    throw new Error("Something went wrong with the upload. Please try again.");
-  }
-  return data.url;
-}
 
 export default function AdminOfficialGuidesScreen() {
   const insets = useSafeAreaInsets();
@@ -236,27 +207,17 @@ export default function AdminOfficialGuidesScreen() {
       });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
-      const name = a.name ?? "audio";
-      const pickerReported =
-        "size" in a && typeof (a as { size?: number }).size === "number"
-          ? (a as { size: number }).size
-          : 0;
-      const info = await FileSystem.getInfoAsync(a.uri);
-      const infoSize =
-        info.exists && "size" in info && typeof info.size === "number" ? info.size : 0;
-      const sz = pickerReported > 0 ? pickerReported : infoSize;
-      if (sz > MAX_GUIDE_AUDIO_BYTES) {
-        showAppAlert({
-          title: "Audio too large",
-          message: "Choose a file under 15MB.",
-        });
-        return;
-      }
-      setAudioUri(a.uri);
-      setAudioMime(normalizeAudioMime(a.mimeType ?? "audio/mpeg", name));
-      setAudioName(name);
-    } catch {
-      showAppAlert({ title: "Picker failed", message: "Could not open file picker." });
+      const name = a.name ?? "audio.m4a";
+      const mime = normalizeAudioMime(a.mimeType ?? "audio/mpeg", name);
+      const prepared = await assertMediaWithinLimit(a.uri, name, MAX_GUIDE_AUDIO_BYTES, "audio");
+      setAudioUri(prepared.uri);
+      setAudioMime(mime);
+      setAudioName(prepared.fileName);
+    } catch (e) {
+      showAppAlert({
+        title: "Could not use audio",
+        message: e instanceof Error ? e.message : "Could not open file picker.",
+      });
     } finally {
       setPicking(false);
     }
@@ -313,7 +274,15 @@ export default function AdminOfficialGuidesScreen() {
               setAudioName(null);
               return;
             }
-            audioUrlFinal = await uploadAudioFile(audioUri, token, audioName ?? "guide.m4a", audioMime);
+            const uploaded = await uploadPostMediaFile({
+              localUri: audioUri,
+              token,
+              fileName: audioName ?? "guide.m4a",
+              mimeType: audioMime,
+              kind: "audio",
+              maxBytes: MAX_GUIDE_AUDIO_BYTES,
+            });
+            audioUrlFinal = uploaded.url;
           } catch (e) {
             showAppAlert({
               title: "Upload failed",
@@ -395,7 +364,15 @@ export default function AdminOfficialGuidesScreen() {
           setAudioName(null);
           return;
         }
-        audioUrl = await uploadAudioFile(audioUri, token, audioName ?? "guide.m4a", audioMime);
+        const uploaded = await uploadPostMediaFile({
+          localUri: audioUri,
+          token,
+          fileName: audioName ?? "guide.m4a",
+          mimeType: audioMime,
+          kind: "audio",
+          maxBytes: MAX_GUIDE_AUDIO_BYTES,
+        });
+        audioUrl = uploaded.url;
       } catch (e) {
         showAppAlert({
           title: "Upload failed",

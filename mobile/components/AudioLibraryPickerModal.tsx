@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { normalizeAudioMime } from "@/lib/audioMime";
+import { assertMediaWithinLimit } from "@/lib/mediaUpload";
 import { ensureMediaLibraryPermission } from "@/lib/ensureMediaPermission";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -105,21 +106,20 @@ export function AudioLibraryPickerModal({
       const localUri = info.localUri ?? info.uri;
       if (!localUri) return;
       const fileInfo = await FileSystem.getInfoAsync(localUri);
-      const sz =
-        fileInfo.exists && "size" in fileInfo && typeof fileInfo.size === "number" ? fileInfo.size : 0;
-      if (sz > maxBytes) {
-        onTooLarge?.();
-        return;
-      }
+      if (!fileInfo.exists) return;
       const rawName =
         asset.filename && asset.filename.length > 0
           ? asset.filename.replace(/[^\w.\-]+/g, "_")
           : "audio.m4a";
       const mimeType = normalizeAudioMime("application/octet-stream", rawName);
-      onChosen({ uri: localUri, name: rawName, mimeType });
+      const prepared = await assertMediaWithinLimit(localUri, rawName, maxBytes, "audio");
+      onChosen({ uri: prepared.uri, name: prepared.fileName, mimeType });
       onRequestClose();
-    } catch {
-      /* ignore */
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("under")) {
+        onTooLarge?.();
+      }
+      /* ignore other pick failures */
     } finally {
       setPickingId(null);
     }
