@@ -20,7 +20,7 @@ import { and, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-const APP_ORIGIN = (process.env.SHARE_WEB_ORIGIN ?? "https://api.getpraying.com").replace(/\/$/, "");
+const APP_ORIGIN = (process.env.SHARE_WEB_ORIGIN ?? "https://share.getpraying.com").replace(/\/$/, "");
 const API_PUBLIC_BASE = (
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   process.env.API_PUBLIC_BASE_URL ??
@@ -53,7 +53,22 @@ async function getSettings(): Promise<Record<string, string>> {
 
 function resolveOgImageUrl(settings: Record<string, string>): string {
   const configured = settings.og_image_url?.trim();
-  return configured || DEFAULT_OG_IMAGE_URL;
+  return normalizeOgImageUrl(configured || DEFAULT_OG_IMAGE_URL);
+}
+
+/** OG crawlers (WhatsApp, iMessage) require absolute https image URLs. */
+function normalizeOgImageUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return DEFAULT_OG_IMAGE_URL;
+  if (trimmed.startsWith("http://")) {
+    return `https://${trimmed.slice("http://".length)}`;
+  }
+  if (trimmed.startsWith("https://")) return trimmed;
+  if (trimmed.startsWith("/")) {
+    const host = trimmed.startsWith("/static/") ? APP_ORIGIN : API_PUBLIC_BASE;
+    return `${host}${trimmed}`;
+  }
+  return `${API_PUBLIC_BASE}/${trimmed}`;
 }
 
 function resolveApiAssetUrl(pathOrUrl: string | null | undefined): string {
@@ -69,7 +84,7 @@ function pickPostOgImage(
   mediaType: string | null | undefined,
 ): string {
   if (mediaType === "image" && mediaUrl) {
-    const absolute = resolveApiAssetUrl(mediaUrl);
+    const absolute = normalizeOgImageUrl(resolveApiAssetUrl(mediaUrl));
     if (absolute) return absolute;
   }
   return resolveOgImageUrl(settings);
@@ -108,27 +123,31 @@ function buildPage(opts: {
   body: string;
 }): string {
   const { title, description, ogImageUrl, canonicalUrl, deepLink, iosStoreUrl, androidStoreUrl, eyebrow, headline, body } = opts;
-  const hasImage = ogImageUrl.length > 0;
+  const imageUrl = normalizeOgImageUrl(ogImageUrl);
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
+<link rel="canonical" href="${esc(canonicalUrl)}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${esc(canonicalUrl)}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:site_name" content="${esc(APP_NAME)}">
-${hasImage ? `<meta property="og:image" content="${esc(ogImageUrl)}">
+<meta property="og:image" content="${esc(imageUrl)}">
+<meta property="og:image:secure_url" content="${esc(imageUrl)}">
 <meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">` : ""}
-<meta name="twitter:card" content="${hasImage ? "summary_large_image" : "summary"}">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${esc(APP_NAME)}">
+<link rel="image_src" href="${esc(imageUrl)}">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
-${hasImage ? `<meta name="twitter:image" content="${esc(ogImageUrl)}">` : ""}
+<meta name="twitter:image" content="${esc(imageUrl)}">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F9F6F0;color:#1A1F36}

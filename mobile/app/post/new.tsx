@@ -16,7 +16,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -36,7 +35,6 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
-import { useRevenueCat } from "@/context/revenuecat";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
@@ -54,7 +52,6 @@ import {
 } from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { clamp } from "@/lib/responsiveMetrics";
-import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
 import {
   normalizeVideoMime,
   videoFileNameForMime,
@@ -93,8 +90,6 @@ export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { token, user } = useAuth();
-  const revenueCat = useRevenueCat();
-  const canBoost = viewerHasPremiumCapabilities(user ?? null, revenueCat);
   const { showNotice, requestFeedJumpToTop } = useFeedNotice();
   const [content, setContent] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -104,7 +99,6 @@ export default function NewPostScreen() {
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [audioLibraryOpen, setAudioLibraryOpen] = useState(false);
-  const [applyBoost, setApplyBoost] = useState(false);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   const { gutter, uiScale, cardRadius } = useResponsiveLayout();
@@ -141,12 +135,6 @@ export default function NewPostScreen() {
   const removeTop = Math.round(clamp(10 * uiScale, 8, 12));
   const removeSz = Math.round(clamp(36 * uiScale, 32, 40));
   const removeIcn = Math.round(clamp(18 * uiScale, 16, 20));
-  const optPad = Math.round(clamp(14 * uiScale, 12, 18));
-  const optRad = Math.round(clamp(32 * uiScale, 28, 36));
-  const optLeftGap = Math.round(clamp(12 * uiScale, 10, 14));
-  const optFeather = Math.round(clamp(18 * uiScale, 16, 20));
-  const fsOptLabel = Math.round(clamp(14 * uiScale, 13, 16));
-  const fsOptDesc = Math.round(clamp(12 * uiScale, 11, 13));
   const catSectionGap = Math.round(clamp(10 * uiScale, 8, 12));
   const catHeaderGap = Math.round(clamp(10 * uiScale, 8, 12));
   const fsAiHint = Math.round(clamp(12 * uiScale, 11, 13));
@@ -444,7 +432,6 @@ export default function NewPostScreen() {
           category,
           ...(categories ? { categories } : {}),
           ...(mediaUrl && postMediaType ? { mediaUrl, mediaType: postMediaType } : {}),
-          ...(applyBoost && canBoost ? { applyBoost: true } : {}),
         },
       },
       {
@@ -471,14 +458,13 @@ export default function NewPostScreen() {
             const boostedNow = Boolean(res?.boostedAt);
             let message: string;
             if (isApproved) {
-              message = applyBoost && canBoost && boostedNow
+              message = boostedNow
                 ? "Posted and boosted — it’s prioritized in the feed."
                 : "Posted — you’ll see it at the top of the feed.";
             } else {
-              message =
-                applyBoost && canBoost
-                  ? "Sent for review — Boost will be available after approval."
-                  : "Sent for review — it will appear after approval.";
+              message = boostedNow
+                ? "Sent for review — it will be boosted after approval."
+                : "Sent for review — it will appear after approval.";
             }
             showNotice(message, "success");
 
@@ -487,7 +473,6 @@ export default function NewPostScreen() {
             setContent("");
             setSelectedCategories([]);
             setAiCategories([]);
-            setApplyBoost(false);
             setPendingMedia(null);
 
             queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
@@ -703,50 +688,6 @@ export default function NewPostScreen() {
               <Text style={[styles.addPhotoText, { fontSize: fsAddMedia }]}>Audio</Text>
             </Pressable>
           </View>
-        )}
-      </View>
-
-      <View style={[styles.option, { padding: optPad, borderRadius: optRad }]}>
-        <View style={[styles.optionLeft, { gap: optLeftGap, flex: 1 }]}>
-          <Ionicons name="megaphone-outline" size={optFeather} color={colors.primary} />
-          <View style={styles.optionTextCol}>
-            <Text style={[styles.optionLabel, { fontSize: fsOptLabel }]}>Boost in feed</Text>
-            <Text style={[styles.optionDesc, { fontSize: fsOptDesc }]}>
-              {canBoost
-                ? "Subscribers: boost your posts higher in others’ feeds."
-                : "Subscribers can boost their own posts toward the top."}
-            </Text>
-          </View>
-        </View>
-        {canBoost ? (
-          <Switch
-            value={applyBoost}
-            onValueChange={setApplyBoost}
-            trackColor={{ true: colors.primary, false: colors.border }}
-            thumbColor={colors.surface}
-            testID="boost-toggle"
-          />
-        ) : (
-          <Pressable
-            onPress={() =>
-              showAppAlert({
-                title: "Boost",
-                message: "Boost moves your prayer higher in the feed for subscribers.",
-                buttons: [{ text: "OK", style: "cancel" }],
-              })
-            }
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Boost unavailable. Learn about subscribers."
-          >
-            <Switch
-              value={false}
-              disabled
-              pointerEvents="none"
-              trackColor={{ true: colors.primary, false: colors.border }}
-              thumbColor={colors.surface}
-            />
-          </Pressable>
         )}
       </View>
 
@@ -969,31 +910,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  option: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  optionLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  optionLabel: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: colors.text,
-  },
-  optionDesc: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: colors.muted,
-    marginTop: 1,
-  },
-  optionTextCol: {
-    flex: 1,
-    minWidth: 0,
   },
   categorySection: {},
   categoryHeader: {

@@ -1,12 +1,9 @@
 /**
  * Public web origin used in share payloads and Universal Links / App Links.
- * Must match a host that serves share HTML + `.well-known/*` (see api-server share router).
- * Production currently serves these routes on `api.getpraying.com`; point
- * `EXPO_PUBLIC_SHARE_WEB_ORIGIN` at `https://share.getpraying.com` once that subdomain
- * proxies to the same Node process.
+ * Served by the share router on share.getpraying.com (proxied to the API process).
  */
 export const PUBLIC_WEB_ORIGIN = (
-  process.env.EXPO_PUBLIC_SHARE_WEB_ORIGIN ?? "https://api.getpraying.com"
+  process.env.EXPO_PUBLIC_SHARE_WEB_ORIGIN ?? "https://share.getpraying.com"
 ).replace(/\/$/, "");
 
 /** HTTPS URL that opens `/post/[id]` in-app when Universal Links / App Links are configured. */

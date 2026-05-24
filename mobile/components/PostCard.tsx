@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Image,
   InteractionManager,
@@ -28,16 +27,13 @@ import { showAppAlert } from "@/components/AppAlert";
 import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { useRevenueCat } from "@/context/revenuecat";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
-import { apiUrl, authHeaders } from "@/lib/api";
 import { submitPostReport } from "@/lib/reportPost";
 import { buildPostSharePayload } from "@/lib/sharePost";
 import { clamp } from "@/lib/responsiveMetrics";
-import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
 
@@ -49,8 +45,6 @@ interface PostCardProps {
   replaceNav?: boolean;
   /** Home feed: post id that should autoplay media (muted) when in view */
   feedMediaFocusPostId?: number | null;
-  /** Profile “My Prayers” and similar — boost belongs in the feed, not the archive list. */
-  hideBoost?: boolean;
   /** When set, tapping the author won't re-open this profile (avoids profile↔post loops). */
   activeProfileUsername?: string | null;
 }
@@ -60,7 +54,6 @@ export default function PostCard({
   onUpdated,
   replaceNav,
   feedMediaFocusPostId,
-  hideBoost = false,
   activeProfileUsername = null,
 }: PostCardProps) {
   const { cardRadius, iconAction, uiScale } = useResponsiveLayout();
@@ -89,16 +82,12 @@ export default function PostCard({
     post.authorUsername,
     post.mediaUrl,
     post.mediaType,
-    post.boostedAt,
-    post.boostedByUserId,
     (post as PostWithCounts).hasCommented,
     (post as PostWithCounts).commentCount,
     (post as PostWithCounts).saveCount,
   ]);
 
   const { token, user } = useAuth();
-  const revenueCat = useRevenueCat();
-  const [boosting, setBoosting] = useState(false);
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -167,63 +156,6 @@ export default function PostCard({
     }
   };
 
-  const handleBoost = useCallback(async () => {
-    if (!token) {
-      router.push("/login" as never);
-      return;
-    }
-    if (boosting) return;
-    if (!viewerHasPremiumCapabilities(user, revenueCat)) {
-      showAppAlert({
-        title: "Boost",
-        message: "Boost your prayer to the top of others' feeds with Boost, available for subscribers.",
-        buttons: [{ text: "OK", style: "cancel" }],
-      });
-      return;
-    }
-    Haptics.selectionAsync();
-    setBoosting(true);
-    try {
-      const res = await fetch(apiUrl(`/posts/${localPost.id}/boost`), {
-        method: "POST",
-        headers: authHeaders(token),
-      });
-      if (res.status === 402) {
-        router.push("/(paywall)/index" as never);
-        return;
-      }
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        showAppAlert({
-          title: "Could not update boost",
-          message: err.error ?? "Please try again.",
-        });
-        return;
-      }
-      const data = (await res.json()) as { post?: Post };
-      if (data.post) {
-        setLocalPost((prev) => {
-          const next = { ...prev, ...data.post };
-          queueMicrotask(() => onUpdated?.(next));
-          return next;
-        });
-        const cleared = !data.post.boostedAt && data.post.boostedByUserId == null;
-        if (cleared) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      }
-    } catch {
-      showAppAlert({
-        title: "Could not update boost",
-        message: "Check your connection.",
-      });
-    } finally {
-      setBoosting(false);
-    }
-  }, [boosting, localPost.id, onUpdated, revenueCat, token, user]);
-
   const handleShare = async () => {
     const { message, url } = buildPostSharePayload(localPost);
 
@@ -260,11 +192,6 @@ export default function PostCard({
     user != null &&
     !localPost.isAnonymous &&
     (localPost.authorId === user.id || localPost.authorUsername === user.username);
-  const iBoosted =
-    localPost.boostedByUserId != null &&
-    user?.id != null &&
-    localPost.boostedByUserId === user.id;
-  const boostColor = iBoosted ? colors.flame : colors.muted;
 
   const openAuthorProfile = useCallback(() => {
     if (localPost.isAnonymous || !localPost.authorUsername) return;
@@ -471,29 +398,6 @@ export default function PostCard({
         </View>
 
         <View style={styles.actionsSecondary}>
-          {isOwnPost && !hideBoost && (
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation?.();
-                void handleBoost();
-              }}
-              style={styles.actionBtn}
-              accessibilityRole="button"
-              accessibilityLabel={iBoosted ? "Remove boost from this prayer" : "Boost this prayer"}
-              accessibilityState={{ disabled: boosting }}
-            >
-              {boosting ? (
-                <ActivityIndicator size="small" color={colors.flame} />
-              ) : (
-                <Ionicons
-                  name={iBoosted ? "megaphone" : "megaphone-outline"}
-                  size={iconSm}
-                  color={boostColor}
-                />
-              )}
-            </Pressable>
-          )}
-
           <Pressable
             onPress={handleShare}
             style={styles.actionBtn}

@@ -9,10 +9,12 @@ import adminRouter from "./admin";
 import dailyWordRouter from "./dailyWord";
 import uploadsRouter from "./uploads";
 import searchRouter from "./search";
+import revenueCatWebhookRouter from "./webhooks/revenuecat";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(revenueCatWebhookRouter);
 router.use(authRouter);
 router.use(uploadsRouter);
 router.use(usersRouter);

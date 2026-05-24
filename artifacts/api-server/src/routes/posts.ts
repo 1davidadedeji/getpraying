@@ -11,7 +11,8 @@ import {
 } from "@workspace/db";
 import { eq, and, or, desc, sql, asc } from "drizzle-orm";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
-import { requireAuth, optionalAuth, userCanUsePremiumBoost } from "../lib/auth";
+import { requireAuth, optionalAuth } from "../lib/auth";
+import { applyAutoBoostIfEligible } from "../lib/autoBoost";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
@@ -20,7 +21,6 @@ import { insertPostReport, userAlreadyReportedPost } from "../lib/postReports";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
-import { broadcastPushToRegisteredDevices } from "../lib/broadcastPush";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
@@ -281,8 +281,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
 
 router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
-  const { content, mediaUrl, mediaType, category, isAnonymous, categories: categoriesBody, applyBoost } = req.body;
-  const wantsBoost = applyBoost === true;
+  const { content, mediaUrl, mediaType, category, isAnonymous, categories: categoriesBody } = req.body;
 
   const contentTrimmed = typeof content === "string" ? content.trim() : "";
   if (contentTrimmed.length > 5000) {
@@ -388,127 +387,12 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   }
 
   let postForResponse = post;
-  if (
-    wantsBoost &&
-    postStatus === "approved" &&
-    userCanUsePremiumBoost(user) &&
-    post.boostedAt == null &&
-    post.boostedByUserId == null
-  ) {
-    const now = new Date();
-    const [boosted] = await db
-      .update(postsTable)
-      .set({ boostedAt: now, boostedByUserId: user.id, updatedAt: now })
-      .where(and(eq(postsTable.id, post.id), sql`${postsTable.boostedAt} is null`))
-      .returning();
-    if (boosted) {
-      postForResponse = boosted;
-
-      let authorUsername: string | null = null;
-      if (!boosted.isAnonymous && boosted.authorId != null) {
-        const [a] = await db
-          .select({ username: usersTable.username })
-          .from(usersTable)
-          .where(eq(usersTable.id, boosted.authorId))
-          .limit(1);
-        authorUsername = a?.username ?? null;
-      }
-
-      const nameForPush = boosted.isAnonymous ? "Someone" : (authorUsername ?? "A member");
-      const bodyPush = `A member needs help: ${nameForPush}`;
-
-      void broadcastPushToRegisteredDevices({
-        title: "Get Praying",
-        body: bodyPush,
-        data: {
-          type: "boost_alert",
-          postId: String(post.id),
-          boostedByUserId: String(user.id),
-        },
-        excludeUserIds: new Set<number>([user.id]),
-      });
-    }
+  if (postStatus === "approved") {
+    postForResponse = await applyAutoBoostIfEligible(post);
   }
 
   const enriched = await enrichPost(postForResponse, user.id);
   res.status(201).json(enriched);
-});
-
-router.post("/posts/:postId/boost", requireAuth, async (req, res): Promise<void> => {
-  const user = (req as any).user;
-  if (!userCanUsePremiumBoost(user)) {
-    res.status(402).json({ error: "An active subscription is required.", code: "SUBSCRIPTION_REQUIRED" });
-    return;
-  }
-
-  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
-  const postId = parseInt(rawId, 10);
-  if (Number.isNaN(postId)) {
-    res.status(400).json({ error: "Invalid post id" });
-    return;
-  }
-
-  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
-  if (!post || post.status !== "approved") {
-    res.status(404).json({ error: "Post not found" });
-    return;
-  }
-
-  const now = new Date();
-
-  // Same user taps again → clear boost (no push).
-  if (post.boostedByUserId === user.id && post.boostedAt != null) {
-    const [updated] = await db
-      .update(postsTable)
-      .set({ boostedAt: null, boostedByUserId: null, updatedAt: now })
-      .where(eq(postsTable.id, postId))
-      .returning();
-    if (!updated) {
-      res.status(404).json({ error: "Post not found" });
-      return;
-    }
-    const enriched = await enrichPost(updated, user.id);
-    res.json({ boostedAt: null, post: enriched });
-    return;
-  }
-
-  const [updated] = await db
-    .update(postsTable)
-    .set({ boostedAt: now, boostedByUserId: user.id, updatedAt: now })
-    .where(eq(postsTable.id, postId))
-    .returning();
-
-  if (!updated) {
-    res.status(404).json({ error: "Post not found" });
-    return;
-  }
-
-  let authorUsername: string | null = null;
-  if (!updated.isAnonymous && updated.authorId != null) {
-    const [a] = await db
-      .select({ username: usersTable.username })
-      .from(usersTable)
-      .where(eq(usersTable.id, updated.authorId))
-      .limit(1);
-    authorUsername = a?.username ?? null;
-  }
-
-  const nameForPush = updated.isAnonymous ? "Someone" : (authorUsername ?? "A member");
-  const bodyPush = `A member needs help: ${nameForPush}`;
-
-  void broadcastPushToRegisteredDevices({
-    title: "Get Praying",
-    body: bodyPush,
-    data: {
-      type: "boost_alert",
-      postId: String(postId),
-      boostedByUserId: String(user.id),
-    },
-    excludeUserIds: new Set<number>([user.id]),
-  });
-
-  const enriched = await enrichPost(updated, user.id);
-  res.json({ boostedAt: now.toISOString(), post: enriched });
 });
 
 router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {

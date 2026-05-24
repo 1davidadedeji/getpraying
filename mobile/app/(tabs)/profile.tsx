@@ -633,7 +633,6 @@ export default function ProfileScreen() {
           <View style={{ paddingHorizontal: prof.gutter }}>
             <PostCard
               post={item}
-              hideBoost
               activeProfileUsername={me.username}
               feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null}
             />
@@ -888,7 +887,6 @@ export default function ProfileScreen() {
                 <View style={{ paddingHorizontal: prof.gutter }}>
                   <PostCard
                     post={item}
-                    hideBoost
                     activeProfileUsername={me.username}
                     feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null}
                   />

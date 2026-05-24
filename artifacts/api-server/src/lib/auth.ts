@@ -188,17 +188,24 @@ export async function requirePremiumSubscription(
   });
 }
 
-/** Premium / trial / staff — usable for gated actions like boosting a prayer. */
+/**
+ * Paying subscriber — used for automatic post boosts.
+ * Trial users are explicitly excluded even during their 7-day window.
+ */
+export function userIsPayingSubscriber(user: {
+  trialStartsAt?: Date | string | null;
+  subscription?: string | null;
+}): boolean {
+  const tier = String(user.subscription ?? "").toLowerCase();
+  return ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);
+}
+
+/** @deprecated Use userIsPayingSubscriber — trial no longer grants boost. */
 export function userCanUsePremiumBoost(user: {
   role: string;
   trialStartsAt: Date | string | null;
   subscription?: string | null;
 }): boolean {
-  if (user.role === "admin" || user.role === "moderator") return true;
-  const trialStart = user.trialStartsAt ? new Date(user.trialStartsAt as any).getTime() : null;
-  const trialActive = trialStart != null && Date.now() - trialStart < 7 * 24 * 60 * 60 * 1000;
-  if (trialActive) return true;
-  const tier = String(user.subscription ?? "").toLowerCase();
-  return ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);
+  return userIsPayingSubscriber(user);
 }
 

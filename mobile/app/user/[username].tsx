@@ -477,7 +477,6 @@ export default function UserProfileScreen() {
             post={item}
             onUpdated={handleUpdated}
             replaceNav
-            hideBoost={isOwnProfile}
             activeProfileUsername={username}
             feedMediaFocusPostId={activeTab === "prayers" ? feedMediaFocusPostId : null}
           />
@@ -622,7 +621,6 @@ export default function UserProfileScreen() {
                   post={item}
                   onUpdated={handleUpdated}
                   replaceNav
-                  hideBoost={isOwnProfile}
                   activeProfileUsername={username}
                   feedMediaFocusPostId={activeTab === "prayers" ? feedMediaFocusPostId : null}
                 />

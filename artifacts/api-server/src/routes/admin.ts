@@ -23,6 +23,7 @@ import { clearModQueueNotificationsForPost, notifyModeratorsNewPending } from ".
 import { attachReportsForStaff, clearPostReportsForPost } from "../lib/postReports";
 import { officialGuideTextError } from "../lib/officialGuideTextLimits";
 import { pushForNotificationById } from "../lib/pushForNotification";
+import { applyAutoBoostIfEligible } from "../lib/autoBoost";
 
 async function notifyAuthorPostDecision(
   authorId: number | null,
@@ -241,7 +242,8 @@ router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req,
   await clearPostReportsForPost(postId);
   await notifyAuthorPostDecision(post.authorId ?? null, post.id, "approved");
 
-  const [enriched] = await enrichPosts([post]);
+  const boostedPost = await applyAutoBoostIfEligible(post);
+  const [enriched] = await enrichPosts([boostedPost]);
   res.json(enriched);
 });
 

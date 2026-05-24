@@ -21,7 +21,7 @@
       "env": {
         "NODE_ENV": "production",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com",
-        "EXPO_PUBLIC_SHARE_WEB_ORIGIN": "https://api.getpraying.com",
+        "EXPO_PUBLIC_SHARE_WEB_ORIGIN": "https://share.getpraying.com",
         "EXPO_PUBLIC_RC_APPLE_KEY": "appl_VjuHRrtAXcOwAASvJbcxIIycsSP",
         "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_evTtlMwHRtqXfsrmPLHbjRpJafZ"
       }
@@ -32,7 +32,7 @@
       "env": {
         "NODE_ENV": "production",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.getpraying.com",
-        "EXPO_PUBLIC_SHARE_WEB_ORIGIN": "https://api.getpraying.com",
+        "EXPO_PUBLIC_SHARE_WEB_ORIGIN": "https://share.getpraying.com",
         "EXPO_PUBLIC_RC_APPLE_KEY": "appl_VjuHRrtAXcOwAASvJbcxIIycsSP",
         "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_evTtlMwHRtqXfsrmPLHbjRpJafZ"
       }
