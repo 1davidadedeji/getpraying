@@ -284,7 +284,7 @@ export default function PostCard({
   }, [activeProfileUsername, localPost.id]);
 
   return (
-    <View style={[styles.card, { borderRadius: cardRadius, marginBottom: Math.round(12 * uiScale) }]}>
+    <View style={[styles.card, { borderRadius: cardRadius, marginBottom: Math.round(12 * uiScale), overflow: Platform.OS === "android" ? "visible" : "hidden" }]}>
       <View style={[styles.cardBody, { padding: cardPad, paddingBottom: Math.round(cardPad * 0.75) }]}>
         <Pressable
           onPress={() => navigate(postHref as any)}
@@ -357,6 +357,7 @@ export default function PostCard({
         </Pressable>
 
         <PostMediaBlock
+          postId={localPost.id}
           mediaUrl={localPost.mediaUrl}
           mediaType={localPost.mediaType}
           style={styles.media}

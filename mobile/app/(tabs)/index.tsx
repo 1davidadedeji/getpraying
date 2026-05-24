@@ -712,7 +712,7 @@ export default function FeedScreen() {
         // Memory management: unmount native view trees (including Video/Audio) for
         // cards that scroll far off-screen. This is the primary defence against OOM
         // during long feed sessions. windowSize=7 keeps 3 screens above + below.
-        removeClippedSubviews={Platform.OS !== "web"}
+        removeClippedSubviews={Platform.OS === "ios"}
         windowSize={7}
         maxToRenderPerBatch={5}
         initialNumToRender={8}

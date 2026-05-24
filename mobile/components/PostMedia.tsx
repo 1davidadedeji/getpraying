@@ -158,6 +158,7 @@ function ZoomableImageViewer({
 }
 
 export function PostMediaBlock({
+  postId,
   mediaUrl,
   mediaType,
   style,
@@ -167,6 +168,8 @@ export function PostMediaBlock({
   onOpenPostDetail,
   mediaLayout = "feed",
 }: {
+  /** Stable list key — helps expo-image on iOS; omitted on Android feed cells. */
+  postId?: number;
   mediaUrl?: string | null;
   mediaType?: MediaType;
   style?: StyleProp<ViewStyle>;
@@ -239,34 +242,39 @@ export function PostMediaBlock({
 
   const layoutWidth = wrapWidth > 0 ? wrapWidth : Math.max(0, winW - 32);
   const imgHeight = Math.max(140, Math.round(layoutWidth / clampedImgAspect));
+  const imageRecyclingKey =
+    Platform.OS === "android" ? undefined : postId != null ? `post-${postId}-${uri}` : uri;
 
   return (
     <>
       <View
         style={[styles.imageWrap, style, radiusStyle, { minHeight: imgHeight }]}
+        collapsable={false}
+        renderToHardwareTextureAndroid={false}
         onLayout={(e) => {
           const w = e.nativeEvent.layout.width;
           if (w > 0 && Math.abs(w - wrapWidth) > 0.5) setWrapWidth(w);
         }}
       >
+        <Image
+          source={{ uri }}
+          recyclingKey={imageRecyclingKey}
+          style={[styles.image, { width: "100%", height: imgHeight }] as StyleProp<ImageStyle>[]}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          priority={mediaLayout === "feed" ? "high" : "normal"}
+          transition={200}
+          onLoad={(e) => {
+            const { width, height } = e.source;
+            if (width > 0 && height > 0) setImgNaturalAspect(width / height);
+          }}
+        />
         <Pressable
           onPress={() => setImgLightboxOpen(true)}
-          style={[styles.imagePressable, { height: imgHeight }]}
+          style={[StyleSheet.absoluteFillObject, styles.imageTapOverlay]}
           accessibilityRole="button"
           accessibilityLabel="View full image"
-        >
-          <Image
-            source={{ uri }}
-            recyclingKey={uri}
-            style={[styles.image, { width: "100%", height: imgHeight }] as StyleProp<ImageStyle>[]}
-            contentFit="cover"
-            transition={200}
-            onLoad={(e) => {
-              const { width, height } = e.source;
-              if (width > 0 && height > 0) setImgNaturalAspect(width / height);
-            }}
-          />
-        </Pressable>
+        />
       </View>
       <Modal
         visible={imgLightboxOpen}
@@ -288,9 +296,10 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     overflow: "hidden",
     backgroundColor: colors.cream,
+    position: "relative",
   },
-  imagePressable: {
-    width: "100%",
+  imageTapOverlay: {
+    zIndex: 1,
   },
   image: {
     width: "100%",
