@@ -37,6 +37,13 @@ function normalizeNotificationsPayload(data: unknown): NotifRow[] {
   return [];
 }
 
+function notificationBody(n: Omit<Notification, "type"> & { type: NotifType }): string {
+  if (n.type === "post_reported") {
+    return "Our team will review your prayer.";
+  }
+  return n.message;
+}
+
 function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }): string {
   switch (n.type) {
     case "prayer":
@@ -139,7 +146,7 @@ function NotificationItem({
         <Text style={styles.notifTitle} numberOfLines={2} ellipsizeMode="tail">
           {notificationTitle(item)}
         </Text>
-        <Text style={styles.notifBody} numberOfLines={2}>{item.message}</Text>
+        <Text style={styles.notifBody} numberOfLines={2}>{notificationBody(item)}</Text>
         {item.postPreview && (
           <Text style={styles.notifPreview} numberOfLines={1}>
             "{item.postPreview}"

@@ -2,7 +2,8 @@ import { db, usersTable, dailyWordOverridesTable } from "@workspace/db";
 import { and, isNotNull, lt, or, isNull } from "drizzle-orm";
 import { eq, sql } from "drizzle-orm";
 import { sendDirectPush } from "./pushForNotification";
-import { dayOfYearFromDate, getDefaultDailyQuote } from "./dailyWordCatalog";
+import { resolveDailyQuote } from "./dailyWordCatalog";
+import { getDailyWordAutoRotation } from "./dailyWordSettings";
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
@@ -32,15 +33,19 @@ function localDateString(timezone: string): string {
 }
 
 async function getTodayQuoteText(): Promise<string> {
-  const dateStr = new Date().toISOString().slice(0, 10);
+  const parsed = new Date();
+  const dateStr = parsed.toISOString().slice(0, 10);
   const [override] = await db
-    .select({ quoteText: dailyWordOverridesTable.quoteText })
+    .select({
+      quoteText: dailyWordOverridesTable.quoteText,
+      reference: dailyWordOverridesTable.reference,
+    })
     .from(dailyWordOverridesTable)
     .where(eq(dailyWordOverridesTable.effectiveDate, dateStr))
     .limit(1);
-  if (override) return override.quoteText;
-  const doy = dayOfYearFromDate(new Date());
-  return getDefaultDailyQuote(doy).quoteText;
+  const autoRotation = await getDailyWordAutoRotation();
+  const quote = resolveDailyQuote(parsed, autoRotation, override ?? null);
+  return quote.quoteText;
 }
 
 async function sendMorningPrayers(): Promise<void> {

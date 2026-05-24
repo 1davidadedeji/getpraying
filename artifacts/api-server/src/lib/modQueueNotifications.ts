@@ -12,18 +12,23 @@ export async function clearModQueueNotificationsForPost(postId: number): Promise
 }
 
 /** Notifies all staff (except the author) that a post needs review. Idempotent: clears old mod_queue rows for this post first. */
-export async function notifyModeratorsNewPending(postId: number, authorId: number): Promise<void> {
+export async function notifyModeratorsNewPending(
+  postId: number,
+  authorId: number,
+  opts?: { message?: string },
+): Promise<void> {
   await clearModQueueNotificationsForPost(postId);
   const staff = await db
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(or(eq(usersTable.role, "moderator"), eq(usersTable.role, "admin")));
+  const message = opts?.message ?? "A new prayer is waiting in the moderation queue.";
   const rows = staff
     .filter((s) => s.id !== authorId)
     .map((s) => ({
       userId: s.id,
       type: MOD_QUEUE,
-      message: "A new prayer is waiting in the moderation queue.",
+      message,
       postId,
       isRead: false,
     }));

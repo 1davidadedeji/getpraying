@@ -75,6 +75,16 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     .where(eq(savedPostsTable.postId, post.id));
   const saveCount = Number(saveRow?.count ?? 0);
 
+  let viewerIsStaff = false;
+  if (userId) {
+    const [viewer] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+    viewerIsStaff = viewer?.role === "admin" || viewer?.role === "moderator";
+  }
+
   const categories = parseCategoryTagsFromRow({
     category: post.category,
     categoryTags: post.categoryTags,
@@ -88,8 +98,8 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
     categories,
     isAnonymous: post.isAnonymous,
     status: post.status,
-    flagReason: post.flagReason ?? null,
-    moderationReason: post.moderationReason ?? null,
+    flagReason: viewerIsStaff ? (post.flagReason ?? null) : null,
+    moderationReason: viewerIsStaff ? (post.moderationReason ?? null) : null,
     prayCount: post.prayCount,
     commentCount,
     saveCount,
@@ -125,6 +135,16 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
   let savedSet = new Set<number>();
   let commentedSet = new Set<number>();
   const postIds = posts.map((p) => p.id);
+
+  let viewerIsStaff = false;
+  if (userId) {
+    const [viewer] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+    viewerIsStaff = viewer?.role === "admin" || viewer?.role === "moderator";
+  }
 
   if (userId && posts.length > 0) {
     const prayedRows = await db
@@ -177,8 +197,8 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       categories,
       isAnonymous: post.isAnonymous,
       status: post.status,
-      flagReason: post.flagReason ?? null,
-      moderationReason: post.moderationReason ?? null,
+      flagReason: viewerIsStaff ? (post.flagReason ?? null) : null,
+      moderationReason: viewerIsStaff ? (post.moderationReason ?? null) : null,
       prayCount: post.prayCount,
       commentCount: commentCountMap.get(post.id) ?? 0,
       saveCount: saveCountMap.get(post.id) ?? 0,

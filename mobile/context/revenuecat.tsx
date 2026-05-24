@@ -4,6 +4,7 @@ import type {
   PurchasesOfferings,
   PurchasesPackage,
 } from "react-native-purchases";
+import { useAuth } from "@/context/auth";
 
 type RevenueCatState = {
   enabled: boolean;
@@ -24,6 +25,48 @@ function getPurchases() {
   return require("react-native-purchases").default;
 }
 
+function getRevenueCatApiKey(): string {
+  const { Platform } = require("react-native");
+  const iosKey =
+    process.env.EXPO_PUBLIC_RC_IOS_KEY ??
+    process.env.EXPO_PUBLIC_RC_APPLE_KEY ??
+    "";
+  const androidKey =
+    process.env.EXPO_PUBLIC_RC_ANDROID_KEY ??
+    process.env.EXPO_PUBLIC_RC_GOOGLE_KEY ??
+    "";
+  return Platform.OS === "ios" ? iosKey : androidKey;
+}
+
+/** Tie purchases to the signed-in account so restore works across devices. */
+function RevenueCatUserSync({
+  enabled,
+  onCustomerInfo,
+}: {
+  enabled: boolean;
+  onCustomerInfo: (info: CustomerInfo) => void;
+}) {
+  const { user } = useAuth();
+  const [linkedUserId, setLinkedUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      if (!enabled || !user?.id) return;
+      if (linkedUserId === user.id) return;
+      try {
+        const Purchases = getPurchases();
+        const { customerInfo: info } = await Purchases.logIn(String(user.id));
+        onCustomerInfo(info);
+        setLinkedUserId(user.id);
+      } catch {
+        /* ignore — anonymous customer still works for new purchases */
+      }
+    })();
+  }, [enabled, user?.id, linkedUserId, onCustomerInfo]);
+
+  return null;
+}
+
 export function RevenueCatProvider({ children }: { children: React.ReactNode }) {
   const [enabled, setEnabled] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -33,10 +76,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     (async () => {
       try {
-        const { Platform } = require("react-native");
-        const iosKey = process.env.EXPO_PUBLIC_RC_IOS_KEY ?? "";
-        const androidKey = process.env.EXPO_PUBLIC_RC_ANDROID_KEY ?? "";
-        const apiKey = Platform.OS === "ios" ? iosKey : androidKey;
+        const apiKey = getRevenueCatApiKey();
 
         if (!apiKey) {
           setEnabled(false);
@@ -105,7 +145,12 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     [enabled, isReady, offerings, customerInfo, isEntitled],
   );
 
-  return <RevenueCatContext.Provider value={value}>{children}</RevenueCatContext.Provider>;
+  return (
+    <RevenueCatContext.Provider value={value}>
+      <RevenueCatUserSync enabled={enabled} onCustomerInfo={setCustomerInfo} />
+      {children}
+    </RevenueCatContext.Provider>
+  );
 }
 
 export function useRevenueCat(): RevenueCatState {

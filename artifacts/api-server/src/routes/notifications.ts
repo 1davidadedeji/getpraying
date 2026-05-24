@@ -35,12 +35,13 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
     notifications.map((n) => {
       const actor = n.actorId ? actorsMap.get(n.actorId) : null;
       const post = n.postId ? postsMap.get(n.postId) : null;
+      const hideActor = n.type === "post_reported" || n.type === "mod_queue";
       return {
         id: n.id,
         type: n.type,
-        message: actor ? `${actor.username} ${n.message}` : n.message,
-        actorUsername: actor?.username ?? null,
-        actorAvatarUrl: actor?.avatarUrl ?? null,
+        message: actor && !hideActor ? `${actor.username} ${n.message}` : n.message,
+        actorUsername: hideActor ? null : (actor?.username ?? null),
+        actorAvatarUrl: hideActor ? null : (actor?.avatarUrl ?? null),
         postId: n.postId,
         postPreview: post ? post.content.substring(0, 100) : null,
         category: n.category,

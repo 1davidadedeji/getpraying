@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { router, type Href } from "expo-router";
 import React, { useEffect, useMemo, useRef } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
@@ -20,10 +19,16 @@ import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { formatLocalYMD } from "@/lib/date";
+import {
+  DEFAULT_DAILY_QUOTE,
+  DEFAULT_DAILY_REFERENCE,
+  PRIVACY_URL,
+  TERMS_URL,
+  WELCOME_TAGLINE,
+} from "@/lib/legalUrls";
+import { APP_LOGO_SOURCE, welcomeLogoSizePx } from "@/constants/branding";
 import { clamp } from "@/lib/responsiveMetrics";
-
-const TERMS_URL = "https://getpraying.app/tos";
-const PRIVACY_URL = "https://getpraying.app/privacy";
+import { isTrialExpired } from "@/lib/trial";
 
 const WELCOME_PAD_H = 24;
 
@@ -31,7 +36,9 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { uiScale } = useResponsiveLayout();
   const { user, loading } = useAuth();
-  const logoImg = Math.round(clamp(140 * uiScale, 116, 158));
+  const logoImg = welcomeLogoSizePx(uiScale);
+  const fsTitle = Math.round(clamp(34 * uiScale, 30, 40));
+  const fsTagline = Math.round(clamp(12 * uiScale, 11, 13));
   const rc = useRevenueCat();
   /** Avoid re-running `router.replace("/(tabs)")` on every `user` object refresh (that was resetting navigation to Home). */
   const didRouteAuthedUser = useRef(false);
@@ -71,9 +78,7 @@ export default function WelcomeScreen() {
       return;
     }
 
-    const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
-    const trialExpired =
-      startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+    const trialExpired = isTrialExpired(user.trialStartsAt);
     if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
       router.replace("/(paywall)/index" as any);
       return;
@@ -93,12 +98,7 @@ export default function WelcomeScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   return (
-    <LinearGradient
-      colors={[colors.primary, "#2D3561", colors.primary]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <View
         style={[
           styles.inner,
@@ -112,24 +112,31 @@ export default function WelcomeScreen() {
           },
         ]}
       >
-        <View style={styles.logoSection}>
+        <View style={[styles.logoSection, { gap: Math.round(8 * uiScale) }]}>
           <Image
-            source={require("../assets/images/icon-bg.png")}
+            source={APP_LOGO_SOURCE}
             style={[styles.logoImage, { width: logoImg, height: logoImg }]}
             contentFit="contain"
             accessibilityLabel="Get Praying app logo"
           />
-          <Text style={styles.appName}>Get Praying</Text>
-          <Text style={styles.tagline}>A sanctuary for your{"\n"}daily walk with God</Text>
+          <Text style={[styles.appName, { fontSize: fsTitle }]}>Get Praying</Text>
+          <Text
+            style={[styles.tagline, { fontSize: fsTagline }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+          >
+            {WELCOME_TAGLINE}
+          </Text>
         </View>
 
         <View style={styles.quoteCard}>
           <Text style={styles.quoteLabel}>Daily Word</Text>
           <Text style={styles.quoteText}>
-            &ldquo;{dailyWord?.quoteText ?? "Be still, and know that I am God."}&rdquo;
+            &ldquo;{dailyWord?.quoteText ?? DEFAULT_DAILY_QUOTE}&rdquo;
           </Text>
           <Text style={styles.quoteRef}>
-            {dailyWord?.reference ?? "— Psalm 46:10"}
+            {dailyWord?.reference ?? DEFAULT_DAILY_REFERENCE}
           </Text>
           <View style={styles.socialProofRow}>
             <Ionicons name="flame" size={16} color={colors.accent} />
@@ -158,7 +165,7 @@ export default function WelcomeScreen() {
           </Pressable>
           <View style={styles.legalRow}>
             <Pressable onPress={() => void Linking.openURL(TERMS_URL)}>
-              <Text style={styles.legalLink}>Terms</Text>
+              <Text style={styles.legalLink}>Terms of Service</Text>
             </Pressable>
             <Text style={styles.legalDot}>·</Text>
             <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)}>
@@ -167,13 +174,14 @@ export default function WelcomeScreen() {
           </View>
         </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.cream,
   },
   inner: {
     flex: 1,
@@ -181,29 +189,25 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: "center",
-    gap: 12,
   },
   logoImage: {},
   appName: {
     fontFamily: "NotoSerif_700Bold",
-    fontSize: 38,
-    color: colors.surface,
+    color: colors.primary,
     letterSpacing: -0.5,
     textAlign: "center",
   },
   tagline: {
     fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 16,
-    color: "rgba(255,255,255,0.65)",
+    color: colors.muted,
     textAlign: "center",
-    lineHeight: 24,
   },
   quoteCard: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: colors.surface,
     borderRadius: 32,
     padding: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1.5,
+    borderColor: colors.border,
     gap: 6,
   },
   quoteLabel: {
@@ -216,13 +220,13 @@ const styles = StyleSheet.create({
   quoteText: {
     fontFamily: "NotoSerif_700Bold",
     fontSize: 18,
-    color: colors.surface,
+    color: colors.text,
     lineHeight: 28,
   },
   quoteRef: {
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 13,
-    color: "rgba(255,255,255,0.5)",
+    color: colors.muted,
     fontStyle: "italic",
   },
   socialProofRow: {
@@ -234,7 +238,7 @@ const styles = StyleSheet.create({
   socialProof: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
-    color: "rgba(255,255,255,0.55)",
+    color: colors.textSecondary,
     flex: 1,
   },
   actions: {
@@ -250,11 +254,11 @@ const styles = StyleSheet.create({
   legalLink: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
+    color: colors.accent,
   },
-  legalDot: { color: "rgba(255,255,255,0.45)", fontSize: 13 },
+  legalDot: { color: colors.muted, fontSize: 13 },
   primaryBtn: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     borderRadius: 32,
     paddingVertical: 16,
     alignItems: "center",
@@ -262,18 +266,18 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
-    color: colors.primary,
+    color: colors.surface,
   },
   secondaryBtn: {
     borderRadius: 32,
     paddingVertical: 15,
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: colors.border,
   },
   secondaryBtnText: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 16,
-    color: colors.surface,
+    color: colors.primary,
   },
 });

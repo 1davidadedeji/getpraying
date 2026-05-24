@@ -19,6 +19,7 @@ import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
+import { ProfileCollapsibleHeaderShell } from "@/components/ProfileCollapsibleHeaderShell";
 import { showAppAlert } from "@/components/AppAlert";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { StatCard } from "@/components/StatCard";
@@ -299,6 +300,95 @@ export default function UserProfileScreen() {
   const initials = (displayName ?? "?").slice(0, 2).toUpperCase();
   const joinYear = profile ? new Date(profile.createdAt).getFullYear() : "";
 
+  const renderProfileHeaderBody = useCallback(
+    () => (
+      <View style={[styles.profileSection, { paddingHorizontal: gutter }]}>
+        <View style={styles.avatarRing}>
+          {profile?.avatarUrl ? (
+            <Image source={{ uri: resolveMediaUrl(profile.avatarUrl)! }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.displayName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
+          {displayName}
+        </Text>
+        <Text style={styles.username} numberOfLines={1} ellipsizeMode="middle">
+          @{profile?.username ?? username}
+        </Text>
+        {joinYear ? <Text style={styles.joinDate}>Member since {joinYear}</Text> : null}
+        {profile?.location ? (
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={13} color={colors.muted} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {profile.location}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.statsRow}>
+          <StatCard compact label="Prayers Shared" value={profile?.prayersShared ?? 0} />
+          <StatCard compact label="Prayed For" value={profile?.prayedFor ?? 0} />
+          <StatCard compact label="Saved Prayers" value={profile?.savedScrolls ?? 0} />
+        </View>
+
+        {profile && me && me.username !== profile.username && token && profile.isFollowing !== undefined && (
+          <Pressable
+            style={[styles.followBtn, profile.isFollowing && styles.followBtnOutline]}
+            disabled={followBusy}
+            onPress={() => {
+              if (!profile || !token) return;
+              const next = !profile.isFollowing;
+              const runToggle = () => {
+                setFollowBusy(true);
+                void (async () => {
+                  try {
+                    const res = await fetch(apiUrl(`/users/${profile.username}/follow`), {
+                      method: next ? "POST" : "DELETE",
+                      headers: authHeaders(token),
+                    });
+                    if (res.ok) {
+                      setProfile((p) =>
+                        p
+                          ? {
+                              ...p,
+                              isFollowing: next,
+                              followerCount: Math.max(0, (p.followerCount ?? 0) + (next ? 1 : -1)),
+                            }
+                          : p,
+                      );
+                    }
+                  } finally {
+                    setFollowBusy(false);
+                  }
+                })();
+              };
+              if (profile.isFollowing && !next) {
+                showAppAlert({
+                  title: "Unfollow?",
+                  message: `You will stop seeing ${profile.displayName ?? profile.username} in your following list.`,
+                  buttons: [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Unfollow", style: "destructive", onPress: runToggle },
+                  ],
+                });
+                return;
+              }
+              runToggle();
+            }}
+          >
+            <Text style={[styles.followBtnText, profile.isFollowing && styles.followBtnTextOutline]}>
+              {profile.isFollowing ? "Following" : "Follow"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    ),
+    [profile, username, displayName, initials, joinYear, gutter, me, token, followBusy],
+  );
+
   const renderCollapsibleHeader = useCallback(() => {
     return (
       <View
@@ -309,92 +399,10 @@ export default function UserProfileScreen() {
           }
         }}
       >
-        <View style={[styles.profileSection, { paddingHorizontal: gutter }]}>
-          <View style={styles.avatarRing}>
-            {profile?.avatarUrl ? (
-              <Image source={{ uri: resolveMediaUrl(profile.avatarUrl)! }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.displayName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
-            {displayName}
-          </Text>
-          <Text style={styles.username} numberOfLines={1} ellipsizeMode="middle">
-            @{profile?.username ?? username}
-          </Text>
-          {joinYear ? <Text style={styles.joinDate}>Member since {joinYear}</Text> : null}
-          {profile?.location ? (
-            <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={13} color={colors.muted} />
-              <Text style={styles.locationText} numberOfLines={1}>
-                {profile.location}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.statsRow}>
-            <StatCard compact label="Prayers Shared" value={profile?.prayersShared ?? 0} />
-            <StatCard compact label="Prayed For" value={profile?.prayedFor ?? 0} />
-            <StatCard compact label="Saved Prayers" value={profile?.savedScrolls ?? 0} />
-          </View>
-
-          {profile && me && me.username !== profile.username && token && profile.isFollowing !== undefined && (
-            <Pressable
-              style={[styles.followBtn, profile.isFollowing && styles.followBtnOutline]}
-              disabled={followBusy}
-              onPress={() => {
-                if (!profile || !token) return;
-                const next = !profile.isFollowing;
-                const runToggle = () => {
-                  setFollowBusy(true);
-                  void (async () => {
-                    try {
-                      const res = await fetch(apiUrl(`/users/${profile.username}/follow`), {
-                        method: next ? "POST" : "DELETE",
-                        headers: authHeaders(token),
-                      });
-                      if (res.ok) {
-                        setProfile((p) =>
-                          p
-                            ? {
-                                ...p,
-                                isFollowing: next,
-                                followerCount: Math.max(0, (p.followerCount ?? 0) + (next ? 1 : -1)),
-                              }
-                            : p,
-                        );
-                      }
-                    } finally {
-                      setFollowBusy(false);
-                    }
-                  })();
-                };
-                if (profile.isFollowing && !next) {
-                  showAppAlert({
-                    title: "Unfollow?",
-                    message: `You will stop seeing ${profile.displayName ?? profile.username} in your following list.`,
-                    buttons: [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Unfollow", style: "destructive", onPress: runToggle },
-                    ],
-                  });
-                  return;
-                }
-                runToggle();
-              }}
-            >
-              <Text style={[styles.followBtnText, profile.isFollowing && styles.followBtnTextOutline]}>
-                {profile.isFollowing ? "Following" : "Follow"}
-              </Text>
-            </Pressable>
-          )}
-        </View>
+        <ProfileCollapsibleHeaderShell>{renderProfileHeaderBody()}</ProfileCollapsibleHeaderShell>
       </View>
     );
-  }, [profile, username, displayName, initials, joinYear, gutter, me, token, followBusy]);
+  }, [renderProfileHeaderBody]);
 
   const prayersEmpty = (
     <View style={styles.emptyState}>
@@ -452,7 +460,12 @@ export default function UserProfileScreen() {
     </View>
   );
 
-  const webStaticHeader = <View style={styles.webStaticHeaderBlock}>{renderCollapsibleHeader()}</View>;
+  const webProfileListHeader = (
+    <>
+      <View style={styles.webStaticHeaderBlock}>{renderProfileHeaderBody()}</View>
+      {profilePostsListHeader}
+    </>
+  );
 
   const prayersList = (
     <FlatList
@@ -464,11 +477,13 @@ export default function UserProfileScreen() {
             post={item}
             onUpdated={handleUpdated}
             replaceNav
+            hideBoost={isOwnProfile}
+            activeProfileUsername={username}
             feedMediaFocusPostId={activeTab === "prayers" ? feedMediaFocusPostId : null}
           />
         </View>
       )}
-      ListHeaderComponent={profilePostsListHeader}
+      ListHeaderComponent={webProfileListHeader}
       ListEmptyComponent={prayersEmpty}
       ListFooterComponent={
         loadingMorePosts ? (
@@ -497,11 +512,12 @@ export default function UserProfileScreen() {
             post={item}
             onUpdated={handleUpdated}
             replaceNav
+            activeProfileUsername={username}
             feedMediaFocusPostId={activeTab === "interactions" ? feedMediaFocusPostId : null}
           />
         </View>
       )}
-      ListHeaderComponent={profilePostsListHeader}
+      ListHeaderComponent={webProfileListHeader}
       ListEmptyComponent={
         !interactionsLoaded ? (
           <View style={styles.emptyState}>
@@ -533,11 +549,12 @@ export default function UserProfileScreen() {
             post={item}
             onUpdated={handleUpdated}
             replaceNav
+            activeProfileUsername={username}
             feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
           />
         </View>
       )}
-      ListHeaderComponent={profilePostsListHeader}
+      ListHeaderComponent={webProfileListHeader}
       ListEmptyComponent={
         !savedLoaded ? (
           <View style={styles.emptyState}>
@@ -562,7 +579,6 @@ export default function UserProfileScreen() {
   if (Platform.OS === "web") {
     return (
       <View style={[styles.flex, { maxWidth: LAYOUT.contentMaxWidth, width: "100%", alignSelf: "center" }]}>
-        {webStaticHeader}
         {webTabRow}
         <PagerView
           ref={webPagerRef}
@@ -606,6 +622,8 @@ export default function UserProfileScreen() {
                   post={item}
                   onUpdated={handleUpdated}
                   replaceNav
+                  hideBoost={isOwnProfile}
+                  activeProfileUsername={username}
                   feedMediaFocusPostId={activeTab === "prayers" ? feedMediaFocusPostId : null}
                 />
               </View>
@@ -642,6 +660,7 @@ export default function UserProfileScreen() {
                   post={item}
                   onUpdated={handleUpdated}
                   replaceNav
+                  activeProfileUsername={username}
                   feedMediaFocusPostId={activeTab === "interactions" ? feedMediaFocusPostId : null}
                 />
               </View>
@@ -677,6 +696,7 @@ export default function UserProfileScreen() {
                   post={item}
                   onUpdated={handleUpdated}
                   replaceNav
+                  activeProfileUsername={username}
                   feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
                 />
               </View>

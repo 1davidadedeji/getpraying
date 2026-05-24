@@ -20,6 +20,7 @@ import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { clamp } from "@/lib/responsiveMetrics";
+import { emojiForLibraryCategory } from "@/constants/libraryFallbackPaths";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 
@@ -41,7 +42,13 @@ export default function CategoryFeedScreen() {
   const seenIds = useRef(new Set<number>());
   const { feedMediaFocusPostId, onViewableItemsChanged, viewabilityConfig } = useFeedMediaViewability();
 
-  const categoryDisplay = name ? decodeURIComponent(name).replace(/^\w/, (c) => c.toUpperCase()) : "";
+  const categorySlug = name ? decodeURIComponent(name) : "";
+  const categoryDisplay = categorySlug ? categorySlug.replace(/^\w/, (c) => c.toUpperCase()) : "";
+  const categoryEmoji = emojiForLibraryCategory({
+    name: categoryDisplay,
+    slug: categorySlug,
+    category: categorySlug,
+  });
 
   const fetchPage = useCallback(
     async (cursor?: number) => {
@@ -115,6 +122,11 @@ export default function CategoryFeedScreen() {
       renderItem={({ item }) => <PostCard post={item} feedMediaFocusPostId={feedMediaFocusPostId} />}
       ListHeaderComponent={
         <View style={styles.header}>
+          {categoryEmoji ? (
+            <Text style={styles.headerEmoji} allowFontScaling>
+              {categoryEmoji}
+            </Text>
+          ) : null}
           <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
             {categoryDisplay}
           </Text>
@@ -177,6 +189,12 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Platform.OS === "web" ? 20 : 8,
     paddingBottom: 16,
+    alignItems: "center",
+    gap: 8,
+  },
+  headerEmoji: {
+    fontSize: 36,
+    textAlign: "center",
   },
   title: {
     fontFamily: "NotoSerif_700Bold",

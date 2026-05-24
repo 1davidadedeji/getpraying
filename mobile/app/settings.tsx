@@ -27,10 +27,8 @@ import { useModerationBadge } from "@/context/moderationBadge";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
-
-const TERMS_URL = "https://getpraying.app/tos";
-const PRIVACY_URL = "https://getpraying.app/privacy";
 
 export default function SettingsScreen() {
   useStackHeaderBack("/(tabs)/profile" as Href);
@@ -339,7 +337,7 @@ export default function SettingsScreen() {
 
       <View style={[styles.legalRow, { gap: sui.legalGap, marginTop: sui.legalMt }]}>
         <Pressable onPress={() => Linking.openURL(TERMS_URL)}>
-          <Text style={[styles.legalLink, { fontSize: sui.legalFs }]}>Terms</Text>
+          <Text style={[styles.legalLink, { fontSize: sui.legalFs }]}>Terms of Service</Text>
         </Pressable>
         <Text style={[styles.legalDot, { fontSize: sui.legalFs }]}>·</Text>
         <Pressable onPress={() => Linking.openURL(PRIVACY_URL)}>

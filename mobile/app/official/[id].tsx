@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Href, router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -15,8 +15,7 @@ import {
   getGetOfficialPrayerByIdQueryKey,
   useGetOfficialPrayerById,
 } from "@workspace/api-client-react";
-import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
-import { AudioScrubberRow } from "@/components/AudioScrubberRow";
+import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -40,7 +39,6 @@ export default function OfficialPrayerScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, iconAction } = useResponsiveLayout();
   const { token } = useAuth();
-  const playSz = Math.round(clamp(64 * uiScale, 54, 72));
   const bookmarkIcn = Math.round(clamp(26 * uiScale, 22, 30));
   const rowGap = Math.round(clamp(12 * uiScale, 10, 14));
   const topMb = Math.round(clamp(16 * uiScale, 12, 20));
@@ -73,15 +71,6 @@ export default function OfficialPrayerScreen() {
   const refreshMt = Math.round(clamp(20 * uiScale, 16, 24));
   const fsRefresh = Math.round(clamp(12 * uiScale, 11, 13));
   const botPad = Math.round(clamp(32 * uiScale, 24, 40));
-  const audioBtnPadV = Math.round(clamp(12 * uiScale, 10, 14));
-  const audioBtnPadH = Math.round(clamp(18 * uiScale, 14, 22));
-  const audioPlayIcn = Math.round(clamp(16 * uiScale, 14, 18));
-  const playRef = useRef<OfficialGuidePlayHandle | null>(null);
-  const [audioPlaying, setAudioPlaying] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(0);
-  const [audioPositionMs, setAudioPositionMs] = useState(0);
-  const [audioDurationMs, setAudioDurationMs] = useState(0);
-  const [audioRate, setAudioRate] = useState(1);
   const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
@@ -117,10 +106,6 @@ export default function OfficialPrayerScreen() {
 
   React.useEffect(() => {
     setBodyExpanded(false);
-    setAudioPositionMs(0);
-    setAudioDurationMs(0);
-    setAudioProgress(0);
-    setAudioRate(1);
   }, [prayerId]);
 
   const toggleSave = async () => {
@@ -228,63 +213,9 @@ export default function OfficialPrayerScreen() {
       ) : null}
 
       {d.audioUrl ? (
-        <>
-          <View style={[styles.audioRow, { gap: rowGap, marginBottom: scrMb }]}>
-            <Pressable
-              onPress={() => playRef.current?.toggle()}
-              style={[
-                styles.startPrayerBtn,
-                {
-                  paddingVertical: audioBtnPadV,
-                  paddingHorizontal: audioBtnPadH,
-                  backgroundColor: colors.primary,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={audioPlaying ? "Pause audio" : "Listen to audio"}
-            >
-              <Ionicons
-                name={audioPlaying ? "pause" : "play"}
-                size={audioPlayIcn}
-                color={colors.surface}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[styles.startPrayerBtnText, { fontSize: Math.round(clamp(15 * uiScale, 14, 17)) }]}>
-                {audioPlaying ? "Pause" : "Listen"}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => playRef.current?.cyclePlaybackRate()}
-              style={[styles.audioRateChip, { paddingHorizontal: Math.round(clamp(12 * uiScale, 10, 14)), paddingVertical: Math.round(clamp(8 * uiScale, 6, 10)) }]}
-              accessibilityRole="button"
-              accessibilityLabel={`Playback speed ${audioRate}×`}
-            >
-              <Text style={[styles.audioRateChipText, { fontSize: Math.round(clamp(13 * uiScale, 12, 15)) }]}>
-                {audioRate}×
-              </Text>
-            </Pressable>
-            <OfficialGuidePlayCircle
-              ref={playRef}
-              audioUrl={d.audioUrl}
-              size={playSz}
-              onPlayingChange={setAudioPlaying}
-              onPlaybackRateChange={setAudioRate}
-              onPlaybackProgress={setAudioProgress}
-              onPlaybackTimes={(pos, dur) => {
-                setAudioPositionMs(pos);
-                setAudioDurationMs(dur);
-              }}
-            />
-          </View>
-          <AudioScrubberRow
-            positionMs={audioPositionMs}
-            durationMs={audioDurationMs}
-            progress01={audioProgress}
-            fillColor={colors.primary}
-            trackHeight={Math.max(2, Math.round(2 * uiScale))}
-            onSeek={(p) => playRef.current?.seekProgress(p)}
-          />
-        </>
+        <View style={{ marginBottom: scrMb }}>
+          <CapsuleAudioPlayer audioUrl={d.audioUrl} accentColor={colors.primary} />
+        </View>
       ) : null}
 
       {bodyText ? (
@@ -359,33 +290,6 @@ const styles = StyleSheet.create({
   container: { paddingTop: 8 },
   topRow: { flexDirection: "row", alignItems: "flex-start" },
   topMeta: {},
-  audioRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  audioRateChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  audioRateChipText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.primary,
-    fontVariant: ["tabular-nums"],
-  },
-  startPrayerBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 999,
-  },
-  startPrayerBtnText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.surface,
-  },
   badge: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: colors.primary,

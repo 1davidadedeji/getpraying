@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
 import { normalizeAudioMime } from "@/lib/audioMime";
+import { ensureMediaLibraryPermission } from "@/lib/ensureMediaPermission";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -67,8 +69,10 @@ export function AudioLibraryPickerModal({
     setLoadError(false);
     setPermissionDenied(false);
     try {
-      const perm = await MediaLibrary.requestPermissionsAsync();
-      if (!perm.granted) {
+      const granted = await ensureMediaLibraryPermission(
+        "Allow media library access to browse audio on your device.",
+      );
+      if (!granted) {
         setPermissionDenied(true);
         setAssets([]);
         return;
@@ -121,6 +125,14 @@ export function AudioLibraryPickerModal({
     }
   };
 
+  const retryPermission = () => {
+    void loadAudio();
+  };
+
+  const openSettings = () => {
+    void Linking.openSettings();
+  };
+
   const browseFiles = () => {
     onRequestClose();
     setTimeout(() => onBrowseFiles(), 300);
@@ -158,8 +170,14 @@ export function AudioLibraryPickerModal({
           ) : permissionDenied ? (
             <View style={styles.centerPad}>
               <Text style={[styles.body, { fontSize: bodyFs }]}>
-                Media library access is off. You can still attach audio from files.
+                Media library access is off. Turn it on to browse audio here, or attach from files.
               </Text>
+              <Pressable style={styles.primaryBtn} onPress={retryPermission}>
+                <Text style={styles.primaryBtnText}>Allow access</Text>
+              </Pressable>
+              <Pressable style={styles.secondaryInlineBtn} onPress={openSettings}>
+                <Text style={[styles.secondaryBtnText, { fontSize: bodyFs }]}>Open Settings</Text>
+              </Pressable>
               <Pressable style={styles.primaryBtn} onPress={browseFiles}>
                 <Text style={styles.primaryBtnText}>Browse files</Text>
               </Pressable>
@@ -292,6 +310,10 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     marginTop: 8,
     paddingVertical: 14,
+    alignItems: "center",
+  },
+  secondaryInlineBtn: {
+    paddingVertical: 8,
     alignItems: "center",
   },
   secondaryBtnText: {

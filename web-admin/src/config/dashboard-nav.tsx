@@ -6,6 +6,7 @@ import {
   Inbox,
   LayoutDashboard,
   PlayCircle,
+  ScrollText,
   Users,
 } from "lucide-react";
 
@@ -60,6 +61,13 @@ export const DASHBOARD_NAV: DashboardNavItem[] = [
     label: "Users & roles",
     subtitle: "Roles, ban, delete",
     icon: Users,
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/daily-word",
+    label: "Daily Word",
+    subtitle: "Welcome screen verse (manual or auto)",
+    icon: ScrollText,
     adminOnly: true,
   },
   {

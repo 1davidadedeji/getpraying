@@ -120,7 +120,7 @@ export async function fetchOpenGraphPreview(
       headers: {
         Accept: "text/html,application/xhtml+xml",
         /** Many CDNs behave better with a common desktop UA when scraping OG tags. */
-        "User-Agent": "Mozilla/5.0 (compatible; GetPraying/1.0; +https://getpraying.app)",
+        "User-Agent": "Mozilla/5.0 (compatible; GetPraying/1.0; +https://share.getpraying.com)",
       },
     });
     if (!res.ok) return null;

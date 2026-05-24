@@ -72,6 +72,21 @@ async function sendExpoPush(
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       console.warn("[push] Expo push non-OK:", res.status, t.slice(0, 200));
+      return;
+    }
+    const json = (await res.json().catch(() => null)) as {
+      data?: { status?: string; message?: string; details?: { error?: string } }[];
+    } | null;
+    const ticket = Array.isArray(json?.data) ? json!.data![0] : undefined;
+    if (ticket?.status === "error") {
+      const code = ticket.details?.error;
+      console.warn("[push] Expo ticket error:", code ?? ticket.message ?? "unknown");
+      if (code === "DeviceNotRegistered" || code === "InvalidCredentials") {
+        await db
+          .update(usersTable)
+          .set({ expoPushToken: null, updatedAt: new Date() })
+          .where(eq(usersTable.expoPushToken, expoToken));
+      }
     }
   } catch (e) {
     console.warn("[push] Expo push failed:", e);
@@ -108,8 +123,9 @@ export async function pushForNotificationById(notificationId: number): Promise<v
 
     if (!row?.token?.trim()) return;
 
+    const anonymousTypes = new Set(["post_reported", "mod_queue"]);
     let actorUsername: string | null = null;
-    if (row.actorId != null) {
+    if (row.actorId != null && !anonymousTypes.has(row.type)) {
       const [a] = await db
         .select({ username: usersTable.username })
         .from(usersTable)
@@ -120,12 +136,16 @@ export async function pushForNotificationById(notificationId: number): Promise<v
 
     const title = pushTitle(row.type, actorUsername);
     const body =
-      row.message.length > 160 ? `${row.message.slice(0, 157)}…` : row.message;
+      row.type === "post_reported"
+        ? "Your prayer was reported. Our team will review it."
+        : row.message.length > 160
+          ? `${row.message.slice(0, 157)}…`
+          : row.message;
     const data = stringifyData({
       notificationId: row.id,
       type: row.type,
       postId: row.postId,
-      actorUsername,
+      actorUsername: anonymousTypes.has(row.type) ? null : actorUsername,
       category: row.category,
     });
 

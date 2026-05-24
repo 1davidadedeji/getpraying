@@ -1,8 +1,15 @@
 /**
  * Default “Today’s Word” rotation: one verse per day of year, cycling through a fixed
  * curated list (public-domain phrasing). Admins can override any date via the API.
+ * When auto-rotation is off, {@link STATIC_DAILY_QUOTE} is shown instead.
  */
 export type DailyQuote = { quoteText: string; reference: string };
+
+/** Fixed welcome-screen verse when auto-rotation is disabled and no override is set. */
+export const STATIC_DAILY_QUOTE: DailyQuote = {
+  quoteText: "The righteous cry out, and the Lord hears them.",
+  reference: "— Psalm 34:17",
+};
 
 const QUOTES: readonly DailyQuote[] = [
   { quoteText: "Be still, and know that I am God.", reference: "— Psalm 46:10" },
@@ -125,6 +132,16 @@ export function getDefaultDailyQuote(dayOfYear: number): DailyQuote {
   const n = QUOTES.length;
   const idx = ((dayOfYear - 1) % n + n) % n;
   return QUOTES[idx]!;
+}
+
+export function resolveDailyQuote(
+  date: Date,
+  autoRotation: boolean,
+  override?: DailyQuote | null,
+): DailyQuote {
+  if (override) return override;
+  if (autoRotation) return getDefaultDailyQuote(dayOfYearFromDate(date));
+  return STATIC_DAILY_QUOTE;
 }
 
 export function parseCalendarDateString(s: string): Date | null {

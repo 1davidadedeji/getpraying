@@ -12,6 +12,7 @@ import {
   prayerPathsTable,
   sessionsTable,
   userFollowsTable,
+  appSettingsTable,
 } from "@workspace/db";
 import { eq, ne, desc, sql, and, or, isNotNull, isNull, inArray, notLike, type SQL } from "drizzle-orm";
 
@@ -19,6 +20,7 @@ const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 import { requireAdmin, requireModeratorOrAdmin } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { clearModQueueNotificationsForPost, notifyModeratorsNewPending } from "../lib/modQueueNotifications";
+import { attachReportsForStaff, clearPostReportsForPost } from "../lib/postReports";
 import { officialGuideTextError } from "../lib/officialGuideTextLimits";
 import { pushForNotificationById } from "../lib/pushForNotification";
 
@@ -139,10 +141,12 @@ router.get("/admin/posts/pending", requireModeratorOrAdmin, async (req, res): Pr
     .limit(limit)
     .offset(offset);
 
-  const enriched = await enrichPosts(slice);
+  const mod = (req as any).user;
+  const enriched = await enrichPosts(slice, mod.id);
+  const withReports = await attachReportsForStaff(enriched);
 
   res.json({
-    posts: enriched,
+    posts: withReports,
     page,
     limit,
     totalMatching,
@@ -224,7 +228,7 @@ router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req,
 
   const [post] = await db
     .update(postsTable)
-    .set({ status: "approved", moderatedByUserId: mod.id, moderationReason: null, flagReason: null })
+    .set({ status: "approved", moderatedByUserId: mod.id, moderationReason: null, flagReason: null, flagCount: 0 })
     .where(eq(postsTable.id, postId))
     .returning();
 
@@ -234,6 +238,7 @@ router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req,
   }
 
   await clearModQueueNotificationsForPost(postId);
+  await clearPostReportsForPost(postId);
   await notifyAuthorPostDecision(post.authorId ?? null, post.id, "approved");
 
   const [enriched] = await enrichPosts([post]);
@@ -260,6 +265,8 @@ router.post("/admin/posts/:postId/decline", requireModeratorOrAdmin, async (req,
       status: "declined",
       moderatedByUserId: mod.id,
       moderationReason: reason,
+      flagReason: null,
+      flagCount: 0,
     })
     .where(eq(postsTable.id, postId))
     .returning();
@@ -270,6 +277,7 @@ router.post("/admin/posts/:postId/decline", requireModeratorOrAdmin, async (req,
   }
 
   await clearModQueueNotificationsForPost(postId);
+  await clearPostReportsForPost(postId);
   await notifyAuthorPostDecision(post.authorId ?? null, post.id, "declined", reason);
 
   const [enriched] = await enrichPosts([post]);
@@ -851,6 +859,43 @@ router.post("/admin/prayer-paths", requireModeratorOrAdmin, async (req, res): Pr
     })
     .returning();
   res.status(201).json(row);
+});
+
+// ---------------------------------------------------------------------------
+// App store URL settings (ios_app_store_url, android_play_store_url, og_image_url)
+// Stored in app_settings — changes apply immediately (no app rebuild needed).
+// ---------------------------------------------------------------------------
+const STORE_SETTING_KEYS = ["ios_app_store_url", "android_play_store_url", "og_image_url"] as const;
+type StoreSettingKey = (typeof STORE_SETTING_KEYS)[number];
+
+router.get("/admin/app-settings/store", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(appSettingsTable)
+    .where(inArray(appSettingsTable.key, [...STORE_SETTING_KEYS]));
+  const result = Object.fromEntries(rows.map((r) => [r.key, r.value])) as Partial<Record<StoreSettingKey, string>>;
+  res.json(result);
+});
+
+router.put("/admin/app-settings/store", requireAdmin, async (req, res): Promise<void> => {
+  const updates: { key: StoreSettingKey; value: string }[] = [];
+  for (const key of STORE_SETTING_KEYS) {
+    const raw = req.body?.[key];
+    if (typeof raw === "string") {
+      updates.push({ key, value: raw.trim() });
+    }
+  }
+  if (updates.length === 0) {
+    res.status(400).json({ error: "Provide at least one of: " + STORE_SETTING_KEYS.join(", ") });
+    return;
+  }
+  for (const { key, value } of updates) {
+    await db
+      .insert(appSettingsTable)
+      .values({ key, value })
+      .onConflictDoUpdate({ target: appSettingsTable.key, set: { value, updatedAt: new Date() } });
+  }
+  res.json({ updated: updates.map((u) => u.key) });
 });
 
 export default router;

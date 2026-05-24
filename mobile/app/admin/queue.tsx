@@ -36,6 +36,18 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
+type StaffPostReport = {
+  reporterUsername: string;
+  reporterDisplayName: string | null;
+  reason: string;
+  createdAt: string;
+};
+
+type PendingPost = Post & {
+  reports?: StaffPostReport[];
+  flagReason?: string | null;
+};
+
 /** Readable caption for mod queue — hide image placeholder; clarify media-only posts. */
 function moderationCaptionPreview(post: Post): { lines: string[]; muted: boolean } {
   const raw = String(post.content ?? "").trim();
@@ -72,7 +84,7 @@ function PendingPostCard({
   post,
   onModerated,
 }: {
-  post: Post;
+  post: PendingPost;
   onModerated: () => void;
 }) {
   const { uiScale, cardRadius } = useResponsiveLayout();
@@ -158,6 +170,7 @@ function PendingPostCard({
     ? "Anonymous"
     : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
   const caption = moderationCaptionPreview(post);
+  const reports = post.reports ?? [];
 
   return (
     <View
@@ -255,7 +268,12 @@ function PendingPostCard({
             {post.isAnonymous ? "?" : (authorName[0] ?? "?").toUpperCase()}
           </Text>
         </View>
-        <Text style={[styles.postAuthor, { fontSize: fsAuthor }]}>{authorName}</Text>
+        <View style={styles.postAuthorBlock}>
+          <Text style={[styles.postAuthor, { fontSize: fsAuthor }]}>{authorName}</Text>
+          {!post.isAnonymous && post.authorUsername ? (
+            <Text style={[styles.postAuthorHandle, { fontSize: fsPill }]}>@{post.authorUsername}</Text>
+          ) : null}
+        </View>
         {post.category && (
           <View
             style={[
@@ -287,6 +305,34 @@ function PendingPostCard({
       <Pressable onPress={() => router.push(`/post/${post.id}` as never)} style={styles.openFullPost}>
         <Text style={[styles.openFullPostText, { fontSize: fsPill }]}>Open full post</Text>
       </Pressable>
+      {reports.length > 0 ? (
+        <View style={[styles.reportsSection, { borderRadius: btnRad, padding: catPadH, gap: btnRowGap }]}>
+          <Text style={[styles.reportsSectionTitle, { fontSize: fsPill }]}>
+            Reported by {reports.length === 1 ? "1 person" : `${reports.length} people`}
+          </Text>
+          {reports.map((report, idx) => {
+            const reporterName = report.reporterDisplayName ?? report.reporterUsername;
+            return (
+              <View key={`${report.reporterUsername}-${idx}`} style={styles.reportRow}>
+                <Text style={[styles.reportReporter, { fontSize: fsPill }]}>
+                  {reporterName}
+                  <Text style={styles.reportReporterHandle}> @{report.reporterUsername}</Text>
+                </Text>
+                <Text style={[styles.reportReason, { fontSize: fsPill, lineHeight: Math.round(fsPill * 1.4) }]}>
+                  {report.reason}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : post.flagReason ? (
+        <View style={[styles.flagReasonBanner, { borderRadius: btnRad, padding: catPadH }]}>
+          <Ionicons name="flag" size={btnIcn} color={colors.danger} />
+          <Text style={[styles.flagReasonText, { fontSize: fsPill, lineHeight: Math.round(fsPill * 1.4) }]}>
+            Report reason: {post.flagReason}
+          </Text>
+        </View>
+      ) : null}
       <View style={[styles.postActions, { gap: actGap }]}>
         <Pressable
           style={[
@@ -616,7 +662,7 @@ export default function AdminQueueScreen() {
   }
 
   const stats = statsData as any;
-  const pendingPosts: Post[] = (pendingQ.data as any)?.posts ?? [];
+  const pendingPosts: PendingPost[] = (pendingQ.data as any)?.posts ?? [];
   const reviewedPosts: Post[] = (moderatedQ.data as any)?.posts ?? [];
   const listData = tab === "pending" ? pendingPosts : reviewedPosts;
   const isLoading = tab === "pending" ? pendingQ.isLoading : moderatedQ.isLoading;
@@ -850,11 +896,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.accent,
   },
+  postAuthorBlock: {
+    flex: 1,
+    gap: 1,
+  },
   postAuthor: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 14,
     color: colors.text,
-    flex: 1,
+  },
+  postAuthorHandle: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.muted,
   },
   postCategoryBadge: {
     backgroundColor: colors.flameDim,
@@ -886,6 +939,45 @@ const styles = StyleSheet.create({
   openFullPostText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: colors.primary,
+  },
+  flagReasonBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: `${colors.danger}12`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${colors.danger}40`,
+  },
+  flagReasonText: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.danger,
+  },
+  reportsSection: {
+    backgroundColor: `${colors.danger}12`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${colors.danger}40`,
+  },
+  reportsSectionTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.danger,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  reportRow: {
+    gap: 2,
+  },
+  reportReporter: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.text,
+  },
+  reportReporterHandle: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.muted,
+  },
+  reportReason: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.textSecondary,
   },
   postThumb: {
     width: "100%",

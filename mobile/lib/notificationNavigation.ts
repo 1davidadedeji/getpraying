@@ -77,8 +77,7 @@ export async function navigateFromNotificationData(
     return;
   }
   if (Number.isFinite(postId)) {
-    const suffix = type === "comment" ? "?focusComment=1" : "";
-    router.push(`/post/${postId}${suffix}` as Href);
+    router.push(`/post/${postId}` as Href);
     return;
   }
 

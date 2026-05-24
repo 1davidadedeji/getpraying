@@ -743,7 +743,7 @@ paths:
       operationId: getDailyWord
       tags: [content]
       summary: Get daily scripture for the welcome screen
-      description: Returns an admin override for the given calendar date if set; otherwise a deterministic default from the built-in yearly rotation.
+      description: Returns an admin override for the given calendar date if set; otherwise the static default (Psalm 34:17) when auto-rotation is off, or a deterministic daily rotation when auto-rotation is on.
       parameters:
         - name: date
           in: query
@@ -1028,6 +1028,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/daily-word/settings:
+    get:
+      operationId: getDailyWordSettings
+      tags: [admin]
+      summary: Get daily word update mode (manual vs auto rotation)
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyWordSettings"
+    patch:
+      operationId: setDailyWordSettings
+      tags: [admin]
+      summary: Set daily word update mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DailyWordSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyWordSettings"
 
 components:
   schemas:
@@ -1827,6 +1857,9 @@ components:
         prayingWithYou:
           type: integer
           description: Approximate count of community members for social proof
+        autoRotation:
+          type: boolean
+          description: When true, non-override dates use the built-in daily rotation; when false, Psalm 34:17 is the default
       required:
         - date
         - quoteText
@@ -1848,3 +1881,19 @@ components:
         - effectiveDate
         - quoteText
         - reference
+
+    DailyWordSettings:
+      type: object
+      properties:
+        autoRotation:
+          type: boolean
+      required:
+        - autoRotation
+
+    DailyWordSettingsInput:
+      type: object
+      properties:
+        autoRotation:
+          type: boolean
+      required:
+        - autoRotation

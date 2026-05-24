@@ -44,8 +44,15 @@ import { CATEGORY_SLUGS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { AUDIO_DOCUMENT_PICKER_TYPES } from "@/lib/audioDocumentTypes";
 import { normalizeAudioMime } from "@/lib/audioMime";
+import { copyMediaToCache, parseUploadBody } from "@/lib/mediaUpload";
+import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { clamp } from "@/lib/responsiveMetrics";
 import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
+import {
+  normalizeVideoMime,
+  videoCacheExtension,
+  videoFileNameForMime,
+} from "@/lib/videoMime";
 
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -108,8 +115,7 @@ async function uploadMultipart(
       parameters,
     },
   );
-  let data: { error?: string; url?: string; mediaType?: string } = {};
-  try { data = JSON.parse(result.body); } catch { /* non-JSON body */ }
+  const data = parseUploadBody(result.status, result.body ?? "");
   if (result.status < 200 || result.status >= 300) {
     const kind = route === "post-image" ? "image" : route === "post-video" ? "video" : "audio";
     throw new Error(messageForUploadFailure({ status: result.status } as Response, data, kind));
@@ -153,8 +159,7 @@ async function uploadPostImage(localUri: string, token: string): Promise<string>
       headers: authHeaders(token),
     },
   );
-  let data: { error?: string; url?: string } = {};
-  try { data = JSON.parse(result.body); } catch { /* non-JSON body */ }
+  let data: { error?: string; url?: string } = parseUploadBody(result.status, result.body ?? "");
   if (result.status < 200 || result.status >= 300) {
     throw new Error(messageForUploadFailure({ status: result.status } as Response, data, "image"));
   }
@@ -173,7 +178,6 @@ export default function NewPostScreen() {
   const canBoost = viewerHasPremiumCapabilities(user ?? null, revenueCat);
   const { showNotice, requestFeedJumpToTop } = useFeedNotice();
   const [content, setContent] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const { mutate: createPost, isPending } = useCreatePost();
   const [aiCategories, setAiCategories] = useState<string[]>([]);
@@ -305,14 +309,10 @@ export default function NewPostScreen() {
       });
       return;
     }
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      showAppAlert({
-        title: "Permission needed",
-        message: "Allow photo library access to attach an image.",
-      });
-      return;
-    }
+    const granted = await ensurePhotoLibraryPermission(
+      "Allow photo library access to attach an image.",
+    );
+    if (!granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
@@ -349,18 +349,17 @@ export default function NewPostScreen() {
       });
       return;
     }
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      showAppAlert({
-        title: "Permission needed",
-        message: "Allow library access to attach a video.",
-      });
-      return;
-    }
+    const granted = await ensurePhotoLibraryPermission(
+      "Allow library access to attach a video.",
+    );
+    if (!granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       allowsEditing: false,
       quality: 1,
+      ...(Platform.OS === "ios"
+        ? { videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality }
+        : {}),
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
@@ -392,18 +391,33 @@ export default function NewPostScreen() {
     const durSec =
       rawDur == null ? null : rawDur > 1000 ? rawDur / 1000 : rawDur;
 
-    const mime =
+    const rawMime =
       "mimeType" in asset && typeof (asset as { mimeType?: string }).mimeType === "string"
         ? (asset as { mimeType: string }).mimeType
         : "video/mp4";
-    const fileName = mime.includes("quicktime") ? "clip.mov" : "clip.mp4";
-    setPendingMedia({
-      kind: "video",
-      uri: asset.uri,
-      mimeType: mime,
-      fileName,
-      durationSec: durSec ?? 0,
-    });
+    const provisionalName = rawMime.includes("quicktime") ? "clip.mov" : "clip.mp4";
+    const mime = normalizeVideoMime(rawMime, provisionalName);
+    const fileName = videoFileNameForMime(mime);
+
+    try {
+      setUploadBusy(true);
+      const ext = videoCacheExtension(mime, fileName);
+      const cacheUri = await copyMediaToCache(asset.uri, ext);
+      setPendingMedia({
+        kind: "video",
+        uri: cacheUri,
+        mimeType: mime,
+        fileName,
+        durationSec: durSec ?? 0,
+      });
+    } catch (e) {
+      showAppAlert({
+        title: "Could not use video",
+        message: e instanceof Error ? e.message : "Try selecting a different clip.",
+      });
+    } finally {
+      setUploadBusy(false);
+    }
   };
 
   const pickAudioFromDocuments = async () => {
@@ -523,16 +537,11 @@ export default function NewPostScreen() {
       }
     }
 
-    // Free the media preview now — we have the URL; no need to hold the
-    // preview in memory while the createPost mutation and navigation run.
-    setPendingMedia(null);
-
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     createPost(
       {
         data: {
           content: content.trim(),
-          isAnonymous,
           category,
           ...(categories ? { categories } : {}),
           ...(mediaUrl && postMediaType ? { mediaUrl, mediaType: postMediaType } : {}),
@@ -577,10 +586,10 @@ export default function NewPostScreen() {
             // Composer is already unmounting, but clearing state here is
             // harmless and prevents stale data if the screen is kept alive.
             setContent("");
-            setIsAnonymous(false);
             setSelectedCategories([]);
             setAiCategories([]);
             setApplyBoost(false);
+            setPendingMedia(null);
 
             queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
             queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
@@ -796,23 +805,6 @@ export default function NewPostScreen() {
             </Pressable>
           </View>
         )}
-      </View>
-
-      <View style={[styles.option, { padding: optPad, borderRadius: optRad }]}>
-        <View style={[styles.optionLeft, { gap: optLeftGap }]}>
-          <Feather name="eye-off" size={optFeather} color={colors.primary} />
-          <View>
-            <Text style={[styles.optionLabel, { fontSize: fsOptLabel }]}>Post Anonymously</Text>
-            <Text style={[styles.optionDesc, { fontSize: fsOptDesc }]}>Your name won&apos;t be shown</Text>
-          </View>
-        </View>
-        <Switch
-          value={isAnonymous}
-          onValueChange={setIsAnonymous}
-          trackColor={{ true: colors.primary, false: colors.border }}
-          thumbColor={colors.surface}
-          testID="anonymous-toggle"
-        />
       </View>
 
       <View style={[styles.option, { padding: optPad, borderRadius: optRad }]}>

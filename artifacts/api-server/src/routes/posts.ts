@@ -16,6 +16,7 @@ import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
 import { notifyModeratorsNewPending } from "../lib/modQueueNotifications";
+import { insertPostReport, userAlreadyReportedPost } from "../lib/postReports";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
@@ -492,7 +493,7 @@ router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
-const FLAG_THRESHOLD = 3;
+const FLAG_THRESHOLD = 1;
 
 router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
@@ -521,6 +522,21 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
+  if (await userAlreadyReportedPost(postId, currentUser.id)) {
+    res.status(400).json({ error: "You already reported this prayer." });
+    return;
+  }
+
+  const reportResult = await insertPostReport({
+    postId,
+    reporterId: currentUser.id,
+    reason,
+  });
+  if (reportResult.duplicate) {
+    res.status(400).json({ error: "You already reported this prayer." });
+    return;
+  }
+
   const [updated] = await db
     .update(postsTable)
     .set({
@@ -536,8 +552,8 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
       .values({
         userId: post.authorId,
         type: "post_reported",
-        message: `Your prayer was reported: ${reason}`,
-        actorId: currentUser.id,
+        message: "Your prayer was reported. Our team will review it.",
+        actorId: null,
         postId,
         isRead: false,
       })
@@ -549,9 +565,23 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
   if (shouldQueue) {
     await db.update(postsTable).set({ status: "pending" }).where(eq(postsTable.id, postId));
     if (post.authorId != null) {
-      await notifyModeratorsNewPending(postId, post.authorId);
+      await notifyModeratorsNewPending(postId, post.authorId, {
+        message: "A reported prayer needs moderation review.",
+      });
     } else {
-      await notifyModeratorsNewPending(postId, 0);
+      await notifyModeratorsNewPending(postId, 0, {
+        message: "A reported prayer needs moderation review.",
+      });
+    }
+  } else if (post.status === "pending" && (updated.flagCount ?? 0) >= FLAG_THRESHOLD) {
+    if (post.authorId != null) {
+      await notifyModeratorsNewPending(postId, post.authorId, {
+        message: "A reported prayer in the queue received another report.",
+      });
+    } else {
+      await notifyModeratorsNewPending(postId, 0, {
+        message: "A reported prayer in the queue received another report.",
+      });
     }
   }
 

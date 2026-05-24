@@ -34,6 +34,7 @@ import { PostMediaBlock } from "@/components/PostMedia";
 import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { submitPostReport } from "@/lib/reportPost";
 import { postShareUrl } from "@/lib/publicWebOrigin";
 import { clamp } from "@/lib/responsiveMetrics";
 import { viewerHasPremiumCapabilities } from "@/lib/subscriptionBoost";
@@ -48,13 +49,25 @@ interface PostCardProps {
   replaceNav?: boolean;
   /** Home feed: post id that should autoplay media (muted) when in view */
   feedMediaFocusPostId?: number | null;
+  /** Profile “My Prayers” and similar — boost belongs in the feed, not the archive list. */
+  hideBoost?: boolean;
+  /** When set, tapping the author won't re-open this profile (avoids profile↔post loops). */
+  activeProfileUsername?: string | null;
 }
 
-export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPostId }: PostCardProps) {
+export default function PostCard({
+  post,
+  onUpdated,
+  replaceNav,
+  feedMediaFocusPostId,
+  hideBoost = false,
+  activeProfileUsername = null,
+}: PostCardProps) {
   const { cardRadius, iconAction, uiScale } = useResponsiveLayout();
   const cardPad = Math.round(clamp(16 * uiScale, 14, 18));
   const avatarSz = Math.round(clamp(38 * uiScale, 34, 44));
   const iconSm = Math.max(17, iconAction - 2);
+  const iconMicro = Math.max(14, iconSm - 4);
   const navigate = replaceNav ? router.replace : router.push;
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
@@ -261,10 +274,27 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
     localPost.boostedByUserId === user.id;
   const boostColor = iBoosted ? colors.flame : colors.muted;
 
+  const openAuthorProfile = useCallback(() => {
+    if (localPost.isAnonymous || !localPost.authorUsername) return;
+    if (
+      activeProfileUsername &&
+      activeProfileUsername.toLowerCase() === localPost.authorUsername.toLowerCase()
+    ) {
+      return;
+    }
+    navigate(`/user/${localPost.authorUsername}` as any);
+  }, [activeProfileUsername, localPost.authorUsername, localPost.isAnonymous, navigate]);
+
+  const postHref = useMemo(() => {
+    const base = `/post/${localPost.id}`;
+    if (!activeProfileUsername) return base;
+    return `${base}?fromProfile=${encodeURIComponent(activeProfileUsername)}`;
+  }, [activeProfileUsername, localPost.id]);
+
   return (
     <View style={[styles.card, { borderRadius: cardRadius, marginBottom: Math.round(12 * uiScale) }]}>
       <Pressable
-        onPress={() => navigate(`/post/${localPost.id}` as any)}
+        onPress={() => navigate(postHref as any)}
         style={({ pressed }) => [
           styles.cardBody,
           { padding: cardPad, paddingBottom: Math.round(cardPad * 0.75) },
@@ -278,9 +308,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
             <Pressable
               onPress={(e) => {
                 e.stopPropagation?.();
-                if (!localPost.isAnonymous && localPost.authorUsername) {
-                  navigate(`/user/${localPost.authorUsername}` as any);
-                }
+                openAuthorProfile();
               }}
               disabled={localPost.isAnonymous || !localPost.authorUsername}
               style={styles.headerAvatarBtn}
@@ -305,9 +333,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
               <Pressable
                 onPress={(e) => {
                   e.stopPropagation?.();
-                  if (!localPost.isAnonymous && localPost.authorUsername) {
-                    navigate(`/user/${localPost.authorUsername}` as any);
-                  }
+                  openAuthorProfile();
                 }}
                 disabled={localPost.isAnonymous || !localPost.authorUsername}
                 style={styles.headerNamePressable}
@@ -352,7 +378,10 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
           }
           onOpenPostDetail={
             localPost.mediaType === "video"
-              ? () => navigate(`/post/${localPost.id}?focusMedia=1` as any)
+              ? () =>
+                  navigate(
+                    `${postHref}${postHref.includes("?") ? "&" : "?"}focusMedia=1` as any,
+                  )
               : undefined
           }
         />
@@ -400,7 +429,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
           <Pressable
             onPress={(e) => {
               e.stopPropagation?.();
-              navigate(`/post/${localPost.id}?focusComment=1` as any);
+              navigate(postHref as any);
             }}
             style={styles.actionBtn}
             accessibilityRole="button"
@@ -440,7 +469,7 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
         </View>
 
         <View style={styles.actionsSecondary}>
-          {isOwnPost && (
+          {isOwnPost && !hideBoost && (
             <Pressable
               onPress={(e) => {
                 e.stopPropagation?.();
@@ -470,9 +499,10 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
             accessibilityRole="button"
             accessibilityLabel="Share prayer"
           >
-            <Feather name="share-2" size={iconSm} color={colors.muted} />
+            <Feather name="share-2" size={iconMicro} color={colors.muted} />
           </Pressable>
 
+          {!isOwnPost && token ? (
           <Pressable
             onPress={(e) => {
               e.stopPropagation?.();
@@ -486,31 +516,20 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
                     text: "Report",
                     style: "destructive",
                     onPress: async () => {
-                      try {
-                        const res = await fetch(apiUrl(`/posts/${localPost.id}/flag`), {
-                          method: "POST",
-                          headers: authHeaders(token, { "Content-Type": "application/json" }),
-                          body: JSON.stringify({ reason: "inappropriate" }),
-                        });
-                        const errJson = !res.ok ? ((await res.json().catch(() => ({}))) as { error?: string }) : null;
-                        InteractionManager.runAfterInteractions(() => {
-                          if (res.ok) {
-                            showAppAlert({
-                              title: "Report submitted",
-                              message: "Thank you for helping keep the community safe.",
-                            });
-                          } else {
-                            showAppAlert({
-                              title: "Could not submit report",
-                              message: errJson?.error ?? "Please try again.",
-                            });
-                          }
-                        });
-                      } catch {
-                        InteractionManager.runAfterInteractions(() => {
-                          showAppAlert({ title: "Could not submit report", message: "Check your connection." });
-                        });
-                      }
+                      const result = await submitPostReport(localPost.id, token);
+                      InteractionManager.runAfterInteractions(() => {
+                        if (result.ok) {
+                          showAppAlert({
+                            title: "Report submitted",
+                            message: result.message,
+                          });
+                        } else {
+                          showAppAlert({
+                            title: "Could not submit report",
+                            message: result.error,
+                          });
+                        }
+                      });
                     },
                   },
                 ],
@@ -520,8 +539,9 @@ export default function PostCard({ post, onUpdated, replaceNav, feedMediaFocusPo
             accessibilityRole="button"
             accessibilityLabel="Report prayer"
           >
-            <Ionicons name="flag-outline" size={iconSm} color={colors.muted} />
+            <Ionicons name="flag-outline" size={iconMicro} color={colors.muted} />
           </Pressable>
+          ) : null}
         </View>
       </View>
     </View>

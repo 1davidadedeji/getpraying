@@ -3,10 +3,10 @@ import { db, dailyWordOverridesTable, usersTable } from "@workspace/db";
 import { eq, notLike, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/auth";
 import {
-  dayOfYearFromDate,
-  getDefaultDailyQuote,
   parseCalendarDateString,
+  resolveDailyQuote,
 } from "../lib/dailyWordCatalog";
+import { getDailyWordAutoRotation, setDailyWordAutoRotation } from "../lib/dailyWordSettings";
 
 const SEED_EMAIL_SUFFIX = "@seed.getpraying.app";
 
@@ -39,26 +39,36 @@ router.get("/daily-word", async (req, res): Promise<void> => {
     .from(usersTable)
     .where(notLike(usersTable.email, `%${SEED_EMAIL_SUFFIX}`));
 
-  if (override) {
-    res.json({
-      date: dateStr,
-      quoteText: override.quoteText,
-      reference: override.reference,
-      source: "override" as const,
-      prayingWithYou,
-    });
-    return;
-  }
+  const autoRotation = await getDailyWordAutoRotation();
+  const quote = resolveDailyQuote(
+    parsed,
+    autoRotation,
+    override ? { quoteText: override.quoteText, reference: override.reference } : null,
+  );
 
-  const doy = dayOfYearFromDate(parsed);
-  const def = getDefaultDailyQuote(doy);
   res.json({
     date: dateStr,
-    quoteText: def.quoteText,
-    reference: def.reference,
-    source: "default" as const,
+    quoteText: quote.quoteText,
+    reference: quote.reference,
+    source: override ? ("override" as const) : ("default" as const),
+    autoRotation,
     prayingWithYou,
   });
+});
+
+router.get("/admin/daily-word/settings", requireAdmin, async (_req, res): Promise<void> => {
+  const autoRotation = await getDailyWordAutoRotation();
+  res.json({ autoRotation });
+});
+
+router.patch("/admin/daily-word/settings", requireAdmin, async (req, res): Promise<void> => {
+  const { autoRotation } = req.body ?? {};
+  if (typeof autoRotation !== "boolean") {
+    res.status(400).json({ error: "autoRotation (boolean) is required" });
+    return;
+  }
+  const enabled = await setDailyWordAutoRotation(autoRotation);
+  res.json({ autoRotation: enabled });
 });
 
 router.put("/admin/daily-word", requireAdmin, async (req, res): Promise<void> => {
@@ -116,7 +126,10 @@ router.delete("/admin/daily-word", requireAdmin, async (req, res): Promise<void>
 
   await db.delete(dailyWordOverridesTable).where(eq(dailyWordOverridesTable.effectiveDate, dateStr));
 
-  res.json({ success: true, message: "Override cleared (default rotation restored for that date)" });
+  res.json({
+    success: true,
+    message: "Override cleared (default verse restored for that date)",
+  });
 });
 
 export default router;

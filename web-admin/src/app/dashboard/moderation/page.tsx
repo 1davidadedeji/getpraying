@@ -9,6 +9,13 @@ import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
+interface StaffPostReport {
+  reporterUsername: string;
+  reporterDisplayName: string | null;
+  reason: string;
+  createdAt: string;
+}
+
 interface Post {
   id: number;
   content: string;
@@ -21,6 +28,8 @@ interface Post {
   mediaType: string | null;
   isAnonymous: boolean;
   status: string;
+  flagReason?: string | null;
+  reports?: StaffPostReport[];
 }
 
 type ModerationFiltersSnapshot = {
@@ -221,6 +230,30 @@ export default function ModerationPage() {
                     </span>
                   </div>
                   <p className="text-sm leading-relaxed text-[var(--color-primary)] whitespace-pre-wrap">{post.content}</p>
+
+                  {(post.reports?.length ?? 0) > 0 ? (
+                    <div className="mt-3 rounded-lg border border-[color-mix(in_srgb,var(--color-danger)_35%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-danger)_8%,var(--color-surface))] p-3">
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--color-danger)]">
+                        Reported by {post.reports!.length === 1 ? "1 person" : `${post.reports!.length} people`}
+                      </p>
+                      <ul className="flex flex-col gap-2">
+                        {post.reports!.map((report, idx) => (
+                          <li key={`${report.reporterUsername}-${idx}`} className="text-[13px]">
+                            <span className="font-semibold text-[var(--color-primary)]">
+                              {report.reporterDisplayName ?? report.reporterUsername}
+                            </span>
+                            <span className="text-[var(--color-muted)]"> @{report.reporterUsername}</span>
+                            <span className="text-[var(--color-muted)]"> — </span>
+                            <span className="text-[var(--color-text-secondary,var(--color-muted))]">{report.reason}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : post.flagReason ? (
+                    <p className="mt-3 rounded-lg border border-[color-mix(in_srgb,var(--color-danger)_35%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-danger)_8%,var(--color-surface))] px-3 py-2 text-[13px] text-[var(--color-danger)]">
+                      Report reason: {post.flagReason}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

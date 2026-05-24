@@ -5,6 +5,7 @@ import pinoHttp from "pino-http";
 import { existsSync, mkdirSync } from "fs";
 import path from "path";
 import router from "./routes";
+import shareRouter from "./routes/share";
 import { logger } from "./lib/logger";
 import { getUploadDir } from "./routes/uploads";
 
@@ -46,6 +47,8 @@ app.use(cookieParser());
 app.use(express.json({ limit: "512kb" }));
 app.use(express.urlencoded({ extended: true, limit: "512kb" }));
 
+// Share/deep-link pages at root (no /api prefix) — must come before /api router
+app.use(shareRouter);
 app.use("/api", router);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

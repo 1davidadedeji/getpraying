@@ -4,75 +4,45 @@ import {
   ActivityIndicator,
   Platform,
   StyleSheet,
-  Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import colors from "@/constants/colors";
-
-/** Logo vs shortest screen edge — native splash `imageWidth` should feel similar after prebuild. */
-const SPLASH_LOGO_FRAC = 0.76;
+import { APP_LOGO_SOURCE, appLogoSizePx } from "@/constants/branding";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 type Props = {
   /** @deprecated Ignored — always uses cream to match native splash. */
   variant?: "splash" | "cream";
 };
 
-function SplashTagline({
-  titleFontFamily,
-  minDim,
-}: {
-  titleFontFamily?: string;
-  minDim: number;
-}) {
-  const fontSize = Math.max(22, Math.round(minDim * 0.065));
-  return (
-    <Text
-      accessibilityRole="text"
-      style={[
-        styles.tagline,
-        { fontSize },
-        titleFontFamily != null
-          ? { fontFamily: titleFontFamily }
-          : { fontWeight: "700" },
-      ]}
-    >
-      Get Praying
-    </Text>
-  );
-}
-
-/** Full-screen branded splash — ladder + “Get Praying” (system bold until custom fonts load). */
+/** Full-screen branded splash — same logo + cream as sign-in. */
 export function SplashBrandedFill() {
   const insets = useSafeAreaInsets();
-  const { width: winW, height: winH } = useWindowDimensions();
+  const { uiScale } = useResponsiveLayout();
   const topPad = Platform.OS === "web" ? 0 : insets.top;
   const botPad = Platform.OS === "web" ? 0 : insets.bottom;
-  const minDim = Math.min(winW, winH);
-  const splashSide = Math.round(minDim * SPLASH_LOGO_FRAC);
+  const logoSide = appLogoSizePx(uiScale);
 
   return (
     <View style={[styles.fill, styles.bg, { paddingTop: topPad, paddingBottom: botPad }]}>
       <Image
-        source={require("../assets/images/splash-icon.png")}
-        style={{ width: splashSide, height: splashSide }}
+        source={APP_LOGO_SOURCE}
+        style={{ width: logoSide, height: logoSide }}
         contentFit="contain"
-        accessibilityLabel="Get Praying logo"
+        accessibilityLabel="Get Praying app logo"
       />
-      <SplashTagline minDim={minDim} />
     </View>
   );
 }
 
-/** Same mark as splash, using loaded brand serif — show after fonts; e.g. over root until auth hydrates. */
+/** Same mark as splash while auth hydrates. */
 export function SplashBrandedOverlay() {
   const insets = useSafeAreaInsets();
-  const { width: winW, height: winH } = useWindowDimensions();
+  const { uiScale } = useResponsiveLayout();
   const topPad = Platform.OS === "web" ? 0 : insets.top;
   const botPad = Platform.OS === "web" ? 0 : insets.bottom;
-  const minDim = Math.min(winW, winH);
-  const splashSide = Math.round(minDim * SPLASH_LOGO_FRAC);
+  const logoSide = appLogoSizePx(uiScale);
 
   return (
     <View
@@ -80,38 +50,35 @@ export function SplashBrandedOverlay() {
       style={[styles.overlayRoot, { paddingTop: topPad, paddingBottom: botPad }]}
     >
       <Image
-        source={require("../assets/images/splash-icon.png")}
-        style={{ width: splashSide, height: splashSide }}
+        source={APP_LOGO_SOURCE}
+        style={{ width: logoSide, height: logoSide }}
         contentFit="contain"
-        accessibilityLabel="Get Praying logo"
+        accessibilityLabel="Get Praying app logo"
       />
-      <SplashTagline titleFontFamily="NotoSerif_700Bold" minDim={minDim} />
     </View>
   );
 }
 
 /**
  * In-app loading while session/fonts/bootstrap complete.
- * Matches `expo.splash.backgroundColor` and `colors.cream`.
+ * Matches sign-in cream background and logo.
  */
 export function AppLoadingScreen(_props: Props) {
   const insets = useSafeAreaInsets();
-  const { width: winW, height: winH } = useWindowDimensions();
+  const { uiScale } = useResponsiveLayout();
   const topPad = Platform.OS === "web" ? 0 : insets.top;
   const botPad = Platform.OS === "web" ? 0 : insets.bottom;
-  const minDim = Math.min(winW, winH);
-  const splashSide = Math.round(minDim * SPLASH_LOGO_FRAC);
+  const logoSide = appLogoSizePx(uiScale);
 
   return (
     <View style={[styles.fill, styles.bg, { paddingTop: topPad, paddingBottom: botPad }]}>
       <Image
-        source={require("../assets/images/splash-icon.png")}
-        style={{ width: splashSide, height: splashSide }}
+        source={APP_LOGO_SOURCE}
+        style={{ width: logoSide, height: logoSide }}
         contentFit="contain"
-        accessibilityLabel="Get Praying logo"
+        accessibilityLabel="Get Praying app logo"
       />
-      <SplashTagline titleFontFamily="NotoSerif_700Bold" minDim={minDim} />
-      <ActivityIndicator color={colors.flame} style={styles.spinner} />
+      <ActivityIndicator color={colors.primary} style={styles.spinner} />
     </View>
   );
 }
@@ -130,14 +97,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
   },
   bg: {
-    /* Always cream — matches expo.splash (incl. dark) and ignores system scheme. */
     backgroundColor: colors.cream,
-  },
-  tagline: {
-    marginTop: 16,
-    color: colors.primary,
-    letterSpacing: 0.6,
-    textAlign: "center",
   },
   spinner: {
     marginTop: 28,

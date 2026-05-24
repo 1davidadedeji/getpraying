@@ -18,6 +18,7 @@ import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarV
 import { FeedNoticeBanner } from "@/components/FeedNoticeBanner";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
+import { isTrialExpired, useTrialClock } from "@/lib/trial";
 
 const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 52 : 58;
 
@@ -480,6 +481,7 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { user, loading } = useAuth();
   const rc = useRevenueCat();
+  useTrialClock();
 
   if (loading) {
     return <AppLoadingScreen variant="splash" />;
@@ -492,9 +494,7 @@ export default function TabLayout() {
     return <Redirect href={"/(auth)/verify" as Href} />;
   }
   if (user.role !== "admin" && user.role !== "moderator") {
-    const startedAt = user.trialStartsAt ? new Date(user.trialStartsAt as any) : null;
-    const trialExpired =
-      startedAt != null && Date.now() - startedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+    const trialExpired = isTrialExpired(user.trialStartsAt);
     if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
       return <Redirect href={"/(paywall)/index" as any} />;
     }

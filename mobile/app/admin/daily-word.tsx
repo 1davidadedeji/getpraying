@@ -90,7 +90,7 @@ export default function AdminDailyWordScreen() {
         onSuccess: () => {
           showAppAlert({
             title: "Cleared",
-            message: "That date will use the automatic daily rotation again.",
+            message: "That date will use the default verse again (manual or auto, depending on settings).",
           });
           refetchWord();
         },
@@ -138,8 +138,8 @@ export default function AdminDailyWordScreen() {
         {"Today's Word (override)"}
       </Text>
       <Text style={[styles.hint, { fontSize: fsHint, lineHeight: lhHint, marginBottom: hintMb }]}>
-        Set a custom verse for a calendar date, or clear to use the automatic rotation (
-        {word?.source === "override" ? "this date has an override" : "this date uses defaults"}).
+        Set a custom verse for a calendar date, or clear to revert to the default (Psalm 34:17 in manual mode, or the daily rotation when auto is on).{" "}
+        ({word?.source === "override" ? "this date has an override" : "this date uses the default"}).
       </Text>
       <Text style={[styles.label, { fontSize: fsLabel, marginTop: labelMt }]}>Date (YYYY-MM-DD)</Text>
       <TextInput

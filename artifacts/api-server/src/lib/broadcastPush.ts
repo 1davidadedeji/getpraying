@@ -1,11 +1,19 @@
 import { db, usersTable } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 /** Expo accepts multiple messages per request; keep batches small for reliability. */
 const CHUNK = 96;
 
 async function sendExpoBatch(
-  batch: Array<{ to: string; title: string; body: string; data: Record<string, string>; sound?: string }>,
+  batch: Array<{
+    to: string;
+    title: string;
+    body: string;
+    data: Record<string, string>;
+    sound?: string;
+    priority?: "high" | "normal" | "default";
+    channelId?: string;
+  }>,
 ): Promise<void> {
   if (batch.length === 0) return;
   try {
@@ -21,6 +29,23 @@ async function sendExpoBatch(
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       console.warn("[broadcastPush] Expo non-OK:", res.status, t.slice(0, 280));
+      return;
+    }
+    const json = (await res.json().catch(() => null)) as {
+      data?: { status?: string; message?: string; details?: { error?: string } }[];
+    } | null;
+    const tickets = Array.isArray(json?.data) ? json!.data! : [];
+    for (let i = 0; i < tickets.length; i++) {
+      const ticket = tickets[i];
+      const token = batch[i]?.to;
+      if (!ticket || ticket.status !== "error" || !token) continue;
+      const code = ticket.details?.error;
+      if (code === "DeviceNotRegistered" || code === "InvalidCredentials") {
+        await db
+          .update(usersTable)
+          .set({ expoPushToken: null, updatedAt: new Date() })
+          .where(eq(usersTable.expoPushToken, token));
+      }
     }
   } catch (e) {
     console.warn("[broadcastPush] Expo request failed:", e);
@@ -45,7 +70,15 @@ export async function broadcastPushToRegisteredDevices(opts: {
   const exclude = opts.excludeUserIds ?? new Set<number>();
   let sent = 0;
 
-  let batch: Array<{ to: string; title: string; body: string; data: Record<string, string>; sound: string }> = [];
+  let batch: Array<{
+    to: string;
+    title: string;
+    body: string;
+    data: Record<string, string>;
+    sound: string;
+    priority: "high";
+    channelId: string;
+  }> = [];
 
   for (const r of rows) {
     const raw = r.token?.trim();
@@ -59,6 +92,8 @@ export async function broadcastPushToRegisteredDevices(opts: {
       body: opts.body.length > 180 ? `${opts.body.slice(0, 177)}…` : opts.body,
       data: opts.data,
       sound: "default",
+      priority: "high",
+      channelId: "default",
     });
     sent++;
     if (batch.length >= CHUNK) {

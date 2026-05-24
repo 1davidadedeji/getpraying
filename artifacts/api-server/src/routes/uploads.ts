@@ -50,6 +50,24 @@ const uploadAvatarImage = multer({
 });
 
 /** Stream large media to disk to avoid holding full file in server RAM. */
+function isAllowedVideoUpload(mimetype: string, originalname: string): boolean {
+  const mt = mimetype.toLowerCase();
+  if (/^video\/(mp4|quicktime|webm|x-m4v|3gpp|3gpp2)$/i.test(mt)) return true;
+  const name = originalname.toLowerCase();
+  if (/\.(mp4|mov|m4v|webm|3gp|3gpp)$/i.test(name)) return true;
+  if (mt === "application/octet-stream" && /\.(mp4|mov|m4v|webm)$/i.test(name)) return true;
+  return false;
+}
+
+function videoExtension(mimetype: string, originalname: string): string {
+  const mt = mimetype.toLowerCase();
+  const name = originalname.toLowerCase();
+  if (mt.includes("webm") || name.endsWith(".webm")) return "webm";
+  if (mt.includes("quicktime") || name.endsWith(".mov")) return "mov";
+  if (mt.includes("3gpp") || name.endsWith(".3gp") || name.endsWith(".3gpp")) return "3gp";
+  return "mp4";
+}
+
 const uploadVideo = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -60,14 +78,12 @@ const uploadVideo = multer({
       }
     },
     filename: (_req, file, cb) => {
-      const ext =
-        file.mimetype === "video/webm" ? "webm" : file.mimetype === "video/quicktime" ? "mov" : "mp4";
-      cb(null, `${randomUUID()}.${ext}`);
+      cb(null, `${randomUUID()}.${videoExtension(file.mimetype, file.originalname ?? "")}`);
     },
   }),
   limits: { fileSize: MAX_VIDEO_BYTES },
   fileFilter: (_req, file, cb) => {
-    if (!/^video\/(mp4|quicktime|webm)$/i.test(file.mimetype)) {
+    if (!isAllowedVideoUpload(file.mimetype, file.originalname ?? "")) {
       cb(new Error("That video format isn't supported. Try an MP4 or MOV file."));
       return;
     }

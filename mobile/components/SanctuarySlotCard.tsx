@@ -1,13 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Svg, { Circle, G } from "react-native-svg";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
-import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
-import { AudioScrubberRow } from "@/components/AudioScrubberRow";
+import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 
 type Slot = "morning" | "evening";
 
@@ -64,45 +62,24 @@ export function SanctuarySlotCard({
   compact = false,
 }: Props) {
   const { uiScale } = useResponsiveLayout();
-  const playRef = useRef<OfficialGuidePlayHandle>(null);
-  const [audioPlaying, setAudioPlaying] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(0);
-  const [audioPositionMs, setAudioPositionMs] = useState(0);
-  const [audioDurationMs, setAudioDurationMs] = useState(0);
-  const [playbackRate, setPlaybackRate] = useState(1);
   const t = SLOT_THEME[slot];
   const density = compact ? 0.86 : 1;
   const slotIcon = Math.round(clamp(40 * uiScale * density, compact ? 32 : 36, compact ? 40 : 46));
   const topIcn = Math.round(18 * uiScale * density);
   const bookmarkIcn = Math.round(22 * uiScale * density);
-  const playIcn = Math.round(14 * uiScale * density);
-  const playCircle = Math.round(clamp(46 * uiScale * density, compact ? 36 : 42, compact ? 44 : 54));
   const fsTime = Math.round(clamp(10 * uiScale * density, 8, compact ? 10 : 11));
   const fsTitle = Math.round(clamp(18 * uiScale * density, compact ? 15 : 16, compact ? 19 : 21));
   const fsDesc = Math.round(clamp(14 * uiScale * density, 12, compact ? 14 : 16));
   const lhDesc = Math.round(fsDesc * 1.35);
   const fsScripture = Math.round(clamp(11 * uiScale * density, 9, compact ? 10 : 12));
-  const fsStart = Math.round(clamp(14 * uiScale * density, 12, compact ? 14 : 16));
   const fsDuration = Math.round(clamp(12 * uiScale * density, 10, compact ? 11 : 13));
   const rowGap = Math.round(clamp(10 * uiScale * density, 6, compact ? 8 : 12));
   const topRowMb = Math.round(clamp(10 * uiScale * density, 6, compact ? 8 : 12));
   const descMb = Math.round(clamp(6 * uiScale * density, 4, compact ? 6 : 8));
   const scriptureMb = Math.round(clamp(14 * uiScale * density, 8, compact ? 12 : 16));
-  const btnPadV = Math.round(clamp(11 * uiScale * density, 8, compact ? 10 : 13));
-  const btnPadH = Math.round(clamp(16 * uiScale * density, 12, compact ? 14 : 18));
-  const fsRateChip = Math.round(clamp(11 * uiScale * density, 10, compact ? 11 : 12));
-  const rateChipPadH = Math.round(clamp(8 * uiScale * density, 6, compact ? 8 : 10));
-  const rateChipPadV = Math.round(clamp(5 * uiScale * density, 4, compact ? 5 : 7));
   const outerPad = Math.round(16 * uiScale * density);
   const cornerRad = Math.round(24 * uiScale * density);
   const cardMb = Math.round(12 * uiScale * density);
-
-  useEffect(() => {
-    setAudioProgress(0);
-    setAudioPositionMs(0);
-    setAudioDurationMs(0);
-    setPlaybackRate(1);
-  }, [prayer?.id, prayer?.audioUrl]);
 
   const title = prayer?.title ?? (slot === "morning" ? "Morning Prayer" : "Evening Prayer");
   const body =
@@ -177,133 +154,14 @@ export function SanctuarySlotCard({
         </Text>
       ) : null}
 
-      <View style={[styles.bottomRow, { gap: rowGap, alignItems: "center", flexWrap: "wrap" }]}>
-        <Pressable
-          onPress={() => playRef.current?.toggle()}
-          style={[
-            styles.startBtn,
-            {
-              backgroundColor: t.btnBg,
-              paddingVertical: btnPadV,
-              paddingHorizontal: btnPadH,
-              borderRadius: 999,
-            },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={audioPlaying ? "Pause audio" : "Listen to audio"}
-        >
-          <Ionicons
-            name={audioPlaying ? "pause" : "play"}
-            size={playIcn}
-            color={t.btnText}
-            style={{ marginRight: 4 }}
-          />
-          <Text style={[styles.startBtnText, { color: t.btnText, fontSize: fsStart }]}>
-            {audioPlaying ? "Pause" : "Listen"}
-          </Text>
-        </Pressable>
-        {prayer?.audioUrl ? (
-          <Pressable
-            onPress={() => playRef.current?.cyclePlaybackRate()}
-            style={[
-              styles.rateChip,
-              {
-                paddingHorizontal: rateChipPadH,
-                paddingVertical: rateChipPadV,
-                borderColor: t.accent,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={`Playback speed ${playbackRate}×`}
-          >
-            <Text style={[styles.rateChipText, { color: t.accent, fontSize: fsRateChip }]}>{playbackRate}×</Text>
-          </Pressable>
-        ) : null}
-        {prayer?.durationMinutes && !compact && !prayer?.audioUrl ? (
-          <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
-        ) : null}
-        {compact && prayer?.audioUrl ? (
-          (() => {
-            const ringPad = 5;
-            const strokeW = 3;
-            const outer = playCircle + ringPad * 2;
-            const cx = outer / 2;
-            const cy = outer / 2;
-            const r = (outer - strokeW) / 2;
-            const circ = 2 * Math.PI * r;
-            const p = Math.min(1, Math.max(0, audioProgress));
-            return (
-              <View style={{ width: outer, height: outer, alignItems: "center", justifyContent: "center" }}>
-                <Svg
-                  width={outer}
-                  height={outer}
-                  style={{ position: "absolute" }}
-                  pointerEvents="none"
-                >
-                  <G rotation={-90} origin={`${cx}, ${cy}`}>
-                    <Circle
-                      cx={cx}
-                      cy={cy}
-                      r={r}
-                      stroke="rgba(0,0,0,0.1)"
-                      strokeWidth={strokeW}
-                      fill="none"
-                    />
-                    <Circle
-                      cx={cx}
-                      cy={cy}
-                      r={r}
-                      stroke={t.btnBg}
-                      strokeWidth={strokeW}
-                      fill="none"
-                      strokeDasharray={`${circ}, ${circ}`}
-                      strokeDashoffset={circ * (1 - p)}
-                      strokeLinecap="round"
-                    />
-                  </G>
-                </Svg>
-                <OfficialGuidePlayCircle
-                  ref={playRef}
-                  audioUrl={prayer?.audioUrl}
-                  size={playCircle}
-                  color={t.btnBg}
-                  onPlayingChange={setAudioPlaying}
-                  onPlaybackRateChange={setPlaybackRate}
-                  onPlaybackProgress={setAudioProgress}
-                  onPlaybackTimes={(pos, dur) => {
-                    setAudioPositionMs(pos);
-                    setAudioDurationMs(dur);
-                  }}
-                />
-              </View>
-            );
-          })()
-        ) : (
-          <OfficialGuidePlayCircle
-            ref={playRef}
-            audioUrl={prayer?.audioUrl}
-            size={playCircle}
-            color={t.btnBg}
-            onPlayingChange={setAudioPlaying}
-            onPlaybackRateChange={setPlaybackRate}
-            onPlaybackProgress={setAudioProgress}
-            onPlaybackTimes={(pos, dur) => {
-              setAudioPositionMs(pos);
-              setAudioDurationMs(dur);
-            }}
-          />
-        )}
-      </View>
-      {prayer?.audioUrl && !compact ? (
-        <View style={{ marginTop: 6 }}>
-          <AudioScrubberRow
-            positionMs={audioPositionMs}
-            durationMs={audioDurationMs}
-            progress01={audioProgress}
-            fillColor={t.btnBg}
-            onSeek={prayer?.audioUrl ? (p) => playRef.current?.seekProgress(p) : undefined}
-          />
-        </View>
+      {prayer?.audioUrl ? (
+        <CapsuleAudioPlayer
+          audioUrl={prayer.audioUrl}
+          accentColor={t.accent}
+          backgroundColor="rgba(255,255,255,0.45)"
+        />
+      ) : prayer?.durationMinutes && !compact ? (
+        <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
       ) : null}
     </View>
   );
@@ -343,28 +201,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     fontStyle: "italic",
     opacity: 0.6,
-  },
-  bottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  startBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rateChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-  rateChipText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontVariant: ["tabular-nums"],
-  },
-  startBtnText: {
-    fontFamily: "PlusJakartaSans_700Bold",
   },
   duration: {
     fontFamily: "PlusJakartaSans_400Regular",

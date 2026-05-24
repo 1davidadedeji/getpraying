@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetMe, getGetMeQueryKey, useGetSavedPrayers, getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
 import type { Post, User } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
+import { ProfileCollapsibleHeaderShell } from "@/components/ProfileCollapsibleHeaderShell";
 import { PreferredCategoriesContent } from "@/components/PreferredCategoriesContent";
 import { StatCard } from "@/components/StatCard";
 import { LAYOUT } from "@/constants/layout";
@@ -32,6 +33,7 @@ import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
@@ -123,8 +125,10 @@ export default function ProfileScreen() {
 
   const pickAndUploadAvatar = async () => {
     try {
-      const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permResult.granted) return;
+      const granted = await ensurePhotoLibraryPermission(
+        "Allow photo library access to update your profile picture.",
+      );
+      if (!granted) return;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
@@ -384,6 +388,7 @@ export default function ProfileScreen() {
           }
         }}
       >
+        <ProfileCollapsibleHeaderShell>
         <View
           style={[
             styles.collapsibleHeader,
@@ -476,6 +481,7 @@ export default function ProfileScreen() {
           <StatCard label="Saved Prayers" value={me.savedScrolls ?? 0} />
         </View>
         </View>
+        </ProfileCollapsibleHeaderShell>
       </View>
     );
   }, [me, uploadingAvatar, pickAndUploadAvatar, prof, editingLocation, locationDraft, savingLocation, saveLocation]);
@@ -491,199 +497,6 @@ export default function ProfileScreen() {
   const displayName = me.displayName ?? me.username;
   const initials = displayName.slice(0, 2).toUpperCase();
   const joinYear = new Date(me.createdAt).getFullYear();
-
-  const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
-
-  const tabletColumnStyle =
-    windowWidth >= LAYOUT.tabletMinWidth
-      ? {
-          maxWidth: LAYOUT.contentMaxWidth,
-          width: "100%" as const,
-          alignSelf: "center" as const,
-        }
-      : null;
-
-  const myEmpty = (
-    <View style={[styles.emptyHistory, { paddingVertical: prof.emptyPadV, gap: prof.emptyGap }]}>
-      <Ionicons name="flame-outline" size={prof.emptyIcon} color={colors.muted} />
-      <Text style={[styles.emptyHistoryText, { fontSize: prof.emptyTitleFs }]}>No prayers shared yet</Text>
-      <Text style={[styles.emptyHistorySubtext, { fontSize: prof.emptySubFs }]}>
-        Your shared prayers will appear here
-      </Text>
-    </View>
-  );
-
-  const savedEmpty = (
-    <View style={[styles.emptyHistory, { paddingVertical: prof.emptyPadV, gap: prof.emptyGap }]}>
-      <Ionicons name="bookmark-outline" size={prof.emptyIcon} color={colors.muted} />
-      <Text style={[styles.emptyHistoryText, { fontSize: prof.emptyTitleFs }]}>{SAVED_POSTS_EMPTY.title}</Text>
-      <Text style={[styles.emptyHistorySubtext, { fontSize: prof.emptySubFs }]}>{SAVED_POSTS_EMPTY.subtitle}</Text>
-    </View>
-  );
-
-  const webMyPage = (
-    <View style={styles.page} collapsable={false}>
-      <FlatList<Post>
-        ref={myListRef}
-        data={myPosts}
-        keyExtractor={(p) => `my-${p.id}`}
-        renderItem={({ item }) => (
-          <View style={{ paddingHorizontal: prof.gutter }}>
-            <PostCard post={item} feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null} />
-          </View>
-        )}
-        ListEmptyComponent={
-          loadingPosts ? (
-            <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
-          ) : (
-            myEmpty
-          )
-        }
-        contentContainerStyle={[
-          styles.pagerListContent,
-          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
-          myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
-        ]}
-        ListHeaderComponent={profilePostsListHeader}
-        onViewableItemsChanged={onMyFeedViewableItemsChanged}
-        viewabilityConfig={profileFeedViewabilityConfig}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
-  );
-
-  const webSavedPage = (
-    <View style={styles.page} collapsable={false}>
-      <FlatList<Post>
-        ref={savedListRef}
-        data={savedPosts}
-        keyExtractor={(p) => `saved-${p.id}`}
-        renderItem={({ item }) => (
-          <View style={{ paddingHorizontal: prof.gutter }}>
-            <PostCard post={item} feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null} />
-          </View>
-        )}
-        ListEmptyComponent={
-          loadingSavedTab ? (
-            <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
-          ) : (
-            savedEmpty
-          )
-        }
-        contentContainerStyle={[
-          styles.pagerListContent,
-          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
-          savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
-        ]}
-        ListHeaderComponent={profilePostsListHeader}
-        onViewableItemsChanged={onSavedFeedViewableItemsChanged}
-        viewabilityConfig={profileFeedViewabilityConfig}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
-  );
-
-  const interactionsData = interactionsSubTab === "liked" ? likedPosts : commentedPosts;
-  const interactionsEmpty = (
-    <View style={[styles.emptyHistory, { paddingVertical: prof.emptyPadV, gap: prof.emptyGap }]}>
-      <Ionicons name={interactionsSubTab === "liked" ? "flame-outline" : "chatbubble-outline"} size={prof.emptyIcon} color={colors.muted} />
-      <Text style={[styles.emptyHistoryText, { fontSize: prof.emptyTitleFs }]}>
-        {interactionsSubTab === "liked" ? "No liked prayers yet" : "No commented prayers yet"}
-      </Text>
-      <Text style={[styles.emptyHistorySubtext, { fontSize: prof.emptySubFs }]}>
-        {interactionsSubTab === "liked" ? "Prayers you pray for will appear here" : "Prayers you comment on will appear here"}
-      </Text>
-    </View>
-  );
-  const interactionsSubTabRowOnly = (
-    <View style={styles.interactionsSubTabRow}>
-      {(["liked", "commented"] as const).map((tab) => (
-        <Pressable
-          key={tab}
-          style={[styles.interactionsSubTab, interactionsSubTab === tab && styles.interactionsSubTabActive]}
-          onPress={() => setInteractionsSubTab(tab)}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: interactionsSubTab === tab }}
-        >
-          <Text style={[styles.interactionsSubTabText, interactionsSubTab === tab && styles.interactionsSubTabTextActive]}>
-            {tab === "liked" ? "Liked" : "Commented"}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-
-  const webInteractionsListHeader = (
-    <View>
-      <View style={{ height: tabListTopSpacer }} />
-      <View style={{ paddingHorizontal: prof.gutter }}>{interactionsSubTabRowOnly}</View>
-    </View>
-  );
-
-  const webCategoriesPage = (
-    <View style={styles.page} collapsable={false}>
-      <FlatList<Post>
-        ref={interactionsListRef}
-        style={{ flex: 1 }}
-        data={interactionsData}
-        keyExtractor={(p) => `int-${interactionsSubTab}-${p.id}`}
-        renderItem={({ item }) => (
-          <View style={{ paddingHorizontal: prof.gutter }}>
-            <PostCard post={item} feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null} />
-          </View>
-        )}
-        ListHeaderComponent={webInteractionsListHeader}
-        ListEmptyComponent={
-          loadingInteractions ? (
-            <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
-          ) : (
-            interactionsEmpty
-          )
-        }
-        contentContainerStyle={[
-          styles.pagerListContent,
-          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
-          interactionsData.length === 0 && !loadingInteractions ? { flexGrow: 1, justifyContent: "center" } : null,
-        ]}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
-  );
-
-  const topBar = (
-    <View style={styles.topBar}>
-      <Text style={[styles.screenTitle, { fontSize: prof.screenTitleFs }]}>Profile</Text>
-      <Pressable
-        onPress={() => router.push("/settings" as Href)}
-        hitSlop={prof.settingsHitSlop}
-        accessibilityRole="button"
-        accessibilityLabel="Open settings"
-        style={styles.settingsIconBtn}
-      >
-        <Feather name="settings" size={prof.settingsIconSize} color={colors.primary} />
-        {(user?.role === "admin" || user?.role === "moderator") && modPending > 0 && (
-          <View
-            style={[
-              styles.settingsModBadge,
-              {
-                top: prof.modBadgeTop,
-                right: prof.modBadgeRight,
-                minWidth: prof.modBadgeMinW,
-                height: prof.modBadgeH,
-                paddingHorizontal: prof.modBadgePadH,
-                borderRadius: prof.modBadgeRad,
-              },
-            ]}
-            accessibilityLabel={`${modPending} to moderate`}
-          >
-            <Text style={[styles.settingsModBadgeText, { fontSize: prof.modBadgeTextFs }]}>
-              {modPending > 9 ? "9+" : String(modPending)}
-            </Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
 
   const p = prof;
   const webHeaderBlock = (
@@ -774,6 +587,219 @@ export default function ProfileScreen() {
     </>
   );
 
+  const webProfileListHeader = (
+    <>
+      {webHeaderBlock}
+      {profilePostsListHeader}
+    </>
+  );
+
+  const savedPosts = (savedPrayersData as { posts?: Post[] } | undefined)?.posts ?? [];
+
+  const tabletColumnStyle =
+    windowWidth >= LAYOUT.tabletMinWidth
+      ? {
+          maxWidth: LAYOUT.contentMaxWidth,
+          width: "100%" as const,
+          alignSelf: "center" as const,
+        }
+      : null;
+
+  const myEmpty = (
+    <View style={[styles.emptyHistory, { paddingVertical: prof.emptyPadV, gap: prof.emptyGap }]}>
+      <Ionicons name="flame-outline" size={prof.emptyIcon} color={colors.muted} />
+      <Text style={[styles.emptyHistoryText, { fontSize: prof.emptyTitleFs }]}>No prayers shared yet</Text>
+      <Text style={[styles.emptyHistorySubtext, { fontSize: prof.emptySubFs }]}>
+        Your shared prayers will appear here
+      </Text>
+    </View>
+  );
+
+  const savedEmpty = (
+    <View style={[styles.emptyHistory, { paddingVertical: prof.emptyPadV, gap: prof.emptyGap }]}>
+      <Ionicons name="bookmark-outline" size={prof.emptyIcon} color={colors.muted} />
+      <Text style={[styles.emptyHistoryText, { fontSize: prof.emptyTitleFs }]}>{SAVED_POSTS_EMPTY.title}</Text>
+      <Text style={[styles.emptyHistorySubtext, { fontSize: prof.emptySubFs }]}>{SAVED_POSTS_EMPTY.subtitle}</Text>
+    </View>
+  );
+
+  const webMyPage = (
+    <View style={styles.page} collapsable={false}>
+      <FlatList<Post>
+        ref={myListRef}
+        data={myPosts}
+        keyExtractor={(p) => `my-${p.id}`}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: prof.gutter }}>
+            <PostCard
+              post={item}
+              hideBoost
+              activeProfileUsername={me.username}
+              feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null}
+            />
+          </View>
+        )}
+        ListEmptyComponent={
+          loadingPosts ? (
+            <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
+          ) : (
+            myEmpty
+          )
+        }
+        contentContainerStyle={[
+          styles.pagerListContent,
+          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
+          myPosts.length === 0 && !loadingPosts ? { flexGrow: 1, justifyContent: "center" } : null,
+        ]}
+        ListHeaderComponent={webProfileListHeader}
+        onViewableItemsChanged={onMyFeedViewableItemsChanged}
+        viewabilityConfig={profileFeedViewabilityConfig}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
+  );
+
+  const webSavedPage = (
+    <View style={styles.page} collapsable={false}>
+      <FlatList<Post>
+        ref={savedListRef}
+        data={savedPosts}
+        keyExtractor={(p) => `saved-${p.id}`}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: prof.gutter }}>
+            <PostCard
+              post={item}
+              activeProfileUsername={me.username}
+              feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
+            />
+          </View>
+        )}
+        ListEmptyComponent={
+          loadingSavedTab ? (
+            <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
+          ) : (
+            savedEmpty
+          )
+        }
+        contentContainerStyle={[
+          styles.pagerListContent,
+          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
+          savedPosts.length === 0 && !loadingSavedTab ? { flexGrow: 1, justifyContent: "center" } : null,
+        ]}
+        ListHeaderComponent={webProfileListHeader}
+        onViewableItemsChanged={onSavedFeedViewableItemsChanged}
+        viewabilityConfig={profileFeedViewabilityConfig}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
+  );
+
+  const interactionsData = interactionsSubTab === "liked" ? likedPosts : commentedPosts;
+  const interactionsEmpty = (
+    <View style={[styles.emptyHistory, { paddingVertical: prof.emptyPadV, gap: prof.emptyGap }]}>
+      <Ionicons name={interactionsSubTab === "liked" ? "flame-outline" : "chatbubble-outline"} size={prof.emptyIcon} color={colors.muted} />
+      <Text style={[styles.emptyHistoryText, { fontSize: prof.emptyTitleFs }]}>
+        {interactionsSubTab === "liked" ? "No liked prayers yet" : "No commented prayers yet"}
+      </Text>
+      <Text style={[styles.emptyHistorySubtext, { fontSize: prof.emptySubFs }]}>
+        {interactionsSubTab === "liked" ? "Prayers you pray for will appear here" : "Prayers you comment on will appear here"}
+      </Text>
+    </View>
+  );
+  const interactionsSubTabRowOnly = (
+    <View style={styles.interactionsSubTabRow}>
+      {(["liked", "commented"] as const).map((tab) => (
+        <Pressable
+          key={tab}
+          style={[styles.interactionsSubTab, interactionsSubTab === tab && styles.interactionsSubTabActive]}
+          onPress={() => setInteractionsSubTab(tab)}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: interactionsSubTab === tab }}
+        >
+          <Text style={[styles.interactionsSubTabText, interactionsSubTab === tab && styles.interactionsSubTabTextActive]}>
+            {tab === "liked" ? "Liked" : "Commented"}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  const webInteractionsListHeader = (
+    <View>
+      <View style={{ height: tabListTopSpacer }} />
+      <View style={{ paddingHorizontal: prof.gutter }}>{interactionsSubTabRowOnly}</View>
+    </View>
+  );
+
+  const webCategoriesPage = (
+    <View style={styles.page} collapsable={false}>
+      <FlatList<Post>
+        ref={interactionsListRef}
+        style={{ flex: 1 }}
+        data={interactionsData}
+        keyExtractor={(p) => `int-${interactionsSubTab}-${p.id}`}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: prof.gutter }}>
+            <PostCard
+              post={item}
+              activeProfileUsername={me.username}
+              feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null}
+            />
+          </View>
+        )}
+        ListHeaderComponent={webInteractionsListHeader}
+        ListEmptyComponent={
+          loadingInteractions ? (
+            <ActivityIndicator color={colors.accent} style={{ marginTop: prof.loaderMt }} />
+          ) : (
+            interactionsEmpty
+          )
+        }
+        contentContainerStyle={[
+          styles.pagerListContent,
+          { paddingBottom: listTabBarClearance + botPad + prof.listBottomPad },
+          interactionsData.length === 0 && !loadingInteractions ? { flexGrow: 1, justifyContent: "center" } : null,
+        ]}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
+  );
+
+  const topBar = (
+    <View style={styles.topBar}>
+      <Text style={[styles.screenTitle, { fontSize: prof.screenTitleFs }]}>Profile</Text>
+      <Pressable
+        onPress={() => router.push("/settings" as Href)}
+        hitSlop={prof.settingsHitSlop}
+        accessibilityRole="button"
+        accessibilityLabel="Open settings"
+        style={styles.settingsIconBtn}
+      >
+        <Feather name="settings" size={prof.settingsIconSize} color={colors.primary} />
+        {(user?.role === "admin" || user?.role === "moderator") && modPending > 0 && (
+          <View
+            style={[
+              styles.settingsModBadge,
+              {
+                top: prof.modBadgeTop,
+                right: prof.modBadgeRight,
+                minWidth: prof.modBadgeMinW,
+                height: prof.modBadgeH,
+                paddingHorizontal: prof.modBadgePadH,
+                borderRadius: prof.modBadgeRad,
+              },
+            ]}
+            accessibilityLabel={`${modPending} to moderate`}
+          >
+            <Text style={[styles.settingsModBadgeText, { fontSize: prof.modBadgeTextFs }]}>
+              {modPending > 9 ? "9+" : String(modPending)}
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+
   const webTabRow = (
     <View style={styles.tabBarSurface}>
       <View
@@ -828,14 +854,6 @@ export default function ProfileScreen() {
 
       {Platform.OS === "web" ? (
         <>
-          <View
-            style={[
-              styles.webStaticHeader,
-              { paddingHorizontal: prof.gutter, gap: prof.headerGap, paddingBottom: prof.headerPadBottom },
-            ]}
-          >
-            {webHeaderBlock}
-          </View>
           {webTabRow}
           <View style={styles.pager}>
             <PagerView
@@ -870,6 +888,8 @@ export default function ProfileScreen() {
                 <View style={{ paddingHorizontal: prof.gutter }}>
                   <PostCard
                     post={item}
+                    hideBoost
+                    activeProfileUsername={me.username}
                     feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null}
                   />
                 </View>
@@ -901,6 +921,7 @@ export default function ProfileScreen() {
                 <View style={{ paddingHorizontal: prof.gutter }}>
                   <PostCard
                     post={item}
+                    activeProfileUsername={me.username}
                     feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
                   />
                 </View>
@@ -936,7 +957,11 @@ export default function ProfileScreen() {
               }
               renderItem={({ item }: { item: Post }) => (
                 <View style={{ paddingHorizontal: prof.gutter }}>
-                  <PostCard post={item} feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null} />
+                  <PostCard
+                    post={item}
+                    activeProfileUsername={me.username}
+                    feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null}
+                  />
                 </View>
               )}
               ListEmptyComponent={

@@ -15,12 +15,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AudioScrubberRow } from "@/components/AudioScrubberRow";
-import { OfficialGuidePlayCircle, type OfficialGuidePlayHandle } from "@/components/OfficialGuidePlayCircle";
+import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { iconKeyForPathCategory } from "@/constants/pathCategoryIcon";
+import { emojiForLibraryCategory } from "@/constants/libraryFallbackPaths";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
@@ -59,14 +59,7 @@ function PathSessionCard({
   showSave: boolean;
 }) {
   const { uiScale, iconAction, cardRadius } = useResponsiveLayout();
-  const playRef = useRef<OfficialGuidePlayHandle>(null);
-  const [playProgress, setPlayProgress] = useState(0);
-  const [playPositionMs, setPlayPositionMs] = useState(0);
-  const [playDurationMs, setPlayDurationMs] = useState(0);
-  const [playPlaying, setPlayPlaying] = useState(false);
-  const [playRate, setPlayRate] = useState(1);
   const mins = op.durationMinutes;
-  const playSz = Math.round(clamp(56 * uiScale, 48, 64));
   const headerGap = Math.round(clamp(10 * uiScale, 8, 12));
   const headerMb = Math.round(clamp(10 * uiScale, 8, 12));
   const cardPad = Math.round(clamp(16 * uiScale, 14, 20));
@@ -78,23 +71,7 @@ function PathSessionCard({
   const titleMb = Math.round(clamp(6 * uiScale, 5, 8));
   const fsScripture = Math.round(clamp(13 * uiScale, 12, 15));
   const scrMb = Math.round(clamp(12 * uiScale, 10, 14));
-  const progH = Math.max(2, Math.round(clamp(2 * uiScale, 2, 3)));
-  const progMb = Math.round(clamp(14 * uiScale, 12, 16));
-  const ratePadH = Math.round(clamp(10 * uiScale, 8, 12));
-  const ratePadV = Math.round(clamp(8 * uiScale, 6, 10));
-  const fsRate = Math.round(clamp(12 * uiScale, 11, 13));
-  const listenPadV = Math.round(clamp(12 * uiScale, 10, 14));
-  const listenMr = Math.round(clamp(12 * uiScale, 10, 14));
-  const fsListen = Math.round(clamp(14 * uiScale, 13, 16));
   const hit = Math.round(clamp(8 * uiScale, 6, 10));
-
-  useEffect(() => {
-    setPlayProgress(0);
-    setPlayPositionMs(0);
-    setPlayDurationMs(0);
-    setPlayPlaying(false);
-    setPlayRate(1);
-  }, [op.id, op.audioUrl]);
 
   return (
     <View style={[styles.sessionCard, { padding: cardPad, borderRadius: cardRad, marginBottom: Math.round(4 * uiScale) }]}>
@@ -121,55 +98,9 @@ function PathSessionCard({
       {op.scripture ? (
         <Text style={[styles.sessionScripture, { fontSize: fsScripture, marginBottom: scrMb }]}>{op.scripture}</Text>
       ) : null}
-      <View style={styles.sessionCardFooter}>
-        <Pressable
-          style={[styles.listenPill, { paddingVertical: listenPadV, marginRight: listenMr }]}
-          onPress={() => playRef.current?.toggle()}
-          accessibilityRole="button"
-          accessibilityLabel={playPlaying ? "Pause audio" : "Listen to session"}
-        >
-          <Text style={[styles.listenPillText, { fontSize: fsListen }]}>{playPlaying ? "Pause" : "Listen"}</Text>
-        </Pressable>
-        {op.audioUrl ? (
-          <Pressable
-            onPress={() => playRef.current?.cyclePlaybackRate()}
-            style={[
-              styles.sessionRateBtn,
-              {
-                paddingHorizontal: ratePadH,
-                paddingVertical: ratePadV,
-                marginRight: listenMr,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={`Playback speed ${playRate}×`}
-          >
-            <Text style={[styles.sessionRateBtnText, { fontSize: fsRate }]}>{playRate}×</Text>
-          </Pressable>
-        ) : null}
-        <OfficialGuidePlayCircle
-          ref={playRef}
-          audioUrl={op.audioUrl}
-          size={playSz}
-          onPlayingChange={setPlayPlaying}
-          onPlaybackRateChange={setPlayRate}
-          onPlaybackProgress={setPlayProgress}
-          onPlaybackTimes={(pos, dur) => {
-            setPlayPositionMs(pos);
-            setPlayDurationMs(dur);
-          }}
-        />
-      </View>
-      <View style={{ marginBottom: progMb }}>
-        <AudioScrubberRow
-          positionMs={playPositionMs}
-          durationMs={playDurationMs}
-          progress01={playProgress}
-          fillColor={colors.primary}
-          trackHeight={progH}
-          onSeek={(p) => playRef.current?.seekProgress(p)}
-        />
-      </View>
+      {op.audioUrl ? (
+        <CapsuleAudioPlayer audioUrl={op.audioUrl} accentColor={colors.primary} />
+      ) : null}
     </View>
   );
 }
@@ -233,6 +164,11 @@ export default function PathDetailScreen() {
   }
 
   const path = data;
+  const heroEmoji = emojiForLibraryCategory({
+    name: path.name,
+    category: path.category,
+    pathId: path.id,
+  });
   const iconName = (FEATHER_ICON_MAP[iconKeyForPathCategory(path.category)] ?? "star") as keyof typeof Feather.glyphMap;
   const official = (path.officialPrayers ?? []).map(toOfficialRow);
   const pathSessions = official.slice(0, 2);
@@ -245,18 +181,24 @@ export default function PathDetailScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.heroLight, { paddingHorizontal: heroPadH, paddingVertical: heroPadV, gap: heroGap }]}>
-        <View
-          style={[
-            styles.heroIconLight,
-            {
-              width: heroIconBox,
-              height: heroIconBox,
-              borderRadius: heroIconRad,
-            },
-          ]}
-        >
-          <Feather name={iconName} size={heroFeather} color={colors.primary} />
-        </View>
+        {heroEmoji ? (
+          <Text style={[styles.heroEmoji, { fontSize: Math.round(heroIconBox * 0.62) }]} allowFontScaling>
+            {heroEmoji}
+          </Text>
+        ) : (
+          <View
+            style={[
+              styles.heroIconLight,
+              {
+                width: heroIconBox,
+                height: heroIconBox,
+                borderRadius: heroIconRad,
+              },
+            ]}
+          >
+            <Feather name={iconName} size={heroFeather} color={colors.primary} />
+          </View>
+        )}
         <Text style={[styles.heroPathTitle, { fontSize: fsHeroTitle }]}>{path.name}</Text>
       </View>
 
@@ -314,6 +256,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  heroEmoji: {
+    textAlign: "center",
+  },
   heroPathTitle: {
     fontFamily: "NotoSerif_700Bold",
     color: colors.primary,
@@ -357,32 +302,5 @@ const styles = StyleSheet.create({
   sessionScripture: {
     fontFamily: "PlusJakartaSans_500Medium",
     color: colors.muted,
-  },
-  sessionCardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  listenPill: {
-    flex: 1,
-    borderRadius: 999,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-  },
-  listenPillText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.surface,
-  },
-  sessionRateBtn: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-  },
-  sessionRateBtnText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.primary,
-    fontVariant: ["tabular-nums"],
   },
 });

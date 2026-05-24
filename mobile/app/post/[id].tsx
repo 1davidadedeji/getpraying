@@ -49,6 +49,7 @@ import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { submitPostReport } from "@/lib/reportPost";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { postShareUrl } from "@/lib/publicWebOrigin";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -66,10 +67,10 @@ type CommentRow = {
 
 export default function PostDetailScreen() {
   useStackHeaderBack("/(tabs)" as Href);
-  const { id, focusComment, focusMedia } = useLocalSearchParams<{
+  const { id, focusMedia, fromProfile } = useLocalSearchParams<{
     id: string;
-    focusComment?: string;
     focusMedia?: string;
+    fromProfile?: string;
   }>();
   const postId = Number(id);
   const insets = useSafeAreaInsets();
@@ -86,10 +87,10 @@ export default function PostDetailScreen() {
   const commentInputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
 
-  const replyFirst = useMemo(() => {
-    const v = Array.isArray(focusComment) ? focusComment[0] : focusComment;
-    return v === "1" || v === "true";
-  }, [focusComment]);
+  const fromProfileUsername = useMemo(() => {
+    const v = Array.isArray(fromProfile) ? fromProfile[0] : fromProfile;
+    return typeof v === "string" && v.length > 0 ? v : null;
+  }, [fromProfile]);
   const mediaFirst = useMemo(() => {
     const v = Array.isArray(focusMedia) ? focusMedia[0] : focusMedia;
     return v === "1" || v === "true";
@@ -241,11 +242,16 @@ export default function PostDetailScreen() {
     if (post?.id) void loadComments();
   }, [post?.id, loadComments]);
 
-  useEffect(() => {
-    if (!replyFirst || !post) return;
-    const t = setTimeout(() => commentInputRef.current?.focus(), 320);
-    return () => clearTimeout(t);
-  }, [replyFirst, post?.id]);
+  const openAuthorProfile = useCallback(() => {
+    if (!post || post.isAnonymous || !post.authorUsername) return;
+    if (
+      fromProfileUsername &&
+      fromProfileUsername.toLowerCase() === post.authorUsername.toLowerCase()
+    ) {
+      return;
+    }
+    router.push(`/user/${post.authorUsername}` as never);
+  }, [fromProfileUsername, post]);
 
   // Scroll list to end when keyboard appears so the comment input stays visible
   useEffect(() => {
@@ -419,31 +425,20 @@ export default function PostDetailScreen() {
           style: "destructive",
           onPress: () => {
             void (async () => {
-              try {
-                const res = await fetch(apiUrl(`/posts/${post.id}/flag`), {
-                  method: "POST",
-                  headers: authHeaders(token, { "Content-Type": "application/json" }),
-                  body: JSON.stringify({ reason: "inappropriate" }),
-                });
-                const errJson = !res.ok ? ((await res.json().catch(() => ({}))) as { error?: string }) : null;
-                InteractionManager.runAfterInteractions(() => {
-                  if (res.ok) {
-                    showAppAlert({
-                      title: "Report submitted",
-                      message: "Thank you for helping keep the community safe.",
-                    });
-                  } else {
-                    showAppAlert({
-                      title: "Could not submit report",
-                      message: typeof errJson?.error === "string" ? errJson.error : "Please try again later.",
-                    });
-                  }
-                });
-              } catch {
-                InteractionManager.runAfterInteractions(() => {
-                  showAppAlert({ title: "Could not submit report", message: "Check your connection and try again." });
-                });
-              }
+              const result = await submitPostReport(post.id, token);
+              InteractionManager.runAfterInteractions(() => {
+                if (result.ok) {
+                  showAppAlert({
+                    title: "Report submitted",
+                    message: result.message,
+                  });
+                } else {
+                  showAppAlert({
+                    title: "Could not submit report",
+                    message: result.error,
+                  });
+                }
+              });
             })();
           },
         },
@@ -533,11 +528,7 @@ export default function PostDetailScreen() {
         <View style={[styles.authorRow, { gap: authorGap, marginBottom: authorRowMb }]}>
           <View style={styles.headerLeftCluster} pointerEvents="box-none">
             <Pressable
-              onPress={() => {
-                if (!post.isAnonymous && post.authorUsername) {
-                  router.replace(`/user/${post.authorUsername}` as never);
-                }
-              }}
+              onPress={openAuthorProfile}
               disabled={post.isAnonymous || !post.authorUsername}
               style={styles.headerAvatarBtn}
               hitSlop={{ top: 6, bottom: 6, left: 2, right: 6 }}
@@ -559,11 +550,7 @@ export default function PostDetailScreen() {
             </Pressable>
             <View style={styles.headerNameRow} pointerEvents="box-none">
               <Pressable
-                onPress={() => {
-                  if (!post.isAnonymous && post.authorUsername) {
-                    router.replace(`/user/${post.authorUsername}` as never);
-                  }
-                }}
+                onPress={openAuthorProfile}
                 disabled={post.isAnonymous || !post.authorUsername}
                 style={styles.headerNamePressable}
                 hitSlop={{ top: 4, bottom: 4, right: 4 }}
@@ -751,6 +738,8 @@ export default function PostDetailScreen() {
         contentContainerStyle={[styles.listContent, { padding: listPad, paddingBottom: 8 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onScrollBeginDrag={Keyboard.dismiss}
       />
 
       <View style={[styles.stickyComposer, { gap: stickyGap, paddingHorizontal: stickyPadH, paddingVertical: stickyPadV }]}>
@@ -772,6 +761,7 @@ export default function PostDetailScreen() {
           value={commentDraft}
           onChangeText={setCommentDraft}
           onFocus={() => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100)}
+          onBlur={() => Keyboard.dismiss()}
           multiline
           maxLength={2000}
           editable={!!token && !commentSubmitting}

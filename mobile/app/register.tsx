@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
+import { APP_LOGO_SOURCE, appLogoSizePx } from "@/constants/branding";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -27,7 +28,7 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { uiScale } = useResponsiveLayout();
   const authPadH = Math.round(clamp(24 * uiScale, 20, 30));
-  const logoImgSz = Math.round(clamp(140 * uiScale, 116, 158));
+  const logoImgSz = appLogoSizePx(uiScale);
   const fsTitle = Math.round(clamp(28 * uiScale, 24, 32));
   const fsSub = Math.round(clamp(15 * uiScale, 14, 17));
   const fsLabel = Math.round(clamp(13 * uiScale, 12, 15));
@@ -114,7 +115,7 @@ export default function RegisterScreen() {
 
         <View style={[styles.header, { gap: Math.round(8 * uiScale), marginBottom: headerMb, marginTop: Math.round(8 * uiScale) }]}>
           <Image
-            source={require("../assets/images/icon-bg.png")}
+            source={APP_LOGO_SOURCE}
             style={[styles.logoImage, { width: logoImgSz, height: logoImgSz }]}
             contentFit="contain"
             accessibilityLabel="Get Praying app logo"

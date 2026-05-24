@@ -18,7 +18,7 @@ export async function ensureAndroidNotificationChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync("default", {
     name: "Alerts",
-    importance: Notifications.AndroidImportance.DEFAULT,
+    importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#F97316",
   });
@@ -28,6 +28,34 @@ function projectIdForExpoPush(): string | undefined {
   const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined;
   const id = extra?.eas?.projectId;
   return typeof id === "string" && id.length > 0 ? id : undefined;
+}
+
+async function postPushTokenToServer(
+  apiJwt: string,
+  payload: { token: string | null; timezone?: string | null },
+): Promise<void> {
+  const body: { token: string | null; timezone?: string } = { token: payload.token };
+  if (payload.token != null) {
+    const tz =
+      payload.timezone && payload.timezone.length > 0
+        ? payload.timezone
+        : Intl.DateTimeFormat().resolvedOptions().timeZone;
+    body.timezone = tz;
+  }
+  await fetch(apiUrl("/users/me/push-token"), {
+    method: "POST",
+    headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
+/**
+ * After Expo rotates the push token, persist it without calling `getExpoPushTokenAsync` again.
+ */
+export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: string): Promise<void> {
+  if (!apiJwt || !Device.isDevice || !expoToken.trim()) return;
+  await ensureAndroidNotificationChannel();
+  await postPushTokenToServer(apiJwt, { token: expoToken.trim() });
 }
 
 export async function registerAndSyncPushToken(apiJwt: string | null): Promise<void> {
@@ -41,11 +69,7 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
   }
 
   if (final !== "granted") {
-    await fetch(apiUrl("/users/me/push-token"), {
-      method: "POST",
-      headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
-      body: JSON.stringify({ token: null }),
-    }).catch(() => {});
+    await postPushTokenToServer(apiJwt, { token: null });
     return;
   }
 
@@ -56,20 +80,11 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     projectId ? { projectId } : undefined,
   );
   const expoToken = tokenRes.data;
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  await fetch(apiUrl("/users/me/push-token"), {
-    method: "POST",
-    headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
-    body: JSON.stringify({ token: expoToken, timezone }),
-  }).catch(() => {});
+  await postPushTokenToServer(apiJwt, { token: expoToken });
 }
 
 export async function clearPushTokenOnServer(apiJwt: string | null): Promise<void> {
   if (!apiJwt) return;
-  await fetch(apiUrl("/users/me/push-token"), {
-    method: "POST",
-    headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
-    body: JSON.stringify({ token: null }),
-  }).catch(() => {});
+  await postPushTokenToServer(apiJwt, { token: null });
 }

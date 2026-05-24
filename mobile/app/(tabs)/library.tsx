@@ -462,10 +462,12 @@ export default function LibraryScreen() {
       const slug =
         "slug" in cat && cat.slug
           ? cat.slug
-          : cat.name
-              .toLowerCase()
-              .replace(/[^a-z0-9/]+/g, "-")
-              .replace(/^-|-$/g, "");
+          : "category" in cat && cat.category
+            ? cat.category
+            : cat.name
+                .toLowerCase()
+                .replace(/[^a-z0-9/]+/g, "-")
+                .replace(/^-|-$/g, "");
       router.push(`/category/${encodeURIComponent(slug)}` as never);
     }
   };
@@ -508,9 +510,11 @@ export default function LibraryScreen() {
         <Text style={styles.situationName} numberOfLines={2} ellipsizeMode="tail">
           {cat.name}
         </Text>
-        {cat.count > 0 ? (
-          <Text style={styles.situationCount}>{cat.count}</Text>
-        ) : null}
+        <View style={styles.situationCountWrap}>
+          {cat.count > 0 ? (
+            <Text style={styles.situationCount}>{cat.count}</Text>
+          ) : null}
+        </View>
       </Pressable>
     );
   };
@@ -966,6 +970,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
     minHeight: 32,
+  },
+  situationCountWrap: {
+    minHeight: 15,
+    justifyContent: "center",
+    alignItems: "center",
   },
   situationCount: {
     fontFamily: "PlusJakartaSans_400Regular",
