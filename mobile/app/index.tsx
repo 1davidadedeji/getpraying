@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { router, type Href } from "expo-router";
+import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
@@ -16,9 +16,11 @@ import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { useAuth } from "@/context/auth";
+import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { formatLocalYMD } from "@/lib/date";
+import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import {
   DEFAULT_DAILY_QUOTE,
   DEFAULT_DAILY_REFERENCE,
@@ -28,7 +30,6 @@ import {
 } from "@/lib/legalUrls";
 import { APP_LOGO_SOURCE, welcomeLogoSizePx } from "@/constants/branding";
 import { clamp } from "@/lib/responsiveMetrics";
-import { isTrialExpired } from "@/lib/trial";
 
 const WELCOME_PAD_H = 24;
 
@@ -40,6 +41,7 @@ export default function WelcomeScreen() {
   const fsTitle = Math.round(clamp(34 * uiScale, 30, 40));
   const fsTagline = Math.round(clamp(12 * uiScale, 11, 13));
   const rc = useRevenueCat();
+  const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
   /** Avoid re-running `router.replace("/(tabs)")` on every `user` object refresh (that was resetting navigation to Home). */
   const didRouteAuthedUser = useRef(false);
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
@@ -61,35 +63,8 @@ export default function WelcomeScreen() {
     }
     if (didRouteAuthedUser.current) return;
     didRouteAuthedUser.current = true;
-
-    // b) Email verification gate
-    if (!user.isEmailVerified) {
-      router.replace("/(auth)/verify" as Href);
-      return;
-    }
-
-    // d) moderator/admin always bypass paywall
-    if (user.role === "admin" || user.role === "moderator") {
-      if (!user.onboardingComplete) {
-        router.replace("/onboarding");
-      } else {
-        router.replace("/(tabs)");
-      }
-      return;
-    }
-
-    const trialExpired = isTrialExpired(user.trialStartsAt);
-    if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-      router.replace("/(paywall)/index" as any);
-      return;
-    }
-
-    if (!user.onboardingComplete) {
-      router.replace("/onboarding");
-    } else {
-      router.replace("/(tabs)");
-    }
-  }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled]);
+    router.replace(resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref));
+  }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled, pendingDeepLink]);
 
   if (loading) {
     return <AppLoadingScreen variant="splash" />;

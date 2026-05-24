@@ -13,7 +13,7 @@ import { router } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useRevenueCat } from "@/context/revenuecat";
-import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { clamp } from "@/lib/responsiveMetrics";
 
 function pickPackages(pkgs: PurchasesPackage[]): { monthly?: PurchasesPackage; annual?: PurchasesPackage } {
@@ -26,6 +26,11 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, cardRadius } = useResponsiveLayout();
   const rc = useRevenueCat();
+  const { consumePendingHref } = usePendingDeepLink();
+
+  const continueAfterSubscribe = () => {
+    router.replace((consumePendingHref() ?? "/(tabs)") as import("expo-router").Href);
+  };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -63,7 +68,7 @@ export default function PaywallScreen() {
       showAppAlert({
         title: "Subscribed",
         message: "Thank you. Your subscription is now active.",
-        buttons: [{ text: "Continue", onPress: () => router.replace("/(tabs)") }],
+        buttons: [{ text: "Continue", onPress: continueAfterSubscribe }],
       });
     } catch (e: any) {
       const msg = e?.message ?? "Purchase cancelled or failed.";
@@ -78,7 +83,7 @@ export default function PaywallScreen() {
         showAppAlert({
           title: "Restored",
           message: "Your purchases have been restored.",
-          buttons: [{ text: "Continue", onPress: () => router.replace("/(tabs)") }],
+          buttons: [{ text: "Continue", onPress: continueAfterSubscribe }],
         });
       } else {
         showAppAlert({ title: "No active subscription", message: "No previous purchases found. Please subscribe to continue." });

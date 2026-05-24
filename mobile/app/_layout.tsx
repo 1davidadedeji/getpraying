@@ -31,6 +31,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/auth";
 import { FeedNoticeProvider } from "@/context/feedNotice";
 import { ModerationBadgeProvider } from "@/context/moderationBadge";
+import { PendingDeepLinkProvider } from "@/context/pendingDeepLink";
 import { RevenueCatProvider } from "@/context/revenuecat";
 import colors from "@/constants/colors";
 
@@ -201,6 +202,7 @@ export default function RootLayout() {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
+              <PendingDeepLinkProvider>
               <SplashHideGate fontsReady={fontsReady} />
               <PushNotificationCoordinator />
               <FeedNoticeProvider>
@@ -213,6 +215,7 @@ export default function RootLayout() {
                 </ModerationBadgeProvider>
               </FeedNoticeProvider>
               <AuthHydrationSplash />
+              </PendingDeepLinkProvider>
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>

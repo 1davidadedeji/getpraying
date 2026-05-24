@@ -17,7 +17,10 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { scriptureStripForToday } from "@/constants/onboardingScripture";
 import { useAuth } from "@/context/auth";
+import { usePendingDeepLink } from "@/context/pendingDeepLink";
+import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const ALL_CATEGORIES = [
@@ -39,6 +42,8 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale } = useResponsiveLayout();
   const { refreshUser, user } = useAuth();
+  const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
+  const rc = useRevenueCat();
   const [selected, setSelected] = useState<string[]>([]);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const { mutate: savePrefs, isPending } = useSavePreferences();
@@ -106,8 +111,10 @@ export default function OnboardingScreen() {
       { data: { categories: selected } },
       {
         onSuccess: () => {
-          if (user) refreshUser({ ...user, onboardingComplete: true, preferredCategories: selected });
-          router.replace("/(tabs)");
+          if (!user) return;
+          const updated = { ...user, onboardingComplete: true, preferredCategories: selected };
+          refreshUser(updated);
+          router.replace(resolvePostAuthNavigation(updated, rc, pendingDeepLink, consumePendingHref));
         },
         onError: () => {
           showAppAlert({

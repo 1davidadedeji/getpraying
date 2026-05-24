@@ -1,22 +1,17 @@
 /**
- * Share / deep-link redirect pages.
+ * Share host routing for Universal/App Links and store fallbacks.
  *
  * Mounted at the root of the Express app (not under /api) so that
- * https://share.getpraying.com/post/123  →  OG-tagged HTML page that tries to
- * open the app and falls back to the appropriate app store.
- *
- * Store URLs live in `app_settings` (keys: ios_app_store_url,
- * android_play_store_url).  Changes take effect within ~60 s without any
- * server restart or app rebuild.
+ * https://share.getpraying.com/post/123 opens the native app when installed,
+ * or 302-redirects to the App Store / Play Store / marketing site when not.
  *
  * .well-known endpoints (AASA + assetlinks.json) enable iOS Universal Links
- * and Android App Links.  Supply APPLE_TEAM_ID and ANDROID_CERT_FINGERPRINT
- * env vars to make them functional; they return valid-but-empty configs when
- * the env vars are absent so the routes still respond correctly.
+ * and Android App Links. Supply APPLE_TEAM_ID, APPLE_BUNDLE_ID,
+ * ANDROID_PACKAGE_NAME, and ANDROID_CERT_FINGERPRINT when ready.
  */
-import { Router, type IRouter } from "express";
-import { db, appSettingsTable, postsTable, usersTable, officialPrayersTable, prayerPathsTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { db, appSettingsTable, usersTable, officialPrayersTable, prayerPathsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -28,13 +23,38 @@ const API_PUBLIC_BASE = (
 ).replace(/\/$/, "");
 const APP_NAME = "Get Praying";
 const APP_SCHEME = "getpraying";
-const BUNDLE_ID = "com.getpraying.app";
-const PACKAGE_NAME = "com.getpraying.app";
+const MARKETING_URL = "https://getpraying.com";
+
+const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID ?? "";
+const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID ?? "com.getpraying.app";
+const ANDROID_PACKAGE_NAME = process.env.ANDROID_PACKAGE_NAME ?? "com.getpraying.app";
+const ANDROID_CERT_FINGERPRINT = process.env.ANDROID_CERT_FINGERPRINT ?? "";
+
+const IOS_STORE_URL = (process.env.IOS_STORE_URL ?? "").trim();
+const ANDROID_STORE_URL = (process.env.ANDROID_STORE_URL ?? "").trim();
+
 /** Fallback when `og_image_url` is unset in app_settings. */
 const DEFAULT_OG_IMAGE_URL = `${APP_ORIGIN}/static/app-icon.png`;
 
+type ClientPlatform = "ios" | "android" | "desktop";
+
+function detectPlatform(userAgent: string): ClientPlatform {
+  const ua = userAgent.toLowerCase();
+  if (/iphone|ipad|ipod/.test(ua)) return "ios";
+  if (/android/.test(ua)) return "android";
+  return "desktop";
+}
+
+function storeFallbackRedirect(req: Request, res: Response): void {
+  const platform = detectPlatform(String(req.headers["user-agent"] ?? ""));
+  let target = MARKETING_URL;
+  if (platform === "ios" && IOS_STORE_URL) target = IOS_STORE_URL;
+  else if (platform === "android" && ANDROID_STORE_URL) target = ANDROID_STORE_URL;
+  res.redirect(302, target);
+}
+
 // ---------------------------------------------------------------------------
-// Settings cache (60 s TTL — changes to store URLs need no server restart)
+// Settings cache (60 s TTL)
 // ---------------------------------------------------------------------------
 let _settingsCache: Record<string, string> = {};
 let _settingsCachedAt = 0;
@@ -46,7 +66,7 @@ async function getSettings(): Promise<Record<string, string>> {
     _settingsCache = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     _settingsCachedAt = Date.now();
   } catch {
-    // keep stale cache on DB error rather than crashing
+    /* keep stale cache */
   }
   return _settingsCache;
 }
@@ -56,7 +76,6 @@ function resolveOgImageUrl(settings: Record<string, string>): string {
   return normalizeOgImageUrl(configured || DEFAULT_OG_IMAGE_URL);
 }
 
-/** OG crawlers (WhatsApp, iMessage) require absolute https image URLs. */
 function normalizeOgImageUrl(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return DEFAULT_OG_IMAGE_URL;
@@ -78,30 +97,6 @@ function resolveApiAssetUrl(pathOrUrl: string | null | undefined): string {
   return `${API_PUBLIC_BASE}${value.startsWith("/") ? value : `/${value}`}`;
 }
 
-function pickPostOgImage(
-  settings: Record<string, string>,
-  mediaUrl: string | null | undefined,
-  mediaType: string | null | undefined,
-): string {
-  if (mediaType === "image" && mediaUrl) {
-    const absolute = normalizeOgImageUrl(resolveApiAssetUrl(mediaUrl));
-    if (absolute) return absolute;
-  }
-  return resolveOgImageUrl(settings);
-}
-
-function postSharePreviewText(content: string, mediaType: string | null | undefined): string {
-  const trimmed = content.trim();
-  if (trimmed.length > 0) return trimmed;
-  if (mediaType === "image") return "A photo prayer";
-  if (mediaType === "video") return "A video prayer";
-  if (mediaType === "audio") return "An audio prayer";
-  return "A prayer on Get Praying";
-}
-
-// ---------------------------------------------------------------------------
-// HTML helpers
-// ---------------------------------------------------------------------------
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -140,93 +135,25 @@ function buildPage(opts: {
 <meta property="og:site_name" content="${esc(APP_NAME)}">
 <meta property="og:image" content="${esc(imageUrl)}">
 <meta property="og:image:secure_url" content="${esc(imageUrl)}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="${esc(APP_NAME)}">
-<link rel="image_src" href="${esc(imageUrl)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
 <meta name="twitter:image" content="${esc(imageUrl)}">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F9F6F0;color:#1A1F36}
-.wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;gap:24px}
-.logo{font-size:22px;font-weight:700;letter-spacing:-0.5px;color:#1A1F36}
-.logo span{color:#7C6B52}
-.card{background:#fff;border-radius:16px;padding:28px 24px;max-width:480px;width:100%;box-shadow:0 2px 16px rgba(26,31,54,.07)}
-.eyebrow{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#9CA0B0;margin-bottom:8px}
-.headline{font-size:19px;font-weight:700;line-height:1.35;color:#1A1F36;margin-bottom:10px}
-.body{font-size:15px;line-height:1.6;color:#4B5163;margin-bottom:0}
-.actions{display:flex;flex-direction:column;gap:10px;max-width:480px;width:100%}
-.btn{display:block;width:100%;padding:15px 24px;border-radius:12px;font-size:16px;font-weight:600;text-align:center;text-decoration:none;cursor:pointer;border:none;transition:opacity .15s}
-.btn-primary{background:#1A1F36;color:#fff}
-.btn-primary:hover{opacity:.88}
-.btn-secondary{background:#fff;color:#1A1F36;border:1.5px solid #D8D5CF}
-.btn-secondary:hover{background:#F0EDE8}
-.store-row{display:flex;gap:10px;justify-content:center}
-.store-row .btn{flex:1}
-.footer{font-size:12px;color:#B0ADA8;text-align:center;padding-top:8px}
-#status{font-size:13px;color:#9CA0B0;text-align:center;margin-top:4px}
-</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="logo">${esc(APP_NAME)}</div>
-  <div class="card">
-    ${eyebrow ? `<div class="eyebrow">${esc(eyebrow)}</div>` : ""}
-    <div class="headline">${esc(headline)}</div>
-    <div class="body">${esc(body)}</div>
-  </div>
-  <div class="actions">
-    <a id="open-btn" class="btn btn-primary" href="${esc(canonicalUrl)}">Open in ${esc(APP_NAME)}</a>
-    <div id="store-row" class="store-row" style="display:none">
-      ${iosStoreUrl ? `<a class="btn btn-secondary" href="${esc(iosStoreUrl)}" id="ios-btn">App Store</a>` : ""}
-      ${androidStoreUrl ? `<a class="btn btn-secondary" href="${esc(androidStoreUrl)}" id="android-btn">Google Play</a>` : ""}
-    </div>
-    <div id="status"></div>
-  </div>
-  <p class="footer">Get Praying &mdash; a community of prayer</p>
-</div>
+<p>Opening ${esc(APP_NAME)}…</p>
 <script>
 (function(){
   var isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
   var isAndroid=/Android/.test(navigator.userAgent);
-  var universalLink=${JSON.stringify(canonicalUrl)};
   var deepLink=${JSON.stringify(deepLink)};
   var iosStore=${JSON.stringify(iosStoreUrl)};
   var androidStore=${JSON.stringify(androidStoreUrl)};
-
-  // Show the correct store button for this platform
-  if((isIOS&&iosStore)||(isAndroid&&androidStore)){
-    document.getElementById('store-row').style.display='flex';
-    if(isIOS&&!iosStore)document.getElementById('ios-btn')&&document.getElementById('ios-btn').remove();
-    if(isAndroid&&!androidStore)document.getElementById('android-btn')&&document.getElementById('android-btn').remove();
-  }
-
-  // Auto-attempt deep link then fall back to store
-  var hidden=false;
-  document.addEventListener('visibilitychange',function(){if(document.hidden)hidden=true;});
-
-  var statusEl=document.getElementById('status');
-  function setStatus(t){if(statusEl)statusEl.textContent=t;}
-
-  // Give the page 800 ms to settle before trying (avoids partial render)
+  window.location.href=deepLink;
   setTimeout(function(){
-    setStatus('Opening app…');
-    var openTarget=(isIOS||isAndroid)?deepLink:universalLink;
-    window.location.href=openTarget;
-    setTimeout(function(){
-      if(hidden)return; // app opened
-      var storeUrl=isIOS?iosStore:isAndroid?androidStore:'';
-      if(storeUrl){
-        setStatus('App not found — redirecting to store…');
-        setTimeout(function(){window.location.href=storeUrl;},600);
-      }else{
-        setStatus('Download the app to open this link.');
-      }
-    },2000);
-  },800);
+    var storeUrl=isIOS?iosStore:isAndroid?androidStore:'';
+    if(storeUrl)window.location.href=storeUrl;
+  },1500);
 })();
 </script>
 </body>
@@ -234,57 +161,16 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sa
 }
 
 // ---------------------------------------------------------------------------
-// Route: POST share page  /post/:id
+// Route: shared post — pure redirect (no HTML). Universal Links open the app
+// when installed; this handler only runs when the app is not on the device.
 // ---------------------------------------------------------------------------
-router.get("/post/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  if (!Number.isFinite(id) || id <= 0) { res.status(404).send("Not found"); return; }
-
-  const [settings, rows] = await Promise.all([
-    getSettings(),
-    db
-      .select({
-        id: postsTable.id,
-        content: postsTable.content,
-        mediaUrl: postsTable.mediaUrl,
-        mediaType: postsTable.mediaType,
-        prayCount: postsTable.prayCount,
-        isAnonymous: postsTable.isAnonymous,
-        status: postsTable.status,
-        authorDisplayName: usersTable.displayName,
-        authorUsername: usersTable.username,
-      })
-      .from(postsTable)
-      .leftJoin(usersTable, eq(postsTable.authorId, usersTable.id))
-      .where(and(eq(postsTable.id, id), eq(postsTable.status, "approved")))
-      .limit(1),
-  ]);
-
-  const post = rows[0];
-  if (!post) { res.status(404).send("Not found"); return; }
-
-  const previewText = postSharePreviewText(post.content, post.mediaType);
-  const snippet = previewText.slice(0, 240) + (previewText.length > 240 ? "…" : "");
-  const author = post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Someone");
-  const title = `"${snippet.slice(0, 80)}${snippet.length > 80 ? "…" : ""}" — ${APP_NAME}`;
-  const description = `${author} shared a prayer on ${APP_NAME}. ${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying.`;
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=60");
-  res.send(
-    buildPage({
-      title,
-      description,
-      ogImageUrl: pickPostOgImage(settings, post.mediaUrl, post.mediaType),
-      canonicalUrl: `${APP_ORIGIN}/post/${id}`,
-      deepLink: `${APP_SCHEME}://post/${id}`,
-      iosStoreUrl: settings.ios_app_store_url ?? "",
-      androidStoreUrl: settings.android_play_store_url ?? "",
-      eyebrow: "Prayer",
-      headline: `“${snippet.slice(0, 120)}${snippet.length > 120 ? "…" : ""}”`,
-      body: `Shared by ${author} · ${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying`,
-    }),
-  );
+router.get("/post/:id", (req, res): void => {
+  const id = Number.parseInt(String(req.params.id ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    res.redirect(302, MARKETING_URL);
+    return;
+  }
+  storeFallbackRedirect(req, res);
 });
 
 // ---------------------------------------------------------------------------
@@ -325,8 +211,8 @@ router.get("/official/:id", async (req, res): Promise<void> => {
       ogImageUrl: resolveOgImageUrl(settings),
       canonicalUrl: `${APP_ORIGIN}/official/${id}`,
       deepLink: `${APP_SCHEME}://official/${id}`,
-      iosStoreUrl: settings.ios_app_store_url ?? "",
-      androidStoreUrl: settings.android_play_store_url ?? "",
+      iosStoreUrl: IOS_STORE_URL || settings.ios_app_store_url || "",
+      androidStoreUrl: ANDROID_STORE_URL || settings.android_play_store_url || "",
       eyebrow: guide.category ?? "Guide",
       headline: guide.title,
       body: guide.subtitle ?? `A guided prayer on ${APP_NAME}`,
@@ -371,8 +257,8 @@ router.get("/path/:id", async (req, res): Promise<void> => {
       ogImageUrl: resolveOgImageUrl(settings),
       canonicalUrl: `${APP_ORIGIN}/path/${id}`,
       deepLink: `${APP_SCHEME}://path/${id}`,
-      iosStoreUrl: settings.ios_app_store_url ?? "",
-      androidStoreUrl: settings.android_play_store_url ?? "",
+      iosStoreUrl: IOS_STORE_URL || settings.ios_app_store_url || "",
+      androidStoreUrl: ANDROID_STORE_URL || settings.android_play_store_url || "",
       eyebrow: path.category ?? "Prayer Path",
       headline: path.name,
       body: path.tagline ?? path.description.slice(0, 160),
@@ -428,8 +314,8 @@ router.get("/user/:username", async (req, res): Promise<void> => {
       ogImageUrl,
       canonicalUrl: `${APP_ORIGIN}/user/${encodeURIComponent(profile.username)}`,
       deepLink: `${APP_SCHEME}://user/${profile.username}`,
-      iosStoreUrl: settings.ios_app_store_url ?? "",
-      androidStoreUrl: settings.android_play_store_url ?? "",
+      iosStoreUrl: IOS_STORE_URL || settings.ios_app_store_url || "",
+      androidStoreUrl: ANDROID_STORE_URL || settings.android_play_store_url || "",
       eyebrow: "Profile",
       headline: displayName,
       body: `${profile.prayersShared} ${profile.prayersShared === 1 ? "prayer" : "prayers"} shared · @${profile.username}`,
@@ -439,43 +325,37 @@ router.get("/user/:username", async (req, res): Promise<void> => {
 
 // ---------------------------------------------------------------------------
 // .well-known/apple-app-site-association  (iOS Universal Links)
-//
-// Requires env var APPLE_TEAM_ID (e.g. "AB12CD34EF").
-// Without it, returns an empty-paths config so the file is still valid JSON
-// and won't cause 404 errors during app notarisation / review.
 // ---------------------------------------------------------------------------
 router.get("/.well-known/apple-app-site-association", (_req, res): void => {
-  const teamId = process.env.APPLE_TEAM_ID ?? "";
-  const appId = teamId ? `${teamId}.${BUNDLE_ID}` : BUNDLE_ID;
+  const appId =
+    APPLE_TEAM_ID && APPLE_BUNDLE_ID ? `${APPLE_TEAM_ID}.${APPLE_BUNDLE_ID}` : "";
 
   res.setHeader("Content-Type", "application/json");
   res.json({
     applinks: {
       apps: [],
-      details: [
-        {
-          appID: appId,
-          paths: ["/post/*", "/official/*", "/path/*", "/user/*"],
-        },
-      ],
+      details:
+        appId !== ""
+          ? [
+              {
+                appID: appId,
+                paths: ["/post/*", "/official/*", "/path/*", "/user/*"],
+              },
+            ]
+          : [],
     },
     webcredentials: {
-      apps: [appId],
+      apps: appId !== "" ? [appId] : [],
     },
   });
 });
 
 // ---------------------------------------------------------------------------
 // .well-known/assetlinks.json  (Android App Links)
-//
-// Requires env var ANDROID_CERT_FINGERPRINT — the SHA-256 of your release
-// signing certificate (colon-separated hex, e.g. from `keytool -list`).
-// Without it, returns an empty array (still valid JSON, no 404).
 // ---------------------------------------------------------------------------
 router.get("/.well-known/assetlinks.json", (_req, res): void => {
-  const fingerprint = process.env.ANDROID_CERT_FINGERPRINT ?? "";
   res.setHeader("Content-Type", "application/json");
-  if (!fingerprint) {
+  if (!ANDROID_CERT_FINGERPRINT || !ANDROID_PACKAGE_NAME) {
     res.json([]);
     return;
   }
@@ -484,8 +364,8 @@ router.get("/.well-known/assetlinks.json", (_req, res): void => {
       relation: ["delegate_permission/common.handle_all_urls"],
       target: {
         namespace: "android_app",
-        package_name: PACKAGE_NAME,
-        sha256_cert_fingerprints: [fingerprint],
+        package_name: ANDROID_PACKAGE_NAME,
+        sha256_cert_fingerprints: [ANDROID_CERT_FINGERPRINT],
       },
     },
   ]);

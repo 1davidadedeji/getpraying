@@ -2,7 +2,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import type { Href } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import { getGetPathQueryKey, useGetPath } from "@workspace/api-client-react";
-import type { OfficialPrayer, Post } from "@workspace/api-client-react";
+import type { OfficialPrayer } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -16,7 +16,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
-import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { iconKeyForPathCategory } from "@/constants/pathCategoryIcon";
@@ -171,8 +170,6 @@ export default function PathDetailScreen() {
   });
   const iconName = (FEATHER_ICON_MAP[iconKeyForPathCategory(path.category)] ?? "star") as keyof typeof Feather.glyphMap;
   const official = (path.officialPrayers ?? []).map(toOfficialRow);
-  const pathSessions = official.slice(0, 2);
-  const communityPosts = (path.savedPosts ?? []) as Post[];
 
   return (
     <ScrollView
@@ -204,14 +201,14 @@ export default function PathDetailScreen() {
 
       <View style={[styles.section, { paddingHorizontal: gutter, paddingTop: sectionPadT, gap: sectionGap }]}>
         <Text style={[styles.sectionTitle, { fontSize: fsSectionTitle }]}>Guided official prayers</Text>
-        {pathSessions.length === 0 ? (
+        {official.length === 0 ? (
           <View style={[styles.emptyInline, { paddingVertical: emptyPadV }]}>
             <Text style={[styles.emptyInlineText, { fontSize: fsEmpty, lineHeight: lhEmpty }]}>
-              Sanctuary sessions archived to this path will appear here.
+              Official guides for this path will appear here.
             </Text>
           </View>
         ) : (
-          pathSessions.map((op) => (
+          official.map((op) => (
             <PathSessionCard
               key={op.id}
               op={op}
@@ -222,15 +219,6 @@ export default function PathDetailScreen() {
           ))
         )}
       </View>
-
-      {communityPosts.length > 0 ? (
-        <View style={[styles.section, { paddingHorizontal: gutter, paddingTop: sectionPadT, gap: sectionGap }]}>
-          <Text style={[styles.sectionTitle, { fontSize: fsSectionTitle }]}>Saved in this path</Text>
-          {communityPosts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
-        </View>
-      ) : null}
     </ScrollView>
   );
 }

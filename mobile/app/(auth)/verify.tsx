@@ -15,7 +15,10 @@ import { useVerifyEmail, useResendVerification } from "@workspace/api-client-rea
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { usePendingDeepLink } from "@/context/pendingDeepLink";
+import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const COOLDOWN_STEPS = [60, 120, 300, 600];
@@ -149,6 +152,8 @@ export default function VerifyScreen() {
   const fsLink = Math.round(clamp(14 * uiScale, 13, 16));
   const linkPadV = Math.round(clamp(8 * uiScale, 6, 10));
   const { user, refreshUser } = useAuth();
+  const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
+  const rc = useRevenueCat();
   const [otp, setOtp] = useState("");
   const verify = useVerifyEmail();
   const resend = useResendVerification();
@@ -207,10 +212,10 @@ export default function VerifyScreen() {
         onSuccess: () => {
           const next = user ? { ...user, isEmailVerified: true } : null;
           if (next) refreshUser(next);
-          if (next && !next.onboardingComplete) {
-            router.replace("/onboarding" as Href);
+          if (next) {
+            router.replace(resolvePostAuthNavigation(next, rc, pendingDeepLink, consumePendingHref));
           } else {
-            router.replace("/(tabs)" as Href);
+            router.replace("/login" as Href);
           }
         },
         onError: (err: any) => {

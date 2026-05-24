@@ -19,10 +19,13 @@ import { APP_LOGO_SOURCE, appLogoSizePx } from "@/constants/branding";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
+import { usePendingDeepLink } from "@/context/pendingDeepLink";
+import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
+import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -51,6 +54,8 @@ export default function LoginScreen() {
   const fsFooter = Math.round(clamp(14 * uiScale, 13, 16));
   const footerMt = Math.round(clamp(28 * uiScale, 22, 32));
   const { login } = useAuth();
+  const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
+  const rc = useRevenueCat();
   const passwordRef = useRef<TextInput | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -68,13 +73,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const u = await login(email.trim(), password);
-      if (!u.isEmailVerified) {
-        router.replace("/(auth)/verify" as Href);
-      } else if (!u.onboardingComplete) {
-        router.replace("/onboarding");
-      } else {
-        router.replace("/(tabs)");
-      }
+      router.replace(resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref));
     } catch (err: unknown) {
       showAppAlert({ title: "Login failed", message: getApiErrorMessage(err, "Login failed") });
     } finally {

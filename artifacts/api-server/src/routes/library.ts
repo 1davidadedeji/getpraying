@@ -461,25 +461,6 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
     savedOfficialPrayers = savedRows.map(mapOfficial);
   }
 
-  // Get saved posts for this path's category
-  let savedPosts: any[] = [];
-  if (currentUser) {
-    const savedRows = await db
-      .select()
-      .from(savedPostsTable)
-      .where(eq(savedPostsTable.userId, currentUser.id));
-
-    if (savedRows.length > 0) {
-      const postIds = savedRows.map((r) => r.postId);
-      const posts = await db
-        .select()
-        .from(postsTable)
-        .where(and(inArray(postsTable.id, postIds), eq(postsTable.category, path.category)))
-        .limit(5);
-      savedPosts = await enrichPosts(posts, currentUser.id);
-    }
-  }
-
   res.json({
     id: path.id,
     name: path.name,
@@ -488,7 +469,6 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
     tagline: path.tagline,
     officialPrayers: officialRows.map(mapOfficial),
     savedOfficialPrayers,
-    savedPosts,
   });
 });
 
