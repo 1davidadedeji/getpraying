@@ -42,11 +42,14 @@ async function postPushTokenToServer(
         : Intl.DateTimeFormat().resolvedOptions().timeZone;
     body.timezone = tz;
   }
-  await fetch(apiUrl("/users/me/push-token"), {
+  const res = await fetch(apiUrl("/users/me/push-token"), {
     method: "POST",
     headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
     body: JSON.stringify(body),
-  }).catch(() => {});
+  });
+  if (!res.ok && __DEV__) {
+    console.warn("[push] server rejected token sync:", res.status, await res.text().catch(() => ""));
+  }
 }
 
 /**
@@ -61,27 +64,32 @@ export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: st
 export async function registerAndSyncPushToken(apiJwt: string | null): Promise<void> {
   if (!apiJwt || !Device.isDevice) return;
 
+  await ensureAndroidNotificationChannel();
+
   const { status: existing } = await Notifications.getPermissionsAsync();
   let final = existing;
   if (existing !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
+    const { status } = await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    });
     final = status;
   }
 
   if (final !== "granted") {
+    if (__DEV__) console.warn("[push] notification permission not granted:", final);
     await postPushTokenToServer(apiJwt, { token: null });
     return;
   }
 
-  await ensureAndroidNotificationChannel();
-
-  const projectId = projectIdForExpoPush();
-  const tokenRes = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined,
-  );
-  const expoToken = tokenRes.data;
-
-  await postPushTokenToServer(apiJwt, { token: expoToken });
+  try {
+    const projectId = projectIdForExpoPush();
+    const tokenRes = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
+    await postPushTokenToServer(apiJwt, { token: tokenRes.data });
+  } catch (err) {
+    if (__DEV__) console.warn("[push] getExpoPushTokenAsync failed:", err);
+  }
 }
 
 export async function clearPushTokenOnServer(apiJwt: string | null): Promise<void> {

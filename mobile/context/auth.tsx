@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, getMe } from "@workspace/api-client-react";
 import { login as apiLogin, register as apiRegister, logout as apiLogout } from "@workspace/api-client-react";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { User } from "@workspace/api-client-react";
@@ -33,11 +33,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(TOKEN_KEY),
           AsyncStorage.getItem(USER_KEY),
         ]);
-        if (storedToken && storedUser) {
+        if (!storedToken) return;
+
+        setAuthTokenGetter(() => storedToken);
+        try {
+          const fresh = await getMe();
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(fresh);
+          await AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
+        } catch {
+          await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+          setToken(null);
+          setUser(null);
         }
       } catch {
+        await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]).catch(() => {});
+        setToken(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }

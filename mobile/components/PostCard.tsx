@@ -23,6 +23,7 @@ import {
   getGetUserProfileQueryKey,
 } from "@workspace/api-client-react";
 import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
+import { ApiError } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
 import colors from "@/constants/colors";
@@ -33,6 +34,7 @@ import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { submitPostReport } from "@/lib/reportPost";
 import { buildPostSharePayload } from "@/lib/sharePost";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
@@ -93,7 +95,33 @@ export default function PostCard({
   const { mutate: save } = useSavePost();
   const { mutate: unsave } = useUnsavePost();
 
+  const ensureSignedIn = (): boolean => {
+    if (token) return true;
+    showAppAlert({
+      title: "Sign in required",
+      message: "Sign in to pray for and save prayers.",
+      buttons: [{ text: "Sign In", onPress: () => router.push("/login" as never) }],
+    });
+    return false;
+  };
+
+  const handleMutationError = (err: unknown, action: string) => {
+    if (err instanceof ApiError && err.status === 401) {
+      showAppAlert({
+        title: "Session expired",
+        message: "Please sign in again to continue.",
+        buttons: [{ text: "Sign In", onPress: () => router.push("/login" as never) }],
+      });
+      return;
+    }
+    showAppAlert({
+      title: `Could not ${action}`,
+      message: getApiErrorMessage(err, "Please try again."),
+    });
+  };
+
   const handlePray = () => {
+    if (!ensureSignedIn()) return;
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.4, useNativeDriver: true }),
       Animated.spring(flameScale, { toValue: 1, useNativeDriver: true }),
@@ -115,11 +143,13 @@ export default function PostCard({
             });
           }
         },
+        onError: (err) => handleMutationError(err, "update your prayer"),
       },
     );
   };
 
   const handleSave = () => {
+    if (!ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const invalidateSaved = () => {
       queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
@@ -137,6 +167,7 @@ export default function PostCard({
             });
             invalidateSaved();
           },
+          onError: (err) => handleMutationError(err, "unsave this prayer"),
         },
       );
     } else {
@@ -151,6 +182,7 @@ export default function PostCard({
             });
             invalidateSaved();
           },
+          onError: (err) => handleMutationError(err, "save this prayer"),
         },
       );
     }
@@ -162,9 +194,7 @@ export default function PostCard({
     try {
       Haptics.selectionAsync();
       await Share.share(
-        Platform.OS === "ios"
-          ? { message, url }
-          : { message },
+        Platform.OS === "ios" ? { message, url } : { message, url },
         { dialogTitle: "Share this prayer" },
       );
     } catch {

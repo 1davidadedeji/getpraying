@@ -10,8 +10,8 @@
  * ANDROID_PACKAGE_NAME, and ANDROID_CERT_FINGERPRINT when ready.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, appSettingsTable, usersTable, officialPrayersTable, prayerPathsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, appSettingsTable, postsTable, usersTable, officialPrayersTable, prayerPathsTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -33,8 +33,8 @@ const ANDROID_CERT_FINGERPRINT = process.env.ANDROID_CERT_FINGERPRINT ?? "";
 const IOS_STORE_URL = (process.env.IOS_STORE_URL ?? "").trim();
 const ANDROID_STORE_URL = (process.env.ANDROID_STORE_URL ?? "").trim();
 
-/** Fallback when `og_image_url` is unset in app_settings. */
-const DEFAULT_OG_IMAGE_URL = `${APP_ORIGIN}/static/app-icon.png`;
+/** Fallback OG image — served from API static (always reachable when api host is up). */
+const DEFAULT_OG_IMAGE_URL = `${API_PUBLIC_BASE}/static/app-icon.png`;
 
 type ClientPlatform = "ios" | "android" | "desktop";
 
@@ -51,6 +51,48 @@ function storeFallbackRedirect(req: Request, res: Response): void {
   if (platform === "ios" && IOS_STORE_URL) target = IOS_STORE_URL;
   else if (platform === "android" && ANDROID_STORE_URL) target = ANDROID_STORE_URL;
   res.redirect(302, target);
+}
+
+/** WhatsApp, iMessage, Telegram, etc. need HTML + og:* tags — not a bare redirect. */
+function isLinkPreviewCrawler(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase();
+  return (
+    ua.includes("whatsapp") ||
+    ua.includes("facebookexternalhit") ||
+    ua.includes("facebot") ||
+    ua.includes("twitterbot") ||
+    ua.includes("telegrambot") ||
+    ua.includes("slackbot") ||
+    ua.includes("linkedinbot") ||
+    ua.includes("discordbot") ||
+    ua.includes("googlebot") ||
+    ua.includes("bingbot") ||
+    ua.includes("applebot") ||
+    ua.includes("embedly") ||
+    ua.includes("preview") ||
+    ua.includes("getpraying")
+  );
+}
+
+function pickPostOgImage(
+  settings: Record<string, string>,
+  mediaUrl: string | null | undefined,
+  mediaType: string | null | undefined,
+): string {
+  if (mediaType === "image" && mediaUrl) {
+    const absolute = normalizeOgImageUrl(resolveApiAssetUrl(mediaUrl));
+    if (absolute) return absolute;
+  }
+  return resolveOgImageUrl(settings);
+}
+
+function postSharePreviewText(content: string, mediaType: string | null | undefined): string {
+  const trimmed = content.trim();
+  if (trimmed.length > 0) return trimmed;
+  if (mediaType === "image") return "A photo prayer";
+  if (mediaType === "video") return "A video prayer";
+  if (mediaType === "audio") return "An audio prayer";
+  return "A prayer on Get Praying";
 }
 
 // ---------------------------------------------------------------------------
@@ -135,6 +177,10 @@ function buildPage(opts: {
 <meta property="og:site_name" content="${esc(APP_NAME)}">
 <meta property="og:image" content="${esc(imageUrl)}">
 <meta property="og:image:secure_url" content="${esc(imageUrl)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${esc(APP_NAME)}">
+<link rel="image_src" href="${esc(imageUrl)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
@@ -161,16 +207,92 @@ function buildPage(opts: {
 }
 
 // ---------------------------------------------------------------------------
-// Route: shared post — pure redirect (no HTML). Universal Links open the app
-// when installed; this handler only runs when the app is not on the device.
+// Route: shared post — OG HTML for crawlers; store redirect for browsers without app.
 // ---------------------------------------------------------------------------
-router.get("/post/:id", (req, res): void => {
+router.get("/post/:id", async (req, res): Promise<void> => {
   const id = Number.parseInt(String(req.params.id ?? ""), 10);
   if (!Number.isFinite(id) || id <= 0) {
     res.redirect(302, MARKETING_URL);
     return;
   }
-  storeFallbackRedirect(req, res);
+
+  const ua = String(req.headers["user-agent"] ?? "");
+  const platform = detectPlatform(ua);
+  const wantsPreviewHtml = isLinkPreviewCrawler(ua) || platform !== "desktop";
+
+  const [settings, rows] = await Promise.all([
+    getSettings(),
+    db
+      .select({
+        id: postsTable.id,
+        content: postsTable.content,
+        mediaUrl: postsTable.mediaUrl,
+        mediaType: postsTable.mediaType,
+        prayCount: postsTable.prayCount,
+        isAnonymous: postsTable.isAnonymous,
+        status: postsTable.status,
+        authorDisplayName: usersTable.displayName,
+        authorUsername: usersTable.username,
+      })
+      .from(postsTable)
+      .leftJoin(usersTable, eq(postsTable.authorId, usersTable.id))
+      .where(and(eq(postsTable.id, id), eq(postsTable.status, "approved")))
+      .limit(1),
+  ]);
+
+  const post = rows[0];
+  const canonicalUrl = `${APP_ORIGIN}/post/${id}`;
+  const iosStore = IOS_STORE_URL || settings.ios_app_store_url || "";
+  const androidStore = ANDROID_STORE_URL || settings.android_play_store_url || "";
+
+  if (!wantsPreviewHtml) {
+    storeFallbackRedirect(req, res);
+    return;
+  }
+
+  if (!post) {
+    const title = `Prayer on ${APP_NAME}`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    res.send(
+      buildPage({
+        title,
+        description: "Join the Get Praying community.",
+        ogImageUrl: resolveOgImageUrl(settings),
+        canonicalUrl,
+        deepLink: `${APP_SCHEME}://post/${id}`,
+        iosStoreUrl: iosStore,
+        androidStoreUrl: androidStore,
+        eyebrow: "Prayer",
+        headline: title,
+        body: "Open in the Get Praying app.",
+      }),
+    );
+    return;
+  }
+
+  const previewText = postSharePreviewText(post.content, post.mediaType);
+  const snippet = previewText.slice(0, 240) + (previewText.length > 240 ? "…" : "");
+  const author = post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Someone");
+  const title = `"${snippet.slice(0, 80)}${snippet.length > 80 ? "…" : ""}" — ${APP_NAME}`;
+  const description = `${author} shared a prayer on ${APP_NAME}. ${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying.`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.send(
+    buildPage({
+      title,
+      description,
+      ogImageUrl: pickPostOgImage(settings, post.mediaUrl, post.mediaType),
+      canonicalUrl,
+      deepLink: `${APP_SCHEME}://post/${id}`,
+      iosStoreUrl: iosStore,
+      androidStoreUrl: androidStore,
+      eyebrow: "Prayer",
+      headline: `“${snippet.slice(0, 120)}${snippet.length > 120 ? "…" : ""}”`,
+      body: `Shared by ${author} · ${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying`,
+    }),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -355,7 +477,10 @@ router.get("/.well-known/apple-app-site-association", (_req, res): void => {
 // ---------------------------------------------------------------------------
 router.get("/.well-known/assetlinks.json", (_req, res): void => {
   res.setHeader("Content-Type", "application/json");
-  if (!ANDROID_CERT_FINGERPRINT || !ANDROID_PACKAGE_NAME) {
+  const fingerprints = ANDROID_CERT_FINGERPRINT.split(/[,;\s]+/)
+    .map((f) => f.trim())
+    .filter(Boolean);
+  if (fingerprints.length === 0 || !ANDROID_PACKAGE_NAME) {
     res.json([]);
     return;
   }
@@ -365,7 +490,7 @@ router.get("/.well-known/assetlinks.json", (_req, res): void => {
       target: {
         namespace: "android_app",
         package_name: ANDROID_PACKAGE_NAME,
-        sha256_cert_fingerprints: [ANDROID_CERT_FINGERPRINT],
+        sha256_cert_fingerprints: fingerprints,
       },
     },
   ]);
