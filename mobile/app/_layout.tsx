@@ -25,7 +25,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Text, TextInput } from "react-native";
 
 import { AppAlertHost } from "@/components/AppAlert";
-import { SplashBrandedFill, SplashBrandedOverlay } from "@/components/AppLoadingScreen";
+import { SplashBrandedFill } from "@/components/AppLoadingScreen";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/auth";
@@ -66,23 +66,18 @@ const queryClient = new QueryClient({
 });
 
 /**
- * Hides the native splash once custom fonts are ready, so the JS splash (larger mark +
- * “Get Praying”) can show until auth finishes hydrating — avoids trapping the tagline
- * behind the static native layer.
+ * Hides the native splash once fonts and auth hydration are ready so logged-in
+ * users never see a flash of the welcome screen underneath.
  */
 function SplashHideGate({ fontsReady }: { fontsReady: boolean }) {
+  const { loading: authLoading } = useAuth();
+
   useEffect(() => {
-    if (!fontsReady) return;
+    if (!fontsReady || authLoading) return;
     void SplashScreen.hideAsync();
-  }, [fontsReady]);
+  }, [fontsReady, authLoading]);
 
   return null;
-}
-
-function AuthHydrationSplash() {
-  const { loading: authRestoring } = useAuth();
-  if (!authRestoring) return null;
-  return <SplashBrandedOverlay />;
 }
 
 function RootLayoutNav() {
@@ -214,7 +209,6 @@ export default function RootLayout() {
                   </RevenueCatProvider>
                 </ModerationBadgeProvider>
               </FeedNoticeProvider>
-              <AuthHydrationSplash />
               </PendingDeepLinkProvider>
             </AuthProvider>
           </QueryClientProvider>
