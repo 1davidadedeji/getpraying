@@ -13,7 +13,7 @@ type ShareablePost = {
 function postSharePreviewText(content: string, mediaType?: string | null): string {
   const trimmed = content.trim();
   if (trimmed.length > 0) {
-    return `"${trimmed.slice(0, 200)}${trimmed.length > 200 ? "\u2026" : ""}"`;
+    return `${trimmed.slice(0, 200)}${trimmed.length > 200 ? "\u2026" : ""}`;
   }
   if (mediaType === "image") return "A photo prayer";
   if (mediaType === "video") return "A video prayer";

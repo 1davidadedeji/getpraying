@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -8,20 +8,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { PurchasesPackage } from "react-native-purchases";
 import { router } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
-import colors from "@/constants/colors";
 import { useRevenueCat } from "@/context/revenuecat";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
-
-function pickPackages(pkgs: PurchasesPackage[]): { monthly?: PurchasesPackage; annual?: PurchasesPackage } {
-  const monthly = pkgs.find((p) => p.packageType === "MONTHLY") ?? pkgs[0];
-  const annual = pkgs.find((p) => p.packageType === "ANNUAL") ?? pkgs[1];
-  return { monthly, annual };
-}
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
@@ -51,21 +43,20 @@ export default function PaywallScreen() {
   const centerGap = Math.round(clamp(8 * uiScale, 6, 10));
   const centerPadV = Math.round(clamp(10 * uiScale, 8, 12));
   const fsLoading = Math.round(clamp(13 * uiScale, 12, 15));
-  const pkgGap = Math.round(clamp(12 * uiScale, 10, 14));
   const planPadV = Math.round(clamp(16 * uiScale, 14, 18));
   const planPadH = Math.round(clamp(18 * uiScale, 16, 22));
   const planRad = Math.round(clamp(32 * uiScale, 28, 36));
   const fsPlan = Math.round(clamp(16 * uiScale, 15, 18));
+  const fsPlanSub = Math.round(clamp(13 * uiScale, 12, 15));
   const restorePadV = Math.round(clamp(10 * uiScale, 8, 12));
   const fsRestore = Math.round(clamp(14 * uiScale, 13, 16));
 
-  const packages = rc.offerings?.current?.availablePackages ?? [];
-  const { monthly, annual } = useMemo(() => pickPackages(packages), [packages]);
+  const monthly = rc.monthlyPackage;
 
-  const onPurchase = async (pkg?: PurchasesPackage) => {
-    if (!pkg) return;
+  const onPurchase = async () => {
+    if (!monthly) return;
     try {
-      await rc.purchasePackage(pkg);
+      await rc.purchasePackage(monthly);
       showAppAlert({
         title: "Subscribed",
         message: "Thank you. Your subscription is now active.",
@@ -127,40 +118,30 @@ export default function PaywallScreen() {
                 RevenueCat keys are not configured yet.
               </Text>
             </View>
-          ) : packages.length === 0 ? (
+          ) : !monthly ? (
             <View style={[styles.center, { gap: centerGap, paddingVertical: centerPadV }]}>
-              <Text style={[styles.loadingText, { fontSize: fsLoading }]}>No packages available.</Text>
+              <Text style={[styles.loadingText, { fontSize: fsLoading }]}>
+                Monthly subscription is not available yet.
+              </Text>
             </View>
           ) : (
-            <View style={[styles.packages, { gap: pkgGap }]}>
-              <Pressable
-                style={[
-                  styles.planBtn,
-                  styles.planBtnSoft,
-                  { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
-                ]}
-                onPress={() => onPurchase(monthly)}
-                testID="subscribe-monthly"
-              >
-                <Text style={[styles.planName, { fontSize: fsPlan }]}>Monthly</Text>
-                <Text style={[styles.planPrice, { fontSize: fsPlan }]}>{monthly?.product?.priceString}</Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.planBtn,
-                  styles.planBtnPrimary,
-                  { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
-                ]}
-                onPress={() => onPurchase(annual)}
-                testID="subscribe-annual"
-              >
-                <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>Annual</Text>
-                <Text style={[styles.planPrice, styles.planPricePrimary, { fontSize: fsPlan }]}>
-                  {annual?.product?.priceString}
-                </Text>
-              </Pressable>
-            </View>
+            <Pressable
+              style={[
+                styles.planBtn,
+                styles.planBtnPrimary,
+                { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
+              ]}
+              onPress={onPurchase}
+              testID="subscribe-monthly"
+            >
+              <View>
+                <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>Monthly</Text>
+                <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>Full access to Get Praying</Text>
+              </View>
+              <Text style={[styles.planPrice, styles.planPricePrimary, { fontSize: fsPlan }]}>
+                {monthly.product.priceString}
+              </Text>
+            </Pressable>
           )}
 
           <Pressable onPress={onRestore} style={[styles.restoreBtn, { paddingVertical: restorePadV }]} testID="restore-btn">
@@ -210,16 +191,11 @@ const styles = StyleSheet.create({
     color: "rgba(14,42,58,0.72)",
     textAlign: "center",
   },
-  packages: {},
   planBtn: {
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  planBtnSoft: {
-    backgroundColor: "#F7FBFF",
-    borderColor: "rgba(33,99,141,0.16)",
   },
   planBtnPrimary: {
     backgroundColor: "#21638D",
@@ -231,6 +207,11 @@ const styles = StyleSheet.create({
   },
   planNamePrimary: {
     color: "#FFFFFF",
+  },
+  planSub: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "rgba(255,255,255,0.82)",
+    marginTop: 2,
   },
   planPrice: {
     fontFamily: "PlusJakartaSans_700Bold",
@@ -247,4 +228,3 @@ const styles = StyleSheet.create({
     color: "#21638D",
   },
 });
-

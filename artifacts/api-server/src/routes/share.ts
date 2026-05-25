@@ -274,7 +274,7 @@ router.get("/post/:id", async (req, res): Promise<void> => {
   const previewText = postSharePreviewText(post.content, post.mediaType);
   const snippet = previewText.slice(0, 240) + (previewText.length > 240 ? "…" : "");
   const author = post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Someone");
-  const title = `"${snippet.slice(0, 80)}${snippet.length > 80 ? "…" : ""}" — ${APP_NAME}`;
+  const title = `${snippet.slice(0, 80)}${snippet.length > 80 ? "…" : ""} — ${APP_NAME}`;
   const description = `${author} shared a prayer on ${APP_NAME}. ${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying.`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -289,7 +289,7 @@ router.get("/post/:id", async (req, res): Promise<void> => {
       iosStoreUrl: iosStore,
       androidStoreUrl: androidStore,
       eyebrow: "Prayer",
-      headline: `“${snippet.slice(0, 120)}${snippet.length > 120 ? "…" : ""}”`,
+      headline: `${snippet.slice(0, 120)}${snippet.length > 120 ? "…" : ""}`,
       body: `Shared by ${author} · ${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying`,
     }),
   );

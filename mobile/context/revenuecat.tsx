@@ -6,10 +6,40 @@ import type {
 } from "react-native-purchases";
 import { useAuth } from "@/context/auth";
 
+/** Must match the Entitlement identifier in the RevenueCat dashboard. */
+export const PREMIUM_ENTITLEMENT_ID = "premium";
+
+/** Must match the Offering identifier in the RevenueCat dashboard. */
+export const DEFAULT_OFFERING_ID = "default";
+
+export function hasPremiumEntitlement(info: CustomerInfo | null | undefined): boolean {
+  return Boolean(info?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID]);
+}
+
+export function getDefaultOffering(
+  offerings: PurchasesOfferings | null | undefined,
+): PurchasesOfferings["current"] {
+  if (!offerings) return null;
+  return offerings.current ?? offerings.all?.[DEFAULT_OFFERING_ID] ?? null;
+}
+
+export function getMonthlyPackage(
+  offerings: PurchasesOfferings | null | undefined,
+): PurchasesPackage | null {
+  const offering = getDefaultOffering(offerings);
+  if (!offering) return null;
+  return (
+    offering.monthly ??
+    offering.availablePackages.find((p) => p.packageType === "MONTHLY") ??
+    null
+  );
+}
+
 type RevenueCatState = {
   enabled: boolean;
   isReady: boolean;
   offerings: PurchasesOfferings | null;
+  monthlyPackage: PurchasesPackage | null;
   customerInfo: CustomerInfo | null;
   isEntitled: boolean;
   refresh: () => Promise<void>;
@@ -128,6 +158,9 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     const Purchases = getPurchases();
     const { customerInfo: info } = await Purchases.purchasePackage(pkg);
     setCustomerInfo(info);
+    if (!hasPremiumEntitlement(info)) {
+      throw new Error("Purchase completed but premium access was not activated.");
+    }
   };
 
   const restore = async () => {
@@ -137,22 +170,22 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     setCustomerInfo(info);
   };
 
-  const isEntitled = enabled
-    ? Object.keys(customerInfo?.entitlements?.active ?? {}).length > 0
-    : false;
+  const isEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
+  const monthlyPackage = useMemo(() => getMonthlyPackage(offerings), [offerings]);
 
   const value: RevenueCatState = useMemo(
     () => ({
       enabled,
       isReady,
       offerings,
+      monthlyPackage,
       customerInfo,
       isEntitled,
       refresh,
       purchasePackage,
       restore,
     }),
-    [enabled, isReady, offerings, customerInfo, isEntitled],
+    [enabled, isReady, offerings, monthlyPackage, customerInfo, isEntitled],
   );
 
   return (
@@ -170,6 +203,7 @@ export function useRevenueCat(): RevenueCatState {
       enabled: false,
       isReady: true,
       offerings: null,
+      monthlyPackage: null,
       customerInfo: null,
       isEntitled: false,
       refresh: async () => {},
