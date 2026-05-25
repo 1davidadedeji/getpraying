@@ -394,11 +394,8 @@ export default function PostDetailScreen() {
 
     try {
       Haptics.selectionAsync();
-      const { message, url } = buildPostSharePayload(post);
-      await Share.share(
-        Platform.OS === "ios" ? { message, url } : { message },
-        { dialogTitle: "Share this prayer" },
-      );
+      const { message } = buildPostSharePayload(post);
+      await Share.share({ message }, { dialogTitle: "Share this prayer" });
     } catch {
       // silently ignore user cancellation
     }

@@ -13,7 +13,8 @@ type ShareablePost = {
 function postSharePreviewText(content: string, mediaType?: string | null): string {
   const trimmed = content.trim();
   if (trimmed.length > 0) {
-    return `${trimmed.slice(0, 200)}${trimmed.length > 200 ? "\u2026" : ""}`;
+    const snippet = `${trimmed.slice(0, 200)}${trimmed.length > 200 ? "\u2026" : ""}`;
+    return `"${snippet}"`;
   }
   if (mediaType === "image") return "A photo prayer";
   if (mediaType === "video") return "A video prayer";
@@ -28,10 +29,15 @@ export function buildPostSharePayload(post: ShareablePost): { message: string; u
     ? "Anonymous"
     : post.authorDisplayName ?? post.authorUsername ?? "Someone";
   const preview = postSharePreviewText(post.content, post.mediaType);
+  const prayingLine =
+    post.prayCount === 1
+      ? "❤️ 1 person praying with them"
+      : `❤️ ${post.prayCount} people praying with them`;
   const message =
     `${preview}\n\n` +
-    `\u2014 shared by ${authorName} on Get Praying\n` +
-    `${post.prayCount} ${post.prayCount === 1 ? "person" : "people"} praying\n\n` +
+    `🙏 Shared by ${authorName}\n` +
+    `${prayingLine}\n\n` +
+    `Tap to join on Get Praying:\n` +
     url;
   return { message, url };
 }

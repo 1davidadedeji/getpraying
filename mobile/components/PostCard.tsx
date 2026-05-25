@@ -189,14 +189,11 @@ export default function PostCard({
   };
 
   const handleShare = async () => {
-    const { message, url } = buildPostSharePayload(localPost);
+    const { message } = buildPostSharePayload(localPost);
 
     try {
       Haptics.selectionAsync();
-      await Share.share(
-        Platform.OS === "ios" ? { message, url } : { message, url },
-        { dialogTitle: "Share this prayer" },
-      );
+      await Share.share({ message }, { dialogTitle: "Share this prayer" });
     } catch {
       // silently ignore user cancellation
     }
