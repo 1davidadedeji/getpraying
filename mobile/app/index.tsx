@@ -47,7 +47,8 @@ export default function WelcomeScreen() {
 
   const postAuthRoute = useMemo(() => {
     if (loading || !user) return null;
-    return String(getPostAuthRoute(user, rc, pendingDeepLink));
+    const route = getPostAuthRoute(user, rc, pendingDeepLink);
+    return route ? String(route) : null;
   }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled, pendingDeepLink]);
 
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);

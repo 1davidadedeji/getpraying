@@ -18,7 +18,6 @@ import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarV
 import { FeedNoticeBanner } from "@/components/FeedNoticeBanner";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
-import { isTrialExpired, useTrialClock } from "@/lib/trial";
 
 const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 52 : 58;
 
@@ -481,7 +480,6 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { user, loading } = useAuth();
   const rc = useRevenueCat();
-  useTrialClock();
 
   if (loading) {
     return <AppLoadingScreen variant="splash" />;
@@ -493,11 +491,14 @@ export default function TabLayout() {
   if (!user.isEmailVerified) {
     return <Redirect href={"/(auth)/verify" as Href} />;
   }
-  if (user.role !== "admin" && user.role !== "moderator") {
-    const trialExpired = isTrialExpired(user.trialStartsAt);
-    if (trialExpired && rc.isReady && rc.enabled && !rc.isEntitled) {
-      return <Redirect href={"/(paywall)" as Href} />;
-    }
+  if (
+    user.role !== "admin" &&
+    user.role !== "moderator" &&
+    rc.isReady &&
+    rc.enabled &&
+    !rc.isEntitled
+  ) {
+    return <Redirect href={"/(paywall)" as Href} />;
   }
 
   let useLiquidGlass = false;

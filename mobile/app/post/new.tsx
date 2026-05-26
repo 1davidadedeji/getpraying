@@ -35,6 +35,7 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
+import { useRevenueCat } from "@/context/revenuecat";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
@@ -52,6 +53,7 @@ import {
 } from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { clamp } from "@/lib/responsiveMetrics";
+import { showBoostUpgradePrompt } from "@/lib/boostUpgrade";
 import {
   normalizeVideoMime,
   videoFileNameForMime,
@@ -90,6 +92,7 @@ export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { token, user } = useAuth();
+  const rc = useRevenueCat();
   const { showNotice, requestFeedJumpToTop } = useFeedNotice();
   const [content, setContent] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -152,6 +155,10 @@ export default function NewPostScreen() {
   const clearPadV = Math.round(clamp(4 * uiScale, 3, 5));
   const fsClear = Math.round(clamp(12 * uiScale, 11, 13));
   const noticeGap = Math.round(clamp(8 * uiScale, 6, 10));
+  const boostPadV = Math.round(clamp(14 * uiScale, 12, 16));
+  const boostPadH = Math.round(clamp(16 * uiScale, 14, 20));
+  const boostRad = Math.round(clamp(28 * uiScale, 24, 32));
+  const fsBoost = Math.round(clamp(14 * uiScale, 13, 16));
   const noticeIcn = Math.round(clamp(16 * uiScale, 14, 18));
   const fsNotice = Math.round(clamp(12 * uiScale, 11, 13));
   const lhNotice = Math.round(fsNotice * 1.4);
@@ -351,6 +358,25 @@ export default function NewPostScreen() {
   const canSubmit = !!(content.trim() || pendingMedia);
   const busy = isPending || uploadBusy;
 
+  const handleBoostPress = () => {
+    if (rc.canUseBoost) {
+      showAppAlert({
+        title: "Boost included",
+        message: "Fully paid subscribers get prayers prioritized in the feed when posted.",
+      });
+      return;
+    }
+    if (rc.isPremiumTrial) {
+      showBoostUpgradePrompt(rc.upgradeFromTrial);
+      return;
+    }
+    showAppAlert({
+      title: "Subscribe to Boost",
+      message: "Boosting prayers is only available to fully paid subscribers.",
+      buttons: [{ text: "View plans", onPress: () => router.push("/(paywall)" as Href) }],
+    });
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit) {
       showAppAlert({
@@ -539,6 +565,36 @@ export default function NewPostScreen() {
         />
         <Text style={[styles.charCount, { fontSize: fsChar }]}>{content.length}/2000</Text>
       </View>
+
+      <Pressable
+        style={[
+          styles.boostBtn,
+          rc.canUseBoost && styles.boostBtnActive,
+          {
+            paddingVertical: boostPadV,
+            paddingHorizontal: boostPadH,
+            borderRadius: boostRad,
+          },
+        ]}
+        onPress={handleBoostPress}
+        testID="boost-prayer-btn"
+      >
+        <Ionicons
+          name="megaphone-outline"
+          size={Math.round(clamp(20 * uiScale, 18, 24))}
+          color={rc.canUseBoost ? colors.primary : colors.muted}
+        />
+        <View style={styles.boostCopy}>
+          <Text style={[styles.boostTitle, { fontSize: fsBoost }]}>Boost this prayer</Text>
+          <Text style={[styles.boostHint, { fontSize: fsChar }]}>
+            {rc.canUseBoost
+              ? "Included with your paid plan"
+              : rc.isPremiumTrial
+                ? "Upgrade to unlock Boost during trial"
+                : "Available to paid subscribers"}
+          </Text>
+        </View>
+      </Pressable>
 
       <Pressable
         style={[
@@ -992,6 +1048,30 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: colors.muted,
     flex: 1,
+  },
+  boostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  boostBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: "#F7FBFF",
+  },
+  boostCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  boostTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.text,
+  },
+  boostHint: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.muted,
   },
   submitBtn: {
     backgroundColor: colors.primary,

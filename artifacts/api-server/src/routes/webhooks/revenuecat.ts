@@ -11,6 +11,7 @@ type RevenueCatWebhookBody = {
   event?: {
     type?: string;
     app_user_id?: string;
+    period_type?: string;
   };
 };
 
@@ -35,6 +36,18 @@ function parseUserId(appUserId: string | undefined): number | null {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+function subscriptionFromEvent(
+  eventType: string,
+  periodType: string | undefined,
+): "premium" | "trial" | "free" | null {
+  if (FREE_EVENTS.has(eventType)) return "free";
+  if (!PREMIUM_EVENTS.has(eventType)) return null;
+
+  const period = String(periodType ?? "").toUpperCase();
+  if (period === "TRIAL" || period === "INTRO") return "trial";
+  return "premium";
+}
+
 router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
   if (!verifyWebhookAuth(req, res)) return;
 
@@ -47,13 +60,7 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
     return;
   }
 
-  let subscription: "premium" | "free" | null = null;
-  if (PREMIUM_EVENTS.has(eventType)) {
-    subscription = "premium";
-  } else if (FREE_EVENTS.has(eventType)) {
-    subscription = "free";
-  }
-
+  const subscription = subscriptionFromEvent(eventType, body.event?.period_type);
   if (subscription == null) {
     res.json({ ok: true, ignored: eventType });
     return;

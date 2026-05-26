@@ -10,19 +10,29 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
+import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
+import { formatMonthlyTrialOffer } from "@/lib/revenuecatEntitlements";
 import { clamp } from "@/lib/responsiveMetrics";
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, cardRadius } = useResponsiveLayout();
+  const { user } = useAuth();
   const rc = useRevenueCat();
-  const { consumePendingHref } = usePendingDeepLink();
+  const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
 
   const continueAfterSubscribe = () => {
-    router.replace((consumePendingHref() ?? "/(tabs)") as import("expo-router").Href);
+    if (!user) {
+      router.replace("/(tabs)" as import("expo-router").Href);
+      return;
+    }
+    router.replace(
+      resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref) as import("expo-router").Href,
+    );
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -48,23 +58,30 @@ export default function PaywallScreen() {
   const planRad = Math.round(clamp(32 * uiScale, 28, 36));
   const fsPlan = Math.round(clamp(16 * uiScale, 15, 18));
   const fsPlanSub = Math.round(clamp(13 * uiScale, 12, 15));
+  const fsLegal = Math.round(clamp(11 * uiScale, 10, 12));
+  const lhLegal = Math.round(fsLegal * 1.45);
   const restorePadV = Math.round(clamp(10 * uiScale, 8, 12));
   const fsRestore = Math.round(clamp(14 * uiScale, 13, 16));
 
   const monthly = rc.monthlyPackage;
+  const trialOffer = formatMonthlyTrialOffer(monthly?.product);
+  const legalText =
+    Platform.OS === "ios"
+      ? "Payment will be charged to your Apple ID account after the free trial ends unless cancelled at least 24 hours before renewal. Subscription renews automatically. Manage or cancel anytime in Settings."
+      : "Payment will be charged to your Google Play account after the free trial ends unless cancelled before renewal. Subscription renews automatically. Manage or cancel anytime in Play Store subscriptions.";
 
   const onPurchase = async () => {
     if (!monthly) return;
     try {
       await rc.purchasePackage(monthly);
       showAppAlert({
-        title: "Subscribed",
-        message: "Thank you. Your subscription is now active.",
+        title: "You're in",
+        message: "Your free trial has started. Welcome to Get Praying.",
         buttons: [{ text: "Continue", onPress: continueAfterSubscribe }],
       });
     } catch (e: any) {
       const msg = e?.message ?? "Purchase cancelled or failed.";
-      showAppAlert({ title: "Purchase not completed", message: msg });
+      showAppAlert({ title: "Subscription not started", message: msg });
     }
   };
 
@@ -74,11 +91,14 @@ export default function PaywallScreen() {
       if (rc.isEntitled) {
         showAppAlert({
           title: "Restored",
-          message: "Your purchases have been restored.",
+          message: "Your subscription has been restored.",
           buttons: [{ text: "Continue", onPress: continueAfterSubscribe }],
         });
       } else {
-        showAppAlert({ title: "No active subscription", message: "No previous purchases found. Please subscribe to continue." });
+        showAppAlert({
+          title: "No active subscription",
+          message: "No previous purchases found. Start your free trial to continue.",
+        });
       }
     } catch (e: any) {
       showAppAlert({ title: "Restore failed", message: e?.message ?? "Please try again." });
@@ -89,9 +109,9 @@ export default function PaywallScreen() {
     <View style={[styles.flex, { paddingTop: topPad + edgePad, paddingBottom: botPad + edgePad }]}>
       <View style={[styles.container, { paddingHorizontal: padH, gap: containerGap }]}>
         <View style={[styles.hero, { gap: heroGap, paddingHorizontal: heroPadH }]}>
-          <Text style={[styles.title, { fontSize: fsTitle }]}>Your 7‑day trial has ended</Text>
+          <Text style={[styles.title, { fontSize: fsTitle }]}>Start your free trial</Text>
           <Text style={[styles.subtitle, { fontSize: fsSub, lineHeight: lhSub }]}>
-            Continue your journey with full access to the home feed, Library, and reminders.
+            Subscribe to unlock the prayer feed, Library, reminders, and community features.
           </Text>
         </View>
 
@@ -125,23 +145,27 @@ export default function PaywallScreen() {
               </Text>
             </View>
           ) : (
-            <Pressable
-              style={[
-                styles.planBtn,
-                styles.planBtnPrimary,
-                { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
-              ]}
-              onPress={onPurchase}
-              testID="subscribe-monthly"
-            >
-              <View>
-                <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>Monthly</Text>
-                <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>Full access to Get Praying</Text>
-              </View>
-              <Text style={[styles.planPrice, styles.planPricePrimary, { fontSize: fsPlan }]}>
-                {monthly.product.priceString}
+            <>
+              <Pressable
+                style={[
+                  styles.planBtn,
+                  styles.planBtnPrimary,
+                  { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
+                ]}
+                onPress={onPurchase}
+                testID="subscribe-monthly"
+              >
+                <View style={styles.planCopy}>
+                  <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>
+                    Start 7-day free trial
+                  </Text>
+                  <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>{trialOffer}</Text>
+                </View>
+              </Pressable>
+              <Text style={[styles.legal, { fontSize: fsLegal, lineHeight: lhLegal }]}>
+                {legalText}
               </Text>
-            </Pressable>
+            </>
           )}
 
           <Pressable onPress={onRestore} style={[styles.restoreBtn, { paddingVertical: restorePadV }]} testID="restore-btn">
@@ -193,32 +217,33 @@ const styles = StyleSheet.create({
   },
   planBtn: {
     borderWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
   },
   planBtnPrimary: {
     backgroundColor: "#21638D",
     borderColor: "rgba(33,99,141,0.2)",
   },
+  planCopy: {
+    alignItems: "center",
+    gap: 4,
+  },
   planName: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#0E2A3A",
+    textAlign: "center",
   },
   planNamePrimary: {
     color: "#FFFFFF",
   },
   planSub: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "rgba(255,255,255,0.92)",
+    textAlign: "center",
+  },
+  legal: {
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "rgba(255,255,255,0.82)",
-    marginTop: 2,
-  },
-  planPrice: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#21638D",
-  },
-  planPricePrimary: {
-    color: "#FFFFFF",
+    color: "rgba(14,42,58,0.62)",
+    textAlign: "center",
   },
   restoreBtn: {
     alignItems: "center",

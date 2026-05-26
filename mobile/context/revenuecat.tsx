@@ -1,20 +1,22 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Linking } from "react-native";
 import type {
   CustomerInfo,
   PurchasesOfferings,
   PurchasesPackage,
 } from "react-native-purchases";
 import { useAuth } from "@/context/auth";
-
-/** Must match the Entitlement identifier in the RevenueCat dashboard. */
-export const PREMIUM_ENTITLEMENT_ID = "premium";
+import {
+  canUseBoostFeature,
+  hasPremiumEntitlement,
+  isPremiumTrialPeriod,
+  PREMIUM_ENTITLEMENT_ID,
+} from "@/lib/revenuecatEntitlements";
 
 /** Must match the Offering identifier in the RevenueCat dashboard. */
 export const DEFAULT_OFFERING_ID = "default";
 
-export function hasPremiumEntitlement(info: CustomerInfo | null | undefined): boolean {
-  return Boolean(info?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID]);
-}
+export { PREMIUM_ENTITLEMENT_ID };
 
 export function getDefaultOffering(
   offerings: PurchasesOfferings | null | undefined,
@@ -42,9 +44,12 @@ type RevenueCatState = {
   monthlyPackage: PurchasesPackage | null;
   customerInfo: CustomerInfo | null;
   isEntitled: boolean;
+  isPremiumTrial: boolean;
+  canUseBoost: boolean;
   refresh: () => Promise<void>;
   purchasePackage: (pkg: PurchasesPackage) => Promise<void>;
   restore: () => Promise<void>;
+  upgradeFromTrial: () => Promise<void>;
 };
 
 const RevenueCatContext = createContext<RevenueCatState | null>(null);
@@ -153,7 +158,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     setCustomerInfo(info);
   };
 
-  const purchasePackage = async (pkg: PurchasesPackage) => {
+  const purchasePackage = useCallback(async (pkg: PurchasesPackage) => {
     if (!enabled) throw new Error("RevenueCat not configured");
     const Purchases = getPurchases();
     const { customerInfo: info } = await Purchases.purchasePackage(pkg);
@@ -161,7 +166,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     if (!hasPremiumEntitlement(info)) {
       throw new Error("Purchase completed but premium access was not activated.");
     }
-  };
+  }, [enabled]);
 
   const restore = async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
@@ -170,7 +175,24 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     setCustomerInfo(info);
   };
 
+  const upgradeFromTrial = useCallback(async () => {
+    if (!enabled) throw new Error("RevenueCat not configured");
+    const pkg = getMonthlyPackage(offerings);
+    if (pkg) {
+      await purchasePackage(pkg);
+      return;
+    }
+    const url = customerInfo?.managementURL;
+    if (url) {
+      await Linking.openURL(url);
+      return;
+    }
+    throw new Error("Subscription options are not available right now.");
+  }, [enabled, offerings, customerInfo?.managementURL, purchasePackage]);
+
   const isEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
+  const isPremiumTrial = enabled ? isPremiumTrialPeriod(customerInfo) : false;
+  const canUseBoost = enabled ? canUseBoostFeature(customerInfo) : false;
   const monthlyPackage = useMemo(() => getMonthlyPackage(offerings), [offerings]);
 
   const value: RevenueCatState = useMemo(
@@ -181,11 +203,24 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       monthlyPackage,
       customerInfo,
       isEntitled,
+      isPremiumTrial,
+      canUseBoost,
       refresh,
       purchasePackage,
       restore,
+      upgradeFromTrial,
     }),
-    [enabled, isReady, offerings, monthlyPackage, customerInfo, isEntitled],
+    [
+      enabled,
+      isReady,
+      offerings,
+      monthlyPackage,
+      customerInfo,
+      isEntitled,
+      isPremiumTrial,
+      canUseBoost,
+      upgradeFromTrial,
+    ],
   );
 
   return (
@@ -206,11 +241,16 @@ export function useRevenueCat(): RevenueCatState {
       monthlyPackage: null,
       customerInfo: null,
       isEntitled: false,
+      isPremiumTrial: false,
+      canUseBoost: false,
       refresh: async () => {},
       purchasePackage: async () => {
         throw new Error("RevenueCatProvider missing");
       },
       restore: async () => {
+        throw new Error("RevenueCatProvider missing");
+      },
+      upgradeFromTrial: async () => {
         throw new Error("RevenueCatProvider missing");
       },
     };

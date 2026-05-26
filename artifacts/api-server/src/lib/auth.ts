@@ -190,13 +190,14 @@ export async function requirePremiumSubscription(
 
 /**
  * Paying subscriber — used for automatic post boosts.
- * Trial users are explicitly excluded even during their 7-day window.
+ * Store trial / intro periods are tracked as subscription = "trial" via the RevenueCat webhook.
  */
 export function userIsPayingSubscriber(user: {
   trialStartsAt?: Date | string | null;
   subscription?: string | null;
 }): boolean {
   const tier = String(user.subscription ?? "").toLowerCase();
+  if (tier === "trial") return false;
   return ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);
 }
 
