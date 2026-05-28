@@ -31,7 +31,7 @@ const DEMO_PATHS = [
     tagline: "Dawn is coming.",
   },
   {
-    name: "Peace & Rest",
+    name: "Success & Wealth",
     description: "Evening release and sleep prayers.",
     category: "peace",
     tagline: "Be still.",

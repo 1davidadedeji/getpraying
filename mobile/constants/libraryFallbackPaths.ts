@@ -101,7 +101,7 @@ export const LIBRARY_FALLBACK_PATHS: LibraryPathCard[] = [
   { name: "Grief & Loss", slug: "grief", count: 0, icon: iconKeyForPathCategory("grief"), emoji: "🤍" },
   { name: "Family", slug: "family", count: 0, icon: iconKeyForPathCategory("family"), emoji: "👨‍👩‍👧" },
   { name: "Strength", slug: "strength", count: 0, icon: iconKeyForPathCategory("strength"), emoji: "🦁" },
-  { name: "Peace & Rest", slug: "peace", count: 0, icon: iconKeyForPathCategory("peace"), emoji: "☮️" },
+  { name: "Success & Wealth", slug: "peace", count: 0, icon: iconKeyForPathCategory("peace"), emoji: "☮️" },
   { name: "Hope & Light", slug: "hope", count: 0, icon: iconKeyForPathCategory("hope"), emoji: "✨" },
   { name: "Forgiveness", slug: "forgiveness", count: 0, icon: iconKeyForPathCategory("forgiveness"), emoji: "🌿" },
   { name: "Wisdom", slug: "wisdom", count: 0, icon: iconKeyForPathCategory("wisdom"), emoji: "📖" },

@@ -109,7 +109,7 @@ const PATHS = [
     tagline: "He renews your strength.",
   },
   {
-    name: "Peace & Rest",
+    name: "Success & Wealth",
     description: "Evening release prayers and sleep guides.",
     category: "peace",
     tagline: "Be still.",
