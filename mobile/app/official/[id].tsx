@@ -22,6 +22,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
+import { OFFICIAL_PRAYER_BADGE } from "@/lib/officialPrayer";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 
 function scheduleSlotBadge(s: string | null | undefined): string {
@@ -172,7 +173,7 @@ export default function OfficialPrayerScreen() {
       <View style={[styles.topRow, { gap: rowGap, marginBottom: topMb }]}>
         <View style={[styles.topMeta, { gap: metaGap, flex: 1 }]}>
           <Text style={[styles.badge, { fontSize: fsBadge }]}>
-            OFFICIAL PRAYER
+            {(d.label?.trim() || OFFICIAL_PRAYER_BADGE).toUpperCase()}
             {d.scheduleSlot ? ` · ${scheduleSlotBadge(d.scheduleSlot)}` : ""}
           </Text>
           {updated ? (

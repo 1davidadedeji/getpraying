@@ -23,7 +23,7 @@ import { emojiForLibraryCategory } from "@/constants/libraryFallbackPaths";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
-import type { OfficialPrayerRow } from "@/lib/officialPrayer";
+import { OFFICIAL_PRAYER_BADGE, type OfficialPrayerRow } from "@/lib/officialPrayer";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -78,11 +78,9 @@ function PathSessionCard({
         <Ionicons name="pulse-outline" size={iconAction} color={colors.primary} />
         <View style={[styles.durationBadge, { paddingHorizontal: badgePadH, paddingVertical: badgePadV }]}>
           <Text style={[styles.durationBadgeText, { fontSize: fsBadge }]}>
-            {op.audioUrl
-              ? "SESSION"
-              : mins != null && mins > 0
-                ? `${mins} MINS`
-                : "SESSION"}
+            {!op.audioUrl && mins != null && mins > 0
+              ? `${mins} MINS`
+              : (op.label?.trim() || OFFICIAL_PRAYER_BADGE).toUpperCase()}
           </Text>
         </View>
         {showSave ? (

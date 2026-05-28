@@ -1,3 +1,6 @@
+/** Default pill label for guided official prayers (path cards, detail, library). */
+export const OFFICIAL_PRAYER_BADGE = "Official Prayer";
+
 /** Row from GET /library/official, sanctuary, path detail, or /library/saved-official */
 export type OfficialPrayerRow = {
   id: number;
