@@ -1,4 +1,4 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
+import { AppLogo } from "@/components/AppLogo";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl } from "@/lib/api";
@@ -128,7 +129,6 @@ export default function ResetPasswordScreen() {
   const backMb = Math.round(clamp(8 * uiScale, 6, 10));
   const headerGap = Math.round(clamp(10 * uiScale, 8, 12));
   const headerMb = Math.round(clamp(8 * uiScale, 6, 10));
-  const keyIcn = Math.round(clamp(40 * uiScale, 34, 46));
   const backIcn = Math.round(clamp(22 * uiScale, 20, 26));
   const fsTitle = Math.round(clamp(24 * uiScale, 21, 28));
   const fsSub = Math.round(clamp(14 * uiScale, 13, 16));
@@ -261,7 +261,7 @@ export default function ResetPasswordScreen() {
         </Pressable>
 
         <View style={[styles.header, { gap: headerGap, marginBottom: headerMb }]}>
-          <Ionicons name="key-outline" size={keyIcn} color={colors.accent} />
+          <AppLogo />
           <Text style={[styles.title, { fontSize: fsTitle }]}>
             {otpVerified ? "Set new password" : "Enter reset code"}
           </Text>

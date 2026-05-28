@@ -1,5 +1,5 @@
 /**
- * Applies rounded-rectangle mask to icon.png and splash-icon.png (iOS / splash visual).
+ * Applies rounded-rectangle mask to icon.png and icon-bg.png (iOS / splash visual).
  * Run from mobile/: pnpm run round-icons (or `pnpm --filter @workspace/mobile run round-icons` from repo root)
  * Requires: pnpm add -D sharp
  */
@@ -12,7 +12,7 @@ const imagesDir = path.join(__dirname, "..", "assets", "images");
 
 async function main() {
   const sharp = (await import("sharp")).default;
-  const files = ["icon.png", "splash-icon.png"];
+  const files = ["icon.png", "icon-bg.png"];
   for (const name of files) {
     const input = path.join(imagesDir, name);
     const image = sharp(input);

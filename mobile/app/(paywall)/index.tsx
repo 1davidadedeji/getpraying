@@ -32,6 +32,9 @@ export default function PaywallScreen() {
 
   const leavePaywall = useCallback(async () => {
     await logoutThenClearQueryCache(logout, queryClient);
+    if (router.canDismiss()) {
+      router.dismissAll();
+    }
     router.replace("/");
   }, [logout, queryClient]);
 

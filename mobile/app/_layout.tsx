@@ -25,7 +25,6 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Text, TextInput } from "react-native";
 
 import { AppAlertHost } from "@/components/AppAlert";
-import { SplashBrandedFill } from "@/components/AppLoadingScreen";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/auth";
@@ -186,8 +185,9 @@ export default function RootLayout() {
 
   const fontsReady = fontsLoaded || fontError != null;
 
+  // Keep the native splash visible until fonts load — avoids a second smaller JS splash.
   if (!fontsReady) {
-    return <SplashBrandedFill />;
+    return null;
   }
 
   return (

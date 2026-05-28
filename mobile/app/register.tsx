@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -15,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
-import { APP_LOGO_SOURCE, appLogoSizePx } from "@/constants/branding";
+import { AppLogo } from "@/components/AppLogo";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -28,7 +27,6 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { uiScale } = useResponsiveLayout();
   const authPadH = Math.round(clamp(24 * uiScale, 20, 30));
-  const logoImgSz = appLogoSizePx(uiScale);
   const fsTitle = Math.round(clamp(28 * uiScale, 24, 32));
   const fsSub = Math.round(clamp(15 * uiScale, 14, 17));
   const fsLabel = Math.round(clamp(13 * uiScale, 12, 15));
@@ -114,12 +112,7 @@ export default function RegisterScreen() {
         </Pressable>
 
         <View style={[styles.header, { gap: Math.round(8 * uiScale), marginBottom: headerMb, marginTop: Math.round(8 * uiScale) }]}>
-          <Image
-            source={APP_LOGO_SOURCE}
-            style={[styles.logoImage, { width: logoImgSz, height: logoImgSz }]}
-            contentFit="contain"
-            accessibilityLabel="Get Praying app logo"
-          />
+          <AppLogo />
           <Text style={[styles.title, { fontSize: fsTitle }]}>Create Account</Text>
           <Text style={[styles.subtitle, { fontSize: fsSub }]}>Join our prayer community</Text>
         </View>
@@ -249,7 +242,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
   },
-  logoImage: {},
   title: {
     fontFamily: "NotoSerif_700Bold",
     color: colors.primary,

@@ -79,10 +79,26 @@ function RevenueCatUserSync({
   onCustomerInfo,
 }: {
   enabled: boolean;
-  onCustomerInfo: (info: CustomerInfo) => void;
+  onCustomerInfo: (info: CustomerInfo | null) => void;
 }) {
   const { user } = useAuth();
   const [linkedUserId, setLinkedUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (user?.id) return;
+
+    setLinkedUserId(null);
+    (async () => {
+      try {
+        const Purchases = getPurchases();
+        const info = await Purchases.logOut();
+        onCustomerInfo(info);
+      } catch {
+        onCustomerInfo(null);
+      }
+    })();
+  }, [enabled, user?.id, onCustomerInfo]);
 
   useEffect(() => {
     (async () => {

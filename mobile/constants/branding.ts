@@ -1,5 +1,14 @@
-/** App mark used on welcome, sign-in, register, and splash. */
+/**
+ * In-app brand mark (cream-background screens, native splash).
+ * OS app icon / notifications use `assets/images/icon.png` via app.json.
+ */
 export const APP_LOGO_SOURCE = require("../assets/images/icon-bg.png");
+
+/** Matches native splash `imageWidth` in app.json — single canonical splash size. */
+export function splashLogoSizePx(uiScale: number): number {
+  const size = 280 * uiScale;
+  return Math.round(Math.max(240, Math.min(300, size)));
+}
 
 /** Sign-in / register logo sizing. */
 export function appLogoSizePx(uiScale: number): number {

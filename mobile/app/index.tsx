@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
   Linking,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { SplashBrandedFill } from "@/components/AppLoadingScreen";
+import { AppLogo } from "@/components/AppLogo";
 import { useAuth } from "@/context/auth";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -28,7 +28,6 @@ import {
   TERMS_URL,
   WELCOME_TAGLINE,
 } from "@/lib/legalUrls";
-import { APP_LOGO_SOURCE, welcomeLogoSizePx } from "@/constants/branding";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const WELCOME_PAD_H = 24;
@@ -36,18 +35,19 @@ const WELCOME_PAD_H = 24;
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { uiScale } = useResponsiveLayout();
-  const { user, loading } = useAuth();
-  const logoImg = welcomeLogoSizePx(uiScale);
+  const { user, token, loading } = useAuth();
   const fsTitle = Math.round(clamp(34 * uiScale, 30, 40));
   const fsTagline = Math.round(clamp(12 * uiScale, 11, 13));
   const rc = useRevenueCat();
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
+  const authRef = useRef({ user, token, loading });
+  authRef.current = { user, token, loading };
 
   const postAuthRoute = useMemo(() => {
-    if (loading || !user) return null;
+    if (loading || !user || !token) return null;
     const route = getPostAuthRoute(user, rc, pendingDeepLink);
     return route ? String(route) : null;
-  }, [loading, user, rc.isReady, rc.enabled, rc.isEntitled, pendingDeepLink]);
+  }, [loading, user, token, rc.isReady, rc.enabled, rc.isEntitled, pendingDeepLink]);
 
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
   const { data: dailyWord } = useGetDailyWord(
@@ -61,14 +61,30 @@ export default function WelcomeScreen() {
     },
   );
 
-  // Re-route whenever this screen is focused (including after backing out of paywall).
+  const redirectIfNeeded = useCallback(() => {
+    const frame = requestAnimationFrame(() => {
+      const { user: u, token: t, loading: l } = authRef.current;
+      if (l || !t || !u) return;
+      const route = getPostAuthRoute(u, rc, pendingDeepLink);
+      if (!route) return;
+      router.replace(
+        resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref) as import("expo-router").Href,
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [rc, pendingDeepLink, consumePendingHref]);
+
+  useEffect(() => {
+    if (!postAuthRoute) return;
+    return redirectIfNeeded();
+  }, [postAuthRoute, redirectIfNeeded]);
+
+  // Re-route when returning from paywall (same session still needs the gate).
   useFocusEffect(
     useCallback(() => {
-      if (loading || !user || !postAuthRoute) return;
-      router.replace(
-        resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref) as import("expo-router").Href,
-      );
-    }, [loading, user, postAuthRoute, rc, pendingDeepLink, consumePendingHref]),
+      if (!postAuthRoute) return;
+      return redirectIfNeeded();
+    }, [postAuthRoute, redirectIfNeeded]),
   );
 
   if (loading || user) {
@@ -93,12 +109,7 @@ export default function WelcomeScreen() {
         ]}
       >
         <View style={[styles.logoSection, { gap: Math.round(8 * uiScale) }]}>
-          <Image
-            source={APP_LOGO_SOURCE}
-            style={[styles.logoImage, { width: logoImg, height: logoImg }]}
-            contentFit="contain"
-            accessibilityLabel="Get Praying app logo"
-          />
+          <AppLogo variant="welcome" />
           <Text style={[styles.appName, { fontSize: fsTitle }]}>Get Praying</Text>
           <Text
             style={[styles.tagline, { fontSize: fsTagline }]}
@@ -170,7 +181,6 @@ const styles = StyleSheet.create({
   logoSection: {
     alignItems: "center",
   },
-  logoImage: {},
   appName: {
     fontFamily: "NotoSerif_700Bold",
     color: colors.primary,

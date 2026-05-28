@@ -1,4 +1,3 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
 import { router, type Href } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -13,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVerifyEmail, useResendVerification } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
+import { AppLogo } from "@/components/AppLogo";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
@@ -134,8 +134,6 @@ export default function VerifyScreen() {
   const containerGap = Math.round(clamp(18 * uiScale, 14, 22));
   const headerGap = Math.round(clamp(10 * uiScale, 8, 12));
   const headerPadH = Math.round(clamp(12 * uiScale, 8, 14));
-  const iconBox = Math.round(clamp(52 * uiScale, 46, 58));
-  const mailIcn = Math.round(clamp(22 * uiScale, 20, 26));
   const fsTitle = Math.round(clamp(26 * uiScale, 22, 30));
   const fsSub = Math.round(clamp(14 * uiScale, 13, 16));
   const lhSub = Math.round(fsSub * 1.4);
@@ -265,18 +263,7 @@ export default function VerifyScreen() {
     <View style={[styles.flex, { paddingTop: topPad + 16, paddingBottom: botPad + 24 }]}>
       <View style={[styles.container, { paddingHorizontal: padH, gap: containerGap }]}>
         <View style={[styles.header, { gap: headerGap, paddingHorizontal: headerPadH }]}>
-          <View
-            style={[
-              styles.iconCircle,
-              {
-                width: iconBox,
-                height: iconBox,
-                borderRadius: iconBox / 2,
-              },
-            ]}
-          >
-            <Ionicons name="mail" size={mailIcn} color={colors.primary} />
-          </View>
+          <AppLogo />
           <Text style={[styles.title, { fontSize: fsTitle }]}>Verify your email</Text>
           <Text style={[styles.subtitle, { fontSize: fsSub, lineHeight: lhSub }]}>
             Enter the 6-digit code we sent to{" "}
@@ -357,13 +344,6 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-  },
-  iconCircle: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
   },
   title: {
     fontFamily: "NotoSerif_700Bold",
