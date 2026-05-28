@@ -1,6 +1,8 @@
-import React from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import React, { useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Platform,
   Pressable,
   StyleSheet,
@@ -8,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -16,14 +18,31 @@ import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import { formatMonthlyTrialOffer } from "@/lib/revenuecatEntitlements";
+import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 import { clamp } from "@/lib/responsiveMetrics";
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, cardRadius } = useResponsiveLayout();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const rc = useRevenueCat();
+  const queryClient = useQueryClient();
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
+  const isMandatoryGate = rc.enabled && !rc.isEntitled;
+
+  const leavePaywall = useCallback(async () => {
+    await logoutThenClearQueryCache(logout, queryClient);
+    router.replace("/");
+  }, [logout, queryClient]);
+
+  useEffect(() => {
+    if (!isMandatoryGate) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      void leavePaywall();
+      return true;
+    });
+    return () => sub.remove();
+  }, [isMandatoryGate, leavePaywall]);
 
   const continueAfterSubscribe = () => {
     if (!user) {
@@ -67,8 +86,9 @@ export default function PaywallScreen() {
   const trialOffer = formatMonthlyTrialOffer(monthly?.product);
   const legalText =
     Platform.OS === "ios"
-      ? "Payment will be charged to your Apple ID account after the free trial ends unless cancelled at least 24 hours before renewal. Subscription renews automatically. Manage or cancel anytime in Settings."
-      : "Payment will be charged to your Google Play account after the free trial ends unless cancelled before renewal. Subscription renews automatically. Manage or cancel anytime in Play Store subscriptions.";
+      ? "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community."
+      : "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community.";
+ 
 
   const onPurchase = async () => {
     if (!monthly) return;
@@ -106,6 +126,14 @@ export default function PaywallScreen() {
   };
 
   return (
+    <>
+      <Stack.Screen
+        options={{
+          headerShown: false,
+          gestureEnabled: !isMandatoryGate,
+          fullScreenGestureEnabled: !isMandatoryGate,
+        }}
+      />
     <View style={[styles.flex, { paddingTop: topPad + edgePad, paddingBottom: botPad + edgePad }]}>
       <View style={[styles.container, { paddingHorizontal: padH, gap: containerGap }]}>
         <View style={[styles.hero, { gap: heroGap, paddingHorizontal: heroPadH }]}>
@@ -172,8 +200,19 @@ export default function PaywallScreen() {
             <Text style={[styles.restoreText, { fontSize: fsRestore }]}>Restore Purchases</Text>
           </Pressable>
         </View>
+
+        {isMandatoryGate ? (
+          <Pressable
+            onPress={() => void leavePaywall()}
+            style={[styles.signOutBtn, { paddingVertical: restorePadV }]}
+            testID="paywall-sign-out"
+          >
+            <Text style={[styles.signOutText, { fontSize: fsRestore }]}>Sign out</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
+    </>
   );
 }
 
@@ -251,5 +290,12 @@ const styles = StyleSheet.create({
   restoreText: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#21638D",
+  },
+  signOutBtn: {
+    alignItems: "center",
+  },
+  signOutText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "rgba(14,42,58,0.55)",
   },
 });

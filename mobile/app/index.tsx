@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { router } from "expo-router";
-import React, { useEffect, useMemo, useRef } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
   Linking,
@@ -42,8 +42,6 @@ export default function WelcomeScreen() {
   const fsTagline = Math.round(clamp(12 * uiScale, 11, 13));
   const rc = useRevenueCat();
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
-  /** Skip duplicate replaces; re-route when the resolved destination changes (e.g. RC ready → paywall). */
-  const lastRoutedRef = useRef<string | null>(null);
 
   const postAuthRoute = useMemo(() => {
     if (loading || !user) return null;
@@ -63,17 +61,15 @@ export default function WelcomeScreen() {
     },
   );
 
-  useEffect(() => {
-    if (!postAuthRoute || !user) {
-      lastRoutedRef.current = null;
-      return;
-    }
-    if (lastRoutedRef.current === postAuthRoute) return;
-    lastRoutedRef.current = postAuthRoute;
-    router.replace(
-      resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref) as import("expo-router").Href,
-    );
-  }, [postAuthRoute, user, rc, pendingDeepLink, consumePendingHref]);
+  // Re-route whenever this screen is focused (including after backing out of paywall).
+  useFocusEffect(
+    useCallback(() => {
+      if (loading || !user || !postAuthRoute) return;
+      router.replace(
+        resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref) as import("expo-router").Href,
+      );
+    }, [loading, user, postAuthRoute, rc, pendingDeepLink, consumePendingHref]),
+  );
 
   if (loading || user) {
     return <SplashBrandedFill />;
