@@ -28,6 +28,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
+import { openWebAdmin } from "@/lib/webAdmin";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 
 export default function SettingsScreen() {
@@ -267,7 +268,7 @@ export default function SettingsScreen() {
                 styles.menuItemLast,
                 { paddingHorizontal: sui.menuPadH, paddingVertical: sui.menuPadV, gap: sui.menuGap },
               ]}
-              onPress={() => router.push("/admin")}
+              onPress={() => openWebAdmin("/dashboard/moderation")}
             >
               <View style={[styles.teamRow, { gap: sui.teamGap }]}>
                 <Ionicons name="shield-checkmark-outline" size={sui.menuIcon} color={colors.accent} />
@@ -290,9 +291,9 @@ export default function SettingsScreen() {
                 )}
               </View>
               <Text style={[styles.menuItemText, { color: colors.accent, fontSize: sui.menuTextFs }]}>
-                {user.role === "admin" ? "Admin panel" : "Moderation"}
+                Team dashboard
               </Text>
-              <Feather name="chevron-right" size={sui.chevIcon} color={colors.muted} />
+              <Feather name="external-link" size={sui.chevIcon} color={colors.muted} />
             </Pressable>
           </View>
         </View>

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Href } from "expo-router";
 import { useNavigation } from "expo-router";
 import { useLayoutEffect } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
 import colors from "@/constants/colors";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 
@@ -20,14 +20,12 @@ export function useStackHeaderBack(fallback: Href) {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <View style={styles.circle}>
-            <Ionicons
-              name="chevron-back"
-              size={28}
-              color={colors.primary}
-              style={styles.iconNudge}
-            />
-          </View>
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={colors.primary}
+            style={styles.iconNudge}
+          />
         </Pressable>
       ),
     });
@@ -36,20 +34,13 @@ export function useStackHeaderBack(fallback: Href) {
 
 const styles = StyleSheet.create({
   hitArea: {
-    paddingVertical: 8,
-    paddingRight: 8,
-  },
-  circle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginTop: -1,
   },
   iconNudge: {
-    marginLeft: -2,
+    transform: [{ translateX: -1 }, { translateY: -4 }],
   },
 });

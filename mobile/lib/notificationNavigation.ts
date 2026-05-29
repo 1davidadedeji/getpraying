@@ -1,5 +1,10 @@
 import { router, type Href } from "expo-router";
 import { apiUrl, authHeaders } from "@/lib/api";
+import {
+  isStaffRole,
+  openWebAdmin,
+  webAdminPathForNotification,
+} from "@/lib/webAdmin";
 
 export function notificationRowToPushData(item: {
   id: number;
@@ -32,10 +37,19 @@ async function markNotificationReadIfNeeded(
   }
 }
 
+export function notificationOpensWebAdmin(type: string, userRole?: string | null): boolean {
+  if (type === "mod_queue") return true;
+  return type === "role_updated" && isStaffRole(userRole);
+}
+
 /** Routes from in-app notification rows or from Expo push `data` (same shape). */
 export async function navigateFromNotificationData(
   data: Record<string, unknown>,
-  opts?: { authToken?: string | null; skipMarkRead?: boolean },
+  opts?: {
+    authToken?: string | null;
+    skipMarkRead?: boolean;
+    userRole?: string | null;
+  },
 ): Promise<void> {
   const type = data.type != null ? String(data.type) : "";
   const postIdRaw = data.postId;
@@ -58,24 +72,39 @@ export async function navigateFromNotificationData(
     );
   }
 
+  const webPath = webAdminPathForNotification(type, opts?.userRole, Number.isFinite(postId) ? postId : undefined);
+  if (webPath && (type === "mod_queue" || (type === "role_updated" && isStaffRole(opts?.userRole)))) {
+    openWebAdmin(webPath);
+    return;
+  }
+
   if (type === "follow" && actorUsername) {
     router.push(`/user/${actorUsername}` as Href);
     return;
   }
-  if (type === "mod_queue") {
-    router.push("/admin/queue" as Href);
+
+  if (type === "morning_prayer" || type === "evening_prayer" || type === "reminder") {
+    router.push("/(tabs)/library" as Href);
     return;
   }
+
+  if (type === "daily_help_reminder") {
+    router.push("/(tabs)/" as Href);
+    return;
+  }
+
+  if (type === "category_new") {
+    router.push(
+      (category ? `/category/${encodeURIComponent(category)}` : "/(tabs)/library") as Href,
+    );
+    return;
+  }
+
   if (type === "role_updated") {
     router.push("/settings" as Href);
     return;
   }
-  if (type === "category_new") {
-    router.push(
-      (category ? `/category/${encodeURIComponent(category)}` : "/library") as Href,
-    );
-    return;
-  }
+
   if (Number.isFinite(postId)) {
     router.push(`/post/${postId}` as Href);
     return;

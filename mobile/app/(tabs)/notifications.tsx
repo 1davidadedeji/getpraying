@@ -22,7 +22,11 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiUrl, authHeaders } from "@/lib/api";
-import { navigateFromNotificationData, notificationRowToPushData } from "@/lib/notificationNavigation";
+import {
+  navigateFromNotificationData,
+  notificationOpensWebAdmin,
+  notificationRowToPushData,
+} from "@/lib/notificationNavigation";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 
 type NotifType = string;
@@ -80,9 +84,11 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
 function NotificationItem({
   item,
   onPress,
+  userRole,
 }: {
   item: Omit<Notification, "type"> & { type: NotifType };
   onPress: () => void;
+  userRole?: string | null;
 }) {
   const t = item.type;
   const icon =
@@ -128,6 +134,18 @@ function NotificationItem({
                       ? colors.primary
                       : colors.accent;
 
+  const opensWeb = notificationOpensWebAdmin(t, userRole);
+  const hasDestination =
+    opensWeb ||
+    !!item.postId ||
+    t === "follow" ||
+    t === "role_updated" ||
+    t === "morning_prayer" ||
+    t === "evening_prayer" ||
+    t === "reminder" ||
+    t === "daily_help_reminder" ||
+    t === "category_new";
+
   return (
     <Pressable
       onPress={onPress}
@@ -155,8 +173,13 @@ function NotificationItem({
         <Text style={styles.notifTime}>{timeAgo(item.createdAt)}</Text>
       </View>
       {!item.isRead && <View style={styles.unreadDot} />}
-      {(item.postId || item.type === "follow" || item.type === "mod_queue") && (
-        <Ionicons name="chevron-forward" size={14} color={colors.muted} style={styles.chevron} />
+      {hasDestination && (
+        <Ionicons
+          name={opensWeb ? "open-outline" : "chevron-forward"}
+          size={14}
+          color={colors.muted}
+          style={styles.chevron}
+        />
       )}
     </Pressable>
   );
@@ -217,6 +240,7 @@ export default function NotificationsScreen() {
     void navigateFromNotificationData(notificationRowToPushData(item), {
       authToken: token,
       skipMarkRead: true,
+      userRole: user?.role ?? null,
     });
   };
 
@@ -226,7 +250,11 @@ export default function NotificationsScreen() {
       data={notifications}
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => (
-        <NotificationItem item={item} onPress={() => handlePress(item)} />
+        <NotificationItem
+          item={item}
+          userRole={user?.role ?? null}
+          onPress={() => handlePress(item)}
+        />
       )}
       ListHeaderComponent={
         <View>

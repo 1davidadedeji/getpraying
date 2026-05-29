@@ -163,7 +163,6 @@ function RootLayoutNav() {
           fullScreenGestureEnabled: true,
         }}
       />
-      <Stack.Screen name="admin" options={{ headerShown: false }} />
     </Stack>
   );
 }

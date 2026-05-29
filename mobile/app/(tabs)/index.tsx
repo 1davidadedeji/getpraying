@@ -30,7 +30,6 @@ import colors from "@/constants/colors";
 import { LAYOUT } from "@/constants/layout";
 import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
-import { useModerationBadge } from "@/context/moderationBadge";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
@@ -66,9 +65,10 @@ export default function FeedScreen() {
   const emptySubFs = Math.round(clamp(14 * uiScale, 13, 16));
   const { user, token } = useAuth();
   const { feedJumpToTopNonce } = useFeedNotice();
-  const { pendingCount: modPending } = useModerationBadge();
   const { onScroll: onScrollHideBar } = useTabBarVisibility();
   const [feedCategory, setFeedCategory] = useState<string | null>(null);
+  const feedCategoryRef = useRef<string | null>(null);
+  feedCategoryRef.current = feedCategory;
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -207,9 +207,11 @@ export default function FeedScreen() {
   const fetchPage = useCallback(
     async (
       cursor?: string | null,
+      category?: string | null,
     ): Promise<{ posts: Post[]; nextCursor: string | null; globalNewestCreatedAt: string | null }> => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("cursor", cursor);
+      if (category) params.set("category", category);
 
       const res = await fetch(apiUrl(`/posts?${params}`), {
         headers: authHeaders(token),
@@ -226,17 +228,18 @@ export default function FeedScreen() {
     [token],
   );
 
-  const loadFresh = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadFresh = useCallback(async (opts?: { silent?: boolean; category?: string | null }) => {
+    const category = opts?.category !== undefined ? opts.category : feedCategoryRef.current;
     if (newPostsCountDebounceRef.current) {
       clearTimeout(newPostsCountDebounceRef.current);
       newPostsCountDebounceRef.current = null;
     }
     if (!opts?.silent) setLoading(true);
     try {
-      const result = await fetchPage();
+      const result = await fetchPage(undefined, category);
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
-      applyFeedWatermark(result.globalNewestCreatedAt);
+      if (!category) applyFeedWatermark(result.globalNewestCreatedAt);
       setError(false);
       setNewPostCount(0);
     } catch {
@@ -249,9 +252,7 @@ export default function FeedScreen() {
   const loadFreshRef = useRef(loadFresh);
   loadFreshRef.current = loadFresh;
 
-  // Tracks when the jump-to-top nonce last fired so useFocusEffect can
-  // skip its own loadFresh call when the nonce already triggered one.
-  const lastJumpAtRef = useRef(0);
+  const categoryFetchInitialized = useRef(false);
 
   useEffect(() => {
     loadFresh();
@@ -259,27 +260,34 @@ export default function FeedScreen() {
   }, [loadFresh, loadSanctuary]);
 
   useEffect(() => {
+    if (!categoryFetchInitialized.current) {
+      categoryFetchInitialized.current = true;
+      return;
+    }
+    setPosts([]);
+    setNextCursor(null);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    void loadFresh({ category: feedCategory });
+  }, [feedCategory, loadFresh]);
+
+  useEffect(() => {
     if (feedJumpToTopNonce === 0) return;
-    lastJumpAtRef.current = Date.now();
     newPostsScrollGateRef.current = false;
     setNewPostsScrollGate(false);
     setFeedCategory(null);
     setNewPostCount(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-    void loadFreshRef.current({ silent: true });
+    void loadFreshRef.current({ silent: true, category: null });
     void loadSanctuary();
   }, [feedJumpToTopNonce, loadSanctuary]);
 
   useFocusEffect(
     useCallback(() => {
-      // Skip refresh if the jump nonce fired in the last 2 s — it already
-      // triggered loadFresh; firing again would be a duplicate round-trip.
-      if (Date.now() - lastJumpAtRef.current < 2000) return;
-      if (!loading) {
-        loadFresh({ silent: true });
-        void loadSanctuary();
+      if (posts.length === 0 && !loading) {
+        void loadFresh({ silent: true });
       }
-    }, [loading, loadFresh, loadSanctuary]),
+      void loadSanctuary();
+    }, [posts.length, loading, loadFresh, loadSanctuary]),
   );
 
   useEffect(() => {
@@ -342,7 +350,7 @@ export default function FeedScreen() {
     newPostsScrollGateRef.current = false;
     setNewPostsScrollGate(false);
     try {
-      const result = await fetchPage();
+      const result = await fetchPage(undefined, null);
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
       applyFeedWatermark(result.globalNewestCreatedAt);
@@ -363,10 +371,11 @@ export default function FeedScreen() {
     }
     setNewPostCount(0);
     try {
-      const result = await fetchPage();
+      const category = feedCategoryRef.current;
+      const result = await fetchPage(undefined, category);
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
-      applyFeedWatermark(result.globalNewestCreatedAt);
+      if (!category) applyFeedWatermark(result.globalNewestCreatedAt);
       void loadSanctuary();
     } catch { /* keep current data */ } finally {
       setRefreshing(false);
@@ -377,7 +386,7 @@ export default function FeedScreen() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const result = await fetchPage(nextCursor);
+      const result = await fetchPage(nextCursor, feedCategoryRef.current);
       setPosts((prev) => [...prev, ...result.posts]);
       setNextCursor(result.nextCursor);
     } catch { /* silently fail */ } finally {
@@ -412,11 +421,6 @@ export default function FeedScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const newPostsPillTop = topPad + Math.round(clamp(56 * uiScale, 52, 76));
 
-  const displayPosts = useMemo(() => {
-    if (!feedCategory) return posts;
-    return posts.filter((p) => p.category === feedCategory);
-  }, [posts, feedCategory]);
-
   const categoryLabel = (key: string) =>
     key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
@@ -442,16 +446,6 @@ export default function FeedScreen() {
           </Text>
         </View>
         <View style={styles.headerRight}>
-          {(user?.role === "admin" || user?.role === "moderator") && (
-            <Pressable onPress={() => router.push("/admin")} style={styles.adminBtn} accessibilityLabel="Moderation">
-              <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
-              {modPending > 0 && (
-                <View style={styles.modBadge} accessibilityLabel={`${modPending} pending`}>
-                  <Text style={styles.modBadgeText}>{modPending > 9 ? "9+" : String(modPending)}</Text>
-                </View>
-              )}
-            </Pressable>
-          )}
           <Pressable
             onPress={() =>
               user?.username
@@ -582,7 +576,6 @@ export default function FeedScreen() {
     [
       topPad,
       user,
-      modPending,
       greetSize,
       subGreetSize,
       committedSearchQuery,
@@ -649,7 +642,7 @@ export default function FeedScreen() {
     >
       <FlatList
         ref={listRef}
-        data={displayPosts}
+        data={posts}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <PostCard
@@ -670,7 +663,7 @@ export default function FeedScreen() {
               <Text style={[styles.emptyTitle, { fontSize: emptyTitleFs }]}>Connection issue</Text>
               <Text style={[styles.emptySubtitle, { fontSize: emptySubFs }]}>Pull down to try again</Text>
             </View>
-          ) : feedCategory && posts.length > 0 ? (
+          ) : feedCategory ? (
             <View style={styles.emptyState}>
               <Ionicons name="flame-outline" size={emptyStateIcon} color={colors.muted} />
               <Text style={[styles.emptyTitle, { fontSize: emptyTitleFs }]}>Nothing in this category yet</Text>
@@ -1079,34 +1072,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  adminBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    position: "relative",
-  },
-  modBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    backgroundColor: colors.danger,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modBadgeText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 9,
-    color: colors.surface,
   },
   headerAvatarBtn: {
     width: 36,
