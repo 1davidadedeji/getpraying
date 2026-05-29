@@ -9,6 +9,7 @@
     "db:generate": "corepack pnpm --filter @workspace/db run generate",
     "db:migrate": "corepack pnpm --filter @workspace/db run migrate",
     "db:migrate:status": "corepack pnpm --filter @workspace/db run migrate:status",
+    "db:migrate:baseline": "corepack pnpm --filter @workspace/db run migrate:baseline",
     "eas:android": "corepack pnpm --dir mobile exec eas build -p android --profile preview",
     "build": "corepack pnpm run typecheck && corepack pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
