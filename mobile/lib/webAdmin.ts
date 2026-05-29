@@ -1,4 +1,4 @@
-import * as Linking from "react-native";
+import { Linking } from "react-native";
 
 const DEFAULT_WEB_ADMIN_ORIGIN = "https://admin.getpraying.com";
 
