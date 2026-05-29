@@ -37,6 +37,7 @@ import {
   useUnsavePost,
 } from "@workspace/api-client-react";
 import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
+import { ApiError } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { CommentRichBodyWithOgLink } from "@/components/CommentLinkPreview";
@@ -53,6 +54,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { submitPostReport } from "@/lib/reportPost";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { buildPostSharePayload } from "@/lib/sharePost";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -75,7 +77,7 @@ export default function PostDetailScreen() {
   }>();
   const postId = Number(id);
   const insets = useSafeAreaInsets();
-  const { user, token } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const [staffDeleteOpen, setStaffDeleteOpen] = useState(false);
   const [staffDeleteReason, setStaffDeleteReason] = useState("");
   const queryClient = useQueryClient();
@@ -108,6 +110,12 @@ export default function PostDetailScreen() {
   useEffect(() => {
     if (data) setLocalPost(data as any);
   }, [data]);
+
+  useEffect(() => {
+    if (!authLoading && token && Number.isFinite(postId)) {
+      queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
+    }
+  }, [authLoading, token, postId, queryClient]);
 
   const post = localPost ?? (data as any);
 
@@ -335,8 +343,34 @@ export default function PostDetailScreen() {
     });
   };
 
+  const ensureSignedIn = (): boolean => {
+    if (authLoading) return false;
+    if (token) return true;
+    showAppAlert({
+      title: "Sign in required",
+      message: "Sign in to pray for and save prayers.",
+      buttons: [{ text: "Sign In", onPress: () => router.push("/login" as never) }],
+    });
+    return false;
+  };
+
+  const handleMutationError = (err: unknown, action: string) => {
+    if (err instanceof ApiError && err.status === 401) {
+      showAppAlert({
+        title: "Session expired",
+        message: "Please sign in again to continue.",
+        buttons: [{ text: "Sign In", onPress: () => router.push("/login" as never) }],
+      });
+      return;
+    }
+    showAppAlert({
+      title: `Could not ${action}`,
+      message: getApiErrorMessage(err, "Please try again."),
+    });
+  };
+
   const handlePray = () => {
-    if (!post) return;
+    if (!post || !ensureSignedIn()) return;
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.5, useNativeDriver: true }),
       Animated.spring(flameScale, { toValue: 1, useNativeDriver: true }),
@@ -350,22 +384,26 @@ export default function PostDetailScreen() {
             p ? { ...p, hasPrayed: res.hasPrayed, prayCount: res.prayCount } : p,
           );
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
           if (post.authorUsername) {
             queryClient.invalidateQueries({
               queryKey: getGetUserProfileQueryKey(post.authorUsername),
             });
           }
         },
+        onError: (err) => handleMutationError(err, "update your prayer"),
       },
     );
   };
 
   const handleSave = () => {
-    if (!post) return;
+    if (!post || !ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const invalidateSaved = () => {
       queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
     };
     if (post.isSaved) {
       unsave(
@@ -375,6 +413,7 @@ export default function PostDetailScreen() {
             setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
             invalidateSaved();
           },
+          onError: (err) => handleMutationError(err, "unsave this prayer"),
         },
       );
     } else {
@@ -385,6 +424,7 @@ export default function PostDetailScreen() {
             setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
             invalidateSaved();
           },
+          onError: (err) => handleMutationError(err, "save this prayer"),
         },
       );
     }
@@ -630,13 +670,66 @@ export default function PostDetailScreen() {
 
         <View style={[styles.divider, { marginBottom: dividerMb }]} />
 
-        <View style={[styles.reactionsRow, { marginBottom: 0 }]}>
-          <View style={[styles.prayCount, { gap: prayCountGap }]}>
-            <Ionicons name="flame-outline" size={flameIcn} color={colors.flame} />
-            <Text style={[styles.prayCountText, { fontSize: fsPrayCount }]}>
-              {post.prayCount} {post.prayCount === 1 ? "person" : "people"} praying
-            </Text>
+        <View style={styles.cardActions}>
+          <View style={styles.cardActionsPrimary}>
+            <Pressable
+              onPress={handlePray}
+              style={styles.cardActionBtn}
+              testID="pray-btn-inline"
+              accessibilityRole="button"
+              accessibilityLabel={post.hasPrayed ? "Praying" : "Pray for this post"}
+            >
+              <Animated.View style={{ transform: [{ scale: flameScale }] }}>
+                <Ionicons
+                  name={post.hasPrayed ? "flame" : "flame-outline"}
+                  size={flameIcn}
+                  color={post.hasPrayed ? colors.flame : colors.muted}
+                />
+              </Animated.View>
+              <Text
+                style={[
+                  styles.cardActionCount,
+                  { fontSize: fsPrayCount },
+                  post.hasPrayed && styles.cardActionCountActive,
+                ]}
+              >
+                {post.prayCount}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleSave}
+              style={styles.cardActionBtn}
+              testID="save-btn-inline"
+              accessibilityRole="button"
+              accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
+            >
+              <Ionicons
+                name={post.isSaved ? "bookmark" : "bookmark-outline"}
+                size={flameIcn}
+                color={post.isSaved ? colors.primary : colors.muted}
+              />
+              <Text
+                style={[
+                  styles.cardActionCount,
+                  { fontSize: fsPrayCount },
+                  post.isSaved && styles.cardActionCountSaved,
+                ]}
+              >
+                {(post as Post & { saveCount?: number }).saveCount ?? 0}
+              </Text>
+            </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => void handleShare()}
+            style={styles.cardActionBtn}
+            testID="share-btn-inline"
+            accessibilityRole="button"
+            accessibilityLabel="Share prayer"
+          >
+            <Feather name="share-2" size={Math.max(14, flameIcn - 2)} color={colors.muted} />
+          </Pressable>
         </View>
       </View>
 
@@ -1032,17 +1125,36 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
   },
-  reactionsRow: {
+  cardActions: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
   },
-  prayCount: {
+  cardActionsPrimary: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    gap: 2,
   },
-  prayCountText: {
+  cardActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  cardActionCount: {
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: colors.textSecondary,
+    color: colors.muted,
+    minWidth: 20,
+  },
+  cardActionCountActive: {
+    color: colors.flame,
+  },
+  cardActionCountSaved: {
+    color: colors.primary,
   },
   commentsSectionTitle: {
     fontFamily: "NotoSerif_700Bold",
