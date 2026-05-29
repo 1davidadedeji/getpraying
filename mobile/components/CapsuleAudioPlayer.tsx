@@ -3,7 +3,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, View } from "react-native";
 import colors from "@/constants/colors";
 import { CapsuleMediaControls } from "@/components/CapsuleMediaControls";
-import { pauseAllMediaExcept, registerMediaController } from "@/lib/mediaPlaybackCoordinator";
+import {
+  acquireCachedSound,
+  pauseAllMediaExcept,
+  registerMediaController,
+} from "@/lib/mediaPlaybackCoordinator";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 type Props = {
@@ -17,6 +21,8 @@ type Props = {
   /** Start playback once the file is loaded. */
   autoPlay?: boolean;
 };
+
+const POSITION_UI_INTERVAL_MS = 250;
 
 /** Minimal pill audio player: play/pause, time, seek bar, volume. */
 export function CapsuleAudioPlayer({
@@ -42,6 +48,8 @@ export function CapsuleAudioPlayer({
   const playingRef = useRef(false);
   const controllerIdRef = useRef<symbol | null>(null);
   const durationHeldRef = useRef(0);
+  const releaseSoundRef = useRef<(() => void) | null>(null);
+  const lastPositionUiAtRef = useRef(0);
   const onPlayingChangeRef = useRef(onPlayingChange);
   onPlayingChangeRef.current = onPlayingChange;
   const onPlaybackFinishedRef = useRef(onPlaybackFinished);
@@ -91,6 +99,8 @@ export function CapsuleAudioPlayer({
 
   useEffect(() => {
     if (!uri) {
+      releaseSoundRef.current?.();
+      releaseSoundRef.current = null;
       setSound(null);
       setLoading(false);
       setPlaying(false);
@@ -103,37 +113,40 @@ export function CapsuleAudioPlayer({
       onPlayingChangeRef.current?.(false);
       return;
     }
+
     let mounted = true;
-    let instance: Audio.Sound | null = null;
     setLoading(true);
-    setPlaying(false);
-    setMuted(false);
-    setFeedAudible(false);
-    setEnded(false);
-    setPositionMs(0);
-    setDurationMs(0);
-    durationHeldRef.current = 0;
 
     (async () => {
       try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const { sound: s } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: false, isLooping: false, positionMillis: 0 },
-        );
-        instance = s;
+        const cached = await acquireCachedSound(uri);
         if (!mounted) {
-          await s.unloadAsync().catch(() => {});
+          cached.release();
           return;
         }
-        setSound(s);
-        s.setOnPlaybackStatusUpdate((st) => {
+        releaseSoundRef.current?.();
+        releaseSoundRef.current = cached.release;
+        setSound(cached.sound);
+        durationHeldRef.current = cached.durationMs;
+        setDurationMs(cached.durationMs);
+
+        cached.sound.setOnPlaybackStatusUpdate((st) => {
           if (!st.isLoaded) return;
           if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
             durationHeldRef.current = st.durationMillis;
             setDurationMs(st.durationMillis);
           }
-          if (typeof st.positionMillis === "number") setPositionMs(st.positionMillis);
+          if (typeof st.positionMillis === "number") {
+            const now = Date.now();
+            if (
+              now - lastPositionUiAtRef.current >= POSITION_UI_INTERVAL_MS ||
+              st.didJustFinish ||
+              st.isPlaying !== playingRef.current
+            ) {
+              lastPositionUiAtRef.current = now;
+              setPositionMs(st.positionMillis);
+            }
+          }
           if (typeof st.isPlaying === "boolean") {
             setPlaying(st.isPlaying);
             onPlayingChangeRef.current?.(st.isPlaying);
@@ -146,14 +159,19 @@ export function CapsuleAudioPlayer({
             onPlaybackFinishedRef.current?.();
             void (async () => {
               try {
-                await s.setPositionAsync(0);
-                await s.pauseAsync();
+                await cached.sound.setPositionAsync(0);
+                await cached.sound.pauseAsync();
               } catch {
                 /* ignore */
               }
             })();
           }
         });
+
+        const st = await cached.sound.getStatusAsync();
+        if (mounted && st.isLoaded && typeof st.positionMillis === "number") {
+          setPositionMs(st.positionMillis);
+        }
       } catch {
         if (mounted) setSound(null);
       } finally {
@@ -163,7 +181,8 @@ export function CapsuleAudioPlayer({
 
     return () => {
       mounted = false;
-      instance?.unloadAsync().catch(() => {});
+      releaseSoundRef.current?.();
+      releaseSoundRef.current = null;
     };
   }, [uri]);
 
@@ -215,13 +234,11 @@ export function CapsuleAudioPlayer({
         if (!s) return;
         try {
           await s.pauseAsync();
-          await s.setPositionAsync(0);
         } catch {
           /* ignore */
         }
         setPlaying(false);
         setMuted(false);
-        setPositionMs(0);
         onPlayingChangeRef.current?.(false);
       })();
       return;

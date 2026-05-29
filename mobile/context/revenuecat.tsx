@@ -8,7 +8,6 @@ import type {
 } from "react-native-purchases";
 import { useAuth } from "@/context/auth";
 import {
-  canUseBoostFeature,
   hasPremiumEntitlement,
   isPremiumTrialPeriod,
   PREMIUM_ENTITLEMENT_ID,
@@ -330,7 +329,10 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     staffBypass || confirmedEntitled || (!staffBypass && enabled && optimisticEntitlement);
   const isPremiumTrial =
     !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
-  const canUseBoost = staffBypass || (enabled ? canUseBoostFeature(customerInfo) : false);
+  // Boost requires a fully paid entitlement — never grant during RC trial/intro or optimistic unlock.
+  const canUseBoost =
+    staffBypass ||
+    (enabled && confirmedEntitled && !isPremiumTrialPeriod(customerInfo) && !optimisticEntitlement);
 
   const value: RevenueCatState = useMemo(
     () => ({

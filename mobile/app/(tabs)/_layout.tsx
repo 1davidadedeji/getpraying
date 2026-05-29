@@ -18,6 +18,7 @@ import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarV
 import { FeedNoticeBanner } from "@/components/FeedNoticeBanner";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
+import { consumePendingNotificationHref } from "@/lib/notificationNavigation";
 
 const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 52 : 58;
 
@@ -480,6 +481,13 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { user, loading } = useAuth();
   const rc = useRevenueCat();
+
+  useEffect(() => {
+    const href = consumePendingNotificationHref();
+    if (href) {
+      router.replace(href as Href);
+    }
+  }, []);
 
   if (loading) {
     return <AppLoadingScreen variant="splash" />;

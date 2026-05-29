@@ -16,7 +16,13 @@ export function isPremiumTrialPeriod(info: CustomerInfo | null | undefined): boo
   const ent = getPremiumEntitlement(info);
   if (!ent) return false;
   const periodType = String(ent.periodType ?? "").toUpperCase();
-  return periodType === "TRIAL" || periodType === "INTRO";
+  if (periodType === "TRIAL" || periodType === "INTRO") return true;
+  // Sandbox / older SDK payloads sometimes omit periodType during an active trial.
+  if (!periodType && ent.willRenew === true && ent.isActive) {
+    const productId = String(ent.productIdentifier ?? "").toLowerCase();
+    if (productId.includes("trial")) return true;
+  }
+  return false;
 }
 
 /** Boost is reserved for fully paid subscribers — not RC trial / intro periods. */

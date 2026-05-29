@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -87,9 +87,13 @@ function truncateLecturePreview(s: string, maxLen: number): string {
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
+  const { section: sectionParam } = useLocalSearchParams<{ section?: string }>();
+  const focusSection =
+    sectionParam === "morning" || sectionParam === "evening" ? sectionParam : null;
   const { windowWidth, windowHeight, gutter, uiScale } = useResponsiveLayout();
   const { token } = useAuth();
   const categoriesScrollRef = useRef<ScrollView>(null);
+  const sanctuarySectionY = useRef(0);
   const savedListRef = useRef<FlatList>(null);
   const [activeTab, setActiveTab] = useState<Tab>("categories");
   const [categories, setCategories] = useState<CategoryItem[]>(LIBRARY_FALLBACK_PATHS);
@@ -299,7 +303,15 @@ export default function LibraryScreen() {
       void loadSavedOfficialIds();
       void loadSaved();
       void loadLectures();
-    }, [loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures]),
+      if (focusSection && categoriesScrollRef.current) {
+        requestAnimationFrame(() => {
+          categoriesScrollRef.current?.scrollTo({
+            y: Math.max(0, sanctuarySectionY.current - 12),
+            animated: true,
+          });
+        });
+      }
+    }, [loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures, focusSection]),
   );
 
   useEffect(() => {
@@ -609,6 +621,11 @@ export default function LibraryScreen() {
         >
           
           {/* Official prayer for current time of day (same rule as home) */}
+          <View
+            onLayout={(e) => {
+              sanctuarySectionY.current = e.nativeEvent.layout.y;
+            }}
+          >
           {loadingOfficial ? (
             <ActivityIndicator color={colors.accent} style={styles.loader} />
           ) : !sanctuary.morning && !sanctuary.evening ? (
@@ -619,7 +636,7 @@ export default function LibraryScreen() {
               </Text>
             </View>
           ) : (() => {
-            const eveningNow = isEveningSanctuarySlotNow();
+            const eveningNow = focusSection ? focusSection === "evening" : isEveningSanctuarySlotNow();
             const active = eveningNow ? sanctuary.evening : sanctuary.morning;
             if (!active) {
               return (
@@ -653,6 +670,7 @@ export default function LibraryScreen() {
               />
             );
           })()}
+          </View>
 
           {/* Lectures */}
           {(loadingLectures || lecturesGuides.length > 0) && (

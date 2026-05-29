@@ -606,6 +606,17 @@ export default function FeedScreen() {
     );
   };
 
+  const renderPostItem = useCallback(
+    ({ item }: { item: Post }) => (
+      <PostCard
+        post={item}
+        onUpdated={handleUpdated}
+        feedMediaFocusPostId={feedMediaFocusPostId}
+      />
+    ),
+    [handleUpdated, feedMediaFocusPostId],
+  );
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -640,13 +651,7 @@ export default function FeedScreen() {
         ref={listRef}
         data={posts}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <PostCard
-            post={item}
-            onUpdated={handleUpdated}
-            feedMediaFocusPostId={feedMediaFocusPostId}
-          />
-        )}
+        renderItem={renderPostItem}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         numColumns={1}

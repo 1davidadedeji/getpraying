@@ -95,12 +95,15 @@ export default function PaywallScreen() {
   }, [dismissPaywall]);
 
   useEffect(() => {
+    // Soft paywall (e.g. "View plans" from Boost gate) must stay open for entitled trial users.
+    if (isSoftPaywall) return;
     if (isCheckingSubscription || entitlementRedirected.current) return;
     if (!user) return;
     if (rc.enabled && !rc.isEntitled) return;
 
     navigateAfterEntitlement();
   }, [
+    isSoftPaywall,
     isCheckingSubscription,
     user,
     rc.enabled,

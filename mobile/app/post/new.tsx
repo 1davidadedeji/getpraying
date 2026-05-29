@@ -60,6 +60,18 @@ import {
 } from "@/lib/videoMime";
 
 const MAX_UPLOAD_BYTES = MAX_POST_IMAGE_BYTES;
+const MAX_POST_TAGS = 2;
+
+function clampCategoryTags(tags: string[]): string[] {
+  const allowed = CATEGORY_SLUGS as readonly string[];
+  const out: string[] = [];
+  for (const raw of tags) {
+    if (!allowed.includes(raw) || out.includes(raw)) continue;
+    out.push(raw);
+    if (out.length >= MAX_POST_TAGS) break;
+  }
+  return out;
+}
 
 type PendingMedia =
   | { kind: "image"; uri: string }
@@ -188,18 +200,17 @@ export default function NewPostScreen() {
         }
         // Support both array (categories) and single (category) formats
         const raw: unknown = data?.categories ?? (data?.category ? [data.category] : []);
-        const normalized = (Array.isArray(raw) ? raw : [])
-          .filter((c: unknown) => typeof c === "string" && (CATEGORY_SLUGS as readonly string[]).includes(c as string)) as string[];
+        const normalized = clampCategoryTags(
+          (Array.isArray(raw) ? raw : []).filter(
+            (c: unknown) => typeof c === "string" && (CATEGORY_SLUGS as readonly string[]).includes(c as string),
+          ) as string[],
+        );
         setAiCategories(normalized);
         if (normalized.length > 0) {
           setSelectedCategories((prev) => {
             const allowed = CATEGORY_SLUGS as readonly string[];
             if (prev.length === 0) return normalized.filter((c) => allowed.includes(c));
-            const merged = [...prev];
-            for (const c of normalized) {
-              if (allowed.includes(c) && !merged.includes(c)) merged.push(c);
-            }
-            return merged;
+            return clampCategoryTags([...prev, ...normalized]);
           });
         }
       } catch {
@@ -373,7 +384,12 @@ export default function NewPostScreen() {
     showAppAlert({
       title: "Subscribe to Boost",
       message: "Boosting prayers is only available to fully paid subscribers.",
-      buttons: [{ text: "View plans", onPress: () => router.push("/(paywall)?soft=1" as Href) }],
+      buttons: [
+        {
+          text: "View plans",
+          onPress: () => router.push("/(paywall)?soft=1" as Href),
+        },
+      ],
     });
   };
 
@@ -390,10 +406,10 @@ export default function NewPostScreen() {
       return;
     }
 
-    // Primary = first chip; all selected slugs are sent and stored (server allowlist)
-    const category = selectedCategories[0] ?? undefined;
+    const categoriesClamped = clampCategoryTags(selectedCategories);
+    const category = categoriesClamped[0] ?? undefined;
     const categories =
-      selectedCategories.length > 0 ? selectedCategories : undefined;
+      categoriesClamped.length > 0 ? categoriesClamped : undefined;
 
     let mediaUrl: string | undefined;
     let postMediaType: CreatePostInputMediaType | undefined;
@@ -481,7 +497,7 @@ export default function NewPostScreen() {
             }
 
             const isApproved = res?.status === "approved";
-            const boostedNow = Boolean(res?.boostedAt);
+            const boostedNow = Boolean(res?.boostedAt) && rc.canUseBoost;
             let message: string;
             if (isApproved) {
               message = boostedNow
@@ -769,14 +785,17 @@ export default function NewPostScreen() {
           {CATEGORY_SLUGS.map((cat) => {
             const isSelected = selectedCategories.includes(cat);
             const isAiSuggested = aiCategories.includes(cat);
+            const atTagLimit = selectedCategories.length >= MAX_POST_TAGS && !isSelected;
             return (
               <Pressable
                 key={cat}
+                disabled={atTagLimit}
                 onPress={() => {
-                  setSelectedCategories((prev) =>
-                    prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-                  );
-                  // Clear AI suggestions once user manually interacts
+                  setSelectedCategories((prev) => {
+                    if (prev.includes(cat)) return prev.filter((c) => c !== cat);
+                    if (prev.length >= MAX_POST_TAGS) return prev;
+                    return clampCategoryTags([...prev, cat]);
+                  });
                   if (isAiSuggested) setAiCategories([]);
                 }}
                 style={[
@@ -788,6 +807,7 @@ export default function NewPostScreen() {
                   },
                   isSelected && styles.categoryChipSelected,
                   isAiSuggested && !isSelected && styles.categoryChipAi,
+                  atTagLimit && styles.categoryChipDisabled,
                 ]}
               >
                 {isAiSuggested && <Text style={[styles.aiDot, { fontSize: fsAiDot }]}>✦ </Text>}
@@ -1018,6 +1038,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#E3F2FD",
     borderColor: "#93CDFC",
     borderWidth: 1.5,
+  },
+  categoryChipDisabled: {
+    opacity: 0.45,
   },
   categoryChipText: {
     fontFamily: "PlusJakartaSans_400Regular",

@@ -52,7 +52,7 @@ interface PostCardProps {
   activeProfileUsername?: string | null;
 }
 
-export default function PostCard({
+function PostCardInner({
   post,
   onUpdated,
   replaceNav,
@@ -483,6 +483,34 @@ export default function PostCard({
     </View>
   );
 }
+
+function postCardPropsEqual(prev: PostCardProps, next: PostCardProps): boolean {
+  if (prev.post.id !== next.post.id) return false;
+  if (prev.feedMediaFocusPostId !== next.feedMediaFocusPostId) return false;
+  if (prev.replaceNav !== next.replaceNav) return false;
+  if (prev.activeProfileUsername !== next.activeProfileUsername) return false;
+  if (prev.onUpdated !== next.onUpdated) return false;
+  const p = prev.post;
+  const n = next.post;
+  return (
+    p.prayCount === n.prayCount &&
+    p.hasPrayed === n.hasPrayed &&
+    p.isSaved === n.isSaved &&
+    p.content === n.content &&
+    p.createdAt === n.createdAt &&
+    p.category === n.category &&
+    p.isAnonymous === n.isAnonymous &&
+    p.authorDisplayName === n.authorDisplayName &&
+    p.authorUsername === n.authorUsername &&
+    p.mediaUrl === n.mediaUrl &&
+    p.mediaType === n.mediaType &&
+    (p as PostWithCounts).commentCount === (n as PostWithCounts).commentCount &&
+    (p as PostWithCounts).saveCount === (n as PostWithCounts).saveCount &&
+    (p as PostWithCounts).hasCommented === (n as PostWithCounts).hasCommented
+  );
+}
+
+export default React.memo(PostCardInner, postCardPropsEqual);
 
 const styles = StyleSheet.create({
   card: {

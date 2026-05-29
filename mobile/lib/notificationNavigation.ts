@@ -1,4 +1,5 @@
 import { router, type Href } from "expo-router";
+import { InteractionManager } from "react-native";
 import { apiUrl, authHeaders } from "@/lib/api";
 import {
   isStaffRole,
@@ -42,6 +43,32 @@ export function notificationOpensWebAdmin(type: string, userRole?: string | null
   return type === "role_updated" && isStaffRole(userRole);
 }
 
+/** Deferred route consumed after tabs mount (avoids cold-start race with auth redirect). */
+let pendingNotificationHref: string | null = null;
+
+export function consumePendingNotificationHref(): string | null {
+  const href = pendingNotificationHref;
+  pendingNotificationHref = null;
+  return href;
+}
+
+function queueNotificationHref(href: string): void {
+  pendingNotificationHref = href;
+  InteractionManager.runAfterInteractions(() => {
+    router.replace(href as Href);
+  });
+}
+
+function libraryHrefForPrayerSlot(type: string): string {
+  if (type === "evening_prayer") {
+    return "/(tabs)/library?section=evening";
+  }
+  if (type === "morning_prayer") {
+    return "/(tabs)/library?section=morning";
+  }
+  return "/(tabs)/library";
+}
+
 /** Routes from in-app notification rows or from Expo push `data` (same shape). */
 export async function navigateFromNotificationData(
   data: Record<string, unknown>,
@@ -49,6 +76,8 @@ export async function navigateFromNotificationData(
     authToken?: string | null;
     skipMarkRead?: boolean;
     userRole?: string | null;
+    /** When true, defer navigation until tabs consume the pending href. */
+    deferUntilTabsReady?: boolean;
   },
 ): Promise<void> {
   const type = data.type != null ? String(data.type) : "";
@@ -78,37 +107,45 @@ export async function navigateFromNotificationData(
     return;
   }
 
+  const navigate = (href: string) => {
+    if (opts?.deferUntilTabsReady) {
+      queueNotificationHref(href);
+      return;
+    }
+    router.push(href as Href);
+  };
+
   if (type === "follow" && actorUsername) {
-    router.push(`/user/${actorUsername}` as Href);
+    navigate(`/user/${actorUsername}`);
     return;
   }
 
   if (type === "morning_prayer" || type === "evening_prayer" || type === "reminder") {
-    router.push("/(tabs)/library" as Href);
+    navigate(libraryHrefForPrayerSlot(type));
     return;
   }
 
   if (type === "daily_help_reminder") {
-    router.push("/(tabs)/" as Href);
+    navigate("/(tabs)/");
     return;
   }
 
   if (type === "category_new") {
-    router.push(
-      (category ? `/category/${encodeURIComponent(category)}` : "/(tabs)/library") as Href,
+    navigate(
+      category ? `/category/${encodeURIComponent(category)}` : "/(tabs)/library",
     );
     return;
   }
 
   if (type === "role_updated") {
-    router.push("/settings" as Href);
+    navigate("/settings");
     return;
   }
 
   if (Number.isFinite(postId)) {
-    router.push(`/post/${postId}` as Href);
+    navigate(`/post/${postId}`);
     return;
   }
 
-  router.push("/(tabs)/notifications" as Href);
+  navigate("/(tabs)/notifications");
 }
