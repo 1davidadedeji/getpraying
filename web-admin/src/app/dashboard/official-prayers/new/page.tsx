@@ -37,6 +37,7 @@ export default function NewOfficialPrayerPage() {
           durationMinutes: draft.durationMinutes,
           category: "sanctuary",
           scheduleSlot: draft.scheduleSlot,
+          label: "Official Prayer",
         }),
       });
       if (res.ok) {

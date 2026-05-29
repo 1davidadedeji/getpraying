@@ -6,7 +6,7 @@ import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/MorningEveningMarks";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import type { OfficialPrayerRow } from "@/lib/officialPrayer";
+import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type Props = {
@@ -67,7 +67,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
       <View style={[styles.officialCardTop, { gap: topGap, marginBottom: topMb }]}>
         {leadMark ?? <Ionicons name="link-outline" size={linkIcn} color={colors.primary} />}
         <Text style={[styles.officialBadge, { fontSize: fsBadge }]} numberOfLines={2}>
-          {(op.label ?? "OFFICIAL PRAYER").toUpperCase()}
+          {officialGuideBadgeLabel(op.label)}
           {op.scheduleSlot ? ` · ${op.scheduleSlot}` : ""}
         </Text>
         {showSave && onToggleSave ? (

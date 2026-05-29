@@ -23,6 +23,7 @@ export function iconKeyForPathCategory(category: string): string {
     wisdom: "help-circle",
     peace: "cloud",
     strength: "zap",
+    wealth: "dollar-sign",
     general: "star",
   };
   return map[c] ?? "star";

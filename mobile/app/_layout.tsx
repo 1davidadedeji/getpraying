@@ -96,7 +96,7 @@ function RootLayoutNav() {
       <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
       <Stack.Screen name="reset-password" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(paywall)" options={{ headerShown: false }} />
+      <Stack.Screen name="(paywall)" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen

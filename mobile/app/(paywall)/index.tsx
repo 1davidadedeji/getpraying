@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -10,12 +10,13 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, Stack, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import { formatMonthlyTrialOffer } from "@/lib/revenuecatEntitlements";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
@@ -30,7 +31,10 @@ export default function PaywallScreen() {
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
   const { soft } = useLocalSearchParams<{ soft?: string }>();
   const isSoftPaywall = soft === "1" || soft === "true";
-  const isMandatoryGate = rc.enabled && !rc.isEntitled && !isSoftPaywall;
+  const isCheckingSubscription = rc.isCheckingSubscription;
+  const isMandatoryGate =
+    !isCheckingSubscription && rc.enabled && !rc.isEntitled && !isSoftPaywall;
+  const entitlementRedirected = useRef(false);
 
   const leavePaywall = useCallback(async () => {
     await logoutThenClearQueryCache(logout, queryClient);
@@ -41,36 +45,39 @@ export default function PaywallScreen() {
   }, [logout, queryClient]);
 
   const dismissPaywall = useCallback(() => {
-    if (isSoftPaywall && router.canGoBack()) {
-      router.back();
-      return;
-    }
     if (isMandatoryGate) {
       void leavePaywall();
-    } else if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/(tabs)" as import("expo-router").Href);
+      return;
     }
-  }, [isSoftPaywall, isMandatoryGate, leavePaywall]);
-
-  useEffect(() => {
-    if (!isMandatoryGate) return;
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      void leavePaywall();
-      return true;
-    });
-    return () => sub.remove();
+    goBackOrFallback("/(tabs)" as Href);
   }, [isMandatoryGate, leavePaywall]);
 
   useEffect(() => {
-    if (!isSoftPaywall) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       dismissPaywall();
       return true;
     });
     return () => sub.remove();
-  }, [isSoftPaywall, dismissPaywall]);
+  }, [dismissPaywall]);
+
+  useEffect(() => {
+    if (isCheckingSubscription || entitlementRedirected.current) return;
+    if (!user) return;
+    if (rc.enabled && !rc.isEntitled) return;
+
+    entitlementRedirected.current = true;
+    router.replace(
+      resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref) as Href,
+    );
+  }, [
+    isCheckingSubscription,
+    user,
+    rc.enabled,
+    rc.isEntitled,
+    rc.isReady,
+    pendingDeepLink,
+    consumePendingHref,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,7 +130,20 @@ export default function PaywallScreen() {
     Platform.OS === "ios"
       ? "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community."
       : "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community.";
- 
+
+  if (isCheckingSubscription) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
+        <View style={[styles.flex, styles.subscriptionGate, { paddingTop: topPad + edgePad }]}>
+          <ActivityIndicator color="#21638D" size="large" />
+          <Text style={[styles.loadingText, { fontSize: fsLoading, marginTop: centerGap }]}>
+            Checking subscription…
+          </Text>
+        </View>
+      </>
+    );
+  }
 
   const onPurchase = async () => {
     if (!rc.hasMonthlyOffer) return;
@@ -262,6 +282,10 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
     backgroundColor: "#E3F2FD",
+  },
+  subscriptionGate: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   container: {
     flex: 1,

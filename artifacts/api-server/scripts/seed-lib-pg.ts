@@ -73,28 +73,10 @@ async function copyLibPgAudios(): Promise<{
 
 const PATHS = [
   {
-    name: "Anxiety",
+    name: "Anxiety & Calm",
     description: "Short anchors and breath prayers for heavy, anxious days.",
     category: "anxiety",
     tagline: "You are held.",
-  },
-  {
-    name: "Gratitude",
-    description: "Giving thanks in all seasons — good days and hard ones.",
-    category: "gratitude",
-    tagline: "Counting gifts.",
-  },
-  {
-    name: "Healing",
-    description: "Prayers for physical, emotional, and spiritual restoration.",
-    category: "healing",
-    tagline: "He heals the broken.",
-  },
-  {
-    name: "Grief & Loss",
-    description: "Walking through sorrow with grace and honest lament.",
-    category: "grief",
-    tagline: "Grief is love with nowhere to go.",
   },
   {
     name: "Family",
@@ -103,34 +85,22 @@ const PATHS = [
     tagline: "A cord of three strands.",
   },
   {
-    name: "Strength",
-    description: "Finding courage and endurance when you feel spent.",
-    category: "strength",
-    tagline: "He renews your strength.",
-  },
-  {
-    name: "Success & Wealth",
-    description: "Evening release prayers and sleep guides.",
-    category: "peace",
-    tagline: "Be still.",
-  },
-  {
-    name: "Hope & Light",
-    description: "When the path ahead feels dim — dawn is coming.",
-    category: "hope",
-    tagline: "Dawn is coming.",
-  },
-  {
     name: "Forgiveness",
     description: "Releasing bitterness and receiving grace for yourself and others.",
     category: "forgiveness",
     tagline: "As we forgive.",
   },
   {
-    name: "Wisdom",
-    description: "Seeking discernment in decisions, big and small.",
-    category: "wisdom",
-    tagline: "Ask God first.",
+    name: "Gratitude",
+    description: "Giving thanks in all seasons — good days and hard ones.",
+    category: "gratitude",
+    tagline: "Counting gifts.",
+  },
+  {
+    name: "Grief & Loss",
+    description: "Walking through sorrow with grace and honest lament.",
+    category: "grief",
+    tagline: "Grief is love with nowhere to go.",
   },
   {
     name: "Guidance",
@@ -139,10 +109,46 @@ const PATHS = [
     tagline: "He will direct your path.",
   },
   {
+    name: "Healing",
+    description: "Prayers for physical, emotional, and spiritual restoration.",
+    category: "healing",
+    tagline: "He heals the broken.",
+  },
+  {
+    name: "Hope & Light",
+    description: "When the path ahead feels dim — dawn is coming.",
+    category: "hope",
+    tagline: "Dawn is coming.",
+  },
+  {
+    name: "Peace & Rest",
+    description: "Evening release prayers and guides for quiet rest.",
+    category: "peace",
+    tagline: "Be still.",
+  },
+  {
     name: "Relationships",
     description: "Prayers for friendships, marriage, community, and connection.",
     category: "relationships",
     tagline: "Love one another.",
+  },
+  {
+    name: "Strength",
+    description: "Finding courage and endurance when you feel spent.",
+    category: "strength",
+    tagline: "He renews your strength.",
+  },
+  {
+    name: "Wisdom",
+    description: "Seeking discernment in decisions, big and small.",
+    category: "wisdom",
+    tagline: "Ask God first.",
+  },
+  {
+    name: "Wealth & Success",
+    description: "Stewardship, provision, and purpose in work and calling.",
+    category: "wealth",
+    tagline: "Seek first His kingdom.",
   },
 ] as const;
 
@@ -158,30 +164,6 @@ const PATH_CONTENT: Record<
     scripture: "Philippians 4:6–7",
     duration: 5,
   },
-  gratitude: {
-    title: "A Heart Full of Thanks",
-    subtitle: "Counting gifts in every season",
-    content:
-      "Father, open my eyes to see your goodness woven through this ordinary day. Thank you for breath, for light, for love I didn't earn. Shift my gaze from what I lack to what you've lavished. Let gratitude be the posture of my heart — not just in abundance, but in every season.",
-    scripture: "1 Thessalonians 5:18",
-    duration: 5,
-  },
-  healing: {
-    title: "Come and Heal",
-    subtitle: "A prayer for body, mind, and spirit",
-    content:
-      "Jesus, you are the same healer who touched the leper and raised the dead. I bring every broken place before you — the body that hurts, the mind that won't rest, the spirit that's weary. Lay your hand on this. I trust that your will is wholeness, and that even in pain you are working something good.",
-    scripture: "James 5:14–15",
-    duration: 6,
-  },
-  grief: {
-    title: "Sitting with Sorrow",
-    subtitle: "Honest lament for heavy hearts",
-    content:
-      "God, grief is love with nowhere to go. I'm not going to pretend I'm okay. I miss what was. I mourn what should have been. You promised to be close to the brokenhearted — so be close now. Hold this ache. I trust that weeping endures for a night and joy does come in the morning.",
-    scripture: "Psalm 34:18",
-    duration: 5,
-  },
   family: {
     title: "Cover This Home",
     subtitle: "A prayer for family and loved ones",
@@ -189,30 +171,6 @@ const PATH_CONTENT: Record<
       "Lord, I lift every person under my roof and in my heart. Cover my children with wisdom and protection. Strengthen the bond of love between us. Where there is tension, bring peace. Where there is distance, draw us closer. Let this home be a place where you are known and your presence is felt.",
     scripture: "Joshua 24:15",
     duration: 6,
-  },
-  strength: {
-    title: "Renewed in the Waiting",
-    subtitle: "Courage for the worn and weary",
-    content:
-      "Father, I have nothing left in me. My strength is spent. But you said those who wait on you will soar on wings like eagles — they will run and not grow weary. I choose to wait on you. Fill me with supernatural endurance. Let your power be made perfect in my weakness today.",
-    scripture: "Isaiah 40:31",
-    duration: 5,
-  },
-  peace: {
-    title: "Laying the Day Down",
-    subtitle: "An evening release for quiet rest",
-    content:
-      "Father, I lay down this day — the unfinished, the undone, the things I'm still turning over. You are not asleep. You hold this night. I release every worry I carried, every conversation that still stings. Grant me peaceful sleep and let me wake with new mercy. It is well.",
-    scripture: "Psalm 4:8",
-    duration: 7,
-  },
-  hope: {
-    title: "Dawn Is Coming",
-    subtitle: "A prayer for light in dark seasons",
-    content:
-      "Lord, some days it's hard to see light at the end of this tunnel. But you are the God of resurrection — you specialize in dead things coming back to life. I anchor my hope not in circumstances but in your character. You have never failed. You will not fail now. I choose hope.",
-    scripture: "Romans 15:13",
-    duration: 5,
   },
   forgiveness: {
     title: "Set Free to Forgive",
@@ -222,12 +180,20 @@ const PATH_CONTENT: Record<
     scripture: "Colossians 3:13",
     duration: 6,
   },
-  wisdom: {
-    title: "A Wise and Listening Heart",
-    subtitle: "Seeking discernment in decisions",
+  gratitude: {
+    title: "A Heart Full of Thanks",
+    subtitle: "Counting gifts in every season",
     content:
-      "God of all wisdom, I don't want to lean on my own understanding. Before I decide, before I react, before I speak — I come to you. Give me eyes to see what you see, patience to wait for clarity, and courage to obey when you do speak. Let every choice I make today reflect your heart.",
-    scripture: "James 1:5",
+      "Father, open my eyes to see your goodness woven through this ordinary day. Thank you for breath, for light, for love I didn't earn. Shift my gaze from what I lack to what you've lavished. Let gratitude be the posture of my heart — not just in abundance, but in every season.",
+    scripture: "1 Thessalonians 5:18",
+    duration: 5,
+  },
+  grief: {
+    title: "Sitting with Sorrow",
+    subtitle: "Honest lament for heavy hearts",
+    content:
+      "God, grief is love with nowhere to go. I'm not going to pretend I'm okay. I miss what was. I mourn what should have been. You promised to be close to the brokenhearted — so be close now. Hold this ache. I trust that weeping endures for a night and joy does come in the morning.",
+    scripture: "Psalm 34:18",
     duration: 5,
   },
   guidance: {
@@ -238,12 +204,60 @@ const PATH_CONTENT: Record<
     scripture: "Proverbs 3:5–6",
     duration: 5,
   },
+  healing: {
+    title: "Come and Heal",
+    subtitle: "A prayer for body, mind, and spirit",
+    content:
+      "Jesus, you are the same healer who touched the leper and raised the dead. I bring every broken place before you — the body that hurts, the mind that won't rest, the spirit that's weary. Lay your hand on this. I trust that your will is wholeness, and that even in pain you are working something good.",
+    scripture: "James 5:14–15",
+    duration: 6,
+  },
+  hope: {
+    title: "Dawn Is Coming",
+    subtitle: "A prayer for light in dark seasons",
+    content:
+      "Lord, some days it's hard to see light at the end of this tunnel. But you are the God of resurrection — you specialize in dead things coming back to life. I anchor my hope not in circumstances but in your character. You have never failed. You will not fail now. I choose hope.",
+    scripture: "Romans 15:13",
+    duration: 5,
+  },
+  peace: {
+    title: "Laying the Day Down",
+    subtitle: "An evening release for quiet rest",
+    content:
+      "Father, I lay down this day — the unfinished, the undone, the things I'm still turning over. You are not asleep. You hold this night. I release every worry I carried, every conversation that still stings. Grant me peaceful rest and let me wake with new mercy. It is well.",
+    scripture: "Psalm 4:8",
+    duration: 7,
+  },
   relationships: {
     title: "Love Like You Have Loved",
     subtitle: "A prayer for connection and community",
     content:
       "Lord, relationships are the hardest and holiest work. Help me to love patiently and without strings attached. Heal the ones that are strained. Deepen the ones that matter. Bring the right people into my life for this season, and let me be a safe place for others to land. Let your love flow through me.",
     scripture: "John 13:34",
+    duration: 6,
+  },
+  strength: {
+    title: "Renewed in the Waiting",
+    subtitle: "Courage for the worn and weary",
+    content:
+      "Father, I have nothing left in me. My strength is spent. But you said those who wait on you will soar on wings like eagles — they will run and not grow weary. I choose to wait on you. Fill me with supernatural endurance. Let your power be made perfect in my weakness today.",
+    scripture: "Isaiah 40:31",
+    duration: 5,
+  },
+  wisdom: {
+    title: "A Wise and Listening Heart",
+    subtitle: "Seeking discernment in decisions",
+    content:
+      "God of all wisdom, I don't want to lean on my own understanding. Before I decide, before I react, before I speak — I come to you. Give me eyes to see what you see, patience to wait for clarity, and courage to obey when you do speak. Let every choice I make today reflect your heart.",
+    scripture: "James 1:5",
+    duration: 5,
+  },
+  wealth: {
+    title: "Steward What You've Given",
+    subtitle: "Prayers for provision, work, and purpose",
+    content:
+      "Father, everything I have is yours. Teach me to work with integrity, to give generously, and to hold success with open hands. Guard my heart from greed and fear. Align my ambitions with your kingdom. Let my labor bless others and bring glory to you.",
+    scripture: "Matthew 6:33",
     duration: 6,
   },
 };

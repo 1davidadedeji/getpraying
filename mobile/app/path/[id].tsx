@@ -24,7 +24,7 @@ import { emojiForLibraryCategory } from "@/constants/libraryFallbackPaths";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
-import { OFFICIAL_PRAYER_BADGE, type OfficialPrayerRow } from "@/lib/officialPrayer";
+import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -81,7 +81,7 @@ function PathSessionCard({
           <Text style={[styles.durationBadgeText, { fontSize: fsBadge }]}>
             {!op.audioUrl && mins != null && mins > 0
               ? `${mins} MINS`
-              : (op.label?.trim() || OFFICIAL_PRAYER_BADGE).toUpperCase()}
+              : officialGuideBadgeLabel(op.label)}
           </Text>
         </View>
         {showSave ? (

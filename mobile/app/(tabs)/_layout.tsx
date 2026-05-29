@@ -485,6 +485,10 @@ export default function TabLayout() {
     return <AppLoadingScreen variant="splash" />;
   }
 
+  if (rc.isCheckingSubscription) {
+    return <AppLoadingScreen variant="splash" />;
+  }
+
   if (!user) {
     return <Redirect href="/" />;
   }
@@ -495,6 +499,7 @@ export default function TabLayout() {
     user.role !== "admin" &&
     user.role !== "moderator" &&
     rc.isReady &&
+    !rc.isCheckingSubscription &&
     rc.enabled &&
     !rc.isEntitled
   ) {

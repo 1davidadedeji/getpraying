@@ -24,7 +24,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
-import { OFFICIAL_PRAYER_BADGE, type LectureTrackRow } from "@/lib/officialPrayer";
+import { officialGuideBadgeLabel, type LectureTrackRow } from "@/lib/officialPrayer";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 
 function scheduleSlotBadge(s: string | null | undefined): string {
@@ -178,7 +178,7 @@ export default function OfficialPrayerScreen() {
           <Text style={[styles.badge, { fontSize: fsBadge }]}>
             {isLecture
               ? "LECTURE"
-              : (d.label?.trim() || OFFICIAL_PRAYER_BADGE).toUpperCase()}
+              : officialGuideBadgeLabel(d.label)}
             {d.scheduleSlot ? ` · ${scheduleSlotBadge(d.scheduleSlot)}` : ""}
           </Text>
           {updated ? (

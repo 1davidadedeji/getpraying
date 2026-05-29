@@ -8,6 +8,7 @@ type RevenueCatGate = {
   isReady: boolean;
   enabled: boolean;
   isEntitled: boolean;
+  isCheckingSubscription?: boolean;
 };
 
 /** Next route after auth gates, honoring a deferred deep link when present. */
@@ -25,7 +26,7 @@ export function getPostAuthRoute(
 
   // Hard paywall: must start the store trial / subscription before app access.
   if (rc.enabled) {
-    if (!rc.isReady) return null;
+    if (!rc.isReady || rc.isCheckingSubscription) return null;
     if (!rc.isEntitled) return "/(paywall)" as Href;
   }
 

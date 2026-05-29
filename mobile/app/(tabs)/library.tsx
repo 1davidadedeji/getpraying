@@ -431,19 +431,6 @@ export default function LibraryScreen() {
           <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={4}>
             {sub}
           </Text>
-          {op.durationMinutes != null ? (
-            <Text style={[styles.lectureDurHint, { color: theme.subColor }]}>
-              {op.durationMinutes} min listen
-            </Text>
-          ) : null}
-          {(op.tracks?.length ?? 0) > 0 ? (
-            <View style={[styles.lecturePartsPill, { backgroundColor: theme.chevronBg }]}>
-              <Ionicons name="albums-outline" size={Math.round(12 * uiScale)} color={theme.chevronColor} />
-              <Text style={[styles.lecturePartsText, { color: theme.chevronColor }]}>
-                {op.tracks!.length} {op.tracks!.length === 1 ? "part" : "parts"}
-              </Text>
-            </View>
-          ) : null}
           <View
             pointerEvents="none"
             style={[
@@ -494,35 +481,34 @@ export default function LibraryScreen() {
         accessibilityLabel={`Browse ${cat.name}`}
       >
         {emojiChar ? (
-          <Text style={[styles.situationEmoji, { fontSize: situationEmojiSize }]} allowFontScaling>
-            {emojiChar}
-          </Text>
+          <View style={styles.situationIconSlot}>
+            <Text style={[styles.situationEmoji, { fontSize: situationEmojiSize }]} allowFontScaling>
+              {emojiChar}
+            </Text>
+          </View>
         ) : (
-          <View
-            style={[
-              styles.situationIconBg,
-              {
-                width: situationIconBg,
-                height: situationIconBg,
-                borderRadius: situationIconBg / 2,
-              },
-            ]}
-          >
-            <Feather
-              name={(FEATHER_ICON_MAP[cat.icon] ?? "star") as any}
-              size={situationIconSize}
-              color={colors.surface}
-            />
+          <View style={styles.situationIconSlot}>
+            <View
+              style={[
+                styles.situationIconBg,
+                {
+                  width: situationIconBg,
+                  height: situationIconBg,
+                  borderRadius: situationIconBg / 2,
+                },
+              ]}
+            >
+              <Feather
+                name={(FEATHER_ICON_MAP[cat.icon] ?? "star") as any}
+                size={situationIconSize}
+                color={colors.surface}
+              />
+            </View>
           </View>
         )}
         <Text style={styles.situationName} numberOfLines={2} ellipsizeMode="tail">
           {cat.name}
         </Text>
-        <View style={styles.situationCountWrap}>
-          {cat.count > 0 ? (
-            <Text style={styles.situationCount}>{cat.count}</Text>
-          ) : null}
-        </View>
       </Pressable>
     );
   };
@@ -949,12 +935,12 @@ const styles = StyleSheet.create({
   situationCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
-    minHeight: 108,
-    paddingVertical: 14,
+    height: 120,
+    paddingVertical: 12,
     paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -966,10 +952,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  situationIconSlot: {
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   situationEmoji: {
     textAlign: "center",
-    paddingVertical: 2,
-    marginBottom: 2,
   },
   situationName: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -977,17 +966,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: colors.text,
     textAlign: "center",
-    minHeight: 32,
-  },
-  situationCountWrap: {
-    minHeight: 15,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  situationCount: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 11,
-    color: colors.muted,
+    height: 32,
+    width: "100%",
   },
   lecturesHeaderBlock: {
     flexDirection: "row",
@@ -1054,27 +1034,6 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: "center",
     width: "100%",
-  },
-  lectureDurHint: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
-    marginTop: 6,
-    textAlign: "center",
-  },
-  lecturePartsPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    alignSelf: "center",
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  lecturePartsText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 11,
-    letterSpacing: 0.2,
   },
   lectureChevronFab: {
     position: "absolute",

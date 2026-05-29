@@ -12,6 +12,7 @@ import { eq, and, inArray, sql, desc, isNull } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { fetchTracksForLecture, fetchTracksGroupedByLecture } from "../lib/lectureTracks";
+import { normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
 
 const router: IRouter = Router();
 
@@ -40,6 +41,7 @@ function iconForPathCategory(category: string): string {
     wisdom: "help-circle",
     peace: "cloud",
     strength: "zap",
+    wealth: "dollar-sign",
     general: "star",
   };
   return map[c] ?? "star";
@@ -109,7 +111,7 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
       category: p.category,
       durationMinutes: p.durationMinutes,
       scripture: p.scripture,
-      label: p.label,
+      label: normalizeOfficialGuideLabel(p.label),
       audioVoice: p.audioVoice,
       audioUrl: p.audioUrl,
       pathId: p.pathId,
@@ -157,7 +159,7 @@ router.get("/library/official/sanctuary", optionalAuth, async (_req, res): Promi
     category: p.category,
     durationMinutes: p.durationMinutes,
     scripture: p.scripture,
-    label: p.label,
+    label: normalizeOfficialGuideLabel(p.label),
     audioVoice: p.audioVoice,
     audioUrl: p.audioUrl,
     pathId: p.pathId,
@@ -223,7 +225,7 @@ router.get("/library/official/:id", optionalAuth, async (req, res): Promise<void
     category: row.category,
     durationMinutes: row.durationMinutes,
     scripture: row.scripture,
-    label: row.label,
+    label: normalizeOfficialGuideLabel(row.label),
     audioVoice: row.audioVoice,
     audioUrl: row.audioUrl,
     pathId: row.pathId,
@@ -299,7 +301,7 @@ router.get("/library/saved-official", requireAuth, async (req, res): Promise<voi
       category: p.category,
       durationMinutes: p.durationMinutes,
       scripture: p.scripture,
-      label: p.label,
+      label: normalizeOfficialGuideLabel(p.label),
       audioVoice: p.audioVoice,
       audioUrl: p.audioUrl,
       pathId: p.pathId,
@@ -426,7 +428,7 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
     category: p.category,
     durationMinutes: p.durationMinutes,
     scripture: p.scripture,
-    label: p.label,
+    label: normalizeOfficialGuideLabel(p.label),
     audioVoice: p.audioVoice,
     audioUrl: p.audioUrl,
     pathId: p.pathId,

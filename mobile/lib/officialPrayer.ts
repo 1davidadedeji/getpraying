@@ -1,6 +1,19 @@
 /** Default pill label for guided official prayers (path cards, detail, library). */
 export const OFFICIAL_PRAYER_BADGE = "Official Prayer";
 
+/** Replace legacy "Official Sanctuary" badge copy from older CMS rows. */
+export function normalizeOfficialGuideLabel(label: string | null | undefined): string {
+  const trimmed = typeof label === "string" ? label.trim() : "";
+  if (!trimmed) return OFFICIAL_PRAYER_BADGE;
+  const fixed = trimmed.replace(/official\s+sanctuary/gi, OFFICIAL_PRAYER_BADGE);
+  return fixed.trim() || OFFICIAL_PRAYER_BADGE;
+}
+
+/** Uppercase badge line for cards and detail headers. */
+export function officialGuideBadgeLabel(label: string | null | undefined): string {
+  return normalizeOfficialGuideLabel(label).toUpperCase();
+}
+
 export type LectureTrackRow = {
   id: number;
   title: string;

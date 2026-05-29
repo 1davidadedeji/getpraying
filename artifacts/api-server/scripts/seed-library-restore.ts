@@ -12,7 +12,7 @@
  */
 import "dotenv/config";
 import { db, lectureTracksTable, officialPrayersTable, pool } from "@workspace/db";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, ilike, isNull, sql } from "drizzle-orm";
 
 const UPLOADS_AUDIO_BASE = "/api/static/uploads";
 
@@ -170,6 +170,21 @@ async function main(): Promise<void> {
     console.log("[seed-library-restore] Inserted evening sanctuary slot row.");
   } else {
     console.log("[seed-library-restore] Evening slot already present — skipping.");
+  }
+
+  const badLabelRows = await db
+    .select({ id: officialPrayersTable.id })
+    .from(officialPrayersTable)
+    .where(ilike(officialPrayersTable.label, "%official%sanctuary%"));
+
+  if (badLabelRows.length > 0) {
+    await db
+      .update(officialPrayersTable)
+      .set({ label: "Official Prayer" })
+      .where(ilike(officialPrayersTable.label, "%official%sanctuary%"));
+    console.log(
+      `[seed-library-restore] Normalized ${badLabelRows.length} legacy "Official Sanctuary" label(s).`,
+    );
   }
 
   await pool.end();

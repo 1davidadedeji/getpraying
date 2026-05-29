@@ -13,10 +13,22 @@ const UPLOADS_AUDIO_BASE = "/api/static/uploads";
 
 const DEMO_PATHS = [
   {
-    name: "Anxiety",
+    name: "Anxiety & Calm",
     description: "Short anchors and breath prayers for heavy days.",
     category: "anxiety",
     tagline: "You are held.",
+  },
+  {
+    name: "Family",
+    description: "Covering your home and loved ones in prayer.",
+    category: "family",
+    tagline: "A cord of three strands.",
+  },
+  {
+    name: "Forgiveness",
+    description: "Releasing bitterness and receiving grace.",
+    category: "forgiveness",
+    tagline: "As we forgive.",
   },
   {
     name: "Gratitude",
@@ -25,22 +37,58 @@ const DEMO_PATHS = [
     tagline: "Counting gifts.",
   },
   {
+    name: "Grief & Loss",
+    description: "Walking through sorrow with grace.",
+    category: "grief",
+    tagline: "Grief is love with nowhere to go.",
+  },
+  {
+    name: "Guidance",
+    description: "Prayers for direction when the path is unclear.",
+    category: "guidance",
+    tagline: "He will direct your path.",
+  },
+  {
+    name: "Healing",
+    description: "Prayers for body, mind, and spirit.",
+    category: "healing",
+    tagline: "He heals the broken.",
+  },
+  {
     name: "Hope & Light",
     description: "When the path ahead feels dim.",
     category: "hope",
     tagline: "Dawn is coming.",
   },
   {
-    name: "Success & Wealth",
-    description: "Evening release and sleep prayers.",
+    name: "Peace & Rest",
+    description: "Evening release and rest prayers.",
     category: "peace",
     tagline: "Be still.",
+  },
+  {
+    name: "Relationships",
+    description: "Prayers for connection and community.",
+    category: "relationships",
+    tagline: "Love one another.",
+  },
+  {
+    name: "Strength",
+    description: "Courage when you feel spent.",
+    category: "strength",
+    tagline: "He renews your strength.",
   },
   {
     name: "Wisdom",
     description: "Seeking discernment in decisions.",
     category: "wisdom",
     tagline: "Ask God first.",
+  },
+  {
+    name: "Wealth & Success",
+    description: "Stewardship, provision, and purpose.",
+    category: "wealth",
+    tagline: "Seek first His kingdom.",
   },
 ] as const;
 
@@ -78,47 +126,35 @@ async function main(): Promise<void> {
   const rows: (typeof officialPrayersTable.$inferInsert)[] = [
     {
       title: "Morning reflection (demo)",
-      subtitle: "Replace from admin when ready",
-      content:
-        "Lord, thank you for this new day. Order my thoughts around your peace before I step into what’s ahead.",
+      subtitle: "Start the day with gratitude",
+      content: "Lord, thank you for this new day. Guide my steps and guard my heart.",
       category: "gratitude",
-      pathId: first.id,
+      pathId: paths.find((p) => p.category === "gratitude")?.id ?? first.id,
       scheduleSlot: "morning",
       label: "Official Prayer",
+      audioUrl: `${UPLOADS_AUDIO_BASE}/demo-morning.mp3`,
       scripture: "Lamentations 3:22–23",
-      audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-morning-sanctuary.mp3`,
+      durationMinutes: 5,
     },
     {
-      title: "Evening release (demo)",
-      subtitle: "Replace from admin when ready",
-      content:
-        "Father, I lay down what I cannot control. Quiet my mind; let me rest in your care tonight.",
+      title: "Evening reflection (demo)",
+      subtitle: "Release the day and rest",
+      content: "Father, I lay down what I cannot control. Grant me peaceful rest tonight.",
       category: "peace",
-      pathId: first.id,
+      pathId: paths.find((p) => p.category === "peace")?.id ?? first.id,
       scheduleSlot: "evening",
       label: "Official Prayer",
+      audioUrl: `${UPLOADS_AUDIO_BASE}/demo-evening.mp3`,
       scripture: "Psalm 4:8",
-      audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-evening-sanctuary.mp3`,
+      durationMinutes: 5,
     },
   ];
 
-  const pathAudio = ["prayer-hope", "prayer-wisdom", "prayer-peace", "prayer-gratitude", "prayer-anxiety"] as const;
-  paths.slice(0, 5).forEach((p, i) => {
-    rows.push({
-      title: `On the path: ${p.name}`,
-      subtitle: "Sample official prayer",
-      content: `A gentle guided moment for the “${p.name}” journey. Swap this copy and attach audio from the admin panel.`,
-      category: p.category,
-      pathId: p.id,
-      label: "Official Prayer",
-      scripture: "Philippians 4:6",
-      audioUrl: `${UPLOADS_AUDIO_BASE}/${pathAudio[i]}.mp3`,
-    });
-  });
-
   await db.insert(officialPrayersTable).values(rows);
-  console.log(`[seed-library-demo] Inserted ${rows.length} official prayers (incl. morning/evening).`);
+  console.log(`[seed-library-demo] Inserted ${rows.length} official prayers.`);
+
   await pool.end();
+  console.log("[seed-library-demo] Done.");
 }
 
 main().catch((err) => {

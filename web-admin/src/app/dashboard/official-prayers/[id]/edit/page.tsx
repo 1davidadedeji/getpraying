@@ -68,6 +68,7 @@ export default function EditOfficialPrayerPage() {
           scripture: draft.scripture.trim() || null,
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,
+          label: "Official Prayer",
         }),
       });
       if (res.ok) {

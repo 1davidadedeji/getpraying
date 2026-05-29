@@ -36,6 +36,8 @@ export { getMonthlyPackage };
 type RevenueCatState = {
   enabled: boolean;
   isReady: boolean;
+  /** True while SDK init or account link is still resolving — gate navigation until false. */
+  isCheckingSubscription: boolean;
   catalogLoading: boolean;
   catalogError: string | null;
   offerings: PurchasesOfferings | null;
@@ -80,16 +82,21 @@ function RevenueCatUserSync({
   enabled,
   onCustomerInfo,
   onUserLinked,
+  onAccountLinkSettled,
 }: {
   enabled: boolean;
   onCustomerInfo: (info: CustomerInfo | null) => void;
   onUserLinked: () => Promise<void>;
+  onAccountLinkSettled: () => void;
 }) {
   const { user } = useAuth();
   const [linkedUserId, setLinkedUserId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      onAccountLinkSettled();
+      return;
+    }
     if (user?.id) return;
 
     setLinkedUserId(null);
@@ -100,14 +107,23 @@ function RevenueCatUserSync({
         onCustomerInfo(info);
       } catch {
         onCustomerInfo(null);
+      } finally {
+        onAccountLinkSettled();
       }
     })();
-  }, [enabled, user?.id, onCustomerInfo]);
+  }, [enabled, user?.id, onCustomerInfo, onAccountLinkSettled]);
 
   useEffect(() => {
     (async () => {
-      if (!enabled || !user?.id) return;
-      if (linkedUserId === user.id) return;
+      if (!enabled) return;
+      if (!user?.id) {
+        onAccountLinkSettled();
+        return;
+      }
+      if (linkedUserId === user.id) {
+        onAccountLinkSettled();
+        return;
+      }
       try {
         const Purchases = getPurchases();
         const { customerInfo: info } = await Purchases.logIn(String(user.id));
@@ -116,9 +132,11 @@ function RevenueCatUserSync({
         await onUserLinked();
       } catch {
         /* ignore — anonymous customer still works for new purchases */
+      } finally {
+        onAccountLinkSettled();
       }
     })();
-  }, [enabled, user?.id, linkedUserId, onCustomerInfo, onUserLinked]);
+  }, [enabled, user?.id, linkedUserId, onCustomerInfo, onUserLinked, onAccountLinkSettled]);
 
   return null;
 }
@@ -133,6 +151,17 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [monthlyStoreProduct, setMonthlyStoreProduct] = useState<PurchasesStoreProduct | null>(null);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const [accountLinkSettled, setAccountLinkSettled] = useState(false);
+
+  const onAccountLinkSettled = useCallback(() => {
+    setAccountLinkSettled(true);
+  }, []);
+
+  useEffect(() => {
+    setAccountLinkSettled(false);
+  }, [user?.id, enabled]);
+
+  const isCheckingSubscription = !isReady || (enabled && !!user?.id && !accountLinkSettled);
 
   const loadCatalog = useCallback(async () => {
     if (!enabled) return;
@@ -286,6 +315,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     () => ({
       enabled,
       isReady,
+      isCheckingSubscription,
       catalogLoading,
       catalogError,
       offerings,
@@ -306,6 +336,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     [
       enabled,
       isReady,
+      isCheckingSubscription,
       catalogLoading,
       catalogError,
       offerings,
@@ -331,6 +362,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
         enabled={enabled}
         onCustomerInfo={setCustomerInfo}
         onUserLinked={loadCatalog}
+        onAccountLinkSettled={onAccountLinkSettled}
       />
       {children}
     </RevenueCatContext.Provider>
@@ -343,6 +375,7 @@ export function useRevenueCat(): RevenueCatState {
     return {
       enabled: false,
       isReady: true,
+      isCheckingSubscription: false,
       catalogLoading: false,
       catalogError: null,
       offerings: null,

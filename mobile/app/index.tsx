@@ -47,7 +47,7 @@ export default function WelcomeScreen() {
     if (loading || !user || !token) return null;
     const route = getPostAuthRoute(user, rc, pendingDeepLink);
     return route ? String(route) : null;
-  }, [loading, user, token, rc.isReady, rc.enabled, rc.isEntitled, pendingDeepLink]);
+  }, [loading, user, token, rc.isReady, rc.isCheckingSubscription, rc.enabled, rc.isEntitled, pendingDeepLink]);
 
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
   const { data: dailyWord } = useGetDailyWord(

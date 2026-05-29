@@ -29,6 +29,7 @@ import {
   fetchTracksForLecture,
   type LectureTrackInput,
 } from "../lib/lectureTracks";
+import { defaultOfficialGuideLabel, normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
 
 async function notifyAuthorPostDecision(
   authorId: number | null,
@@ -690,7 +691,11 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
       audioUrl: isLecture ? null : legacyAudioUrl,
       durationMinutes: durationMinutesGeneral != null && durationMinutesGeneral > 0 ? durationMinutesGeneral : null,
       scheduleSlot,
-      label: typeof req.body?.label === "string" ? req.body.label : null,
+      label: defaultOfficialGuideLabel({
+        bodyLabel: req.body?.label,
+        scheduleSlot,
+        category,
+      }),
       uploadedByUserId: mod.id,
     })
     .returning();
@@ -758,7 +763,12 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
 
   let labelNext = existing.label;
   if (req.body != null && "label" in req.body) {
-    labelNext = typeof req.body.label === "string" ? req.body.label : null;
+    labelNext =
+      typeof req.body.label === "string" && req.body.label.trim()
+        ? normalizeOfficialGuideLabel(req.body.label)
+        : null;
+  } else if (labelNext) {
+    labelNext = normalizeOfficialGuideLabel(labelNext);
   }
 
   let pathIdNext = existing.pathId;
@@ -861,7 +871,11 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
     typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
   const subtitle = typeof req.body?.subtitle === "string" ? req.body.subtitle : null;
   const audioUrl = typeof req.body?.audioUrl === "string" ? req.body.audioUrl.trim() : null;
-  const label = typeof req.body?.label === "string" ? req.body.label : null;
+  const label = defaultOfficialGuideLabel({
+    bodyLabel: req.body?.label,
+    scheduleSlot: slot,
+    category,
+  });
   const scripture =
     typeof req.body?.scripture === "string" && req.body.scripture.trim() ? req.body.scripture.trim() : null;
   const durationMinutes =
