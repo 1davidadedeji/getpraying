@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Get Praying",
-    "slug": "mobile",
+    "slug": "get-praying",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -16,7 +16,9 @@
     },
     "ios": {
       "supportsTablet": true,
-      "associatedDomains": ["applinks:share.getpraying.com"],
+      "associatedDomains": [
+        "applinks:share.getpraying.com"
+      ],
       "infoPlist": {
         "CFBundleDisplayName": "Get Praying",
         "ITSAppUsesNonExemptEncryption": false
@@ -55,7 +57,10 @@
               "pathPrefix": "/user"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
@@ -121,7 +126,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "b11d202d-876e-4839-b3d5-0051e73ad11b"
+        "projectId": "9137b090-ffe1-4b36-b9cf-2502a6b849d9"
       }
     },
     "owner": "timelesz_dave"

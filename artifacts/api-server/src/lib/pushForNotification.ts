@@ -80,7 +80,11 @@ async function sendExpoPush(
     const ticket = Array.isArray(json?.data) ? json!.data![0] : undefined;
     if (ticket?.status === "error") {
       const code = ticket.details?.error;
-      console.warn("[push] Expo ticket error:", code ?? ticket.message ?? "unknown");
+      console.warn("[push] Expo ticket error:", {
+        code: code ?? ticket.message ?? "unknown",
+        tokenPrefix: expoToken.slice(0, 28),
+        apns: ticket.details,
+      });
       if (code === "DeviceNotRegistered" || code === "InvalidCredentials") {
         await db
           .update(usersTable)

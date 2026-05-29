@@ -1,8 +1,11 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { apiUrl, authHeaders } from "@/lib/api";
+
+const PUSH_BUILD_KEY = "@getpraying/push-build-fingerprint";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -30,26 +33,41 @@ function projectIdForExpoPush(): string | undefined {
   return typeof id === "string" && id.length > 0 ? id : undefined;
 }
 
+function currentBuildFingerprint(): string {
+  const cfg = Constants.expoConfig;
+  const buildNumber = cfg?.ios?.buildNumber ?? cfg?.android?.versionCode ?? "0";
+  return [Platform.OS, buildNumber, Constants.executionEnvironment ?? "unknown"].join(":");
+}
+
 async function postPushTokenToServer(
   apiJwt: string,
-  payload: { token: string | null; timezone?: string | null },
-): Promise<void> {
-  const body: { token: string | null; timezone?: string } = { token: payload.token };
+  payload: {
+    token: string | null;
+    timezone?: string | null;
+    platform?: string;
+    buildFingerprint?: string;
+  },
+): Promise<boolean> {
+  const body: Record<string, string | null> = { token: payload.token };
   if (payload.token != null) {
     const tz =
       payload.timezone && payload.timezone.length > 0
         ? payload.timezone
         : Intl.DateTimeFormat().resolvedOptions().timeZone;
     body.timezone = tz;
+    body.platform = payload.platform ?? Platform.OS;
+    if (payload.buildFingerprint) body.buildFingerprint = payload.buildFingerprint;
   }
   const res = await fetch(apiUrl("/users/me/push-token"), {
     method: "POST",
     headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  if (!res.ok && __DEV__) {
+  if (!res.ok) {
     console.warn("[push] server rejected token sync:", res.status, await res.text().catch(() => ""));
+    return false;
   }
+  return true;
 }
 
 /**
@@ -58,13 +76,23 @@ async function postPushTokenToServer(
 export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: string): Promise<void> {
   if (!apiJwt || !Device.isDevice || !expoToken.trim()) return;
   await ensureAndroidNotificationChannel();
-  await postPushTokenToServer(apiJwt, { token: expoToken.trim() });
+  await postPushTokenToServer(apiJwt, {
+    token: expoToken.trim(),
+    platform: Platform.OS,
+    buildFingerprint: currentBuildFingerprint(),
+  });
 }
 
 export async function registerAndSyncPushToken(apiJwt: string | null): Promise<void> {
   if (!apiJwt || !Device.isDevice) return;
 
   await ensureAndroidNotificationChannel();
+
+  const buildFingerprint = currentBuildFingerprint();
+  const prevFingerprint = await AsyncStorage.getItem(PUSH_BUILD_KEY);
+  if (prevFingerprint && prevFingerprint !== buildFingerprint) {
+    await postPushTokenToServer(apiJwt, { token: null });
+  }
 
   const { status: existing } = await Notifications.getPermissionsAsync();
   let final = existing;
@@ -76,7 +104,7 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
   }
 
   if (final !== "granted") {
-    if (__DEV__) console.warn("[push] notification permission not granted:", final);
+    console.warn("[push] notification permission not granted:", final);
     await postPushTokenToServer(apiJwt, { token: null });
     return;
   }
@@ -86,9 +114,14 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     const tokenRes = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined,
     );
-    await postPushTokenToServer(apiJwt, { token: tokenRes.data });
+    const ok = await postPushTokenToServer(apiJwt, {
+      token: tokenRes.data,
+      platform: Platform.OS,
+      buildFingerprint,
+    });
+    if (ok) await AsyncStorage.setItem(PUSH_BUILD_KEY, buildFingerprint);
   } catch (err) {
-    if (__DEV__) console.warn("[push] getExpoPushTokenAsync failed:", err);
+    console.warn("[push] getExpoPushTokenAsync failed:", err);
   }
 }
 

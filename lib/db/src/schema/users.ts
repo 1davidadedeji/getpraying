@@ -33,6 +33,8 @@ export const usersTable = pgTable("users", {
   morningNotifSentAt: timestamp("morning_notif_sent_at", { withTimezone: true }),
   /** Last time the evening-prayer scheduled notification was sent (to prevent duplicates). */
   eveningNotifSentAt: timestamp("evening_notif_sent_at", { withTimezone: true }),
+  /** Last time the daily help reminder was sent (to prevent duplicates). */
+  dailyHelpNotifSentAt: timestamp("daily_help_notif_sent_at", { withTimezone: true }),
   /** User opt-out for the 4 AM / 5 PM scheduled push notifications (default true = opted in). */
   scheduledNotificationsEnabled: boolean("scheduled_notifications_enabled").notNull().default(true),
   prayersShared: integer("prayers_shared").notNull().default(0),

@@ -1,6 +1,6 @@
 import { db, usersTable, dailyWordOverridesTable } from "@workspace/db";
-import { and, isNotNull, lt, or, isNull } from "drizzle-orm";
-import { eq, sql } from "drizzle-orm";
+import { and, isNotNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { sendDirectPush } from "./pushForNotification";
 import { resolveDailyQuote } from "./dailyWordCatalog";
 import { getDailyWordAutoRotation } from "./dailyWordSettings";
@@ -50,7 +50,7 @@ async function getTodayQuoteText(): Promise<string> {
 
 async function sendMorningPrayers(): Promise<void> {
   const quote = await getTodayQuoteText();
-  const body = `The morning prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
+  const body = `Get Praying — The morning prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
 
   const users = await db
     .select({
@@ -99,7 +99,7 @@ async function sendMorningPrayers(): Promise<void> {
 
 async function sendEveningPrayers(): Promise<void> {
   const quote = await getTodayQuoteText();
-  const body = `The evening prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
+  const body = `Get Praying — The evening prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
 
   const users = await db
     .select({
@@ -146,33 +146,45 @@ async function sendEveningPrayers(): Promise<void> {
 }
 
 async function sendDailyHelpReminder(): Promise<void> {
-  // Fire at 8 AM in user's local timezone, once per day
   const users = await db
     .select({
       id: usersTable.id,
       token: usersTable.expoPushToken,
       timezone: usersTable.timezone,
-      morningNotifSentAt: usersTable.morningNotifSentAt,
+      dailyHelpNotifSentAt: usersTable.dailyHelpNotifSentAt,
     })
     .from(usersTable)
-    .where(and(isNotNull(usersTable.expoPushToken), isNotNull(usersTable.timezone)));
+    .where(and(
+      isNotNull(usersTable.expoPushToken),
+      isNotNull(usersTable.timezone),
+      eq(usersTable.scheduledNotificationsEnabled, true),
+    ));
 
   const toNotify: typeof users = [];
   for (const u of users) {
     if (!u.token || !u.timezone) continue;
     const hm = localHourMinute(u.timezone);
-    if (!hm || hm.hour !== 8 || hm.minute >= 5) continue;
-    // Reuse morningNotifSentAt date to avoid sending both morning (4am) and this (8am) on same day
-    // Use a simple check: if we fired this reminder already today, skip
-    // We track via morningNotifSentAt being same date — but that's the morning prayer.
-    // So use a separate field-less approach: just fire and trust 5-min window won't double fire
+    if (!hm || hm.hour !== 8 || hm.minute >= 20) continue;
+    const todayLocal = localDateString(u.timezone);
+    if (u.dailyHelpNotifSentAt) {
+      const lastSentLocal = new Intl.DateTimeFormat("en-CA", { timeZone: u.timezone }).format(
+        u.dailyHelpNotifSentAt,
+      );
+      if (lastSentLocal >= todayLocal) continue;
+    }
     toNotify.push(u);
   }
 
+  const now = new Date();
   for (const u of toNotify) {
     void sendDirectPush(u.token!, "Get Praying", "See who to help on Get Praying", {
       type: "daily_help_reminder",
     }).catch(() => {});
+    void db
+      .update(usersTable)
+      .set({ dailyHelpNotifSentAt: now })
+      .where(eq(usersTable.id, u.id))
+      .catch(() => {});
   }
 
   if (toNotify.length > 0) {
