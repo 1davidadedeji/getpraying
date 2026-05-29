@@ -54,3 +54,14 @@ export const POST_CATEGORY_FILTER_OPTIONS: { value: string; label: string }[] = 
     label: LABELS[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1),
   })),
 ];
+
+/** Human label for a path/post category slug (e.g. anxiety → Anxiety & worry). */
+export function categoryLabel(slug: string): string {
+  const key = slug.trim().toLowerCase();
+  return LABELS[key] ?? slug.charAt(0).toUpperCase() + slug.slice(1);
+}
+
+export const PATH_CATEGORY_OPTIONS = POST_CATEGORY_SLUGS.map((slug) => ({
+  value: slug,
+  label: categoryLabel(slug),
+}));

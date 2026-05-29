@@ -3,6 +3,7 @@ import {
   Bell,
   BookOpen,
   ClipboardList,
+  FolderTree,
   Inbox,
   LayoutDashboard,
   PlayCircle,
@@ -45,8 +46,15 @@ export const DASHBOARD_NAV: DashboardNavItem[] = [
   {
     href: "/dashboard/official-prayers",
     label: "Official guides",
-    subtitle: "Sanctuary slots and library lectures",
+    subtitle: "Morning and evening sanctuary audio",
     icon: BookOpen,
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/paths",
+    label: "Category guides",
+    subtitle: "Library paths — anxiety, family, forgiveness, and more",
+    icon: FolderTree,
     adminOnly: true,
   },
   {
