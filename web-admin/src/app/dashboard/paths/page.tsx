@@ -66,7 +66,6 @@ export default function PathsPage() {
     <>
       <PageHeader
         title="Category guides"
-        description="Library paths — anxiety, family, forgiveness, and more"
         action={
           <Link href="/dashboard/paths/new" className={btnPrimary + " inline-flex items-center gap-1.5"}>
             <Plus className="h-3.5 w-3.5" aria-hidden />

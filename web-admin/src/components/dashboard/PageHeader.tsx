@@ -18,11 +18,11 @@ export function PageHeader({
   backLabel?: string;
 }) {
   return (
-    <div className={cn("mb-4", className)}>
+    <div className={cn("mb-3", className)}>
       {backHref ? <BackLink href={backHref} label={backLabel ?? "Back"} /> : null}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="font-heading text-lg font-bold tracking-tight text-[var(--color-primary)] sm:text-xl">
+          <h1 className="font-heading text-base font-bold tracking-tight text-[var(--color-primary)] sm:text-lg">
             {title}
           </h1>
           {description ? (

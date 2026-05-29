@@ -164,7 +164,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           "relative z-30 hidden h-[100dvh] shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-cream)] shadow-[1px_0_0_color-mix(in_srgb,var(--color-primary)_4%,transparent)] transition-[width] duration-200 ease-out md:fixed md:inset-y-0 md:left-0 md:flex",
-          sidebarCollapsed ? "md:w-14" : "md:w-52",
+          sidebarCollapsed ? "md:w-14" : "md:w-56",
         )}
       >
         <div
@@ -185,19 +185,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <AsideCollapseToggle collapsed={sidebarCollapsed} />
             </div>
           ) : (
-            <div className="mb-4 flex items-start justify-between gap-2">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-1">
               <Link
                 href="/dashboard"
                 aria-label="Get Praying admin home"
-                className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-0.5 outline-none ring-[var(--color-flame)] transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-cream)]"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-0.5 py-0.5 outline-none hover:opacity-90"
               >
-                <Image src="/logo.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" aria-hidden />
-                <div className="min-w-0 leading-tight">
-                  <p className="font-heading text-[15px] font-bold text-[var(--color-primary)]">Get Praying</p>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                    Admin · CMS
-                  </p>
-                </div>
+                <Image src="/logo.png" alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" aria-hidden />
+                <span className="font-heading truncate text-[13px] font-bold leading-none whitespace-nowrap text-[var(--color-primary)]">
+                  Get Praying
+                </span>
               </Link>
               <AsideCollapseToggle collapsed={sidebarCollapsed} />
             </div>
@@ -247,7 +244,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div
         className={cn(
           "flex min-h-[100dvh] flex-1 flex-col transition-[padding] duration-200 ease-out",
-          sidebarCollapsed ? "md:pl-14" : "md:pl-52",
+          sidebarCollapsed ? "md:pl-14" : "md:pl-56",
         )}
       >
         <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-cream)_94%,white)] px-3 py-2.5 backdrop-blur-md md:hidden">
@@ -269,8 +266,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <main className="relative flex min-h-0 flex-1 flex-col">
           <div className="mx-auto min-h-[100dvh] w-full max-w-[1800px] border-x border-transparent">
-            <div className="min-h-[100dvh] bg-[var(--color-cream-muted)] pb-10">
-              <div className="px-3 py-4 sm:px-5 sm:py-5 lg:px-6">{children}</div>
+            <div className="min-h-[100dvh] bg-[var(--color-cream-muted)] pb-6">
+              <div className="mx-auto max-w-5xl px-3 py-3 sm:px-4 sm:py-4">{children}</div>
             </div>
           </div>
         </main>

@@ -228,6 +228,35 @@ router.get("/admin/posts/moderated", requireAdmin, async (req, res): Promise<voi
   });
 });
 
+/** Full post for staff review (moderation + all-posts detail). Always includes content and reports. */
+router.get("/admin/posts/:postId", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(String(rawId), 10);
+  if (Number.isNaN(postId)) {
+    res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const mod = (req as any).user;
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId)).limit(1);
+  if (!post) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
+  const [enriched] = await enrichPosts([post], mod.id);
+  const [withReports] = await attachReportsForStaff([enriched]);
+  const row = withReports[0];
+  const reportCount = row.reports?.length ?? 0;
+  const flagCount = post.flagCount ?? 0;
+
+  res.json({
+    ...row,
+    flagCount,
+    isReported: reportCount > 0 || flagCount > 0 || Boolean(post.flagReason),
+  });
+});
+
 router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
@@ -310,14 +339,18 @@ router.delete("/admin/posts/:postId/remove", requireAdmin, async (req, res): Pro
   res.json({ success: true, message: "Post removed" });
 });
 
-/** Return an approved post to the moderation queue (admin only). */
+/** Return a post to the moderation queue (admin only). */
 router.post("/admin/posts/:postId/requeue", requireAdmin, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
 
   const [post] = await db
     .update(postsTable)
-    .set({ status: "pending", moderatedByUserId: null })
+    .set({
+      status: "pending",
+      moderatedByUserId: null,
+      moderationReason: null,
+    })
     .where(eq(postsTable.id, postId))
     .returning();
 

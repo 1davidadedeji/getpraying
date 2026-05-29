@@ -38,7 +38,7 @@ export function AdminPostFiltersCard({
   loading: boolean;
 }) {
   return (
-    <div className={cn(panelCls, "mb-3 p-3")}>
+    <div className={cn(panelCls, "mb-2 p-2.5")}>
       <div
         className={cn(
           "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:items-end",

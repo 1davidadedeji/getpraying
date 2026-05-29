@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { AdminPostFiltersCard } from "@/components/dashboard/AdminPostFiltersCard";
 import { AdminPaginationBar } from "@/components/dashboard/AdminPaginationBar";
+import { PostStatusBadge, ReportedBadge } from "@/components/dashboard/AdminPostBody";
 import { panelCls } from "@/components/dashboard/form-styles";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
@@ -20,6 +21,8 @@ interface Post {
   category: string | null;
   mediaType: string | null;
   isAnonymous: boolean;
+  flagReason?: string | null;
+  flagCount?: number;
   reports?: { reporterUsername: string }[];
 }
 
@@ -106,7 +109,6 @@ export default function ModerationPage() {
     <>
       <PageHeader
         title="Moderation"
-        description="Review pending posts"
         action={
           pendingCount !== null ? (
             <span
@@ -144,14 +146,17 @@ export default function ModerationPage() {
               <Link
                 key={post.id}
                 href={`/dashboard/moderation/${post.id}`}
-                className={`${panelCls} block p-3 transition-colors hover:border-[var(--color-flame)]`}
+                className={`${panelCls} block px-2.5 py-2 transition-colors hover:border-[var(--color-flame)]`}
               >
-                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                <div className="mb-0.5 flex flex-wrap items-center gap-1">
                   <span className="text-[11px] font-semibold text-[var(--color-primary)]">
                     {post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Unknown")}
                   </span>
                   {!post.isAnonymous && post.authorUsername ? (
                     <span className="text-[10px] text-[var(--color-muted)]">@{post.authorUsername}</span>
+                  ) : null}
+                  {(post.reports?.length ?? 0) > 0 || post.flagReason || (post.flagCount ?? 0) > 0 ? (
+                    <ReportedBadge />
                   ) : null}
                   {post.category ? (
                     <span className="rounded bg-[var(--color-flame)]/10 px-1.5 py-0.5 text-[10px] capitalize text-[var(--color-flame)]">
@@ -159,15 +164,13 @@ export default function ModerationPage() {
                     </span>
                   ) : null}
                   {(post.reports?.length ?? 0) > 0 ? (
-                    <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-danger)]">
-                      {post.reports!.length} report{post.reports!.length === 1 ? "" : "s"}
-                    </span>
+                    <span className="text-[10px] text-[var(--color-danger)]">{post.reports!.length} reports</span>
                   ) : null}
                   <span className="ml-auto text-[10px] text-[var(--color-muted)]">
                     {new Date(post.createdAt).toLocaleString()}
                   </span>
                 </div>
-                <p className="line-clamp-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">{post.content}</p>
+                <p className="line-clamp-1 text-[11px] text-[var(--color-text-secondary)]">{post.content}</p>
               </Link>
             ))}
           </div>

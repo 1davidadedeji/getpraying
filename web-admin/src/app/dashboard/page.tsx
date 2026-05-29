@@ -1,23 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DASHBOARD_NAV } from "@/config/dashboard-nav";
 import { HubNavLink } from "@/components/dashboard/HubNavLink";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { StatCard } from "@/components/dashboard/StatCard";
+import { panelCls } from "@/components/dashboard/form-styles";
 import { useAuth } from "@/context/auth";
 import { navForRole, primaryNavMatch } from "@/lib/dashboard-nav-utils";
 import { apiUrl, authHeaders } from "@/lib/api";
 
 interface Stats {
   totalUsers?: number;
-  activeUsers?: number;
   totalPosts?: number;
   pendingPosts?: number;
   approvedPosts?: number;
-  declinedPosts?: number;
-  bannedUsers?: number;
   prayersToday?: number;
 }
 
@@ -29,6 +27,7 @@ export default function DashboardPage() {
   const navItems = navForRole(user?.role ?? "moderator", DASHBOARD_NAV).filter((i) => i.href !== "/dashboard");
   const quickActiveHref = primaryNavMatch(pathname, navItems)?.href ?? null;
   const isAdmin = user?.role === "admin";
+  const pending = (isAdmin ? stats.pendingPosts : modPending) ?? 0;
 
   useEffect(() => {
     if (!token || !isAdmin) return;
@@ -52,35 +51,38 @@ export default function DashboardPage() {
 
   const greeting = (() => {
     const h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
+    if (h < 12) return "Morning";
+    if (h < 17) return "Afternoon";
+    return "Evening";
   })();
 
   return (
     <>
-      <PageHeader
-        title={`${greeting}, ${user?.displayName ?? user?.username}`}
-        description={user?.role === "admin" ? "Administrator" : "Moderator"}
-      />
+      <PageHeader title={`${greeting}, ${user?.displayName ?? user?.username}`} />
 
       {isAdmin ? (
-        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <StatCard label="Total users" value={stats.totalUsers} sub={`${stats.bannedUsers ?? 0} banned`} />
-          <StatCard label="Total prayers" value={stats.totalPosts} sub={`${stats.approvedPosts ?? 0} live`} />
-          <StatCard
-            label="Pending review"
-            value={stats.pendingPosts}
-            accent={(stats.pendingPosts ?? 0) > 0}
-          />
-          <StatCard label="Prayers today" value={stats.prayersToday} />
+        <div className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          {[
+            { label: "Users", value: stats.totalUsers },
+            { label: "Prayers", value: stats.totalPosts },
+            { label: "Pending", value: stats.pendingPosts, hot: (stats.pendingPosts ?? 0) > 0 },
+            { label: "Today", value: stats.prayersToday },
+          ].map((s) => (
+            <div key={s.label} className={`${panelCls} px-2.5 py-2`}>
+              <p className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">{s.label}</p>
+              <p className={`text-base font-bold ${s.hot ? "text-[var(--color-flame)]" : "text-[var(--color-primary)]"}`}>
+                {s.value === undefined ? "—" : s.value.toLocaleString()}
+              </p>
+            </div>
+          ))}
         </div>
+      ) : pending > 0 ? (
+        <Link href="/dashboard/moderation" className={`${panelCls} mb-3 block px-2.5 py-2 text-[12px] font-medium text-[var(--color-flame)]`}>
+          {pending} pending — review now
+        </Link>
       ) : null}
 
-      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-        Sections
-      </h2>
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
         {navItems.map((item) => (
           <HubNavLink
             key={item.href}
@@ -88,10 +90,7 @@ export default function DashboardPage() {
             title={item.label}
             icon={item.icon}
             active={item.href === quickActiveHref}
-            urgent={
-              item.href === "/dashboard/moderation" &&
-              ((isAdmin ? stats.pendingPosts : modPending) ?? 0) > 0
-            }
+            urgent={item.href === "/dashboard/moderation" && pending > 0}
           />
         ))}
       </div>

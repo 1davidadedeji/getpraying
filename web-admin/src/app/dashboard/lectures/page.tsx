@@ -85,7 +85,6 @@ export default function LecturesPage() {
     <>
       <PageHeader
         title="Lectures"
-        description="Library lessons with multi-part audio"
         action={
           <Link href="/dashboard/lectures/new" className={btnPrimary + " inline-flex items-center gap-1.5"}>
             <Plus className="h-3.5 w-3.5" aria-hidden />

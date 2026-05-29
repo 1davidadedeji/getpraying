@@ -82,7 +82,6 @@ export default function OfficialPrayersPage() {
     <>
       <PageHeader
         title="Official guides"
-        description="Morning and evening sanctuary audio"
         action={
           <Link href="/dashboard/official-prayers/new" className={btnPrimary + " inline-flex items-center gap-1.5"}>
             <Plus className="h-3.5 w-3.5" aria-hidden />
