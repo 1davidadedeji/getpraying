@@ -66,7 +66,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
       <View style={[styles.officialCardTop, { gap: topGap, marginBottom: topMb }]}>
         {leadMark ?? <Ionicons name="link-outline" size={linkIcn} color={colors.primary} />}
         <Text style={[styles.officialBadge, { fontSize: fsBadge }]} numberOfLines={2}>
-          {(op.label ?? "OFFICIAL GUIDE").toUpperCase()}
+          {(op.label ?? "OFFICIAL PRAYER").toUpperCase()}
           {op.scheduleSlot ? ` · ${op.scheduleSlot}` : ""}
         </Text>
         {showSave && onToggleSave ? (

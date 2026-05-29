@@ -2,7 +2,7 @@
  * Seeds the library with all prayer paths and official prayers linked to audio
  * files in artifacts/api-server/data/seed-audio (copied into data/uploads on each run).
  *
- * First two MP3s (sorted by filename) → morning & evening official guides.
+ * First two MP3s (sorted by filename) → morning & evening official prayers.
  * Remaining MP3s → “For your situation” path guides (in PATHS order; extra paths
  * share the last situation file if there are fewer audios than paths).
  *
@@ -278,7 +278,7 @@ async function main(): Promise<void> {
       category: "gratitude",
       pathId: morningPathId,
       scheduleSlot: "morning",
-      label: "Official Guide",
+      label: "Official Prayer",
       audioUrl: morning,
       scripture: "Lamentations 3:22–23",
       durationMinutes: 7,
@@ -291,7 +291,7 @@ async function main(): Promise<void> {
       category: "peace",
       pathId: eveningPathId,
       scheduleSlot: "evening",
-      label: "Official Guide",
+      label: "Official Prayer",
       audioUrl: evening,
       scripture: "Psalm 4:8",
       durationMinutes: 6,
@@ -308,7 +308,7 @@ async function main(): Promise<void> {
       content: c.content,
       category: pathRow.category,
       pathId: pathRow.id,
-      label: "Official Guide",
+      label: "Official Prayer",
       audioUrl: byPathIndex[i] ?? null,
       scripture: c.scripture,
       durationMinutes: c.duration,

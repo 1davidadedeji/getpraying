@@ -447,11 +447,7 @@ export default function FeedScreen() {
         </View>
         <View style={styles.headerRight}>
           <Pressable
-            onPress={() =>
-              user?.username
-                ? router.push(`/user/${user.username}` as never)
-                : router.push("/(tabs)/profile" as never)
-            }
+            onPress={() => router.push("/(tabs)/profile" as never)}
             style={styles.headerAvatarBtn}
             accessibilityRole="button"
             accessibilityLabel="Your profile"

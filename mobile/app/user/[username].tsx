@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 
 import type { Href } from "expo-router";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -66,6 +66,11 @@ export default function UserProfileScreen() {
   const listBotPad = Math.round(clamp(100 * uiScale, 88, 112));
   const { token, user: me } = useAuth();
   const isOwnProfile = !!me && me.username === username;
+
+  useEffect(() => {
+    if (!isOwnProfile) return;
+    router.replace("/(tabs)/profile" as Href);
+  }, [isOwnProfile]);
 
   const [followBusy, setFollowBusy] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);

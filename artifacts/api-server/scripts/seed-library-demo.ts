@@ -84,7 +84,7 @@ async function main(): Promise<void> {
       category: "gratitude",
       pathId: first.id,
       scheduleSlot: "morning",
-      label: "Official Guide",
+      label: "Official Prayer",
       scripture: "Lamentations 3:22–23",
       audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-morning-sanctuary.mp3`,
     },
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
       category: "peace",
       pathId: first.id,
       scheduleSlot: "evening",
-      label: "Official Guide",
+      label: "Official Prayer",
       scripture: "Psalm 4:8",
       audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-evening-sanctuary.mp3`,
     },
@@ -106,11 +106,11 @@ async function main(): Promise<void> {
   paths.slice(0, 5).forEach((p, i) => {
     rows.push({
       title: `On the path: ${p.name}`,
-      subtitle: "Sample official guide",
+      subtitle: "Sample official prayer",
       content: `A gentle guided moment for the “${p.name}” journey. Swap this copy and attach audio from the admin panel.`,
       category: p.category,
       pathId: p.id,
-      label: "Official Guide",
+      label: "Official Prayer",
       scripture: "Philippians 4:6",
       audioUrl: `${UPLOADS_AUDIO_BASE}/${pathAudio[i]}.mp3`,
     });

@@ -24,7 +24,8 @@
         "EXPO_PUBLIC_SHARE_WEB_ORIGIN": "https://share.getpraying.com",
         "EXPO_PUBLIC_WEB_ADMIN_ORIGIN": "https://admin.getpraying.com",
         "EXPO_PUBLIC_RC_APPLE_KEY": "appl_VjuHRrtAXcOwAASvJbcxIIycsSP",
-        "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_evTtlMwHRtqXfsrmPLHbjRpJafZ"
+        "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_evTtlMwHRtqXfsrmPLHbjRpJafZ",
+        "EXPO_PUBLIC_RC_GOOGLE_PRODUCT_ID": "getpraying_monthly_699"
       }
     },
     "production": {
@@ -36,7 +37,8 @@
         "EXPO_PUBLIC_SHARE_WEB_ORIGIN": "https://share.getpraying.com",
         "EXPO_PUBLIC_WEB_ADMIN_ORIGIN": "https://admin.getpraying.com",
         "EXPO_PUBLIC_RC_APPLE_KEY": "appl_VjuHRrtAXcOwAASvJbcxIIycsSP",
-        "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_evTtlMwHRtqXfsrmPLHbjRpJafZ"
+        "EXPO_PUBLIC_RC_GOOGLE_KEY": "goog_evTtlMwHRtqXfsrmPLHbjRpJafZ",
+        "EXPO_PUBLIC_RC_GOOGLE_PRODUCT_ID": "getpraying_monthly_699"
       }
     },
     "simulator": {

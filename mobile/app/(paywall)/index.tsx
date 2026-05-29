@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -72,6 +72,13 @@ export default function PaywallScreen() {
     return () => sub.remove();
   }, [isSoftPaywall, dismissPaywall]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!rc.enabled || rc.hasMonthlyOffer) return;
+      void rc.refresh();
+    }, [rc.enabled, rc.hasMonthlyOffer, rc.refresh]),
+  );
+
   const continueAfterSubscribe = () => {
     if (!user) {
       router.replace("/(tabs)" as import("expo-router").Href);
@@ -110,8 +117,8 @@ export default function PaywallScreen() {
   const linkPadV = Math.round(clamp(10 * uiScale, 8, 12));
   const fsLink = Math.round(clamp(14 * uiScale, 13, 16));
 
-  const monthly = rc.monthlyPackage;
-  const trialOffer = formatMonthlyTrialOffer(monthly?.product);
+  const monthlyProduct = rc.monthlyProduct;
+  const trialOffer = formatMonthlyTrialOffer(monthlyProduct);
   const legalText =
     Platform.OS === "ios"
       ? "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community."
@@ -119,9 +126,9 @@ export default function PaywallScreen() {
  
 
   const onPurchase = async () => {
-    if (!monthly) return;
+    if (!rc.hasMonthlyOffer) return;
     try {
-      await rc.purchasePackage(monthly);
+      await rc.purchaseMonthly();
       showAppAlert({
         title: "You're subscribed",
         message: "Welcome to Get Praying — the prayer feed, Library, and community are unlocked.",
@@ -177,7 +184,7 @@ export default function PaywallScreen() {
             },
           ]}
         >
-          {!rc.isReady ? (
+          {!rc.isReady || rc.catalogLoading ? (
             <View style={[styles.center, { gap: centerGap, paddingVertical: centerPadV }]}>
               <ActivityIndicator color="#21638D" />
               <Text style={[styles.loadingText, { fontSize: fsLoading }]}>Loading subscription options…</Text>
@@ -188,11 +195,18 @@ export default function PaywallScreen() {
                 RevenueCat keys are not configured yet.
               </Text>
             </View>
-          ) : !monthly ? (
+          ) : !rc.hasMonthlyOffer ? (
             <View style={[styles.center, { gap: centerGap, paddingVertical: centerPadV }]}>
               <Text style={[styles.loadingText, { fontSize: fsLoading }]}>
-                Monthly subscription is not available yet.
+                {rc.catalogError ?? "Monthly subscription is not available yet."}
               </Text>
+              <Pressable
+                onPress={() => void rc.refresh()}
+                style={[styles.retryBtn, { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad }]}
+                testID="paywall-retry"
+              >
+                <Text style={[styles.retryText, { fontSize: fsPlan }]}>Try again</Text>
+              </Pressable>
             </View>
           ) : (
             <>
@@ -281,6 +295,14 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "rgba(14,42,58,0.72)",
     textAlign: "center",
+  },
+  retryBtn: {
+    backgroundColor: "#21638D",
+    alignItems: "center",
+  },
+  retryText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#FFFFFF",
   },
   planBtn: {
     borderWidth: 1,
