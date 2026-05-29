@@ -244,9 +244,19 @@ router.get("/admin/posts/:postId", requireModeratorOrAdmin, async (req, res): Pr
     return;
   }
 
-  const [enriched] = await enrichPosts([post], mod.id);
-  const [withReports] = await attachReportsForStaff([enriched]);
-  const row = withReports[0];
+  const enrichedList = await enrichPosts([post], mod.id);
+  const enriched = enrichedList[0];
+  if (!enriched) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
+  const withReportsList = await attachReportsForStaff([enriched]);
+  const row = withReportsList[0];
+  if (!row) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
   const reportCount = row.reports?.length ?? 0;
   const flagCount = post.flagCount ?? 0;
 

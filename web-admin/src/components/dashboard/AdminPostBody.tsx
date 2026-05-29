@@ -2,6 +2,7 @@
 
 import type { AdminPostDetail } from "@/lib/adminPostTypes";
 import { postIsReported } from "@/lib/adminPostTypes";
+import { AdminPostMedia } from "@/components/dashboard/AdminPostMedia";
 import { panelCls } from "@/components/dashboard/form-styles";
 
 export function PostStatusBadge({ status }: { status: string }) {
@@ -55,7 +56,11 @@ export function AdminPostBody({ post }: { post: AdminPostDetail }) {
       </div>
 
       <p className="whitespace-pre-wrap text-[13px] leading-snug text-[var(--color-primary)]">
-        {post.content?.trim() ? post.content : "(No text content)"}
+        {post.content?.trim()
+          ? post.content
+          : post.mediaUrl
+            ? null
+            : "(No text content)"}
       </p>
 
       {post.moderationReason ? (
@@ -87,10 +92,7 @@ export function AdminPostBody({ post }: { post: AdminPostDetail }) {
         </div>
       ) : null}
 
-      {post.mediaUrl && post.mediaType === "image" ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={post.mediaUrl} alt="" className="mt-2 max-h-56 rounded border border-[var(--color-border)] object-contain" />
-      ) : null}
+      {post.mediaUrl ? <AdminPostMedia mediaUrl={post.mediaUrl} mediaType={post.mediaType} /> : null}
     </div>
   );
 }
