@@ -9,7 +9,6 @@ import {
   savedPostsTable,
   officialPrayersTable,
   savedOfficialPrayersTable,
-  prayerPathsTable,
   sessionsTable,
   userFollowsTable,
   appSettingsTable,
@@ -947,57 +946,12 @@ router.delete("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, asyn
   res.json({ success: true });
 });
 
-router.post("/admin/prayer-paths", requireModeratorOrAdmin, async (req, res): Promise<void> => {
-  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
-  const category = typeof req.body?.category === "string" && req.body.category.trim() ? req.body.category.trim() : "general";
-  if (!name || !description) {
-    res.status(400).json({ error: "name and description are required" });
-    return;
-  }
-  const [row] = await db
-    .insert(prayerPathsTable)
-    .values({
-      name,
-      description,
-      category,
-      tagline: typeof req.body?.tagline === "string" ? req.body.tagline : null,
-    })
-    .returning();
-  res.status(201).json(row);
+router.post("/admin/prayer-paths", requireModeratorOrAdmin, async (_req, res): Promise<void> => {
+  res.status(403).json({ error: "Library paths are fixed; add guides under an existing path." });
 });
 
-router.delete("/admin/prayer-paths/:pathId", requireModeratorOrAdmin, async (req, res): Promise<void> => {
-  const rawId = Array.isArray(req.params.pathId) ? req.params.pathId[0] : req.params.pathId;
-  const pathId = parseInt(String(rawId), 10);
-  if (Number.isNaN(pathId)) {
-    res.status(400).json({ error: "Invalid path id" });
-    return;
-  }
-
-  const [path] = await db.select().from(prayerPathsTable).where(eq(prayerPathsTable.id, pathId)).limit(1);
-  if (!path) {
-    res.status(404).json({ error: "Path not found" });
-    return;
-  }
-
-  const guideRows = await db
-    .select({ id: officialPrayersTable.id })
-    .from(officialPrayersTable)
-    .where(eq(officialPrayersTable.pathId, pathId));
-  const guideIds = guideRows.map((g) => g.id);
-
-  await db.transaction(async (tx) => {
-    if (guideIds.length > 0) {
-      await tx
-        .delete(savedOfficialPrayersTable)
-        .where(inArray(savedOfficialPrayersTable.officialPrayerId, guideIds));
-      await tx.delete(officialPrayersTable).where(eq(officialPrayersTable.pathId, pathId));
-    }
-    await tx.delete(prayerPathsTable).where(eq(prayerPathsTable.id, pathId));
-  });
-
-  res.json({ success: true });
+router.delete("/admin/prayer-paths/:pathId", requireModeratorOrAdmin, async (_req, res): Promise<void> => {
+  res.status(403).json({ error: "Library paths cannot be deleted." });
 });
 
 // ---------------------------------------------------------------------------

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FolderTree, Plus } from "lucide-react";
+import { FolderTree } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { btnPrimary, inputCls, panelCls } from "@/components/dashboard/form-styles";
+import { inputCls, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
+import { filterDefaultLibraryPaths } from "@/config/default-library-paths";
 import { categoryLabel } from "@/config/post-categories";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -53,33 +54,27 @@ export default function PathsPage() {
     void loadPaths();
   }, [loadPaths]);
 
+  const defaultPaths = useMemo(() => filterDefaultLibraryPaths(paths), [paths]);
+
   const filteredPaths = useMemo(() => {
     const q = debouncedPathSearch.trim().toLowerCase();
-    if (!q) return paths;
-    return paths.filter((p) => {
+    if (!q) return defaultPaths;
+    return defaultPaths.filter((p) => {
       const hay = `${p.name}\n${p.description}\n${p.category}\n${p.tagline ?? ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [paths, debouncedPathSearch]);
+  }, [defaultPaths, debouncedPathSearch]);
 
   return (
     <>
-      <PageHeader
-        title="Category guides"
-        action={
-          <Link href="/dashboard/paths/new" className={btnPrimary + " inline-flex items-center gap-1.5"}>
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            New path
-          </Link>
-        }
-      />
+      <PageHeader title="Category guides" description="12 fixed categories — add guides under each path." />
 
       {loading ? (
         <Spinner />
-      ) : paths.length === 0 ? (
+      ) : defaultPaths.length === 0 ? (
         <div className="py-10 text-center">
           <FolderTree className="mx-auto mb-2 h-6 w-6 text-[var(--color-muted)]" aria-hidden />
-          <p className="text-[12px] text-[var(--color-muted)]">No paths yet — create one or run the library seed.</p>
+          <p className="text-[12px] text-[var(--color-muted)]">No library paths yet — run the library seed on the API server.</p>
         </div>
       ) : (
         <>
