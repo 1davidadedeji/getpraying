@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import colors from "@/constants/colors";
@@ -10,7 +10,7 @@ type Props = {
   accentColor?: string;
 };
 
-/** Playlist UI for multi-part lectures with optional auto-advance between tracks. */
+/** Each track in a lecture series is its own card with inline playback when selected. */
 export function LectureTrackList({ tracks, accentColor = colors.primary }: Props) {
   const sorted = useMemo(
     () => [...tracks].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
@@ -19,6 +19,11 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
   const [activeTrackId, setActiveTrackId] = useState<number | null>(sorted[0]?.id ?? null);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [autoPlayActive, setAutoPlayActive] = useState(false);
+
+  useEffect(() => {
+    setActiveTrackId(sorted[0]?.id ?? null);
+    setAutoPlayActive(false);
+  }, [sorted]);
 
   const activeIndex = sorted.findIndex((t) => t.id === activeTrackId);
 
@@ -36,84 +41,82 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
 
   if (sorted.length === 0) {
     return (
-      <Text style={styles.empty}>No audio tracks available for this lecture yet.</Text>
+      <View style={styles.emptyCard}>
+        <Ionicons name="musical-notes-outline" size={28} color={colors.muted} />
+        <Text style={styles.emptyTitle}>Audio coming soon</Text>
+        <Text style={styles.emptyText}>
+          This lesson does not have any audio parts yet. Check back later.
+        </Text>
+      </View>
     );
   }
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Playlist</Text>
-        <Text style={styles.headerCount}>
-          {sorted.length} {sorted.length === 1 ? "track" : "tracks"}
+      <View style={styles.seriesHeader}>
+        <Text style={styles.seriesTitle}>In this series</Text>
+        <Text style={styles.seriesCount}>
+          {sorted.length} {sorted.length === 1 ? "part" : "parts"}
         </Text>
       </View>
 
-      {activeTrackId != null && (
-        <View style={styles.nowPlaying}>
-          {sorted.map((track) =>
-            track.id === activeTrackId ? (
-              <View key={track.id}>
-                <Text style={styles.nowPlayingLabel}>Now playing</Text>
-                <Text style={styles.nowPlayingTitle}>{track.title}</Text>
-                {track.description ? (
-                  <Text style={styles.nowPlayingDesc}>{track.description}</Text>
-                ) : null}
-                <CapsuleAudioPlayer
-                  audioUrl={track.audioUrl}
-                  accentColor={accentColor}
-                  onPlaybackFinished={playNext}
-                  autoPlay={autoPlayActive}
-                />
-              </View>
-            ) : null,
-          )}
-        </View>
-      )}
-
-      <FlatList
-        data={sorted}
-        keyExtractor={(item) => String(item.id)}
-        scrollEnabled={false}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        renderItem={({ item, index }) => {
-          const isActive = item.id === activeTrackId;
+      <View style={styles.cardStack}>
+        {sorted.map((track, index) => {
+          const isActive = track.id === activeTrackId;
           return (
             <Pressable
+              key={track.id}
               onPress={() => {
-                setAutoPlayActive(false);
-                setActiveTrackId(item.id);
+                if (isActive) return;
+                setAutoPlayActive(true);
+                setActiveTrackId(track.id);
               }}
               style={({ pressed }) => [
-                styles.trackRow,
-                isActive && styles.trackRowActive,
-                pressed && styles.trackRowPressed,
+                styles.trackCard,
+                isActive && styles.trackCardActive,
+                !isActive && pressed && styles.trackCardPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel={`Play ${item.title}`}
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={`${isActive ? "Playing" : "Play"} part ${index + 1}: ${track.title}`}
             >
-              <View style={[styles.indexBadge, isActive && styles.indexBadgeActive]}>
-                <Text style={[styles.indexText, isActive && styles.indexTextActive]}>{index + 1}</Text>
-              </View>
-              <View style={styles.trackBody}>
-                <Text style={[styles.trackTitle, isActive && styles.trackTitleActive]} numberOfLines={2}>
-                  {item.title}
-                </Text>
-                {item.description ? (
-                  <Text style={styles.trackDesc} numberOfLines={2}>
-                    {item.description}
+              <View style={styles.trackCardTop}>
+                <View style={[styles.indexBadge, isActive && styles.indexBadgeActive]}>
+                  <Text style={[styles.indexText, isActive && styles.indexTextActive]}>{index + 1}</Text>
+                </View>
+                <View style={styles.trackCopy}>
+                  <Text style={[styles.trackTitle, isActive && styles.trackTitleActive]} numberOfLines={2}>
+                    {track.title}
                   </Text>
-                ) : null}
+                  {track.description ? (
+                    <Text style={styles.trackDesc} numberOfLines={isActive ? undefined : 2}>
+                      {track.description}
+                    </Text>
+                  ) : null}
+                </View>
+                {!isActive ? (
+                  <View style={styles.playFab}>
+                    <Ionicons name="play" size={18} color={accentColor} />
+                  </View>
+                ) : (
+                  <Ionicons name="volume-high" size={22} color={accentColor} />
+                )}
               </View>
-              <Ionicons
-                name={isActive ? "pause-circle" : "play-circle-outline"}
-                size={26}
-                color={isActive ? accentColor : colors.muted}
-              />
+
+              {isActive ? (
+                <View style={styles.playerWrap}>
+                  <CapsuleAudioPlayer
+                    audioUrl={track.audioUrl}
+                    accentColor={accentColor}
+                    onPlaybackFinished={playNext}
+                    autoPlay={autoPlayActive}
+                  />
+                </View>
+              ) : null}
             </Pressable>
           );
-        }}
-      />
+        })}
+      </View>
 
       {sorted.length > 1 ? (
         <Pressable
@@ -127,7 +130,7 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
             size={18}
             color={autoAdvance ? accentColor : colors.muted}
           />
-          <Text style={styles.autoAdvanceText}>Auto-play next track</Text>
+          <Text style={styles.autoAdvanceText}>Auto-play next part</Text>
         </Pressable>
       ) : null}
     </View>
@@ -135,69 +138,53 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12 },
-  headerRow: {
+  wrap: { gap: 14 },
+  seriesHeader: {
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
     gap: 8,
   },
-  headerTitle: {
+  seriesTitle: {
     fontFamily: "NotoSerif_700Bold",
-    fontSize: 17,
+    fontSize: 18,
     color: colors.primary,
   },
-  headerCount: {
-    fontFamily: "PlusJakartaSans_500Medium",
+  seriesCount: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     color: colors.muted,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
-  nowPlaying: {
+  cardStack: { gap: 10 },
+  trackCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 14,
-    gap: 6,
-  },
-  nowPlayingLabel: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
-    color: colors.muted,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  nowPlayingTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 16,
-    color: colors.text,
-  },
-  nowPlayingDesc: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  separator: { height: 8 },
-  trackRow: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 12,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  trackRowActive: {
+  trackCardActive: {
     borderColor: colors.primary,
-    backgroundColor: "#F8F9FC",
+    backgroundColor: "#F8FAFC",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
-  trackRowPressed: { opacity: 0.92 },
+  trackCardPressed: { opacity: 0.92 },
+  trackCardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
   indexBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.cream,
     alignItems: "center",
     justifyContent: "center",
@@ -205,36 +192,64 @@ const styles = StyleSheet.create({
   indexBadgeActive: { backgroundColor: colors.primary },
   indexText: {
     fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 12,
+    fontSize: 13,
     color: colors.muted,
   },
   indexTextActive: { color: colors.surface },
-  trackBody: { flex: 1, gap: 2 },
+  trackCopy: { flex: 1, gap: 4 },
   trackTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 14,
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 15,
     color: colors.text,
   },
   trackTitleActive: { color: colors.primary },
   trackDesc: {
     fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    color: colors.muted,
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 19,
   },
+  playFab: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.cream,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  playerWrap: { marginTop: 2 },
   autoAdvanceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingTop: 4,
+    paddingTop: 2,
   },
   autoAdvanceText: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: 13,
     color: colors.textSecondary,
   },
-  empty: {
+  emptyCard: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  emptyTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 15,
+    color: colors.text,
+  },
+  emptyText: {
     fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 14,
+    fontSize: 13,
     color: colors.muted,
+    textAlign: "center",
+    lineHeight: 19,
   },
 });

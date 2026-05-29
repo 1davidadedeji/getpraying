@@ -175,7 +175,9 @@ export default function OfficialPrayerScreen() {
       <View style={[styles.topRow, { gap: rowGap, marginBottom: topMb }]}>
         <View style={[styles.topMeta, { gap: metaGap, flex: 1 }]}>
           <Text style={[styles.badge, { fontSize: fsBadge }]}>
-            {(d.label?.trim() || OFFICIAL_PRAYER_BADGE).toUpperCase()}
+            {isLecture
+              ? "LECTURE"
+              : (d.label?.trim() || OFFICIAL_PRAYER_BADGE).toUpperCase()}
             {d.scheduleSlot ? ` · ${scheduleSlotBadge(d.scheduleSlot)}` : ""}
           </Text>
           {updated ? (
@@ -215,7 +217,13 @@ export default function OfficialPrayerScreen() {
         <Text style={[styles.scripture, { fontSize: fsScripture, marginBottom: scrMb }]}>&ldquo;{d.scripture}&rdquo;</Text>
       ) : null}
 
-      {isLecture && lectureTracks.length > 0 ? (
+      {isLecture && bodyText ? (
+        <View style={{ marginBottom: scrMb }}>
+          <Text style={[styles.body, { fontSize: fsBody, lineHeight: lhBody }]}>{bodyText}</Text>
+        </View>
+      ) : null}
+
+      {isLecture ? (
         <View style={{ marginBottom: scrMb }}>
           <LectureTrackList tracks={lectureTracks} accentColor={colors.primary} />
         </View>
@@ -225,7 +233,7 @@ export default function OfficialPrayerScreen() {
         </View>
       ) : null}
 
-      {bodyText ? (
+      {!isLecture && bodyText ? (
         <View style={{ marginBottom: scrMb }}>
           <Text
             style={[styles.body, { fontSize: fsBody, lineHeight: lhBody }]}

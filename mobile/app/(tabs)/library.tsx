@@ -436,6 +436,14 @@ export default function LibraryScreen() {
               {op.durationMinutes} min listen
             </Text>
           ) : null}
+          {(op.tracks?.length ?? 0) > 0 ? (
+            <View style={[styles.lecturePartsPill, { backgroundColor: theme.chevronBg }]}>
+              <Ionicons name="albums-outline" size={Math.round(12 * uiScale)} color={theme.chevronColor} />
+              <Text style={[styles.lecturePartsText, { color: theme.chevronColor }]}>
+                {op.tracks!.length} {op.tracks!.length === 1 ? "part" : "parts"}
+              </Text>
+            </View>
+          ) : null}
           <View
             pointerEvents="none"
             style={[
@@ -1052,6 +1060,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     textAlign: "center",
+  },
+  lecturePartsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "center",
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  lecturePartsText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 11,
+    letterSpacing: 0.2,
   },
   lectureChevronFab: {
     position: "absolute",

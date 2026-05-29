@@ -1,6 +1,7 @@
 /**
  * Ensures minimum Library demo data after testing wipes:
  * - At least 3 official rows with category "lectures" (carousel), no schedule slot
+ * - Each lecture gets one or more rows in lecture_tracks (audio series)
  * - One "morning" sanctuary slot if none exists
  * - One "evening" sanctuary slot if none exists
  * Real audio URLs use /api/static/uploads (see data/uploads/*.mp3).
@@ -10,7 +11,7 @@
  *   pnpm --filter @workspace/api-server run seed:library-restore
  */
 import "dotenv/config";
-import { db, officialPrayersTable, pool } from "@workspace/db";
+import { db, lectureTracksTable, officialPrayersTable, pool } from "@workspace/db";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 const UPLOADS_AUDIO_BASE = "/api/static/uploads";
@@ -23,7 +24,18 @@ const LECTURE_ROWS = [
       "Jesus invites us to remain in him the way a branch stays joined to the vine—drawing strength, sap, and fruitfulness from union, not striving. Pause and ask where you have been leaning on effort alone instead of leaning on him.",
     scripture: "John 15:5",
     durationMinutes: 12,
-    audioSlug: "prayer-hope",
+    tracks: [
+      {
+        title: "Part 1 — Remaining in Christ",
+        description: "Why abiding is relationship, not performance.",
+        audioSlug: "prayer-hope",
+      },
+      {
+        title: "Part 2 — Fruit from the Vine",
+        description: "Letting his life flow through your prayers today.",
+        audioSlug: "prayer-peace",
+      },
+    ],
   },
   {
     title: "Prayer as Conversation",
@@ -32,7 +44,13 @@ const LECTURE_ROWS = [
       "Honest prayer is relationship: speaking, listening, and making room for silence before the Father. Bring one concern to him slowly today, phrase by phrase, and leave space to sense his kindness toward you.",
     scripture: "Philippians 4:6–7",
     durationMinutes: 16,
-    audioSlug: "prayer-wisdom",
+    tracks: [
+      {
+        title: "Part 1 — Speaking honestly",
+        description: "Bringing your whole heart before God.",
+        audioSlug: "prayer-wisdom",
+      },
+    ],
   },
   {
     title: "Scripture and Stillness",
@@ -41,7 +59,23 @@ const LECTURE_ROWS = [
       "When we open Scripture with humility, the Spirit anchors our thoughts and steadies our nerves. Choose a single verse today, speak it aloud, and sit with it for a few breaths until it begins to soften your heart.",
     scripture: "Psalm 46:10",
     durationMinutes: 20,
-    audioSlug: "prayer-peace",
+    tracks: [
+      {
+        title: "Part 1 — Be still",
+        description: "Slowing down to hear God in his Word.",
+        audioSlug: "prayer-peace",
+      },
+      {
+        title: "Part 2 — Meditating on one verse",
+        description: "A simple rhythm for daily Scripture prayer.",
+        audioSlug: "prayer-gratitude",
+      },
+      {
+        title: "Part 3 — Carrying it into the day",
+        description: "Letting the verse shape your conversations with God.",
+        audioSlug: "prayer-strength",
+      },
+    ],
   },
 ] as const;
 
@@ -59,19 +93,35 @@ async function main(): Promise<void> {
   const needLectures = Math.max(0, 3 - Number(lectCount ?? 0));
   if (needLectures > 0) {
     const slice = LECTURE_ROWS.slice(0, needLectures);
-    await db.insert(officialPrayersTable).values(
-      slice.map((row, i) => ({
-        title: row.title,
-        subtitle: row.subtitle,
-        content: row.content,
-        category: "lectures",
-        scripture: row.scripture,
-        label: "Lecture",
-        durationMinutes: row.durationMinutes + i,
-        audioUrl: `${UPLOADS_AUDIO_BASE}/${row.audioSlug}.mp3`,
-      })),
-    );
-    console.log(`[seed-library-restore] Inserted ${slice.length} lecture row(s).`);
+    for (let i = 0; i < slice.length; i++) {
+      const row = slice[i]!;
+      const [inserted] = await db
+        .insert(officialPrayersTable)
+        .values({
+          title: row.title,
+          subtitle: row.subtitle,
+          content: row.content,
+          category: "lectures",
+          scripture: row.scripture,
+          label: "Lecture",
+          durationMinutes: row.durationMinutes + i,
+          audioUrl: null,
+        })
+        .returning({ id: officialPrayersTable.id });
+
+      if (inserted?.id) {
+        await db.insert(lectureTracksTable).values(
+          row.tracks.map((track, orderIndex) => ({
+            lectureId: inserted.id,
+            title: track.title,
+            description: track.description,
+            audioUrl: `${UPLOADS_AUDIO_BASE}/${track.audioSlug}.mp3`,
+            orderIndex,
+          })),
+        );
+      }
+    }
+    console.log(`[seed-library-restore] Inserted ${slice.length} lecture row(s) with audio series.`);
   } else {
     console.log("[seed-library-restore] Lectures quota already satisfied (≥3).");
   }
