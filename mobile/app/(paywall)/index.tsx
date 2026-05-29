@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
@@ -35,6 +36,34 @@ export default function PaywallScreen() {
   const isMandatoryGate =
     !isCheckingSubscription && rc.enabled && !rc.isEntitled && !isSoftPaywall;
   const entitlementRedirected = useRef(false);
+  const userRef = useRef(user);
+  const rcRef = useRef(rc);
+  const pendingDeepLinkRef = useRef(pendingDeepLink);
+  const consumePendingHrefRef = useRef(consumePendingHref);
+
+  userRef.current = user;
+  rcRef.current = rc;
+  pendingDeepLinkRef.current = pendingDeepLink;
+  consumePendingHrefRef.current = consumePendingHref;
+
+  const navigateAfterEntitlement = useCallback((forceEntitled = false) => {
+    if (entitlementRedirected.current) return;
+    entitlementRedirected.current = true;
+
+    const u = userRef.current;
+    const rcState = rcRef.current;
+    const pending = pendingDeepLinkRef.current;
+    const consume = consumePendingHrefRef.current;
+    const gate = forceEntitled
+      ? { ...rcState, isEntitled: true, isCheckingSubscription: false }
+      : rcState;
+
+    if (!u) {
+      router.replace("/(tabs)" as Href);
+      return;
+    }
+    router.replace(resolvePostAuthNavigation(u, gate, pending, consume) as Href);
+  }, []);
 
   const leavePaywall = useCallback(async () => {
     await logoutThenClearQueryCache(logout, queryClient);
@@ -65,18 +94,14 @@ export default function PaywallScreen() {
     if (!user) return;
     if (rc.enabled && !rc.isEntitled) return;
 
-    entitlementRedirected.current = true;
-    router.replace(
-      resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref) as Href,
-    );
+    navigateAfterEntitlement();
   }, [
     isCheckingSubscription,
     user,
     rc.enabled,
     rc.isEntitled,
     rc.isReady,
-    pendingDeepLink,
-    consumePendingHref,
+    navigateAfterEntitlement,
   ]);
 
   useFocusEffect(
@@ -86,14 +111,18 @@ export default function PaywallScreen() {
     }, [rc.enabled, rc.hasMonthlyOffer, rc.refresh]),
   );
 
-  const continueAfterSubscribe = () => {
-    if (!user) {
-      router.replace("/(tabs)" as import("expo-router").Href);
-      return;
+  const onPurchase = async () => {
+    if (!rc.hasMonthlyOffer) return;
+    try {
+      await rc.purchaseMonthly();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      navigateAfterEntitlement(true);
+    } catch (e: unknown) {
+      const err = e as { userCancelled?: boolean; message?: string };
+      if (err?.userCancelled) return;
+      const msg = err?.message ?? "Purchase cancelled or failed.";
+      showAppAlert({ title: "Subscription not started", message: msg });
     }
-    router.replace(
-      resolvePostAuthNavigation(user, rc, pendingDeepLink, consumePendingHref) as import("expo-router").Href,
-    );
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -144,23 +173,6 @@ export default function PaywallScreen() {
       </>
     );
   }
-
-  const onPurchase = async () => {
-    if (!rc.hasMonthlyOffer) return;
-    try {
-      await rc.purchaseMonthly();
-      showAppAlert({
-        title: "You're subscribed",
-        message: "Welcome to Get Praying — the prayer feed, Library, and community are unlocked.",
-        buttons: [{ text: "Continue", onPress: continueAfterSubscribe }],
-      });
-    } catch (e: unknown) {
-      const err = e as { userCancelled?: boolean; message?: string };
-      if (err?.userCancelled) return;
-      const msg = err?.message ?? "Purchase cancelled or failed.";
-      showAppAlert({ title: "Subscription not started", message: msg });
-    }
-  };
 
   return (
     <>
