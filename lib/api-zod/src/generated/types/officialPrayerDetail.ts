@@ -5,6 +5,7 @@
  * GetPraying API
  * OpenAPI spec version: 0.1.0
  */
+import type { LectureTrack } from "./lectureTrack";
 
 export interface OfficialPrayerDetail {
   id: number;
@@ -23,4 +24,6 @@ export interface OfficialPrayerDetail {
   uploadedByDisplayName?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Playlist audio files (lectures only) */
+  tracks?: LectureTrack[];
 }

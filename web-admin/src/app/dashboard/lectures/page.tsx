@@ -4,12 +4,26 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { LibraryContentFiltersCard } from "@/components/dashboard/LibraryContentFiltersCard";
-import { AdminAudioField } from "@/components/dashboard/AdminAudioField";
+import {
+  LectureTracksEditor,
+  emptyTrackDraft,
+  tracksFromApi,
+  tracksToPayload,
+  type LectureTrackDraft,
+} from "@/components/dashboard/LectureTracksEditor";
 import { inputCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+
+interface LectureTrack {
+  id: number;
+  title: string;
+  description: string | null;
+  audioUrl: string;
+  orderIndex: number;
+}
 
 interface Lecture {
   id: number;
@@ -17,22 +31,30 @@ interface Lecture {
   subtitle: string | null;
   content: string;
   scripture: string | null;
-  audioUrl: string | null;
   durationMinutes: number | null;
   createdAt: string;
+  tracks?: LectureTrack[];
 }
 
-type Draft = Partial<Pick<Lecture, "title" | "subtitle" | "content" | "scripture" | "audioUrl" | "durationMinutes">>;
+type Draft = Partial<Pick<Lecture, "title" | "subtitle" | "content" | "scripture" | "durationMinutes">> & {
+  tracks: LectureTrackDraft[];
+};
+
+function hasAudio(l: Lecture): boolean {
+  return (l.tracks?.length ?? 0) > 0;
+}
 
 export default function LecturesPage() {
   const { token } = useAuth();
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<Draft>({});
+  const [draft, setDraft] = useState<Draft>({ tracks: [emptyTrackDraft()] });
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newDraft, setNewDraft] = useState<Partial<Lecture>>({});
+  const [newDraft, setNewDraft] = useState<Partial<Lecture> & { tracks: LectureTrackDraft[] }>({
+    tracks: [emptyTrackDraft()],
+  });
   const [createSaving, setCreateSaving] = useState(false);
 
   const [listSearch, setListSearch] = useState("");
@@ -41,11 +63,12 @@ export default function LecturesPage() {
 
   const filteredLectures = useMemo(() => {
     return lectures.filter((l) => {
-      if (audioFilter === "yes" && !(l.audioUrl && String(l.audioUrl).trim())) return false;
-      if (audioFilter === "no" && Boolean(l.audioUrl && String(l.audioUrl).trim())) return false;
+      if (audioFilter === "yes" && !hasAudio(l)) return false;
+      if (audioFilter === "no" && hasAudio(l)) return false;
       const q = debouncedListSearch.trim().toLowerCase();
       if (q) {
-        const hay = `${l.title}\n${l.subtitle ?? ""}\n${l.content}\n${l.scripture ?? ""}`.toLowerCase();
+        const trackHay = (l.tracks ?? []).map((t) => `${t.title} ${t.description ?? ""}`).join("\n");
+        const hay = `${l.title}\n${l.subtitle ?? ""}\n${l.content}\n${l.scripture ?? ""}\n${trackHay}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -78,19 +101,29 @@ export default function LecturesPage() {
       subtitle: l.subtitle ?? "",
       content: l.content,
       scripture: l.scripture ?? "",
-      audioUrl: l.audioUrl ?? "",
       durationMinutes: l.durationMinutes ?? undefined,
+      tracks: tracksFromApi(l.tracks),
     });
   };
 
   const save = async () => {
     if (!token || editId === null) return;
+    const tracksPayload = tracksToPayload(draft.tracks);
     setSaving(true);
     try {
       const res = await fetch(apiUrl(`/admin/official-prayers/${editId}`), {
         method: "PUT",
         headers: authHeaders(token),
-        body: JSON.stringify({ ...draft, category: "lectures", pathId: null }),
+        body: JSON.stringify({
+          title: draft.title,
+          subtitle: draft.subtitle,
+          content: draft.content,
+          scripture: draft.scripture,
+          durationMinutes: draft.durationMinutes,
+          category: "lectures",
+          pathId: null,
+          ...(tracksPayload.length > 0 ? { tracks: tracksPayload } : {}),
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -111,18 +144,27 @@ export default function LecturesPage() {
 
   const createLecture = async () => {
     if (!token || !newDraft.title?.trim() || !newDraft.content?.trim()) return;
+    const tracksPayload = tracksToPayload(newDraft.tracks);
     setCreateSaving(true);
     try {
       const res = await fetch(apiUrl("/admin/official-prayers"), {
         method: "POST",
         headers: authHeaders(token),
-        body: JSON.stringify({ ...newDraft, category: "lectures" }),
+        body: JSON.stringify({
+          title: newDraft.title,
+          subtitle: newDraft.subtitle,
+          content: newDraft.content,
+          scripture: newDraft.scripture,
+          durationMinutes: newDraft.durationMinutes,
+          category: "lectures",
+          tracks: tracksPayload.length > 0 ? tracksPayload : undefined,
+        }),
       });
       if (res.ok) {
         const row = await res.json();
         setLectures((prev) => [...prev, row]);
         setCreating(false);
-        setNewDraft({});
+        setNewDraft({ tracks: [emptyTrackDraft()] });
       }
     } finally {
       setCreateSaving(false);
@@ -133,13 +175,13 @@ export default function LecturesPage() {
     <>
       <PageHeader
         title="Lectures"
-        description="Standalone listens for the Library carousel — not tied to situation categories or sanctuary slots."
+        description="Standalone listens for the Library carousel — each lecture can include multiple audio tracks."
         action={
           <button
             type="button"
             onClick={() => {
               setCreating(true);
-              setNewDraft({});
+              setNewDraft({ tracks: [emptyTrackDraft()] });
             }}
             className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#252c4a]"
           >
@@ -186,21 +228,23 @@ export default function LecturesPage() {
                 onChange={(e) => setNewDraft((d) => ({ ...d, scripture: e.target.value }))}
               />
             </Field>
-            <AdminAudioField
-              className="sm:col-span-2"
-              token={token}
-              disabled={createSaving}
-              value={newDraft.audioUrl ?? ""}
-              onChange={(audioUrl) => setNewDraft((d) => ({ ...d, audioUrl }))}
-            />
             <Field label="Duration (min)">
               <input
                 className={inputCls}
                 type="number"
                 value={newDraft.durationMinutes ?? ""}
-                onChange={(e) => setNewDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))}
+                onChange={(e) =>
+                  setNewDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) || undefined }))
+                }
               />
             </Field>
+            <LectureTracksEditor
+              className="sm:col-span-2"
+              token={token}
+              disabled={createSaving}
+              tracks={newDraft.tracks}
+              onChange={(tracks) => setNewDraft((d) => ({ ...d, tracks }))}
+            />
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <button
@@ -214,7 +258,7 @@ export default function LecturesPage() {
               type="button"
               onClick={() => {
                 setCreating(false);
-                setNewDraft({});
+                setNewDraft({ tracks: [emptyTrackDraft()] });
               }}
               className="rounded-xl bg-[#E8E4DC] px-4 py-2 text-[13px] text-[#1A1F36]"
             >
@@ -279,13 +323,6 @@ export default function LecturesPage() {
                         onChange={(e) => setDraft((d) => ({ ...d, scripture: e.target.value }))}
                       />
                     </Field>
-                    <AdminAudioField
-                      className="sm:col-span-2"
-                      token={token}
-                      disabled={saving}
-                      value={draft.audioUrl ?? ""}
-                      onChange={(audioUrl) => setDraft((d) => ({ ...d, audioUrl }))}
-                    />
                     <Field label="Duration (min)">
                       <input
                         className={inputCls}
@@ -296,6 +333,13 @@ export default function LecturesPage() {
                         }
                       />
                     </Field>
+                    <LectureTracksEditor
+                      className="sm:col-span-2"
+                      token={token}
+                      disabled={saving}
+                      tracks={draft.tracks}
+                      onChange={(tracks) => setDraft((d) => ({ ...d, tracks }))}
+                    />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
@@ -318,9 +362,9 @@ export default function LecturesPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                      {l.audioUrl && (
+                      {hasAudio(l) && (
                         <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-600">
-                          Audio
+                          {l.tracks!.length} track{l.tracks!.length === 1 ? "" : "s"}
                         </span>
                       )}
                       {l.durationMinutes ? (
@@ -331,6 +375,15 @@ export default function LecturesPage() {
                     {l.subtitle && <p className="mt-0.5 text-[12px] text-[#8A8FA8]">{l.subtitle}</p>}
                     <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-[#5B6280]">{l.content}</p>
                     {l.scripture && <p className="mt-1 text-[11px] text-[#D4A043]">{l.scripture}</p>}
+                    {l.tracks && l.tracks.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-[12px] text-[#5B6280]">
+                        {l.tracks.map((t, i) => (
+                          <li key={t.id}>
+                            {i + 1}. {t.title}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <div className="flex flex-shrink-0 gap-2">
                     <button

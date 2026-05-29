@@ -16,13 +16,14 @@ import {
   useGetOfficialPrayerById,
 } from "@workspace/api-client-react";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
+import { LectureTrackList } from "@/components/LectureTrackList";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
-import { OFFICIAL_PRAYER_BADGE } from "@/lib/officialPrayer";
+import { OFFICIAL_PRAYER_BADGE, type LectureTrackRow } from "@/lib/officialPrayer";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 
 function scheduleSlotBadge(s: string | null | undefined): string {
@@ -155,6 +156,7 @@ export default function OfficialPrayerScreen() {
 
   const d = data;
   const isLecture = (d.category ?? "").toLowerCase() === "lectures";
+  const lectureTracks: LectureTrackRow[] = isLecture ? (d.tracks ?? []) : [];
   const updated =
     d.updatedAt && d.createdAt && d.updatedAt !== d.createdAt
       ? new Date(d.updatedAt)
@@ -213,7 +215,11 @@ export default function OfficialPrayerScreen() {
         <Text style={[styles.scripture, { fontSize: fsScripture, marginBottom: scrMb }]}>&ldquo;{d.scripture}&rdquo;</Text>
       ) : null}
 
-      {d.audioUrl ? (
+      {isLecture && lectureTracks.length > 0 ? (
+        <View style={{ marginBottom: scrMb }}>
+          <LectureTrackList tracks={lectureTracks} accentColor={colors.primary} />
+        </View>
+      ) : d.audioUrl ? (
         <View style={{ marginBottom: scrMb }}>
           <CapsuleAudioPlayer audioUrl={d.audioUrl} accentColor={colors.primary} />
         </View>

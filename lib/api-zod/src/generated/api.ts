@@ -840,6 +840,20 @@ export const GetOfficialPrayerByIdResponse = zod.object({
   uploadedByDisplayName: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  tracks: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        title: zod.string(),
+        audioUrl: zod.string(),
+        description: zod.string().nullish(),
+        orderIndex: zod.number(),
+        createdAt: zod.coerce.date().optional(),
+        updatedAt: zod.coerce.date().optional(),
+      }),
+    )
+    .optional()
+    .describe("Playlist audio files (lectures only)"),
 });
 
 /**

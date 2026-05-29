@@ -12,6 +12,10 @@ type Props = {
   backgroundColor?: string;
   feedMediaFocused?: boolean;
   onPlayingChange?: (playing: boolean) => void;
+  /** Called when playback reaches the end (not looped). */
+  onPlaybackFinished?: () => void;
+  /** Start playback once the file is loaded. */
+  autoPlay?: boolean;
 };
 
 /** Minimal pill audio player: play/pause, time, seek bar, volume. */
@@ -21,6 +25,8 @@ export function CapsuleAudioPlayer({
   backgroundColor = "#F1F3F4",
   feedMediaFocused = false,
   onPlayingChange,
+  onPlaybackFinished,
+  autoPlay = false,
 }: Props) {
   const uri = resolveMediaUrl(audioUrl ?? null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -38,6 +44,8 @@ export function CapsuleAudioPlayer({
   const durationHeldRef = useRef(0);
   const onPlayingChangeRef = useRef(onPlayingChange);
   onPlayingChangeRef.current = onPlayingChange;
+  const onPlaybackFinishedRef = useRef(onPlaybackFinished);
+  onPlaybackFinishedRef.current = onPlaybackFinished;
 
   useEffect(() => {
     soundRef.current = sound;
@@ -135,6 +143,7 @@ export function CapsuleAudioPlayer({
             setEnded(true);
             onPlayingChangeRef.current?.(false);
             setPositionMs(0);
+            onPlaybackFinishedRef.current?.();
             void (async () => {
               try {
                 await s.setPositionAsync(0);
@@ -157,6 +166,27 @@ export function CapsuleAudioPlayer({
       instance?.unloadAsync().catch(() => {});
     };
   }, [uri]);
+
+  useEffect(() => {
+    if (!autoPlay || loading || !sound) return;
+    const cid = controllerIdRef.current;
+    if (cid == null) return;
+    void (async () => {
+      await pauseAllMediaExcept(cid);
+      try {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        await sound.setVolumeAsync(1);
+        await sound.setPositionAsync(0);
+        await sound.playAsync();
+        setPlaying(true);
+        setMuted(false);
+        setEnded(false);
+        onPlayingChangeRef.current?.(true);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [autoPlay, loading, sound]);
 
   const runFeedAutoplay = useCallback(async () => {
     const s = soundRef.current;

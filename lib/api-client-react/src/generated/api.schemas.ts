@@ -293,6 +293,16 @@ export interface OfficialPrayer {
   createdAt: string;
 }
 
+export interface LectureTrack {
+  id: number;
+  title: string;
+  audioUrl: string;
+  description?: string | null;
+  orderIndex: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface OfficialPrayerDetail {
   id: number;
   title: string;
@@ -310,6 +320,8 @@ export interface OfficialPrayerDetail {
   uploadedByDisplayName?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Playlist audio files (lectures only) */
+  tracks?: LectureTrack[];
 }
 
 export interface PrayerPath {

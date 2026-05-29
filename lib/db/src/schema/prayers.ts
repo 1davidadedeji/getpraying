@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -48,6 +49,31 @@ export const officialPrayersTable = pgTable("official_prayers", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+/** Playlist audio files for library lectures (`official_prayers` where category = lectures). */
+export const lectureTracksTable = pgTable("lecture_tracks", {
+  id: serial("id").primaryKey(),
+  lectureId: integer("lecture_id")
+    .notNull()
+    .references(() => officialPrayersTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  audioUrl: text("audio_url").notNull(),
+  description: text("description"),
+  orderIndex: integer("order_index").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const officialPrayersRelations = relations(officialPrayersTable, ({ many }) => ({
+  tracks: many(lectureTracksTable),
+}));
+
+export const lectureTracksRelations = relations(lectureTracksTable, ({ one }) => ({
+  lecture: one(officialPrayersTable, {
+    fields: [lectureTracksTable.lectureId],
+    references: [officialPrayersTable.id],
+  }),
+}));
 
 /** User-saved official guides (library), distinct from feed post saves */
 export const savedOfficialPrayersTable = pgTable(
@@ -108,6 +134,14 @@ export type SavedPost = typeof savedPostsTable.$inferSelect;
 export const insertOfficialPrayerSchema = createInsertSchema(officialPrayersTable).omit({ id: true, createdAt: true });
 export type InsertOfficialPrayer = z.infer<typeof insertOfficialPrayerSchema>;
 export type OfficialPrayer = typeof officialPrayersTable.$inferSelect;
+
+export const insertLectureTrackSchema = createInsertSchema(lectureTracksTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertLectureTrack = z.infer<typeof insertLectureTrackSchema>;
+export type LectureTrack = typeof lectureTracksTable.$inferSelect;
 
 export const insertPrayerPathSchema = createInsertSchema(prayerPathsTable).omit({ id: true, createdAt: true });
 export type InsertPrayerPath = z.infer<typeof insertPrayerPathSchema>;

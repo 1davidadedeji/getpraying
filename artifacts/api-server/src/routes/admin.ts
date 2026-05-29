@@ -24,6 +24,12 @@ import { attachReportsForStaff, clearPostReportsForPost } from "../lib/postRepor
 import { officialGuideTextError } from "../lib/officialGuideTextLimits";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { applyAutoBoostIfEligible } from "../lib/autoBoost";
+import {
+  parseTracksFromBody,
+  syncLectureTracks,
+  fetchTracksForLecture,
+  type LectureTrackInput,
+} from "../lib/lectureTracks";
 
 async function notifyAuthorPostDecision(
   authorId: number | null,
@@ -615,6 +621,21 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
     typeof req.body?.durationMinutes === "number" && Number.isFinite(req.body.durationMinutes)
       ? Math.round(req.body.durationMinutes)
       : null;
+
+  const isLecture = category === "lectures";
+  const tracksParsed = isLecture ? parseTracksFromBody(req.body) : undefined;
+  const legacyAudioUrl =
+    typeof req.body?.audioUrl === "string" && req.body.audioUrl.trim() ? req.body.audioUrl.trim() : null;
+
+  let tracksToSync: LectureTrackInput[] | undefined;
+  if (isLecture) {
+    if (tracksParsed != null) {
+      tracksToSync = tracksParsed;
+    } else if (legacyAudioUrl) {
+      tracksToSync = [{ title, audioUrl: legacyAudioUrl, orderIndex: 0 }];
+    }
+  }
+
   const [row] = await db
     .insert(officialPrayersTable)
     .values({
@@ -624,13 +645,25 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
       subtitle: typeof req.body?.subtitle === "string" ? req.body.subtitle : null,
       scripture: scriptureRaw,
       pathId: pathIdRaw,
-      audioUrl: typeof req.body?.audioUrl === "string" ? req.body.audioUrl.trim() : null,
+      audioUrl: isLecture ? null : legacyAudioUrl,
       durationMinutes: durationMinutesGeneral != null && durationMinutesGeneral > 0 ? durationMinutesGeneral : null,
       scheduleSlot,
       label: typeof req.body?.label === "string" ? req.body.label : null,
       uploadedByUserId: mod.id,
     })
     .returning();
+
+  if (isLecture && row && tracksToSync != null) {
+    try {
+      const tracks = await syncLectureTracks(row.id, tracksToSync);
+      res.status(201).json({ ...row, audioUrl: null, tracks });
+      return;
+    } catch (e) {
+      await db.delete(officialPrayersTable).where(eq(officialPrayersTable.id, row.id));
+      res.status(400).json({ error: e instanceof Error ? e.message : "Invalid tracks" });
+      return;
+    }
+  }
 
   res.status(201).json(row);
 });
@@ -700,6 +733,9 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
     const u = req.body.audioUrl.trim();
     audioUrlNext = u.length > 0 ? u : null;
   }
+  if (categoryNext === "lectures" || existing.category === "lectures") {
+    audioUrlNext = null;
+  }
 
   let durationNext = existing.durationMinutes;
   if (req.body != null && "durationMinutes" in req.body) {
@@ -724,11 +760,36 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
     })
     .where(eq(officialPrayersTable.id, prayerId));
 
+  const isLectureRow = categoryNext === "lectures" || existing.category === "lectures";
+  const tracksParsed = isLectureRow ? parseTracksFromBody(req.body) : undefined;
+  if (isLectureRow && tracksParsed != null) {
+    try {
+      const tracks = await syncLectureTracks(prayerId, tracksParsed);
+      const [row] = await db
+        .select()
+        .from(officialPrayersTable)
+        .where(eq(officialPrayersTable.id, prayerId))
+        .limit(1);
+      res.json({ ...(row ?? { success: true }), tracks });
+      return;
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : "Invalid tracks" });
+      return;
+    }
+  }
+
   const [row] = await db
     .select()
     .from(officialPrayersTable)
     .where(eq(officialPrayersTable.id, prayerId))
     .limit(1);
+
+  if (isLectureRow) {
+    const tracks = await fetchTracksForLecture(prayerId);
+    res.json({ ...(row ?? { success: true }), tracks });
+    return;
+  }
+
   res.json(row ?? { success: true });
 });
 

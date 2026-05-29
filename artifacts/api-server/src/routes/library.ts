@@ -11,6 +11,7 @@ import {
 import { eq, and, inArray, sql, desc, isNull } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
+import { fetchTracksForLecture, fetchTracksGroupedByLecture } from "../lib/lectureTracks";
 
 const router: IRouter = Router();
 
@@ -94,6 +95,11 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
     .orderBy(officialPrayersTable.createdAt)
     .limit(limit);
 
+  const isLectureList = categoryFilter === "lectures";
+  const tracksByLecture = isLectureList
+    ? await fetchTracksGroupedByLecture(prayers.map((p) => p.id))
+    : null;
+
   res.json({
     prayers: prayers.map((p) => ({
       id: p.id,
@@ -111,6 +117,9 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
       uploadedByUsername: p.uploaderUsername ?? null,
       uploadedByDisplayName: p.uploaderDisplayName ?? null,
       createdAt: p.createdAt,
+      ...(isLectureList
+        ? { tracks: tracksByLecture?.get(p.id) ?? [] }
+        : {}),
     })),
   });
 });
@@ -204,6 +213,8 @@ router.get("/library/official/:id", optionalAuth, async (req, res): Promise<void
     res.status(404).json({ error: "Not found" });
     return;
   }
+  const isLecture = row.category.toLowerCase() === "lectures";
+  const tracks = isLecture ? await fetchTracksForLecture(row.id) : undefined;
   res.json({
     id: row.id,
     title: row.title,
@@ -221,6 +232,7 @@ router.get("/library/official/:id", optionalAuth, async (req, res): Promise<void
     uploadedByDisplayName: row.uploaderDisplayName ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    ...(isLecture ? { tracks: tracks ?? [] } : {}),
   });
 });
 

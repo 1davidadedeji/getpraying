@@ -1636,6 +1636,32 @@ components:
         - category
         - createdAt
 
+    LectureTrack:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        audioUrl:
+          type: string
+        description:
+          type: string
+          nullable: true
+        orderIndex:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - audioUrl
+        - orderIndex
+
     OfficialPrayerDetail:
       type: object
       properties:
@@ -1683,6 +1709,11 @@ components:
         updatedAt:
           type: string
           format: date-time
+        tracks:
+          type: array
+          items:
+            $ref: "#/components/schemas/LectureTrack"
+          description: Playlist audio files (lectures only)
       required:
         - id
         - title

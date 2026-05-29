@@ -37,6 +37,7 @@ export * from "./getUserPostsParams";
 export * from "./getUserSavedPostsParams";
 export * from "./globalSearchParams";
 export * from "./healthStatus";
+export * from "./lectureTrack";
 export * from "./loginInput";
 export * from "./notification";
 export * from "./notificationType";
