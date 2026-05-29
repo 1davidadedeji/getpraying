@@ -36,7 +36,9 @@ interface Lecture {
   tracks?: LectureTrack[];
 }
 
-type Draft = Partial<Pick<Lecture, "title" | "subtitle" | "content" | "scripture" | "durationMinutes">> & {
+type LectureFormDraft = Partial<
+  Pick<Lecture, "title" | "subtitle" | "content" | "scripture" | "durationMinutes">
+> & {
   tracks: LectureTrackDraft[];
 };
 
@@ -49,10 +51,10 @@ export default function LecturesPage() {
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<Draft>({ tracks: [emptyTrackDraft()] });
+  const [draft, setDraft] = useState<LectureFormDraft>({ tracks: [emptyTrackDraft()] });
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newDraft, setNewDraft] = useState<Partial<Lecture> & { tracks: LectureTrackDraft[] }>({
+  const [newDraft, setNewDraft] = useState<LectureFormDraft>({
     tracks: [emptyTrackDraft()],
   });
   const [createSaving, setCreateSaving] = useState(false);
