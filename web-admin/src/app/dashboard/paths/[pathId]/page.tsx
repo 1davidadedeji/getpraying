@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -31,11 +31,13 @@ type PathDetail = {
 
 export default function PathDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const pathId = Number(params.pathId);
   const { token } = useAuth();
   const [path, setPath] = useState<PathDetail | null>(null);
   const [guides, setGuides] = useState<PathGuide[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingPath, setDeletingPath] = useState(false);
 
   const load = useCallback(async () => {
     if (!token || !Number.isFinite(pathId)) return;
@@ -65,9 +67,30 @@ export default function PathDetailPage() {
   }, [load]);
 
   const deleteGuide = async (id: number) => {
-    if (!token || !confirm("Delete this guide?")) return;
+    if (!token || !confirm("Delete this guide from the path?")) return;
     await fetch(apiUrl(`/admin/official-prayers/${id}`), { method: "DELETE", headers: authHeaders(token) });
     setGuides((prev) => prev.filter((g) => g.id !== id));
+  };
+
+  const deletePath = async () => {
+    if (!token || !path) return;
+    const msg =
+      guides.length > 0
+        ? `Delete "${path.name}" and its ${guides.length} guide${guides.length === 1 ? "" : "s"}? This cannot be undone.`
+        : `Delete "${path.name}"? This cannot be undone.`;
+    if (!confirm(msg)) return;
+    setDeletingPath(true);
+    try {
+      const res = await fetch(apiUrl(`/admin/prayer-paths/${pathId}`), {
+        method: "DELETE",
+        headers: authHeaders(token),
+      });
+      if (res.ok) {
+        router.push("/dashboard/paths");
+      }
+    } finally {
+      setDeletingPath(false);
+    }
   };
 
   if (loading) return <Spinner />;
@@ -89,13 +112,18 @@ export default function PathDetailPage() {
         backHref="/dashboard/paths"
         backLabel="Category guides"
         action={
-          <Link
-            href={`/dashboard/paths/${pathId}/guides/new`}
-            className={btnPrimary + " inline-flex items-center gap-1.5"}
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            Add guide
-          </Link>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Link
+              href={`/dashboard/paths/${pathId}/guides/new`}
+              className={btnPrimary + " inline-flex items-center gap-1.5"}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              Add guide
+            </Link>
+            <button type="button" disabled={deletingPath} onClick={() => void deletePath()} className={btnDangerOutline}>
+              {deletingPath ? "…" : "Delete path"}
+            </button>
+          </div>
         }
       />
 

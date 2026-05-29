@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/MorningEveningMarks";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -33,7 +34,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
   const fsTitle = Math.round(clamp(18 * uiScale, 16, 21));
   const titleMb = Math.round(clamp(6 * uiScale, 5, 8));
   const fsSub = Math.round(clamp(14 * uiScale, 13, 16));
-  const lhSub = Math.round(fsSub * 1.4);
+  const lhSub = Math.round(fsSub * 2);
   const fsUpload = Math.round(clamp(12 * uiScale, 11, 13));
   const uploadMt = Math.round(clamp(10 * uiScale, 8, 12));
   const hintRight = Math.round(clamp(14 * uiScale, 12, 16));
@@ -87,13 +88,21 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
       </View>
       <Text style={[styles.officialTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
       {op.subtitle ? (
-        <Text style={[styles.officialSubtitle, { fontSize: fsSub, lineHeight: lhSub }]} numberOfLines={3}>
-          {op.subtitle}
-        </Text>
+        <FormattedBodyText
+          text={op.subtitle}
+          style={styles.officialSubtitle}
+          fontSize={fsSub}
+          lineHeight={lhSub}
+          numberOfLines={3}
+        />
       ) : (
-        <Text style={[styles.officialSubtitle, { fontSize: fsSub, lineHeight: lhSub }]} numberOfLines={3}>
-          {op.content}
-        </Text>
+        <FormattedBodyText
+          text={op.content}
+          style={styles.officialSubtitle}
+          fontSize={fsSub}
+          lineHeight={lhSub}
+          numberOfLines={3}
+        />
       )}
       {op.uploadedByUsername || op.uploadedByDisplayName ? (
         <Text style={[styles.uploadedBy, { fontSize: fsUpload, marginTop: uploadMt }]}>

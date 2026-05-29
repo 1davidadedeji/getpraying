@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -70,7 +71,7 @@ export function SanctuarySlotCard({
   const fsTime = Math.round(clamp(10 * uiScale * density, 8, compact ? 10 : 11));
   const fsTitle = Math.round(clamp(18 * uiScale * density, compact ? 15 : 16, compact ? 19 : 21));
   const fsDesc = Math.round(clamp(14 * uiScale * density, 12, compact ? 14 : 16));
-  const lhDesc = Math.round(fsDesc * 1.35);
+  const lhDesc = Math.round(fsDesc * 2);
   const fsScripture = Math.round(clamp(11 * uiScale * density, 9, compact ? 10 : 12));
   const fsDuration = Math.round(clamp(12 * uiScale * density, 10, compact ? 11 : 13));
   const rowGap = Math.round(clamp(10 * uiScale * density, 6, compact ? 8 : 12));
@@ -141,12 +142,13 @@ export function SanctuarySlotCard({
         ) : null}
       </View>
 
-      <Text
-        style={[styles.desc, { color: t.accent, fontSize: fsDesc, lineHeight: lhDesc, marginBottom: descMb }]}
+      <FormattedBodyText
+        text={body}
+        style={[styles.desc, { color: t.accent, marginBottom: descMb }]}
+        fontSize={fsDesc}
+        lineHeight={lhDesc}
         numberOfLines={compact ? 2 : 3}
-      >
-        {body}
-      </Text>
+      />
 
       {prayer?.scripture && !compact ? (
         <Text style={[styles.scripture, { color: t.accent, fontSize: fsScripture, marginBottom: scriptureMb }]}>

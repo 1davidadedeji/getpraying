@@ -967,6 +967,39 @@ router.post("/admin/prayer-paths", requireModeratorOrAdmin, async (req, res): Pr
   res.status(201).json(row);
 });
 
+router.delete("/admin/prayer-paths/:pathId", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.pathId) ? req.params.pathId[0] : req.params.pathId;
+  const pathId = parseInt(String(rawId), 10);
+  if (Number.isNaN(pathId)) {
+    res.status(400).json({ error: "Invalid path id" });
+    return;
+  }
+
+  const [path] = await db.select().from(prayerPathsTable).where(eq(prayerPathsTable.id, pathId)).limit(1);
+  if (!path) {
+    res.status(404).json({ error: "Path not found" });
+    return;
+  }
+
+  const guideRows = await db
+    .select({ id: officialPrayersTable.id })
+    .from(officialPrayersTable)
+    .where(eq(officialPrayersTable.pathId, pathId));
+  const guideIds = guideRows.map((g) => g.id);
+
+  await db.transaction(async (tx) => {
+    if (guideIds.length > 0) {
+      await tx
+        .delete(savedOfficialPrayersTable)
+        .where(inArray(savedOfficialPrayersTable.officialPrayerId, guideIds));
+      await tx.delete(officialPrayersTable).where(eq(officialPrayersTable.pathId, pathId));
+    }
+    await tx.delete(prayerPathsTable).where(eq(prayerPathsTable.id, pathId));
+  });
+
+  res.json({ success: true });
+});
+
 // ---------------------------------------------------------------------------
 // App store URL settings (ios_app_store_url, android_play_store_url, og_image_url)
 // Stored in app_settings — changes apply immediately (no app rebuild needed).

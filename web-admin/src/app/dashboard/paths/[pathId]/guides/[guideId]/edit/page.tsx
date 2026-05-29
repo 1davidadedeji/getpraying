@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FormActions } from "@/components/dashboard/FormActions";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { PathGuideForm, type PathGuideDraft } from "@/components/dashboard/PathGuideForm";
-import { panelCls } from "@/components/dashboard/form-styles";
+import { btnDangerOutline, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
@@ -22,6 +22,7 @@ export default function EditPathGuidePage() {
   const [draft, setDraft] = useState<PathGuideDraft | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -89,6 +90,20 @@ export default function EditPathGuidePage() {
     }
   };
 
+  const deleteGuide = async () => {
+    if (!token || !confirm("Delete this guide permanently?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(apiUrl(`/admin/official-prayers/${guideId}`), {
+        method: "DELETE",
+        headers: authHeaders(token),
+      });
+      if (res.ok) router.push(`/dashboard/paths/${pathId}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) return <Spinner />;
 
   if (!draft) {
@@ -109,10 +124,18 @@ export default function EditPathGuidePage() {
         <FormActions
           primaryLabel="Save"
           primaryLoading={saving}
-          primaryDisabled={!draft.title.trim()}
+          primaryDisabled={!draft.title.trim() || deleting}
           onPrimary={() => void save()}
           onCancel={() => router.push(`/dashboard/paths/${pathId}`)}
         />
+        <button
+          type="button"
+          disabled={deleting || saving}
+          onClick={() => void deleteGuide()}
+          className={btnDangerOutline + " mt-3"}
+        >
+          {deleting ? "Deleting…" : "Delete guide"}
+        </button>
       </div>
     </>
   );

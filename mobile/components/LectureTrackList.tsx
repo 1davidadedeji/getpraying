@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import colors from "@/constants/colors";
 import type { LectureTrackRow } from "@/lib/officialPrayer";
 
@@ -89,9 +90,12 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
                     {track.title}
                   </Text>
                   {track.description ? (
-                    <Text style={styles.trackDesc} numberOfLines={isActive ? undefined : 2}>
-                      {track.description}
-                    </Text>
+                    <FormattedBodyText
+                      text={track.description}
+                      style={styles.trackDesc}
+                      fontSize={13}
+                      numberOfLines={isActive ? undefined : 2}
+                    />
                   ) : null}
                 </View>
                 {!isActive ? (
@@ -205,9 +209,7 @@ const styles = StyleSheet.create({
   trackTitleActive: { color: colors.primary },
   trackDesc: {
     fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 19,
   },
   playFab: {
     width: 36,

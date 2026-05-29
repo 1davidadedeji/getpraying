@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import colors from "@/constants/colors";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { iconKeyForPathCategory } from "@/constants/pathCategoryIcon";
@@ -121,6 +122,8 @@ export default function PathDetailScreen() {
   const heroIconRad = Math.round(clamp(20 * uiScale, 16, 24));
   const heroFeather = Math.round(clamp(28 * uiScale, 24, 32));
   const fsHeroTitle = Math.round(clamp(22 * uiScale, 20, 26));
+  const fsHeroDesc = Math.round(clamp(14 * uiScale, 13, 16));
+  const lhHeroDesc = Math.round(fsHeroDesc * 2);
   const sectionPadT = Math.round(clamp(20 * uiScale, 16, 24));
   const sectionGap = Math.round(clamp(12 * uiScale, 10, 14));
   const fsSectionTitle = Math.round(clamp(13 * uiScale, 12, 15));
@@ -195,6 +198,17 @@ export default function PathDetailScreen() {
           </View>
         )}
         <Text style={[styles.heroPathTitle, { fontSize: fsHeroTitle }]}>{path.name}</Text>
+        {path.tagline?.trim() ? (
+          <Text style={[styles.heroPathTagline, { fontSize: fsHeroDesc }]}>{path.tagline.trim()}</Text>
+        ) : null}
+        {path.description?.trim() ? (
+          <FormattedBodyText
+            text={path.description}
+            style={styles.heroPathDesc}
+            fontSize={fsHeroDesc}
+            lineHeight={lhHeroDesc}
+          />
+        ) : null}
       </View>
 
       <View style={[styles.section, { paddingHorizontal: gutter, paddingTop: sectionPadT, gap: sectionGap }]}>
@@ -248,6 +262,16 @@ const styles = StyleSheet.create({
   heroPathTitle: {
     fontFamily: "NotoSerif_700Bold",
     color: colors.primary,
+    textAlign: "center",
+  },
+  heroPathTagline: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.accent,
+    textAlign: "center",
+  },
+  heroPathDesc: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.textSecondary,
     textAlign: "center",
   },
   section: {},

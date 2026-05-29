@@ -1,6 +1,7 @@
 import React from "react";
-import { Text, type StyleProp, type TextStyle } from "react-native";
+import { type StyleProp, type TextStyle } from "react-native";
 
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
 
@@ -19,7 +20,7 @@ export function CommentRichBodyWithOgLink({ content, textStyle }: Props) {
   return (
     <>
       {og.displayTextWithoutUrl.trim().length > 0 ? (
-        <Text style={textStyle}>{og.displayTextWithoutUrl}</Text>
+        <FormattedBodyText text={og.displayTextWithoutUrl} style={textStyle as TextStyle | undefined} />
       ) : null}
       {og.showLinkPreview ? (
         <OutboundOgLinkCard

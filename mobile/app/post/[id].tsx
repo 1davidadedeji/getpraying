@@ -40,6 +40,7 @@ import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { CommentRichBodyWithOgLink } from "@/components/CommentLinkPreview";
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
 import { showAppAlert } from "@/components/AppAlert";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
@@ -141,7 +142,7 @@ export default function PostDetailScreen() {
   const rightGap = Math.round(clamp(8 * uiScale, 6, 10));
   const postImgMb = Math.round(clamp(16 * uiScale, 12, 20));
   const fsPrayer = Math.round(clamp(15 * uiScale, 14, 16));
-  const lhPrayer = Math.round(fsPrayer * 1.55);
+  const lhPrayer = Math.round(fsPrayer * 2);
   const prayerMb = Math.round(clamp(20 * uiScale, 16, 24));
   const dividerMb = Math.round(clamp(14 * uiScale, 12, 16));
   const flameIcn = Math.round(clamp(18 * uiScale, 16, 20));
@@ -597,12 +598,13 @@ export default function PostDetailScreen() {
         {(prayerTextForUi.trim().length > 0 || ogPrayer.showLinkPreview) ? (
           <View style={{ marginBottom: prayerMb }}>
             {prayerTextForUi.trim().length > 0 ? (
-              <Text
-                style={[styles.prayerContent, { fontSize: fsPrayer, lineHeight: lhPrayer }]}
+              <FormattedBodyText
+                text={prayerTextForUi}
+                style={styles.prayerContent}
+                fontSize={fsPrayer}
+                lineHeight={lhPrayer}
                 numberOfLines={bodyExpanded || !longBody ? undefined : 5}
-              >
-                {prayerTextForUi}
-              </Text>
+              />
             ) : null}
             {longBody ? (
               <Pressable

@@ -15,6 +15,7 @@ import {
   getGetOfficialPrayerByIdQueryKey,
   useGetOfficialPrayerById,
 } from "@workspace/api-client-react";
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import { LectureTrackList } from "@/components/LectureTrackList";
 import { showAppAlert } from "@/components/AppAlert";
@@ -57,7 +58,7 @@ export default function OfficialPrayerScreen() {
   const fsScripture = Math.round(clamp(15 * uiScale, 14, 17));
   const scrMb = Math.round(clamp(12 * uiScale, 10, 14));
   const fsBody = Math.round(clamp(16 * uiScale, 15, 18));
-  const lhBody = Math.round(fsBody * 1.5);
+  const lhBody = Math.round(fsBody * 2);
   const fsUpload = Math.round(clamp(12 * uiScale, 11, 14));
   const uploadMt = Math.round(clamp(16 * uiScale, 12, 20));
   const seeAlsoMt = Math.round(clamp(28 * uiScale, 22, 32));
@@ -219,7 +220,7 @@ export default function OfficialPrayerScreen() {
 
       {isLecture && bodyText ? (
         <View style={{ marginBottom: scrMb }}>
-          <Text style={[styles.body, { fontSize: fsBody, lineHeight: lhBody }]}>{bodyText}</Text>
+          <FormattedBodyText text={bodyText} style={styles.body} fontSize={fsBody} lineHeight={lhBody} />
         </View>
       ) : null}
 
@@ -235,12 +236,13 @@ export default function OfficialPrayerScreen() {
 
       {!isLecture && bodyText ? (
         <View style={{ marginBottom: scrMb }}>
-          <Text
-            style={[styles.body, { fontSize: fsBody, lineHeight: lhBody }]}
+          <FormattedBodyText
+            text={bodyText}
+            style={styles.body}
+            fontSize={fsBody}
+            lineHeight={lhBody}
             numberOfLines={bodyExpanded || !longBody ? undefined : 6}
-          >
-            {bodyText}
-          </Text>
+          />
           {longBody ? (
             <Pressable
               onPress={() => setBodyExpanded((prev) => !prev)}

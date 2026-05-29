@@ -25,6 +25,7 @@ import {
 import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import { ApiError } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
+import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -339,9 +340,11 @@ export default function PostCard({
             accessibilityLabel={`Open prayer from ${authorName}`}
           >
             {og.displayTextWithoutUrl.trim().length > 0 ? (
-              <Text style={styles.content} numberOfLines={4}>
-                {og.displayTextWithoutUrl}
-              </Text>
+              <FormattedBodyText
+                text={og.displayTextWithoutUrl}
+                style={styles.content}
+                numberOfLines={4}
+              />
             ) : null}
 
             {og.showLinkPreview ? (
@@ -589,7 +592,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 15,
     color: colors.text,
-    lineHeight: 22,
   },
   actions: {
     flexDirection: "row",
