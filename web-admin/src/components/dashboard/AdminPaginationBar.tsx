@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-r
 import { cn } from "@/lib/cn";
 
 const btnCls =
-  "inline-flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-2 text-[12px] font-semibold text-[var(--color-primary)] transition-colors hover:border-[color-mix(in_srgb,var(--color-flame)_35%,var(--color-border))] hover:bg-[var(--color-cream)] disabled:pointer-events-none disabled:opacity-35 sm:px-3";
+  "inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11px] font-medium text-[var(--color-primary)] transition-colors hover:border-[var(--color-flame)] disabled:opacity-35 sm:px-2.5";
 
 export function AdminPaginationBar({
   page,
@@ -31,7 +31,7 @@ export function AdminPaginationBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-[color-mix(in_srgb,var(--color-border)_90%,transparent)] bg-[var(--color-surface)] px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >

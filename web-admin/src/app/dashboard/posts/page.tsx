@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { panelCls } from "@/components/dashboard/form-styles";
 import { AdminPostFiltersCard } from "@/components/dashboard/AdminPostFiltersCard";
 import { AdminPaginationBar } from "@/components/dashboard/AdminPaginationBar";
 import { Spinner } from "@/components/ui/feedback";
@@ -141,7 +142,7 @@ export default function PostsPage() {
 
   return (
     <>
-      <PageHeader title="All posts" description="Approved and declined posts — filter and paginate below" />
+      <PageHeader title="All posts" description="Approved and declined — filter and paginate" />
 
       <AdminPostFiltersCard
         search={search}
@@ -163,25 +164,25 @@ export default function PostsPage() {
         <Spinner />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-            <table className="w-full min-w-[640px] text-[13px]">
-              <thead className="border-b border-[var(--color-border)] bg-[var(--color-cream)]">
+          <div className={`${panelCls} overflow-x-auto`}>
+            <table className="w-full min-w-[600px] text-[12px]">
+              <thead className="border-b border-[var(--color-border)] bg-[var(--color-cream)]/60">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Author</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Content</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Status</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">🙏</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Date</th>
-                  <th className="w-8 px-4 py-3" />
+                  <th className="px-3 py-2 text-left font-semibold text-[var(--color-primary)]">Author</th>
+                  <th className="px-3 py-2 text-left font-semibold text-[var(--color-primary)]">Content</th>
+                  <th className="px-3 py-2 text-left font-semibold text-[var(--color-primary)]">Status</th>
+                  <th className="px-3 py-2 text-left font-semibold text-[var(--color-primary)]">🙏</th>
+                  <th className="px-3 py-2 text-left font-semibold text-[var(--color-primary)]">Date</th>
+                  <th className="w-8 px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
                 {posts.map((post) => (
                   <tr
                     key={post.id}
-                    className="border-b border-[var(--color-border)] last:border-0 hover:bg-[color-mix(in_srgb,var(--color-cream)_55%,white)]"
+                    className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-cream)]/40"
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <p className="max-w-[120px] truncate font-medium text-[var(--color-primary)]">
                         {post.isAnonymous ? <span className="text-[var(--color-muted)]">Anon</span> : (post.authorDisplayName ?? post.authorUsername ?? "—")}
                       </p>
@@ -189,20 +190,20 @@ export default function PostsPage() {
                         <p className="text-[11px] text-[var(--color-muted)]">@{post.authorUsername}</p>
                       )}
                     </td>
-                    <td className="max-w-xs px-4 py-3">
+                    <td className="max-w-xs px-3 py-2">
                       <p className="truncate text-[var(--color-text-secondary)]">{post.content}</p>
                       {post.moderationReason && (
                         <p className="mt-0.5 truncate text-[11px] text-[var(--color-danger)]">↳ {post.moderationReason}</p>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <StatusBadge status={post.status} />
                     </td>
-                    <td className="px-4 py-3 text-[var(--color-muted)]">{post.prayCount}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[var(--color-muted)]">
+                    <td className="px-3 py-2 text-[var(--color-muted)]">{post.prayCount}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-[var(--color-muted)]">
                       {new Date(post.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {confirmId === post.id ? (
                         <div className="flex min-w-[180px] flex-col gap-1.5">
                           <input
@@ -269,7 +270,7 @@ export default function PostsPage() {
 
           {totalMatching != null && totalMatching > 0 ? (
             <AdminPaginationBar
-              className="mt-4"
+              className="mt-3"
               page={page}
               totalPages={totalPages}
               totalMatching={totalMatching}

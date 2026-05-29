@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { inputCls } from "@/components/dashboard/form-styles";
+import { inputCls, panelCls } from "@/components/dashboard/form-styles";
 import { cn } from "@/lib/cn";
 import { AdminSelect } from "@/components/ui/AdminSelect";
 
@@ -32,16 +32,15 @@ export function LibraryContentFiltersCard({
   hideNoSlotFilterOption?: boolean;
 }) {
   return (
-    <div className="mb-5 rounded-2xl border border-[color-mix(in_srgb,var(--color-border)_90%,transparent)] bg-[var(--color-surface)] p-4 shadow-sm sm:p-5">
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">Find & narrow</p>
+    <div className={cn(panelCls, "mb-3 p-3")}>
       <div
         className={cn(
-          "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:items-end",
+          "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:items-end",
           slotFilterVisible ? "lg:grid-cols-4" : "lg:grid-cols-3",
         )}
       >
         <div className="lg:col-span-2">
-          <label className="mb-1 block text-[11px] font-medium text-[var(--color-muted)]">Search titles & text</label>
+          <label className="mb-0.5 block text-[10px] font-medium text-[var(--color-muted)]">Search</label>
           <div className="relative">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
@@ -73,10 +72,9 @@ export function LibraryContentFiltersCard({
           <option value="no">No audio</option>
         </AdminSelect>
       </div>
-      <p className="mt-3 border-t border-[var(--color-border)] pt-3 text-[12px] text-[var(--color-muted)]">
+      <p className="mt-2 text-[11px] text-[var(--color-muted)]">
         Showing <strong className="text-[var(--color-primary)]">{showingCount}</strong> of{" "}
-        <strong className="text-[var(--color-primary)]">{totalCount}</strong> loaded items
-        {showingCount === 0 && totalCount > 0 ? " — adjust filters" : null}
+        <strong className="text-[var(--color-primary)]">{totalCount}</strong>
       </p>
     </div>
   );

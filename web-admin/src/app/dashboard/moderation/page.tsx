@@ -1,20 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { AdminPostFiltersCard } from "@/components/dashboard/AdminPostFiltersCard";
 import { AdminPaginationBar } from "@/components/dashboard/AdminPaginationBar";
+import { panelCls } from "@/components/dashboard/form-styles";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-
-interface StaffPostReport {
-  reporterUsername: string;
-  reporterDisplayName: string | null;
-  reason: string;
-  createdAt: string;
-}
 
 interface Post {
   id: number;
@@ -22,14 +17,10 @@ interface Post {
   authorUsername: string | null;
   authorDisplayName: string | null;
   createdAt: string;
-  prayCount: number;
   category: string | null;
-  mediaUrl: string | null;
   mediaType: string | null;
   isAnonymous: boolean;
-  status: string;
-  flagReason?: string | null;
-  reports?: StaffPostReport[];
+  reports?: { reporterUsername: string }[];
 }
 
 type ModerationFiltersSnapshot = {
@@ -46,23 +37,27 @@ export default function ModerationPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [actionId, setActionId] = useState<number | null>(null);
-  const [declineId, setDeclineId] = useState<number | null>(null);
-  const [declineReason, setDeclineReason] = useState("");
   const [pendingCount, setPendingCount] = useState<number | null>(null);
-
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 380);
   const [category, setCategory] = useState("");
   const [media, setMedia] = useState("all");
   const [pageSize, setPageSize] = useState(20);
   const [totalMatching, setTotalMatching] = useState<number | null>(null);
-
   const prevFiltersRef = useRef<ModerationFiltersSnapshot | null>(null);
 
   useEffect(() => {
     if (!token) return;
+    fetch(apiUrl("/admin/pending-count"), { headers: authHeaders(token) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setPendingCount(d.count);
+      })
+      .catch(() => {});
+  }, [token, refreshTick]);
 
+  useEffect(() => {
+    if (!token) return;
     const next: ModerationFiltersSnapshot = {
       q: debouncedSearch.trim(),
       category: category.trim(),
@@ -76,9 +71,7 @@ export default function ModerationPage() {
       prev.category !== next.category ||
       prev.media !== next.media ||
       prev.pageSize !== next.pageSize;
-
     prevFiltersRef.current = next;
-
     const effectivePage = changed ? 1 : page;
     if (changed && page !== 1) setPage(1);
 
@@ -86,10 +79,7 @@ export default function ModerationPage() {
     setLoading(true);
     void (async () => {
       try {
-        const params = new URLSearchParams({
-          limit: String(next.pageSize),
-          page: String(effectivePage),
-        });
+        const params = new URLSearchParams({ limit: String(next.pageSize), page: String(effectivePage) });
         if (next.q) params.set("q", next.q);
         if (next.category) params.set("category", next.category);
         if (next.media !== "all") params.set("media", next.media);
@@ -105,79 +95,26 @@ export default function ModerationPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, [token, debouncedSearch, category, media, pageSize, page, refreshTick]);
-
-  useEffect(() => {
-    if (!token) return;
-    fetch(apiUrl("/admin/pending-count"), { headers: authHeaders(token) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d) setPendingCount(d.count);
-      })
-      .catch(() => {});
-  }, [token]);
-
-  const approve = async (id: number) => {
-    if (!token) return;
-    setActionId(id);
-    try {
-      await fetch(apiUrl(`/admin/posts/${id}/approve`), { method: "POST", headers: authHeaders(token) });
-      setPendingCount((n) => (n ?? 1) - 1);
-      fetch(apiUrl("/admin/pending-count"), { headers: authHeaders(token) })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (typeof d?.count === "number") setPendingCount(d.count);
-        })
-        .catch(() => {});
-      setRefreshTick((t) => t + 1);
-    } finally {
-      setActionId(null);
-    }
-  };
-
-  const decline = async (id: number) => {
-    if (!token || declineReason.trim().length < 3) return;
-    setActionId(id);
-    try {
-      await fetch(apiUrl(`/admin/posts/${id}/decline`), {
-        method: "POST",
-        headers: authHeaders(token),
-        body: JSON.stringify({ reason: declineReason.trim() }),
-      });
-      setPendingCount((n) => (n ?? 1) - 1);
-      fetch(apiUrl("/admin/pending-count"), { headers: authHeaders(token) })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (typeof d?.count === "number") setPendingCount(d.count);
-        })
-        .catch(() => {});
-      setRefreshTick((t) => t + 1);
-    } finally {
-      setActionId(null);
-      setDeclineId(null);
-      setDeclineReason("");
-    }
-  };
 
   const filtersActive = Boolean(debouncedSearch.trim() || category.trim() || media !== "all");
 
   return (
     <>
       <PageHeader
-        title="Moderation queue"
-        description="Review pending posts — filter by text, category, or media type"
+        title="Moderation"
+        description="Review pending posts"
         action={
           pendingCount !== null ? (
             <span
-              className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-bold ${
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
                 pendingCount > 0 ? "bg-[var(--color-flame)] text-white" : "bg-[var(--color-border)] text-[var(--color-muted)]"
               }`}
             >
-              {pendingCount} pending (global)
+              {pendingCount} pending
             </span>
           ) : null
         }
@@ -199,123 +136,44 @@ export default function ModerationPage() {
       {loading && posts.length === 0 ? (
         <Spinner />
       ) : posts.length === 0 ? (
-        <EmptyState
-          label={
-            filtersActive
-              ? "No pending posts match these filters — try clearing search or media filters"
-              : "Queue is clear — nothing pending review"
-          }
-        />
+        <EmptyState label={filtersActive ? "No posts match filters" : "Queue is clear"} />
       ) : (
-        <div className="flex flex-col gap-3">
-          {posts.map((post) => (
-            <div key={post.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                    <span className="text-[12px] font-semibold text-[var(--color-primary)]">
-                      {post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Unknown")}
-                    </span>
-                    {!post.isAnonymous && post.authorUsername && (
-                      <span className="text-[11px] text-[var(--color-muted)]">@{post.authorUsername}</span>
-                    )}
-                    {post.category && <CategoryBadge category={post.category} />}
-                    {post.mediaType && (
-                      <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[11px] capitalize text-blue-600">
-                        {post.mediaType}
-                      </span>
-                    )}
-                    <span className="ml-auto text-[11px] text-[var(--color-muted)]">
-                      {new Date(post.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed text-[var(--color-primary)] whitespace-pre-wrap">{post.content}</p>
-
-                  {(post.reports?.length ?? 0) > 0 ? (
-                    <div className="mt-3 rounded-lg border border-[color-mix(in_srgb,var(--color-danger)_35%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-danger)_8%,var(--color-surface))] p-3">
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--color-danger)]">
-                        Reported by {post.reports!.length === 1 ? "1 person" : `${post.reports!.length} people`}
-                      </p>
-                      <ul className="flex flex-col gap-2">
-                        {post.reports!.map((report, idx) => (
-                          <li key={`${report.reporterUsername}-${idx}`} className="text-[13px]">
-                            <span className="font-semibold text-[var(--color-primary)]">
-                              {report.reporterDisplayName ?? report.reporterUsername}
-                            </span>
-                            <span className="text-[var(--color-muted)]"> @{report.reporterUsername}</span>
-                            <span className="text-[var(--color-muted)]"> — </span>
-                            <span className="text-[var(--color-text-secondary,var(--color-muted))]">{report.reason}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : post.flagReason ? (
-                    <p className="mt-3 rounded-lg border border-[color-mix(in_srgb,var(--color-danger)_35%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-danger)_8%,var(--color-surface))] px-3 py-2 text-[13px] text-[var(--color-danger)]">
-                      Report reason: {post.flagReason}
-                    </p>
+        <>
+          <div className="flex flex-col gap-2">
+            {posts.map((post) => (
+              <Link
+                key={post.id}
+                href={`/dashboard/moderation/${post.id}`}
+                className={`${panelCls} block p-3 transition-colors hover:border-[var(--color-flame)]`}
+              >
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-[var(--color-primary)]">
+                    {post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Unknown")}
+                  </span>
+                  {!post.isAnonymous && post.authorUsername ? (
+                    <span className="text-[10px] text-[var(--color-muted)]">@{post.authorUsername}</span>
                   ) : null}
+                  {post.category ? (
+                    <span className="rounded bg-[var(--color-flame)]/10 px-1.5 py-0.5 text-[10px] capitalize text-[var(--color-flame)]">
+                      {post.category}
+                    </span>
+                  ) : null}
+                  {(post.reports?.length ?? 0) > 0 ? (
+                    <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-danger)]">
+                      {post.reports!.length} report{post.reports!.length === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                  <span className="ml-auto text-[10px] text-[var(--color-muted)]">
+                    {new Date(post.createdAt).toLocaleString()}
+                  </span>
                 </div>
-              </div>
-
-              {declineId === post.id ? (
-                <div className="mt-3 flex items-start gap-2">
-                  <input
-                    autoFocus
-                    className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-cream)] px-3 py-2 text-[13px] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--color-danger)]"
-                    placeholder="Reason for declining (required)…"
-                    value={declineReason}
-                    onChange={(e) => setDeclineReason(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void decline(post.id);
-                      if (e.key === "Escape") {
-                        setDeclineId(null);
-                        setDeclineReason("");
-                      }
-                    }}
-                  />
-                  <button
-                    disabled={declineReason.trim().length < 3 || actionId === post.id}
-                    onClick={() => void decline(post.id)}
-                    className="rounded-lg bg-[var(--color-danger)] px-3 py-2 text-[13px] font-medium text-white disabled:opacity-40"
-                  >
-                    {actionId === post.id ? "…" : "Decline"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDeclineId(null);
-                      setDeclineReason("");
-                    }}
-                    className="rounded-lg bg-[var(--color-border)] px-3 py-2 text-[13px] text-[var(--color-primary)]"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-3 flex gap-2">
-                  <button
-                    disabled={actionId === post.id}
-                    onClick={() => void approve(post.id)}
-                    className="rounded-lg bg-[var(--color-success)] px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-green-600 disabled:opacity-40"
-                  >
-                    {actionId === post.id ? "…" : "Approve"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDeclineId(post.id);
-                      setDeclineReason("");
-                    }}
-                    className="rounded-lg border border-[var(--color-danger)] px-3.5 py-1.5 text-[13px] text-[var(--color-danger)] transition-colors hover:bg-red-50"
-                  >
-                    Decline
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-
+                <p className="line-clamp-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">{post.content}</p>
+              </Link>
+            ))}
+          </div>
           {totalMatching != null && totalMatching > 0 ? (
             <AdminPaginationBar
-              className="mt-1"
+              className="mt-3"
               page={page}
               totalPages={totalPages}
               totalMatching={totalMatching}
@@ -324,16 +182,8 @@ export default function ModerationPage() {
               onPageChange={setPage}
             />
           ) : null}
-        </div>
+        </>
       )}
     </>
-  );
-}
-
-function CategoryBadge({ category }: { category: string }) {
-  return (
-    <span className="rounded-full bg-[color-mix(in_srgb,var(--color-flame)_14%,var(--color-cream))] px-1.5 py-0.5 text-[11px] font-medium capitalize text-[var(--color-flame)]">
-      {category}
-    </span>
   );
 }

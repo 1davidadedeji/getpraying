@@ -61,11 +61,11 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title={`${greeting}, ${user?.displayName ?? user?.username}`}
-        description={`${user?.role ?? ""} · Get Praying`}
+        description={user?.role === "admin" ? "Administrator" : "Moderator"}
       />
 
       {isAdmin ? (
-        <div className="mb-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
           <StatCard label="Total users" value={stats.totalUsers} sub={`${stats.bannedUsers ?? 0} banned`} />
           <StatCard label="Total prayers" value={stats.totalPosts} sub={`${stats.approvedPosts ?? 0} live`} />
           <StatCard
@@ -77,16 +77,15 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] sm:text-[13px]">
-        Quick actions
+      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+        Sections
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
         {navItems.map((item) => (
           <HubNavLink
             key={item.href}
             href={item.href}
             title={item.label}
-            subtitle={item.subtitle}
             icon={item.icon}
             active={item.href === quickActiveHref}
             urgent={

@@ -1,3 +1,4 @@
+import { panelCls } from "@/components/dashboard/form-styles";
 import { cn } from "@/lib/cn";
 
 export function StatCard({
@@ -12,13 +13,13 @@ export function StatCard({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 sm:p-4">
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] sm:text-[11px]">
+    <div className={panelCls + " p-3"}>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
         {label}
       </p>
       <p
         className={cn(
-          "text-xl font-bold sm:text-2xl",
+          "text-lg font-bold",
           accent ? "text-[var(--color-flame)]" : "text-[var(--color-primary)]",
         )}
       >

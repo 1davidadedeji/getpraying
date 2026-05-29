@@ -73,13 +73,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     collapsed?: boolean;
     mobile?: boolean;
   }) => (
-    <nav className={cn("flex flex-col gap-1.5 sm:gap-2", className)} aria-label="Admin sections">
+    <nav className={cn("flex flex-col gap-0.5", className)} aria-label="Admin sections">
       {visibleNav.map((item) => (
         <HubNavLink
           key={item.href}
           href={item.href}
           title={item.label}
-          subtitle={item.subtitle}
           icon={item.icon}
           active={item.href === activeHref}
           collapsed={!!collapsed && !mobile}
@@ -165,13 +164,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           "relative z-30 hidden h-[100dvh] shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-cream)] shadow-[1px_0_0_color-mix(in_srgb,var(--color-primary)_4%,transparent)] transition-[width] duration-200 ease-out md:fixed md:inset-y-0 md:left-0 md:flex",
-          sidebarCollapsed ? "md:w-[4.5rem]" : "md:w-60 xl:w-72",
+          sidebarCollapsed ? "md:w-14" : "md:w-52",
         )}
       >
         <div
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain",
-            sidebarCollapsed ? "px-2 py-4 xl:px-2 xl:py-5" : "px-3 py-4 md:px-3 md:py-5 xl:px-4",
+            sidebarCollapsed ? "px-2 py-3" : "px-2.5 py-3",
           )}
         >
           {sidebarCollapsed ? (
@@ -248,10 +247,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div
         className={cn(
           "flex min-h-[100dvh] flex-1 flex-col transition-[padding] duration-200 ease-out",
-          sidebarCollapsed ? "md:pl-[4.5rem]" : "md:pl-60 xl:pl-72",
+          sidebarCollapsed ? "md:pl-14" : "md:pl-52",
         )}
       >
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-cream)_94%,white)] px-4 py-3 backdrop-blur-md md:hidden">
+        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-cream)_94%,white)] px-3 py-2.5 backdrop-blur-md md:hidden">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -261,8 +260,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" strokeWidth={1.75} />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="font-heading truncate text-[17px] font-bold text-[var(--color-primary)]">{activeTitle}</p>
-            <p className="truncate text-[11px] text-[var(--color-muted)]">
+            <p className="font-heading truncate text-base font-bold text-[var(--color-primary)]">{activeTitle}</p>
+            <p className="truncate text-[10px] text-[var(--color-muted)]">
               {user?.role === "admin" ? "Administrator" : "Moderator"} · {user?.username}
             </p>
           </div>
@@ -270,8 +269,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <main className="relative flex min-h-0 flex-1 flex-col">
           <div className="mx-auto min-h-[100dvh] w-full max-w-[1800px] border-x border-transparent">
-            <div className="min-h-[100dvh] bg-[linear-gradient(180deg,var(--color-cream)_0%,color-mix(in_srgb,var(--color-cream)_88%,white)_52%,var(--color-cream-muted)_100%)] pb-16">
-              <div className="px-4 py-5 sm:px-7 sm:py-8 xl:px-10 2xl:px-12">{children}</div>
+            <div className="min-h-[100dvh] bg-[var(--color-cream-muted)] pb-10">
+              <div className="px-3 py-4 sm:px-5 sm:py-5 lg:px-6">{children}</div>
             </div>
           </div>
         </main>
