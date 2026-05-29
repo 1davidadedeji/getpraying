@@ -2,16 +2,13 @@ import type { Href } from "expo-router";
 import type { User } from "@workspace/api-client-react";
 import type { ParsedDeepLink } from "@/lib/parseDeepLink";
 import { deepLinkToHref } from "@/lib/parseDeepLink";
+import { isStaffUser } from "@/lib/staffAccess";
 
 type RevenueCatGate = {
   isReady: boolean;
   enabled: boolean;
   isEntitled: boolean;
 };
-
-function isStaff(user: User): boolean {
-  return user.role === "admin" || user.role === "moderator";
-}
 
 /** Next route after auth gates, honoring a deferred deep link when present. */
 export function getPostAuthRoute(
@@ -21,7 +18,7 @@ export function getPostAuthRoute(
 ): Href | null {
   if (!user.isEmailVerified) return "/(auth)/verify" as Href;
 
-  if (isStaff(user)) {
+  if (isStaffUser(user)) {
     if (!user.onboardingComplete) return "/onboarding" as Href;
     return (pendingDeepLink ? deepLinkToHref(pendingDeepLink) : "/(tabs)") as Href;
   }

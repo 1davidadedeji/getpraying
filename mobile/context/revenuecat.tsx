@@ -12,6 +12,7 @@ import {
   isPremiumTrialPeriod,
   PREMIUM_ENTITLEMENT_ID,
 } from "@/lib/revenuecatEntitlements";
+import { isStaffUser } from "@/lib/staffAccess";
 
 /** Must match the Offering identifier in the RevenueCat dashboard. */
 export const DEFAULT_OFFERING_ID = "default";
@@ -33,6 +34,8 @@ export function getMonthlyPackage(
   return (
     offering.monthly ??
     offering.availablePackages.find((p) => p.packageType === "MONTHLY") ??
+    offering.availablePackages.find((p) => /month/i.test(p.identifier)) ??
+    offering.availablePackages[0] ??
     null
   );
 }
@@ -48,7 +51,7 @@ type RevenueCatState = {
   canUseBoost: boolean;
   refresh: () => Promise<void>;
   purchasePackage: (pkg: PurchasesPackage) => Promise<void>;
-  restore: () => Promise<void>;
+  restore: () => Promise<CustomerInfo>;
   upgradeFromTrial: () => Promise<void>;
 };
 
@@ -119,6 +122,8 @@ function RevenueCatUserSync({
 }
 
 export function RevenueCatProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const staffBypass = isStaffUser(user);
   const [enabled, setEnabled] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
@@ -184,12 +189,13 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     }
   }, [enabled]);
 
-  const restore = async () => {
+  const restore = useCallback(async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
     const Purchases = getPurchases();
     const info = await Purchases.restorePurchases();
     setCustomerInfo(info);
-  };
+    return info;
+  }, [enabled]);
 
   const upgradeFromTrial = useCallback(async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
@@ -206,9 +212,10 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     throw new Error("Subscription options are not available right now.");
   }, [enabled, offerings, customerInfo?.managementURL, purchasePackage]);
 
-  const isEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
-  const isPremiumTrial = enabled ? isPremiumTrialPeriod(customerInfo) : false;
-  const canUseBoost = enabled ? canUseBoostFeature(customerInfo) : false;
+  const isEntitled = staffBypass || (enabled ? hasPremiumEntitlement(customerInfo) : false);
+  const isPremiumTrial =
+    !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
+  const canUseBoost = staffBypass || (enabled ? canUseBoostFeature(customerInfo) : false);
   const monthlyPackage = useMemo(() => getMonthlyPackage(offerings), [offerings]);
 
   const value: RevenueCatState = useMemo(
@@ -236,6 +243,8 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       isPremiumTrial,
       canUseBoost,
       upgradeFromTrial,
+      purchasePackage,
+      restore,
     ],
   );
 

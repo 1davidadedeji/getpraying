@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -28,7 +28,9 @@ export default function PaywallScreen() {
   const rc = useRevenueCat();
   const queryClient = useQueryClient();
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
-  const isMandatoryGate = rc.enabled && !rc.isEntitled;
+  const { soft } = useLocalSearchParams<{ soft?: string }>();
+  const isSoftPaywall = soft === "1" || soft === "true";
+  const isMandatoryGate = rc.enabled && !rc.isEntitled && !isSoftPaywall;
 
   const leavePaywall = useCallback(async () => {
     await logoutThenClearQueryCache(logout, queryClient);
@@ -38,6 +40,20 @@ export default function PaywallScreen() {
     router.replace("/");
   }, [logout, queryClient]);
 
+  const dismissPaywall = useCallback(() => {
+    if (isSoftPaywall && router.canGoBack()) {
+      router.back();
+      return;
+    }
+    if (isMandatoryGate) {
+      void leavePaywall();
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)" as import("expo-router").Href);
+    }
+  }, [isSoftPaywall, isMandatoryGate, leavePaywall]);
+
   useEffect(() => {
     if (!isMandatoryGate) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -46,6 +62,15 @@ export default function PaywallScreen() {
     });
     return () => sub.remove();
   }, [isMandatoryGate, leavePaywall]);
+
+  useEffect(() => {
+    if (!isSoftPaywall) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      dismissPaywall();
+      return true;
+    });
+    return () => sub.remove();
+  }, [isSoftPaywall, dismissPaywall]);
 
   const continueAfterSubscribe = () => {
     if (!user) {
@@ -82,8 +107,8 @@ export default function PaywallScreen() {
   const fsPlanSub = Math.round(clamp(13 * uiScale, 12, 15));
   const fsLegal = Math.round(clamp(11 * uiScale, 10, 12));
   const lhLegal = Math.round(fsLegal * 1.45);
-  const restorePadV = Math.round(clamp(10 * uiScale, 8, 12));
-  const fsRestore = Math.round(clamp(14 * uiScale, 13, 16));
+  const linkPadV = Math.round(clamp(10 * uiScale, 8, 12));
+  const fsLink = Math.round(clamp(14 * uiScale, 13, 16));
 
   const monthly = rc.monthlyPackage;
   const trialOffer = formatMonthlyTrialOffer(monthly?.product);
@@ -98,33 +123,15 @@ export default function PaywallScreen() {
     try {
       await rc.purchasePackage(monthly);
       showAppAlert({
-        title: "You're in",
-        message: "Your free trial has started. Welcome to Get Praying.",
+        title: "You're subscribed",
+        message: "Welcome to Get Praying — the prayer feed, Library, and community are unlocked.",
         buttons: [{ text: "Continue", onPress: continueAfterSubscribe }],
       });
-    } catch (e: any) {
-      const msg = e?.message ?? "Purchase cancelled or failed.";
+    } catch (e: unknown) {
+      const err = e as { userCancelled?: boolean; message?: string };
+      if (err?.userCancelled) return;
+      const msg = err?.message ?? "Purchase cancelled or failed.";
       showAppAlert({ title: "Subscription not started", message: msg });
-    }
-  };
-
-  const onRestore = async () => {
-    try {
-      await rc.restore();
-      if (rc.isEntitled) {
-        showAppAlert({
-          title: "Restored",
-          message: "Your subscription has been restored.",
-          buttons: [{ text: "Continue", onPress: continueAfterSubscribe }],
-        });
-      } else {
-        showAppAlert({
-          title: "No active subscription",
-          message: "No previous purchases found. Start your free trial to continue.",
-        });
-      }
-    } catch (e: any) {
-      showAppAlert({ title: "Restore failed", message: e?.message ?? "Please try again." });
     }
   };
 
@@ -139,8 +146,20 @@ export default function PaywallScreen() {
       />
     <View style={[styles.flex, { paddingTop: topPad + edgePad, paddingBottom: botPad + edgePad }]}>
       <View style={[styles.container, { paddingHorizontal: padH, gap: containerGap }]}>
+        {!isMandatoryGate ? (
+          <Pressable
+            onPress={dismissPaywall}
+            style={[styles.closeBtn, { alignSelf: "flex-start" }]}
+            testID="paywall-close"
+            hitSlop={12}
+          >
+            <Text style={[styles.closeText, { fontSize: fsLink }]}>← Back</Text>
+          </Pressable>
+        ) : null}
         <View style={[styles.hero, { gap: heroGap, paddingHorizontal: heroPadH }]}>
-          <Text style={[styles.title, { fontSize: fsTitle }]}>Start your free trial</Text>
+          <Text style={[styles.title, { fontSize: fsTitle }]}>
+            {isSoftPaywall ? "Subscribe to unlock" : "Start your free trial"}
+          </Text>
           <Text style={[styles.subtitle, { fontSize: fsSub, lineHeight: lhSub }]}>
             Subscribe to unlock the prayer feed, Library, reminders, and community features.
           </Text>
@@ -188,9 +207,11 @@ export default function PaywallScreen() {
               >
                 <View style={styles.planCopy}>
                   <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>
-                    Start 7-day free trial
+                    Subscribe
                   </Text>
-                  <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>{trialOffer}</Text>
+                  <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>
+                    {trialOffer.includes("Free") ? trialOffer : `${trialOffer} · cancel anytime`}
+                  </Text>
                 </View>
               </Pressable>
               <Text style={[styles.legal, { fontSize: fsLegal, lineHeight: lhLegal }]}>
@@ -198,19 +219,23 @@ export default function PaywallScreen() {
               </Text>
             </>
           )}
-
-          <Pressable onPress={onRestore} style={[styles.restoreBtn, { paddingVertical: restorePadV }]} testID="restore-btn">
-            <Text style={[styles.restoreText, { fontSize: fsRestore }]}>Restore Purchases</Text>
-          </Pressable>
         </View>
 
         {isMandatoryGate ? (
           <Pressable
             onPress={() => void leavePaywall()}
-            style={[styles.signOutBtn, { paddingVertical: restorePadV }]}
+            style={[styles.signOutBtn, { paddingVertical: linkPadV }]}
             testID="paywall-sign-out"
           >
-            <Text style={[styles.signOutText, { fontSize: fsRestore }]}>Sign out</Text>
+            <Text style={[styles.signOutText, { fontSize: fsLink }]}>Sign out</Text>
+          </Pressable>
+        ) : isSoftPaywall ? (
+          <Pressable
+            onPress={dismissPaywall}
+            style={[styles.signOutBtn, { paddingVertical: linkPadV }]}
+            testID="paywall-not-now"
+          >
+            <Text style={[styles.signOutText, { fontSize: fsLink }]}>Not now</Text>
           </Pressable>
         ) : null}
       </View>
@@ -287,18 +312,18 @@ const styles = StyleSheet.create({
     color: "rgba(14,42,58,0.62)",
     textAlign: "center",
   },
-  restoreBtn: {
-    alignItems: "center",
-  },
-  restoreText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#21638D",
-  },
   signOutBtn: {
     alignItems: "center",
   },
   signOutText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "rgba(14,42,58,0.55)",
+  },
+  closeBtn: {
+    marginBottom: 4,
+  },
+  closeText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#21638D",
   },
 });

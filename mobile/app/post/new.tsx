@@ -373,7 +373,7 @@ export default function NewPostScreen() {
     showAppAlert({
       title: "Subscribe to Boost",
       message: "Boosting prayers is only available to fully paid subscribers.",
-      buttons: [{ text: "View plans", onPress: () => router.push("/(paywall)" as Href) }],
+      buttons: [{ text: "View plans", onPress: () => router.push("/(paywall)?soft=1" as Href) }],
     });
   };
 

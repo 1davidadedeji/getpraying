@@ -142,6 +142,11 @@ router.post("/users/me/push-token", requireAuth, async (req, res): Promise<void>
   const token =
     raw === null || raw === undefined ? null : String(raw).trim() === "" ? null : String(raw).trim();
 
+  if (token != null && !token.startsWith("ExponentPushToken[")) {
+    res.status(400).json({ error: "Invalid Expo push token format" });
+    return;
+  }
+
   const updates: Partial<typeof usersTable.$inferInsert> = { expoPushToken: token, updatedAt: new Date() };
   const tz = req.body?.timezone;
   if (typeof tz === "string" && tz.trim().length > 0) {

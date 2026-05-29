@@ -49,7 +49,7 @@ async function sendExpoPush(
   body: string,
   data: Record<string, string>,
 ): Promise<void> {
-  if (!expoToken || expoToken.length < 16) return;
+  if (!expoToken || !expoToken.startsWith("ExponentPushToken[") || expoToken.length < 16) return;
   const message = {
     to: expoToken,
     title,

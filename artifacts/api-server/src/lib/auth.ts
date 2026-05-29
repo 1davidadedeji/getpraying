@@ -193,9 +193,11 @@ export async function requirePremiumSubscription(
  * Store trial / intro periods are tracked as subscription = "trial" via the RevenueCat webhook.
  */
 export function userIsPayingSubscriber(user: {
+  role?: string;
   trialStartsAt?: Date | string | null;
   subscription?: string | null;
 }): boolean {
+  if (user.role === "admin" || user.role === "moderator") return true;
   const tier = String(user.subscription ?? "").toLowerCase();
   if (tier === "trial") return false;
   return ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);

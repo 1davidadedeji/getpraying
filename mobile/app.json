@@ -97,7 +97,7 @@
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResources": true,
             "enableMinifyInReleaseBuilds": true,
-            "extraProguardRules": "-keep class expo.modules.image.** { *; }\n-keep class com.github.bumptech.glide.** { *; }\n-keep class com.bumptech.glide.** { *; }\n-keep class com.facebook.react.** { *; }\n-keep class com.facebook.hermes.** { *; }\n-keep class expo.modules.** { *; }\n-keepattributes *Annotation*\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp *; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactPropGroup *; }"
+            "extraProguardRules": "-keep class expo.modules.image.** { *; }\n-keep class com.github.bumptech.glide.** { *; }\n-keep class com.bumptech.glide.** { *; }\n-keep class com.facebook.react.** { *; }\n-keep class com.facebook.hermes.** { *; }\n-keep class expo.modules.** { *; }\n-keep class com.google.firebase.** { *; }\n-keep class com.google.android.gms.** { *; }\n-dontwarn com.google.firebase.**\n-keepattributes *Annotation*\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp *; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactPropGroup *; }"
           }
         }
       ],
@@ -115,7 +115,8 @@
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
-          "color": "#1A1F36"
+          "color": "#1A1F36",
+          "defaultChannel": "default"
         }
       ]
     ],

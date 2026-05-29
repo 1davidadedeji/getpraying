@@ -6,6 +6,12 @@ import { Platform } from "react-native";
 import { apiUrl, authHeaders } from "@/lib/api";
 
 const PUSH_BUILD_KEY = "@getpraying/push-build-fingerprint";
+const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
+
+export function isExpoPushToken(token: string): boolean {
+  const t = token.trim();
+  return t.startsWith(EXPO_PUSH_TOKEN_PREFIX) && t.endsWith("]");
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -75,6 +81,11 @@ async function postPushTokenToServer(
  */
 export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: string): Promise<void> {
   if (!apiJwt || !Device.isDevice || !expoToken.trim()) return;
+  if (!isExpoPushToken(expoToken)) {
+    // Native FCM/APNs rotation events are not Expo tokens — fetch the real Expo token.
+    await registerAndSyncPushToken(apiJwt);
+    return;
+  }
   await ensureAndroidNotificationChannel();
   await postPushTokenToServer(apiJwt, {
     token: expoToken.trim(),
@@ -99,6 +110,7 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
   if (existing !== "granted") {
     const { status } = await Notifications.requestPermissionsAsync({
       ios: { allowAlert: true, allowBadge: true, allowSound: true },
+      android: {},
     });
     final = status;
   }
@@ -114,14 +126,21 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     const tokenRes = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined,
     );
+    const expoToken = tokenRes.data?.trim() ?? "";
+    if (!isExpoPushToken(expoToken)) {
+      console.warn("[push] getExpoPushTokenAsync returned invalid token format");
+      await postPushTokenToServer(apiJwt, { token: null });
+      return;
+    }
     const ok = await postPushTokenToServer(apiJwt, {
-      token: tokenRes.data,
+      token: expoToken,
       platform: Platform.OS,
       buildFingerprint,
     });
     if (ok) await AsyncStorage.setItem(PUSH_BUILD_KEY, buildFingerprint);
   } catch (err) {
     console.warn("[push] getExpoPushTokenAsync failed:", err);
+    await postPushTokenToServer(apiJwt, { token: null }).catch(() => {});
   }
 }
 

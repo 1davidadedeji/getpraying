@@ -19,6 +19,15 @@ android/
 *.key
 *.mobileprovision
 
+# Local EAS build outputs (eas build --local)
+*.ipa
+*.apk
+*.aab
+build-*.ipa
+build-*.apk
+build-*.aab
+*.tar.gz
+
 # Metro
 .metro-health-check*
 
@@ -30,6 +39,10 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+
+# Firebase / Google services credentials (never commit)
+*firebase-adminsdk*.json
+google-services.json
 
 # local env files
 .env*.local

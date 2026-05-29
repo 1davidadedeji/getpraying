@@ -7,7 +7,6 @@ import { useAuth } from "@/context/auth";
 import { navigateFromNotificationData } from "@/lib/notificationNavigation";
 import {
   registerAndSyncPushToken,
-  syncProvidedExpoPushToServer,
 } from "@/lib/syncExpoPushToken";
 
 /**
@@ -55,11 +54,10 @@ export function PushNotificationCoordinator() {
 
     const subResponse = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
 
-    const subToken = Notifications.addPushTokenListener((event) => {
+    const subToken = Notifications.addPushTokenListener(() => {
       const jwt = tokenRef.current;
-      const next = event.data;
-      if (!jwt || typeof next !== "string" || !next.trim()) return;
-      void syncProvidedExpoPushToServer(jwt, next);
+      if (!jwt) return;
+      void registerAndSyncPushToken(jwt);
     });
 
     const subIncoming = Notifications.addNotificationReceivedListener(() => {
