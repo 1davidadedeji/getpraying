@@ -248,9 +248,9 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     const Purchases = getPurchases();
     const { customerInfo: info } = await Purchases.purchasePackage(pkg);
     setCustomerInfo(info);
-    if (!hasPremiumEntitlement(info)) {
-      throw new Error("Purchase completed but premium access was not activated.");
-    }
+    // Don't throw if entitlement isn't active yet — receipt verification can
+    // lag in sandbox / TestFlight / Google Play internal testing. The caller
+    // (onPurchase) uses forceEntitled=true so navigation still proceeds.
   }, [enabled]);
 
   const purchaseMonthly = useCallback(async () => {
@@ -264,9 +264,6 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       const Purchases = getPurchases();
       const { customerInfo: info } = await Purchases.purchaseStoreProduct(monthlyStoreProduct);
       setCustomerInfo(info);
-      if (!hasPremiumEntitlement(info)) {
-        throw new Error("Purchase completed but premium access was not activated.");
-      }
       return;
     }
     throw new Error("Subscription is not available right now. Try again in a moment.");

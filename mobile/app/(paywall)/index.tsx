@@ -36,6 +36,7 @@ export default function PaywallScreen() {
   const isMandatoryGate =
     !isCheckingSubscription && rc.enabled && !rc.isEntitled && !isSoftPaywall;
   const entitlementRedirected = useRef(false);
+  const signingOut = useRef(false);
   const userRef = useRef(user);
   const rcRef = useRef(rc);
   const pendingDeepLinkRef = useRef(pendingDeepLink);
@@ -65,12 +66,19 @@ export default function PaywallScreen() {
     router.replace(resolvePostAuthNavigation(u, gate, pending, consume) as Href);
   }, []);
 
-  const leavePaywall = useCallback(async () => {
-    await logoutThenClearQueryCache(logout, queryClient);
-    if (router.canDismiss()) {
-      router.dismissAll();
-    }
+  // Navigate to "/" only after React has committed user=null — prevents the
+  // tab layout from briefly seeing the old auth state and re-redirecting to
+  // paywall before the sign-out propagates, which caused an infinite loop.
+  useEffect(() => {
+    if (!signingOut.current || user !== null) return;
+    signingOut.current = false;
     router.replace("/");
+  }, [user]);
+
+  const leavePaywall = useCallback(async () => {
+    signingOut.current = true;
+    await logoutThenClearQueryCache(logout, queryClient);
+    // Navigation is driven by the useEffect above once user becomes null.
   }, [logout, queryClient]);
 
   const dismissPaywall = useCallback(() => {
@@ -185,16 +193,14 @@ export default function PaywallScreen() {
       />
     <View style={[styles.flex, { paddingTop: topPad + edgePad, paddingBottom: botPad + edgePad }]}>
       <View style={[styles.container, { paddingHorizontal: padH, gap: containerGap }]}>
-        {!isMandatoryGate ? (
-          <Pressable
-            onPress={dismissPaywall}
-            style={[styles.closeBtn, { alignSelf: "flex-start" }]}
-            testID="paywall-close"
-            hitSlop={12}
-          >
-            <Text style={[styles.closeText, { fontSize: fsLink }]}>← Back</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={dismissPaywall}
+          style={[styles.closeBtn, { alignSelf: "flex-start" }]}
+          testID="paywall-close"
+          hitSlop={12}
+        >
+          <Text style={[styles.closeText, { fontSize: fsLink }]}>← Back</Text>
+        </Pressable>
         <View style={[styles.hero, { gap: heroGap, paddingHorizontal: heroPadH }]}>
           <Text style={[styles.title, { fontSize: fsTitle }]}>
             {isSoftPaywall ? "Subscribe to unlock" : "Start your free trial"}
@@ -267,15 +273,7 @@ export default function PaywallScreen() {
           )}
         </View>
 
-        {isMandatoryGate ? (
-          <Pressable
-            onPress={() => void leavePaywall()}
-            style={[styles.signOutBtn, { paddingVertical: linkPadV }]}
-            testID="paywall-sign-out"
-          >
-            <Text style={[styles.signOutText, { fontSize: fsLink }]}>Sign out</Text>
-          </Pressable>
-        ) : isSoftPaywall ? (
+        {isSoftPaywall ? (
           <Pressable
             onPress={dismissPaywall}
             style={[styles.signOutBtn, { paddingVertical: linkPadV }]}

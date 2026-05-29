@@ -27,6 +27,7 @@
     },
     "android": {
       "package": "com.getpraying.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#F9F6F0"
