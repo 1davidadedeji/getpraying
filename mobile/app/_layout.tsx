@@ -31,7 +31,7 @@ import { AuthProvider, useAuth } from "@/context/auth";
 import { FeedNoticeProvider } from "@/context/feedNotice";
 import { ModerationBadgeProvider } from "@/context/moderationBadge";
 import { PendingDeepLinkProvider } from "@/context/pendingDeepLink";
-import { RevenueCatProvider } from "@/context/revenuecat";
+import { RevenueCatProvider, useRevenueCat } from "@/context/revenuecat";
 import colors from "@/constants/colors";
 
 setBaseUrl(getApiBaseUrl());
@@ -65,16 +65,18 @@ const queryClient = new QueryClient({
 });
 
 /**
- * Hides the native splash once fonts and auth hydration are ready so logged-in
- * users never see a flash of the welcome screen underneath.
+ * Hides the native splash once fonts, auth hydration, and RevenueCat account
+ * linking are ready — avoids a second JS splash and logo size jump.
  */
 function SplashHideGate({ fontsReady }: { fontsReady: boolean }) {
   const { loading: authLoading } = useAuth();
+  const { isReady: rcReady, isCheckingSubscription } = useRevenueCat();
 
   useEffect(() => {
     if (!fontsReady || authLoading) return;
+    if (!rcReady || isCheckingSubscription) return;
     void SplashScreen.hideAsync();
-  }, [fontsReady, authLoading]);
+  }, [fontsReady, authLoading, rcReady, isCheckingSubscription]);
 
   return null;
 }
@@ -197,11 +199,11 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <PendingDeepLinkProvider>
-              <SplashHideGate fontsReady={fontsReady} />
               <PushNotificationCoordinator />
               <FeedNoticeProvider>
                 <ModerationBadgeProvider>
                   <RevenueCatProvider>
+                    <SplashHideGate fontsReady={fontsReady} />
                     <KeyboardProvider>
                       <RootLayoutNav />
                     </KeyboardProvider>

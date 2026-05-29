@@ -4,7 +4,7 @@ import { StyleSheet, type StyleProp, type ImageStyle } from "react-native";
 import {
   APP_LOGO_SOURCE,
   appLogoSizePx,
-  splashLogoSizePx,
+  SPLASH_LOGO_SIZE_PX,
   welcomeLogoSizePx,
 } from "@/constants/branding";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -22,7 +22,7 @@ export function AppLogo({ variant = "default", size, style }: Props) {
   const side =
     size ??
     (variant === "splash"
-      ? splashLogoSizePx(uiScale)
+      ? SPLASH_LOGO_SIZE_PX
       : variant === "welcome"
         ? welcomeLogoSizePx(uiScale)
         : appLogoSizePx(uiScale));

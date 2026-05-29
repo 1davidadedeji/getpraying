@@ -152,14 +152,29 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const [monthlyStoreProduct, setMonthlyStoreProduct] = useState<PurchasesStoreProduct | null>(null);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [accountLinkSettled, setAccountLinkSettled] = useState(false);
+  /** Set immediately after a successful purchase while RC receipt validation may still lag. */
+  const [optimisticEntitlement, setOptimisticEntitlement] = useState(false);
 
   const onAccountLinkSettled = useCallback(() => {
     setAccountLinkSettled(true);
   }, []);
 
+  const applyCustomerInfo = useCallback((info: CustomerInfo | null) => {
+    setCustomerInfo(info);
+    if (hasPremiumEntitlement(info)) {
+      setOptimisticEntitlement(false);
+    }
+  }, []);
+
   useEffect(() => {
     setAccountLinkSettled(false);
   }, [user?.id, enabled]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setOptimisticEntitlement(false);
+    }
+  }, [user?.id]);
 
   const isCheckingSubscription = !isReady || (enabled && !!user?.id && !accountLinkSettled);
 
@@ -191,6 +206,8 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   }, [enabled]);
 
   useEffect(() => {
+    let removeListener: (() => void) | undefined;
+
     (async () => {
       try {
         const apiKey = getRevenueCatApiKey();
@@ -205,9 +222,11 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
         await Purchases.configure({ apiKey });
         setEnabled(true);
 
+        removeListener = Purchases.addCustomerInfoUpdateListener(applyCustomerInfo);
+
         try {
           const info = await Purchases.getCustomerInfo();
-          setCustomerInfo(info);
+          applyCustomerInfo(info);
         } catch {
           /* ignore */
         }
@@ -223,7 +242,11 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
         setIsReady(true);
       }
     })();
-  }, []);
+
+    return () => {
+      removeListener?.();
+    };
+  }, [applyCustomerInfo]);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
@@ -237,21 +260,19 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       setOfferings(catalog.offerings);
       setMonthlyStoreProduct(catalog.storeProduct);
       setCatalogError(catalog.error);
-      setCustomerInfo(info);
+      applyCustomerInfo(info);
     } finally {
       setCatalogLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, applyCustomerInfo]);
 
   const purchasePackage = useCallback(async (pkg: PurchasesPackage) => {
     if (!enabled) throw new Error("RevenueCat not configured");
     const Purchases = getPurchases();
     const { customerInfo: info } = await Purchases.purchasePackage(pkg);
-    setCustomerInfo(info);
-    // Don't throw if entitlement isn't active yet — receipt verification can
-    // lag in sandbox / TestFlight / Google Play internal testing. The caller
-    // (onPurchase) uses forceEntitled=true so navigation still proceeds.
-  }, [enabled]);
+    setOptimisticEntitlement(true);
+    applyCustomerInfo(info);
+  }, [enabled, applyCustomerInfo]);
 
   const purchaseMonthly = useCallback(async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
@@ -263,19 +284,20 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     if (monthlyStoreProduct) {
       const Purchases = getPurchases();
       const { customerInfo: info } = await Purchases.purchaseStoreProduct(monthlyStoreProduct);
-      setCustomerInfo(info);
+      setOptimisticEntitlement(true);
+      applyCustomerInfo(info);
       return;
     }
     throw new Error("Subscription is not available right now. Try again in a moment.");
-  }, [enabled, offerings, monthlyStoreProduct, purchasePackage]);
+  }, [enabled, offerings, monthlyStoreProduct, purchasePackage, applyCustomerInfo]);
 
   const restore = useCallback(async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
     const Purchases = getPurchases();
     const info = await Purchases.restorePurchases();
-    setCustomerInfo(info);
+    applyCustomerInfo(info);
     return info;
-  }, [enabled]);
+  }, [enabled, applyCustomerInfo]);
 
   const upgradeFromTrial = useCallback(async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
@@ -303,7 +325,9 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   );
   const hasMonthlyOffer = !!(monthlyPackage || monthlyStoreProduct);
 
-  const isEntitled = staffBypass || (enabled ? hasPremiumEntitlement(customerInfo) : false);
+  const confirmedEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
+  const isEntitled =
+    staffBypass || confirmedEntitled || (!staffBypass && enabled && optimisticEntitlement);
   const isPremiumTrial =
     !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
   const canUseBoost = staffBypass || (enabled ? canUseBoostFeature(customerInfo) : false);
@@ -357,7 +381,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     <RevenueCatContext.Provider value={value}>
       <RevenueCatUserSync
         enabled={enabled}
-        onCustomerInfo={setCustomerInfo}
+        onCustomerInfo={applyCustomerInfo}
         onUserLinked={loadCatalog}
         onAccountLinkSettled={onAccountLinkSettled}
       />

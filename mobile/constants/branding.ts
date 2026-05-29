@@ -1,13 +1,16 @@
 /**
  * In-app brand mark (cream-background screens, native splash).
- * OS app icon / notifications use `assets/images/icon.png` via app.json.
+ * OS app icon uses `assets/images/icon.png`; Android notification tray uses
+ * `assets/images/notification-icon.png` via app.json.
  */
 export const APP_LOGO_SOURCE = require("../assets/images/icon-bg.png");
 
-/** Matches native splash `imageWidth` in app.json — single canonical splash size. */
-export function splashLogoSizePx(uiScale: number): number {
-  const size = 280 * uiScale;
-  return Math.round(Math.max(240, Math.min(300, size)));
+/** Fixed logical px — must match native splash `imageWidth` in app.json. */
+export const SPLASH_LOGO_SIZE_PX = 280;
+
+/** @deprecated Use SPLASH_LOGO_SIZE_PX — splash logo is fixed to match native splash. */
+export function splashLogoSizePx(_uiScale: number): number {
+  return SPLASH_LOGO_SIZE_PX;
 }
 
 /** Sign-in / register logo sizing. */
