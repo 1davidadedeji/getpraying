@@ -1,4 +1,4 @@
-import { Redirect, router, usePathname, useSegments, type Href } from "expo-router";
+import { Redirect, usePathname, useSegments } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { useAuth } from "@/context/auth";
@@ -7,7 +7,7 @@ import {
   entitlementGateIsLoading,
   userNeedsEntitlementGate,
 } from "@/lib/entitlementGate";
-import { consumePendingNotificationHref } from "@/lib/notificationNavigation";
+import { consumePendingNotificationHref, applyDeferredNotificationHref } from "@/lib/notificationNavigation";
 
 /**
  * Root-stack paywall guard: blocks deep links and push targets (e.g. `/post/:id`)
@@ -37,8 +37,8 @@ export function EntitlementGate({ children }: { children: React.ReactNode }) {
     if (!href) return;
 
     consumedNotificationRef.current = true;
-    router.replace(href as Href);
-  }, [authLoading, user?.id, user?.isEmailVerified, gateLoading, needsGate, rc.isEntitled]);
+    applyDeferredNotificationHref(href, pathname);
+  }, [authLoading, user?.id, user?.isEmailVerified, gateLoading, needsGate, rc.isEntitled, pathname]);
 
   if (authLoading) {
     return <>{children}</>;

@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, Stack, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
+import { router, Stack, useFocusEffect, useLocalSearchParams, usePathname, type Href } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
@@ -23,7 +23,7 @@ import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
 import { openLegalDocument } from "@/lib/openLegalDocument";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
-import { consumePendingNotificationHref } from "@/lib/notificationNavigation";
+import { consumePendingNotificationHref, applyDeferredNotificationHref } from "@/lib/notificationNavigation";
 import { formatMonthlyTrialOffer, hasPremiumEntitlement } from "@/lib/revenuecatEntitlements";
 import {
   describeEntitlementAfterPurchase,
@@ -42,11 +42,8 @@ export default function PaywallScreen() {
   const queryClient = useQueryClient();
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
   const { soft } = useLocalSearchParams<{ soft?: string }>();
+  const pathname = usePathname();
   const isSoftPaywall = soft === "1" || soft === "true";
-  const isCheckingSubscription = rc.isCheckingSubscription;
-  /** Hard gate: user cannot use the app without starting the store subscription. */
-  const isMandatoryGate =
-    !isCheckingSubscription && rc.enabled && !rc.isEntitled && !isSoftPaywall;
   const entitlementRedirected = useRef(false);
   const signingOut = useRef(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -54,11 +51,18 @@ export default function PaywallScreen() {
   const rcRef = useRef(rc);
   const pendingDeepLinkRef = useRef(pendingDeepLink);
   const consumePendingHrefRef = useRef(consumePendingHref);
+  const pathnameRef = useRef(pathname);
 
   userRef.current = user;
   rcRef.current = rc;
   pendingDeepLinkRef.current = pendingDeepLink;
   consumePendingHrefRef.current = consumePendingHref;
+  pathnameRef.current = pathname;
+
+  const isCheckingSubscription = rc.isCheckingSubscription;
+  /** Hard gate: user cannot use the app without starting the store subscription. */
+  const isMandatoryGate =
+    !isCheckingSubscription && rc.enabled && !rc.isEntitled && !isSoftPaywall;
 
   const enterApp = useCallback(() => {
     if (entitlementRedirected.current) return;
@@ -75,7 +79,7 @@ export default function PaywallScreen() {
     }
     const notifHref = consumePendingNotificationHref();
     if (notifHref) {
-      router.replace(notifHref as Href);
+      applyDeferredNotificationHref(notifHref, pathnameRef.current);
       return;
     }
     const route = resolvePostAuthNavigation(u, rcState, pending, consume);

@@ -21,14 +21,17 @@ export function PushNotificationCoordinator() {
   tokenRef.current = token;
   const userRoleRef = useRef(user?.role ?? null);
   userRoleRef.current = user?.role ?? null;
-  const handledResponseId = useRef<string | null>(null);
+  /** Synchronous dedup — blocks parallel cold-start + token replay races. */
+  const handledResponseIds = useRef(new Set<string>());
+  const coldStartCheckedRef = useRef(false);
 
   const handleNotificationResponse = useCallback(
     (response: Notifications.NotificationResponse | null | undefined) => {
       if (!response?.notification) return;
       const id = response.notification.request.identifier;
-      if (handledResponseId.current === id) return;
-      handledResponseId.current = id;
+      if (handledResponseIds.current.has(id)) return;
+      handledResponseIds.current.add(id);
+
       const data = response.notification.request.content.data as Record<string, unknown>;
       void navigateFromNotificationData(data, {
         authToken: tokenRef.current,
@@ -41,18 +44,7 @@ export function PushNotificationCoordinator() {
     [queryClient],
   );
 
-  const replayColdStartNotification = useCallback(() => {
-    void Notifications.getLastNotificationResponseAsync().then(handleNotificationResponse);
-  }, [handleNotificationResponse]);
-
   useEffect(() => {
-    let alive = true;
-
-    void Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (!alive) return;
-      handleNotificationResponse(response);
-    });
-
     const subResponse = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
 
     const subToken = Notifications.addPushTokenListener(() => {
@@ -74,7 +66,6 @@ export function PushNotificationCoordinator() {
     const subApp = AppState.addEventListener("change", onAppState);
 
     return () => {
-      alive = false;
       subResponse.remove();
       subToken.remove();
       subIncoming.remove();
@@ -82,11 +73,14 @@ export function PushNotificationCoordinator() {
     };
   }, [handleNotificationResponse, queryClient]);
 
+  /** Single cold-start check after auth token is ready — avoids double queue + double navigate. */
   useEffect(() => {
-    if (!token) return;
+    if (!token || coldStartCheckedRef.current) return;
+    coldStartCheckedRef.current = true;
+
     void registerAndSyncPushToken(token);
-    replayColdStartNotification();
-  }, [token, replayColdStartNotification]);
+    void Notifications.getLastNotificationResponseAsync().then(handleNotificationResponse);
+  }, [token, handleNotificationResponse]);
 
   return null;
 }

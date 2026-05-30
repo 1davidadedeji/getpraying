@@ -1,4 +1,5 @@
 import { router, type Href } from "expo-router";
+import { InteractionManager } from "react-native";
 import { apiUrl, authHeaders } from "@/lib/api";
 import {
   isStaffRole,
@@ -42,8 +43,28 @@ export function notificationOpensWebAdmin(type: string, userRole?: string | null
   return type === "role_updated" && isStaffRole(userRole);
 }
 
-/** Deferred route consumed after entitlement gate confirms access. */
+/** Deferred route consumed after EntitlementGate confirms access. */
 let pendingNotificationHref: string | null = null;
+/** Prevents applying the same deferred href twice in one session (double stack entries). */
+let lastAppliedNotificationHref: string | null = null;
+
+function normalizeNotificationPath(path: string): string {
+  const base = path.split("?")[0].replace(/\/+$/, "") || "/";
+  return base.startsWith("/") ? base : `/${base}`;
+}
+
+function notificationPathsEqual(a: string, b: string): boolean {
+  return normalizeNotificationPath(a) === normalizeNotificationPath(b);
+}
+
+function isStackDetailRoute(path: string): boolean {
+  return /^\/(post|user|official|path|category)\//.test(normalizeNotificationPath(path));
+}
+
+function isOnTabsRoute(pathname: string): boolean {
+  const p = pathname || "";
+  return p.includes("(tabs)") || p === "/index" || p.endsWith("/index");
+}
 
 export function consumePendingNotificationHref(): string | null {
   const href = pendingNotificationHref;
@@ -57,7 +78,48 @@ export function peekPendingNotificationHref(): string | null {
 
 /** Queue only — EntitlementGate (or paywall enterApp) is the sole navigation consumer. */
 function queueNotificationHref(href: string): void {
+  if (pendingNotificationHref === href) return;
   pendingNotificationHref = href;
+}
+
+/**
+ * Navigate to a deferred push/deep-link target without duplicating stack entries.
+ * Detail routes push onto tabs so back returns to the feed once.
+ */
+export function applyDeferredNotificationHref(href: string, currentPathname: string): void {
+  const targetPath = normalizeNotificationPath(href);
+  const currentPath = normalizeNotificationPath(currentPathname);
+
+  if (notificationPathsEqual(currentPath, targetPath)) {
+    lastAppliedNotificationHref = href;
+    pendingNotificationHref = null;
+    return;
+  }
+
+  if (lastAppliedNotificationHref === href) {
+    pendingNotificationHref = null;
+    return;
+  }
+
+  lastAppliedNotificationHref = href;
+  pendingNotificationHref = null;
+
+  const query = href.includes("?") ? href.slice(href.indexOf("?")) : "";
+  const fullHref = `${targetPath}${query}`;
+
+  if (isStackDetailRoute(targetPath)) {
+    if (isOnTabsRoute(currentPathname)) {
+      router.push(fullHref as Href);
+      return;
+    }
+    router.replace("/(tabs)" as Href);
+    InteractionManager.runAfterInteractions(() => {
+      router.push(fullHref as Href);
+    });
+    return;
+  }
+
+  router.replace(fullHref as Href);
 }
 
 function libraryHrefForPrayerSlot(type: string): string {
