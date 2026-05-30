@@ -33,7 +33,7 @@ export function PushNotificationCoordinator() {
       void navigateFromNotificationData(data, {
         authToken: tokenRef.current,
         userRole: userRoleRef.current,
-        deferUntilTabsReady: true,
+        deferUntilEntitled: true,
       }).then(() => {
         queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
       });

@@ -23,6 +23,7 @@ import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
 import { openLegalDocument } from "@/lib/openLegalDocument";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
+import { consumePendingNotificationHref } from "@/lib/notificationNavigation";
 import { formatMonthlyTrialOffer, hasPremiumEntitlement } from "@/lib/revenuecatEntitlements";
 import {
   describeEntitlementAfterPurchase,
@@ -72,7 +73,14 @@ export default function PaywallScreen() {
       router.replace("/(tabs)" as Href);
       return;
     }
-    router.replace(resolvePostAuthNavigation(u, rcState, pending, consume) as Href);
+    const notifHref = consumePendingNotificationHref();
+    if (notifHref) {
+      router.replace(notifHref as Href);
+      return;
+    }
+    const route = resolvePostAuthNavigation(u, rcState, pending, consume);
+    if (!route) return;
+    router.replace(route);
   }, []);
 
   const leavePaywall = useCallback(async () => {

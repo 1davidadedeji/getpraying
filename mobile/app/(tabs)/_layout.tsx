@@ -13,12 +13,10 @@ import colors from "@/constants/colors";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
-import { useRevenueCat } from "@/context/revenuecat";
 import { TabBarVisibilityProvider, useTabBarVisibility } from "@/context/tabBarVisibility";
 import { FeedNoticeBanner } from "@/components/FeedNoticeBanner";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
-import { consumePendingNotificationHref } from "@/lib/notificationNavigation";
 
 const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 52 : 58;
 
@@ -480,20 +478,8 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { user, loading } = useAuth();
-  const rc = useRevenueCat();
-
-  useEffect(() => {
-    const href = consumePendingNotificationHref();
-    if (href) {
-      router.replace(href as Href);
-    }
-  }, []);
 
   if (loading) {
-    return <AppLoadingScreen variant="splash" />;
-  }
-
-  if (rc.isCheckingSubscription) {
     return <AppLoadingScreen variant="splash" />;
   }
 
@@ -503,17 +489,6 @@ export default function TabLayout() {
   if (!user.isEmailVerified) {
     return <Redirect href={"/(auth)/verify" as Href} />;
   }
-  if (
-    user.role !== "admin" &&
-    user.role !== "moderator" &&
-    rc.isReady &&
-    !rc.isCheckingSubscription &&
-    rc.enabled &&
-    !rc.isEntitled
-  ) {
-    return <Redirect href={"/(paywall)" as Href} />;
-  }
-
   let useLiquidGlass = false;
   try { useLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable(); } catch {}
   if (useLiquidGlass) {

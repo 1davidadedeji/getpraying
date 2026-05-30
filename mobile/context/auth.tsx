@@ -17,6 +17,8 @@ interface AuthContextValue {
   register: (email: string, username: string, password: string, displayName?: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: (updated: User) => void;
+  /** Re-fetch `/auth/me` so DB fields (e.g. `subscription`) stay in sync with webhooks. */
+  refreshUserFromServer: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -108,8 +110,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(USER_KEY, JSON.stringify(updated)).catch(() => {});
   }, []);
 
+  const refreshUserFromServer = useCallback(async (): Promise<User | null> => {
+    if (!token) return null;
+    setAuthTokenGetter(() => token);
+    try {
+      const fresh = await getMe();
+      setUser(fresh);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
+      return fresh;
+    } catch {
+      return null;
+    }
+  }, [token]);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        register,
+        logout,
+        refreshUser,
+        refreshUserFromServer,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

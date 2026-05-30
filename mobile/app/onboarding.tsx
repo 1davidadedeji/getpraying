@@ -114,7 +114,8 @@ export default function OnboardingScreen() {
           if (!user) return;
           const updated = { ...user, onboardingComplete: true, preferredCategories: selected };
           refreshUser(updated);
-          router.replace(resolvePostAuthNavigation(updated, rc, pendingDeepLink, consumePendingHref));
+          const route = resolvePostAuthNavigation(updated, rc, pendingDeepLink, consumePendingHref);
+          if (route) router.replace(route);
         },
         onError: () => {
           showAppAlert({

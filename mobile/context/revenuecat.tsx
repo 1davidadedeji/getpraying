@@ -19,6 +19,7 @@ import {
   getMonthlyProduct,
 } from "@/lib/revenuecatCatalog";
 import { isStaffUser } from "@/lib/staffAccess";
+import { isServerBoostEligible } from "@/lib/serverSubscription";
 
 export { DEFAULT_OFFERING_ID, PREMIUM_ENTITLEMENT_ID };
 
@@ -139,7 +140,7 @@ function RevenueCatUserSync({
 }
 
 export function RevenueCatProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, refreshUserFromServer } = useAuth();
   const staffBypass = isStaffUser(user);
   const [enabled, setEnabled] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -156,12 +157,16 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     setAccountLinkSettled(true);
   }, []);
 
-  const applyCustomerInfo = useCallback((info: CustomerInfo | null) => {
-    setCustomerInfo(info);
-    if (hasPremiumEntitlement(info)) {
-      setOptimisticEntitlement(false);
-    }
-  }, []);
+  const applyCustomerInfo = useCallback(
+    (info: CustomerInfo | null) => {
+      setCustomerInfo(info);
+      if (hasPremiumEntitlement(info)) {
+        setOptimisticEntitlement(false);
+        void refreshUserFromServer();
+      }
+    },
+    [refreshUserFromServer],
+  );
 
   useEffect(() => {
     setAccountLinkSettled(false);
@@ -258,11 +263,12 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       setMonthlyStoreProduct(catalog.storeProduct);
       setCatalogError(catalog.error);
       applyCustomerInfo(info);
+      void refreshUserFromServer();
       return info;
     } finally {
       setCatalogLoading(false);
     }
-  }, [enabled, applyCustomerInfo]);
+  }, [enabled, applyCustomerInfo, refreshUserFromServer]);
 
   const purchasePackage = useCallback(async (pkg: PurchasesPackage) => {
     if (!enabled) throw new Error("RevenueCat not configured");
@@ -270,7 +276,8 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     const { customerInfo: info } = await Purchases.purchasePackage(pkg);
     setOptimisticEntitlement(true);
     applyCustomerInfo(info);
-  }, [enabled, applyCustomerInfo]);
+    void refreshUserFromServer();
+  }, [enabled, applyCustomerInfo, refreshUserFromServer]);
 
   const purchaseMonthly = useCallback(async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
@@ -284,18 +291,20 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       const { customerInfo: info } = await Purchases.purchaseStoreProduct(monthlyStoreProduct);
       setOptimisticEntitlement(true);
       applyCustomerInfo(info);
+      void refreshUserFromServer();
       return;
     }
     throw new Error("Subscription is not available right now. Try again in a moment.");
-  }, [enabled, offerings, monthlyStoreProduct, purchasePackage, applyCustomerInfo]);
+  }, [enabled, offerings, monthlyStoreProduct, purchasePackage, applyCustomerInfo, refreshUserFromServer]);
 
   const restore = useCallback(async () => {
     if (!enabled) throw new Error("RevenueCat not configured");
     const Purchases = getPurchases();
     const info = await Purchases.restorePurchases();
     applyCustomerInfo(info);
+    void refreshUserFromServer();
     return info;
-  }, [enabled, applyCustomerInfo]);
+  }, [enabled, applyCustomerInfo, refreshUserFromServer]);
 
   const monthlyPackage = useMemo(() => getMonthlyPackage(offerings), [offerings]);
   const monthlyProduct = useMemo(
@@ -305,15 +314,20 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const hasMonthlyOffer = !!(monthlyPackage || monthlyStoreProduct);
 
   const adminBoostBypass = user?.role === "admin";
+  const serverBoostEligible = isServerBoostEligible(user);
   const confirmedEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
   const isEntitled =
     staffBypass || confirmedEntitled || (!staffBypass && enabled && optimisticEntitlement);
   const isPremiumTrial =
     !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
-  // Boost: fully paid subscribers and admins only — never trial, intro, or optimistic unlock.
+  // Boost: RC paid entitlement + DB `subscription === premium` (webhook). Never trial or optimistic.
   const canUseBoost =
     adminBoostBypass ||
-    (enabled && confirmedEntitled && !isPremiumTrialPeriod(customerInfo) && !optimisticEntitlement);
+    (enabled &&
+      confirmedEntitled &&
+      !isPremiumTrialPeriod(customerInfo) &&
+      !optimisticEntitlement &&
+      serverBoostEligible);
 
   const value: RevenueCatState = useMemo(
     () => ({
@@ -351,6 +365,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       isEntitled,
       isPremiumTrial,
       canUseBoost,
+      serverBoostEligible,
       refresh,
       purchaseMonthly,
       purchasePackage,

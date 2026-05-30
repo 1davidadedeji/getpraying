@@ -44,15 +44,15 @@ function isAuthGateRoute(route: Href): boolean {
   );
 }
 
-/** Resolve post-auth route and clear any consumed deferred deep link. */
+/** Resolve post-auth route and clear any consumed deferred deep link. Returns null while RC is still resolving. */
 export function resolvePostAuthNavigation(
   user: User,
   rc: RevenueCatGate,
   pendingDeepLink: ParsedDeepLink | null,
   consumePendingHref: () => string | null,
-): Href {
+): Href | null {
   const route = getPostAuthRoute(user, rc, pendingDeepLink);
-  if (!route) return "/(tabs)" as Href;
+  if (!route) return null;
   if (!isAuthGateRoute(route) && pendingDeepLink) {
     consumePendingHref();
   }

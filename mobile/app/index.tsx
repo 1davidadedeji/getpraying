@@ -67,9 +67,9 @@ export default function WelcomeScreen() {
       if (l || !t || !u) return;
       const route = getPostAuthRoute(u, rc, pendingDeepLink);
       if (!route) return;
-      router.replace(
-        resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref) as import("expo-router").Href,
-      );
+      const resolved = resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref);
+      if (!resolved) return;
+      router.replace(resolved);
     });
     return () => cancelAnimationFrame(frame);
   }, [rc, pendingDeepLink, consumePendingHref]);

@@ -211,7 +211,8 @@ export default function VerifyScreen() {
           const next = user ? { ...user, isEmailVerified: true } : null;
           if (next) refreshUser(next);
           if (next) {
-            router.replace(resolvePostAuthNavigation(next, rc, pendingDeepLink, consumePendingHref));
+            const route = resolvePostAuthNavigation(next, rc, pendingDeepLink, consumePendingHref);
+            if (route) router.replace(route);
           } else {
             router.replace("/login" as Href);
           }

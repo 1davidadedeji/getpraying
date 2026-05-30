@@ -71,7 +71,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const u = await login(email.trim(), password);
-      router.replace(resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref));
+      const route = resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref);
+      if (route) router.replace(route);
     } catch (err: unknown) {
       showAppAlert({ title: "Login failed", message: getApiErrorMessage(err, "Login failed") });
     } finally {

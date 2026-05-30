@@ -497,7 +497,7 @@ export default function NewPostScreen() {
             }
 
             const isApproved = res?.status === "approved";
-            const boostedNow = Boolean(res?.boostedAt) && rc.canUseBoost;
+            const boostedNow = Boolean(res?.boostedAt);
             let message: string;
             if (isApproved) {
               message = boostedNow

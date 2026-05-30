@@ -1,5 +1,4 @@
 import { router, type Href } from "expo-router";
-import { InteractionManager } from "react-native";
 import { apiUrl, authHeaders } from "@/lib/api";
 import {
   isStaffRole,
@@ -43,7 +42,7 @@ export function notificationOpensWebAdmin(type: string, userRole?: string | null
   return type === "role_updated" && isStaffRole(userRole);
 }
 
-/** Deferred route consumed after tabs mount (avoids cold-start race with auth redirect). */
+/** Deferred route consumed after entitlement gate confirms access. */
 let pendingNotificationHref: string | null = null;
 
 export function consumePendingNotificationHref(): string | null {
@@ -52,11 +51,13 @@ export function consumePendingNotificationHref(): string | null {
   return href;
 }
 
+export function peekPendingNotificationHref(): string | null {
+  return pendingNotificationHref;
+}
+
+/** Queue only — navigation runs after EntitlementGate confirms entitlement. */
 function queueNotificationHref(href: string): void {
   pendingNotificationHref = href;
-  InteractionManager.runAfterInteractions(() => {
-    router.replace(href as Href);
-  });
 }
 
 function libraryHrefForPrayerSlot(type: string): string {
@@ -76,8 +77,10 @@ export async function navigateFromNotificationData(
     authToken?: string | null;
     skipMarkRead?: boolean;
     userRole?: string | null;
-    /** When true, defer navigation until tabs consume the pending href. */
+    /** @deprecated Use deferUntilEntitled */
     deferUntilTabsReady?: boolean;
+    /** When true, queue href until root entitlement gate passes (no immediate navigation). */
+    deferUntilEntitled?: boolean;
   },
 ): Promise<void> {
   const type = data.type != null ? String(data.type) : "";
@@ -107,8 +110,10 @@ export async function navigateFromNotificationData(
     return;
   }
 
+  const defer = opts?.deferUntilEntitled ?? opts?.deferUntilTabsReady ?? false;
+
   const navigate = (href: string) => {
-    if (opts?.deferUntilTabsReady) {
+    if (defer) {
       queueNotificationHref(href);
       return;
     }
