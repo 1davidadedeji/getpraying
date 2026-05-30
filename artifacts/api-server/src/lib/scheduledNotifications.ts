@@ -50,7 +50,7 @@ async function getTodayQuoteText(): Promise<string> {
 
 async function sendMorningPrayers(): Promise<void> {
   const quote = await getTodayQuoteText();
-  const body = `Get Praying — The morning prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
+  const body = `The morning prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
 
   const users = await db
     .select({
@@ -99,7 +99,7 @@ async function sendMorningPrayers(): Promise<void> {
 
 async function sendEveningPrayers(): Promise<void> {
   const quote = await getTodayQuoteText();
-  const body = `Get Praying — The evening prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
+  const body = `The evening prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
 
   const users = await db
     .select({
