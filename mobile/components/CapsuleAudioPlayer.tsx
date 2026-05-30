@@ -181,6 +181,15 @@ export function CapsuleAudioPlayer({
 
     return () => {
       mounted = false;
+      const s = soundRef.current;
+      if (s) {
+        void s.pauseAsync().catch(() => {});
+        try {
+          s.setOnPlaybackStatusUpdate(null);
+        } catch {
+          /* ignore */
+        }
+      }
       releaseSoundRef.current?.();
       releaseSoundRef.current = null;
     };

@@ -97,6 +97,21 @@ export function CapsuleVideoPlayer({
   }, [feedMediaFocused]);
 
   useEffect(() => {
+    return () => {
+      const v = videoRef.current;
+      if (!v) return;
+      void (async () => {
+        try {
+          await v.pauseAsync();
+          await v.unloadAsync();
+        } catch {
+          /* ignore */
+        }
+      })();
+    };
+  }, [uri]);
+
+  useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState !== "active") {
         videoRef.current?.pauseAsync().catch(() => {});

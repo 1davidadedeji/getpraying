@@ -486,7 +486,13 @@ function PostCardInner({
 
 function postCardPropsEqual(prev: PostCardProps, next: PostCardProps): boolean {
   if (prev.post.id !== next.post.id) return false;
-  if (prev.feedMediaFocusPostId !== next.feedMediaFocusPostId) return false;
+
+  const prevFocused =
+    prev.feedMediaFocusPostId != null && prev.feedMediaFocusPostId === prev.post.id;
+  const nextFocused =
+    next.feedMediaFocusPostId != null && next.feedMediaFocusPostId === next.post.id;
+  if (prevFocused !== nextFocused) return false;
+
   if (prev.replaceNav !== next.replaceNav) return false;
   if (prev.activeProfileUsername !== next.activeProfileUsername) return false;
   if (prev.onUpdated !== next.onUpdated) return false;

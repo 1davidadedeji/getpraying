@@ -22,6 +22,7 @@ import PostCard from "@/components/PostCard";
 import { ProfileCollapsibleHeaderShell } from "@/components/ProfileCollapsibleHeaderShell";
 import { showAppAlert } from "@/components/AppAlert";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
+import { usePauseMediaOnBlur } from "@/hooks/usePauseMediaOnBlur";
 import { StatCard } from "@/components/StatCard";
 import colors from "@/constants/colors";
 import { LAYOUT } from "@/constants/layout";
@@ -105,6 +106,8 @@ export default function UserProfileScreen() {
   useEffect(() => {
     clearFeedMediaFocus();
   }, [activeTab, clearFeedMediaFocus]);
+
+  usePauseMediaOnBlur(clearFeedMediaFocus);
 
   const onPrayersViewable = useCallback(
     (info: Parameters<typeof onParentViewable>[0]) => {

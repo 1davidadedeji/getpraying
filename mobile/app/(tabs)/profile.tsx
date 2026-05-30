@@ -35,6 +35,7 @@ import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
+import { usePauseMediaOnBlur } from "@/hooks/usePauseMediaOnBlur";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -95,6 +96,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     clearFeedMediaFocus();
   }, [activeTab, clearFeedMediaFocus]);
+
+  usePauseMediaOnBlur(clearFeedMediaFocus);
 
   const { data: freshUser, refetch: refetchMe } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },

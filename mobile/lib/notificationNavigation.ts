@@ -55,7 +55,7 @@ export function peekPendingNotificationHref(): string | null {
   return pendingNotificationHref;
 }
 
-/** Queue only — navigation runs after EntitlementGate confirms entitlement. */
+/** Queue only — EntitlementGate (or paywall enterApp) is the sole navigation consumer. */
 function queueNotificationHref(href: string): void {
   pendingNotificationHref = href;
 }

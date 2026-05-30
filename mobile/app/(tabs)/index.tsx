@@ -35,6 +35,7 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
+import { usePauseMediaOnBlur } from "@/hooks/usePauseMediaOnBlur";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
@@ -76,7 +77,13 @@ export default function FeedScreen() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const listRef = useRef<FlatList>(null);
-  const { feedMediaFocusPostId, onViewableItemsChanged, viewabilityConfig } = useFeedMediaViewability();
+  const {
+    feedMediaFocusPostId,
+    onViewableItemsChanged,
+    viewabilityConfig,
+    clearFeedMediaFocus,
+  } = useFeedMediaViewability();
+  usePauseMediaOnBlur(clearFeedMediaFocus);
 
   const [newPostCount, setNewPostCount] = useState(0);
   const pillAnim = useRef(new Animated.Value(0)).current;
