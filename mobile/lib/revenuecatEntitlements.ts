@@ -25,11 +25,6 @@ export function isPremiumTrialPeriod(info: CustomerInfo | null | undefined): boo
   return false;
 }
 
-/** Boost is reserved for fully paid subscribers — not RC trial / intro periods. */
-export function canUseBoostFeature(info: CustomerInfo | null | undefined): boolean {
-  return hasPremiumEntitlement(info) && !isPremiumTrialPeriod(info);
-}
-
 /** Apple-compliant trial line for the paywall CTA. */
 export function formatMonthlyTrialOffer(product: PurchasesStoreProduct | null | undefined): string {
   const price = product?.priceString ?? "$6.99";

@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Linking } from "react-native";
 import type {
   CustomerInfo,
   PurchasesOfferings,
@@ -52,7 +51,6 @@ type RevenueCatState = {
   purchaseMonthly: () => Promise<void>;
   purchasePackage: (pkg: PurchasesPackage) => Promise<void>;
   restore: () => Promise<CustomerInfo>;
-  upgradeFromTrial: () => Promise<void>;
 };
 
 const RevenueCatContext = createContext<RevenueCatState | null>(null);
@@ -299,25 +297,6 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     return info;
   }, [enabled, applyCustomerInfo]);
 
-  const upgradeFromTrial = useCallback(async () => {
-    if (!enabled) throw new Error("RevenueCat not configured");
-    const pkg = getMonthlyPackage(offerings);
-    if (pkg) {
-      await purchasePackage(pkg);
-      return;
-    }
-    if (monthlyStoreProduct) {
-      await purchaseMonthly();
-      return;
-    }
-    const url = customerInfo?.managementURL;
-    if (url) {
-      await Linking.openURL(url);
-      return;
-    }
-    throw new Error("Subscription options are not available right now.");
-  }, [enabled, offerings, monthlyStoreProduct, customerInfo?.managementURL, purchasePackage, purchaseMonthly]);
-
   const monthlyPackage = useMemo(() => getMonthlyPackage(offerings), [offerings]);
   const monthlyProduct = useMemo(
     () => getMonthlyProduct(monthlyPackage, monthlyStoreProduct),
@@ -356,7 +335,6 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       purchaseMonthly,
       purchasePackage,
       restore,
-      upgradeFromTrial,
     }),
     [
       enabled,
@@ -377,7 +355,6 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       purchaseMonthly,
       purchasePackage,
       restore,
-      upgradeFromTrial,
     ],
   );
 
@@ -420,9 +397,6 @@ export function useRevenueCat(): RevenueCatState {
         throw new Error("RevenueCatProvider missing");
       },
       restore: async () => {
-        throw new Error("RevenueCatProvider missing");
-      },
-      upgradeFromTrial: async () => {
         throw new Error("RevenueCatProvider missing");
       },
     };

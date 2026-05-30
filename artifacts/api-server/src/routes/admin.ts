@@ -495,6 +495,7 @@ router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
       role: u.role,
       isBanned: u.isBanned,
       trialStartsAt: u.trialStartsAt,
+      subscription: u.subscription,
       isEmailVerified: u.isEmailVerified,
       preferredCategories: u.preferredCategories,
       onboardingComplete: u.onboardingComplete,

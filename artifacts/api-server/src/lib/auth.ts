@@ -142,53 +142,6 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
 }
 
 /**
- * Server-side trial gate. During the 7-day trial and for admins/moderators all
- * traffic passes. Once the trial expires, subscription enforcement is handled
- * client-side via RevenueCat entitlement checks. This middleware acts as a
- * fallback safeguard — when RevenueCat is fully wired, extend this to verify
- * the subscription receipt server-side.
- */
-export async function requirePremiumSubscription(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const user = (req as any).user;
-  if (!user) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  if (user.role === "admin" || user.role === "moderator") {
-    next();
-    return;
-  }
-  const trialStart = user.trialStartsAt ? new Date(user.trialStartsAt).getTime() : null;
-  const trialActive = trialStart != null && Date.now() - trialStart < 7 * 24 * 60 * 60 * 1000;
-  if (trialActive) {
-    next();
-    return;
-  }
-
-  const enforce = process.env.API_ENFORCE_SUBSCRIPTION_AFTER_TRIAL === "true";
-  if (!enforce) {
-    next();
-    return;
-  }
-
-  const tier = String(user.subscription ?? "").toLowerCase();
-  const subscribed = ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);
-  if (subscribed) {
-    next();
-    return;
-  }
-
-  res.status(402).json({
-    error: "An active subscription is required to use this feature.",
-    code: "SUBSCRIPTION_REQUIRED",
-  });
-}
-
-/**
  * Paying subscriber — used for automatic post boosts.
  * Only explicit paid tier (`premium`) or admins qualify; trial/free never boost.
  */

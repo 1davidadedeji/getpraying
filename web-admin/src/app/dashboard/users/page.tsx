@@ -16,6 +16,7 @@ interface AdminUser {
   displayName: string | null;
   email: string;
   role: string;
+  subscription: string;
   isBanned: boolean;
   isEmailVerified: boolean;
   prayersShared: number | null;
@@ -151,12 +152,13 @@ export default function UsersPage() {
         <Spinner />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-          <table className="w-full min-w-[720px] text-[13px]">
+          <table className="w-full min-w-[860px] text-[13px]">
             <thead className="border-b border-[var(--color-border)] bg-[var(--color-cream)]">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">User</th>
                 <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Email</th>
                 <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Role</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Subscription</th>
                 <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Joined</th>
                 <th className="w-8 px-4 py-3" />
@@ -176,6 +178,9 @@ export default function UsersPage() {
                     <td className="px-4 py-3 text-[var(--color-text-secondary)]">{u.email}</td>
                     <td className="px-4 py-3">
                       <RoleBadge role={u.role} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <SubscriptionBadge subscription={u.subscription} />
                     </td>
                     <td className="px-4 py-3">
                       {u.isBanned ? (
@@ -207,9 +212,15 @@ export default function UsersPage() {
                   </tr>
                   {expandedId === u.id && (
                     <tr className="border-b border-[var(--color-border)] bg-[var(--color-cream)]">
-                      <td colSpan={6} className="px-4 py-4">
+                      <td colSpan={7} className="px-4 py-4">
                         <div className="flex flex-wrap items-center gap-4">
                           <div className="space-y-0.5 text-[12px] text-[var(--color-muted)]">
+                            <p>
+                              Subscription:{" "}
+                              <span className="font-medium text-[var(--color-primary)]">
+                                {formatSubscriptionLabel(u.subscription)}
+                              </span>
+                            </p>
                             <p>🙏 {u.prayersShared ?? 0} prayers shared</p>
                             <p>❤️ {u.prayedFor ?? 0} prayed for</p>
                             <p>
@@ -291,7 +302,7 @@ export default function UsersPage() {
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-[var(--color-muted)]">
+                  <td colSpan={7} className="px-4 py-12 text-center text-[var(--color-muted)]">
                     {debouncedSearch.trim() ? "No users match your search" : "No users found"}
                   </td>
                 </tr>
@@ -324,5 +335,26 @@ function RoleBadge({ role }: { role: string }) {
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[role] ?? map.user}`}>{role}</span>
+  );
+}
+
+function formatSubscriptionLabel(subscription: string | null | undefined): string {
+  const tier = String(subscription ?? "free").toLowerCase();
+  if (tier === "premium") return "Premium (paid)";
+  if (tier === "trial") return "Trial";
+  if (tier === "free") return "Free";
+  return tier;
+}
+
+function SubscriptionBadge({ subscription }: { subscription: string | null | undefined }) {
+  const tier = String(subscription ?? "free").toLowerCase();
+  const map: Record<string, string> = {
+    premium: "bg-amber-100 text-amber-800",
+    trial: "bg-sky-100 text-sky-700",
+    free: "bg-[var(--color-border)] text-[var(--color-muted)]",
+  };
+  const label = formatSubscriptionLabel(subscription);
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${map[tier] ?? map.free}`}>{label}</span>
   );
 }

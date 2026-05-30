@@ -45,9 +45,12 @@ function subscriptionFromEvent(
 
   const period = String(periodType ?? "").toUpperCase();
   if (period === "TRIAL" || period === "INTRO") return "trial";
-  // INITIAL_PURCHASE without period_type is almost always a store free trial — treat as
-  // trial so auto-boost stays blocked until the first paid renewal webhook arrives.
-  if (eventType === "INITIAL_PURCHASE" && !period) return "trial";
+  // INITIAL_PURCHASE / PRODUCT_CHANGE without period_type is almost always a store free
+  // trial or tier switch mid-trial — treat as trial so auto-boost stays blocked until
+  // the first paid renewal webhook arrives.
+  if ((eventType === "INITIAL_PURCHASE" || eventType === "PRODUCT_CHANGE") && !period) {
+    return "trial";
+  }
   return "premium";
 }
 

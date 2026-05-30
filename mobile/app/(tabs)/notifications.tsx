@@ -74,6 +74,8 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
       return "Moderation needed";
     case "role_updated":
       return "Your role was updated";
+    case "boost_alert":
+      return "Boosted prayer";
     case "system":
       return "Update";
     default:
@@ -112,7 +114,9 @@ function NotificationItem({
                       ? "shield-checkmark"
                       : t === "role_updated"
                         ? "person-circle"
-                        : "notifications-outline";
+                        : t === "boost_alert"
+                          ? "flame"
+                          : "notifications-outline";
   const iconColor =
     t === "prayer" || t === "prayer_milestone"
       ? colors.flame
@@ -132,7 +136,9 @@ function NotificationItem({
                     ? colors.accent
                     : t === "role_updated"
                       ? colors.primary
-                      : colors.accent;
+                      : t === "boost_alert"
+                        ? colors.flame
+                        : colors.accent;
 
   const opensWeb = notificationOpensWebAdmin(t, userRole);
   const hasDestination =
@@ -144,7 +150,8 @@ function NotificationItem({
     t === "evening_prayer" ||
     t === "reminder" ||
     t === "daily_help_reminder" ||
-    t === "category_new";
+    t === "category_new" ||
+    t === "boost_alert";
 
   return (
     <Pressable
