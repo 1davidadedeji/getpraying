@@ -21,8 +21,15 @@ import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
+import { openLegalDocument } from "@/lib/openLegalDocument";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import { formatMonthlyTrialOffer, hasPremiumEntitlement } from "@/lib/revenuecatEntitlements";
+import {
+  describeEntitlementAfterPurchase,
+  isPurchaseAlreadyOwnedError,
+  isPurchaseUserCancelled,
+  purchaseErrorMessage,
+} from "@/lib/revenuecatPurchase";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -36,11 +43,12 @@ export default function PaywallScreen() {
   const { soft } = useLocalSearchParams<{ soft?: string }>();
   const isSoftPaywall = soft === "1" || soft === "true";
   const isCheckingSubscription = rc.isCheckingSubscription;
+  /** Hard gate: user cannot use the app without starting the store subscription. */
   const isMandatoryGate =
     !isCheckingSubscription && rc.enabled && !rc.isEntitled && !isSoftPaywall;
   const entitlementRedirected = useRef(false);
   const signingOut = useRef(false);
-  const [restoring, setRestoring] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
   const userRef = useRef(user);
   const rcRef = useRef(rc);
   const pendingDeepLinkRef = useRef(pendingDeepLink);
@@ -51,7 +59,7 @@ export default function PaywallScreen() {
   pendingDeepLinkRef.current = pendingDeepLink;
   consumePendingHrefRef.current = consumePendingHref;
 
-  const navigateAfterEntitlement = useCallback(() => {
+  const enterApp = useCallback(() => {
     if (entitlementRedirected.current) return;
     entitlementRedirected.current = true;
 
@@ -67,17 +75,12 @@ export default function PaywallScreen() {
     router.replace(resolvePostAuthNavigation(u, rcState, pending, consume) as Href);
   }, []);
 
-  useEffect(() => {
-    if (!signingOut.current || user !== null) return;
-    signingOut.current = false;
-    router.replace("/");
-  }, [user]);
-
   const leavePaywall = useCallback(async () => {
     signingOut.current = true;
     await logoutThenClearQueryCache(logout, queryClient);
   }, [logout, queryClient]);
 
+  /** Back: mandatory gate signs out; soft / entitled users return to the previous screen. */
   const dismissPaywall = useCallback(() => {
     if (isMandatoryGate) {
       void leavePaywall();
@@ -85,6 +88,26 @@ export default function PaywallScreen() {
     }
     goBackOrFallback("/(tabs)" as Href);
   }, [isMandatoryGate, leavePaywall]);
+
+  const finishAfterEntitlement = useCallback(
+    (opts?: { haptic?: boolean }) => {
+      if (opts?.haptic !== false) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      if (isSoftPaywall) {
+        dismissPaywall();
+        return;
+      }
+      enterApp();
+    },
+    [dismissPaywall, enterApp, isSoftPaywall],
+  );
+
+  useEffect(() => {
+    if (!signingOut.current || user !== null) return;
+    signingOut.current = false;
+    router.replace("/");
+  }, [user]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -95,13 +118,11 @@ export default function PaywallScreen() {
   }, [dismissPaywall]);
 
   useEffect(() => {
-    // Soft paywall (e.g. "View plans" from Boost gate) must stay open for entitled trial users.
     if (isSoftPaywall) return;
     if (isCheckingSubscription || entitlementRedirected.current) return;
     if (!user) return;
     if (rc.enabled && !rc.isEntitled) return;
-
-    navigateAfterEntitlement();
+    enterApp();
   }, [
     isSoftPaywall,
     isCheckingSubscription,
@@ -109,7 +130,7 @@ export default function PaywallScreen() {
     rc.enabled,
     rc.isEntitled,
     rc.isReady,
-    navigateAfterEntitlement,
+    enterApp,
   ]);
 
   useFocusEffect(
@@ -123,36 +144,63 @@ export default function PaywallScreen() {
   );
 
   const onPurchase = async () => {
-    if (!rc.hasMonthlyOffer) return;
+    if (!rc.hasMonthlyOffer || purchasing) return;
+
+    if (rc.isPremiumTrial) {
+      const manageUrl = rc.customerInfo?.managementURL;
+      if (manageUrl) {
+        try {
+          await Linking.openURL(manageUrl);
+        } catch {
+          showAppAlert({
+            title: "Free trial active",
+            message:
+              "Your subscription is already active on a free trial. Boost unlocks once your trial converts to a paid plan.",
+          });
+        }
+        return;
+      }
+      showAppAlert({
+        title: "Free trial active",
+        message:
+          "Your subscription is already active on a free trial. Boost unlocks automatically once your trial converts to a paid plan.",
+      });
+      return;
+    }
+
+    if (rc.canUseBoost || (rc.isEntitled && hasPremiumEntitlement(rc.customerInfo))) {
+      finishAfterEntitlement();
+      return;
+    }
+
+    setPurchasing(true);
     try {
       await rc.purchaseMonthly();
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      finishAfterEntitlement();
     } catch (e: unknown) {
-      const err = e as { userCancelled?: boolean; message?: string };
-      if (err?.userCancelled) return;
-      const msg = err?.message ?? "Purchase cancelled or failed.";
-      showAppAlert({ title: "Subscription not started", message: msg });
-    }
-  };
+      if (isPurchaseUserCancelled(e)) return;
 
-  const onRestore = async () => {
-    if (restoring || !rc.enabled) return;
-    setRestoring(true);
-    try {
-      const info = await rc.restore();
-      if (hasPremiumEntitlement(info)) {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        showAppAlert({
-          title: "No subscription found",
-          message: "We couldn't find an active subscription for this account.",
-        });
+      if (isPurchaseAlreadyOwnedError(e)) {
+        const info = await rc.refresh();
+        const { isTrial } = describeEntitlementAfterPurchase(info);
+        if (isTrial) {
+          showAppAlert({
+            title: "Subscription already active",
+            message:
+              "You're on a free trial. Boost unlocks once your trial converts to a paid subscription.",
+          });
+          return;
+        }
+        if (hasPremiumEntitlement(info)) {
+          finishAfterEntitlement();
+          return;
+        }
       }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Restore failed. Try again.";
-      showAppAlert({ title: "Restore failed", message: msg });
+
+      const msg = purchaseErrorMessage(e, "Purchase cancelled or failed.");
+      showAppAlert({ title: "Could not start subscription", message: msg });
     } finally {
-      setRestoring(false);
+      setPurchasing(false);
     }
   };
 
@@ -190,6 +238,16 @@ export default function PaywallScreen() {
   const legalText =
     "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community.";
 
+  const headline = isSoftPaywall
+    ? rc.isPremiumTrial
+      ? "Upgrade to unlock Boost"
+      : "Subscribe to unlock"
+    : "Start your free trial";
+
+  const subtitle = isSoftPaywall
+    ? "Boost and other premium perks unlock with a fully paid subscription."
+    : "Subscribe to unlock the prayer feed, Library, reminders, and community features.";
+
   if (isCheckingSubscription) {
     return (
       <>
@@ -220,10 +278,10 @@ export default function PaywallScreen() {
             style={styles.closeBtn}
             testID="paywall-close"
             hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={isMandatoryGate ? "Sign out" : "Go back"}
           >
-            <Text style={[styles.closeText, { fontSize: fsLink }]}>
-              {isSoftPaywall ? "← Back" : "← Back"}
-            </Text>
+            <Text style={[styles.closeText, { fontSize: fsLink }]}>← Back</Text>
           </Pressable>
         </View>
 
@@ -237,12 +295,8 @@ export default function PaywallScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.hero, { gap: heroGap, paddingHorizontal: heroPadH }]}>
-            <Text style={[styles.title, { fontSize: fsTitle }]}>
-              {isSoftPaywall ? "Subscribe to unlock" : "Start your free trial"}
-            </Text>
-            <Text style={[styles.subtitle, { fontSize: fsSub, lineHeight: lhSub }]}>
-              Subscribe to unlock the prayer feed, Library, reminders, and community features.
-            </Text>
+            <Text style={[styles.title, { fontSize: fsTitle }]}>{headline}</Text>
+            <Text style={[styles.subtitle, { fontSize: fsSub, lineHeight: lhSub }]}>{subtitle}</Text>
           </View>
 
           <View
@@ -293,18 +347,28 @@ export default function PaywallScreen() {
                     styles.planBtn,
                     styles.planBtnPrimary,
                     { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
+                    purchasing && styles.planBtnDisabled,
                   ]}
-                  onPress={onPurchase}
+                  onPress={() => void onPurchase()}
+                  disabled={purchasing}
                   testID="subscribe-monthly"
                 >
-                  <View style={styles.planCopy}>
-                    <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>
-                      Subscribe
-                    </Text>
-                    <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>
-                      {trialOffer.includes("Free") ? trialOffer : `${trialOffer} · cancel anytime`}
-                    </Text>
-                  </View>
+                  {purchasing ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <View style={styles.planCopy}>
+                      <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>
+                        {rc.isPremiumTrial ? "Manage subscription" : "Subscribe"}
+                      </Text>
+                      <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>
+                        {rc.isPremiumTrial
+                          ? "Free trial active · Boost unlocks after paid conversion"
+                          : trialOffer.includes("Free")
+                            ? trialOffer
+                            : `${trialOffer} · cancel anytime`}
+                      </Text>
+                    </View>
+                  )}
                 </Pressable>
                 <Text style={[styles.legal, { fontSize: fsLegal, lineHeight: lhLegal }]}>
                   {legalText}
@@ -321,52 +385,30 @@ export default function PaywallScreen() {
           ]}
         >
           <Pressable
-            onPress={() => void onRestore()}
-            disabled={restoring || !rc.enabled}
+            onPress={() => void leavePaywall()}
             style={[styles.footerBtn, { paddingVertical: linkPadV }]}
-            testID="paywall-restore"
+            testID="paywall-sign-out"
             hitSlop={8}
+            accessibilityRole="button"
           >
-            {restoring ? (
-              <ActivityIndicator color="#21638D" size="small" />
-            ) : (
-              <Text style={[styles.footerLink, { fontSize: fsFooter }]}>Restore Purchases</Text>
-            )}
+            <Text style={[styles.footerMuted, { fontSize: fsFooter }]}>Sign Out</Text>
           </Pressable>
-
-          {isSoftPaywall ? (
-            <Pressable
-              onPress={dismissPaywall}
-              style={[styles.footerBtn, { paddingVertical: linkPadV }]}
-              testID="paywall-not-now"
-              hitSlop={8}
-            >
-              <Text style={[styles.footerMuted, { fontSize: fsFooter }]}>Not now</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={() => void leavePaywall()}
-              style={[styles.footerBtn, { paddingVertical: linkPadV }]}
-              testID="paywall-sign-out"
-              hitSlop={8}
-            >
-              <Text style={[styles.footerMuted, { fontSize: fsFooter }]}>Sign Out</Text>
-            </Pressable>
-          )}
 
           <View style={styles.legalRow}>
             <Pressable
-              onPress={() => void Linking.openURL(TERMS_URL)}
+              onPress={() => void openLegalDocument(TERMS_URL)}
               style={[styles.footerBtn, { paddingVertical: linkPadV }]}
               hitSlop={8}
+              accessibilityRole="link"
             >
               <Text style={[styles.footerLink, { fontSize: fsFooter }]}>Terms of Service</Text>
             </Pressable>
             <Text style={[styles.legalDot, { fontSize: fsFooter }]}>·</Text>
             <Pressable
-              onPress={() => void Linking.openURL(PRIVACY_URL)}
+              onPress={() => void openLegalDocument(PRIVACY_URL)}
               style={[styles.footerBtn, { paddingVertical: linkPadV }]}
               hitSlop={8}
+              accessibilityRole="link"
             >
               <Text style={[styles.footerLink, { fontSize: fsFooter }]}>Privacy</Text>
             </Pressable>
@@ -440,6 +482,9 @@ const styles = StyleSheet.create({
   planBtnPrimary: {
     backgroundColor: "#21638D",
     borderColor: "rgba(33,99,141,0.2)",
+  },
+  planBtnDisabled: {
+    opacity: 0.7,
   },
   planCopy: {
     alignItems: "center",

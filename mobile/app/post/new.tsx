@@ -378,7 +378,7 @@ export default function NewPostScreen() {
       return;
     }
     if (rc.isPremiumTrial) {
-      showBoostUpgradePrompt(rc.upgradeFromTrial);
+      showBoostUpgradePrompt();
       return;
     }
     showAppAlert({

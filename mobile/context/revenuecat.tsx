@@ -48,7 +48,7 @@ type RevenueCatState = {
   isEntitled: boolean;
   isPremiumTrial: boolean;
   canUseBoost: boolean;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<CustomerInfo | null>;
   purchaseMonthly: () => Promise<void>;
   purchasePackage: (pkg: PurchasesPackage) => Promise<void>;
   restore: () => Promise<CustomerInfo>;
@@ -247,8 +247,8 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     };
   }, [applyCustomerInfo]);
 
-  const refresh = useCallback(async () => {
-    if (!enabled) return;
+  const refresh = useCallback(async (): Promise<CustomerInfo | null> => {
+    if (!enabled) return null;
     const Purchases = getPurchases();
     setCatalogLoading(true);
     try {
@@ -260,6 +260,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       setMonthlyStoreProduct(catalog.storeProduct);
       setCatalogError(catalog.error);
       applyCustomerInfo(info);
+      return info;
     } finally {
       setCatalogLoading(false);
     }
@@ -324,14 +325,15 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   );
   const hasMonthlyOffer = !!(monthlyPackage || monthlyStoreProduct);
 
+  const adminBoostBypass = user?.role === "admin";
   const confirmedEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
   const isEntitled =
     staffBypass || confirmedEntitled || (!staffBypass && enabled && optimisticEntitlement);
   const isPremiumTrial =
     !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
-  // Boost requires a fully paid entitlement — never grant during RC trial/intro or optimistic unlock.
+  // Boost: fully paid subscribers and admins only — never trial, intro, or optimistic unlock.
   const canUseBoost =
-    staffBypass ||
+    adminBoostBypass ||
     (enabled && confirmedEntitled && !isPremiumTrialPeriod(customerInfo) && !optimisticEntitlement);
 
   const value: RevenueCatState = useMemo(
@@ -410,7 +412,7 @@ export function useRevenueCat(): RevenueCatState {
       isEntitled: false,
       isPremiumTrial: false,
       canUseBoost: false,
-      refresh: async () => {},
+      refresh: async () => null,
       purchaseMonthly: async () => {
         throw new Error("RevenueCatProvider missing");
       },

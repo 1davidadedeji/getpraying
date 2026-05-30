@@ -190,17 +190,15 @@ export async function requirePremiumSubscription(
 
 /**
  * Paying subscriber — used for automatic post boosts.
- * Store trial / intro periods are tracked as subscription = "trial" via the RevenueCat webhook.
+ * Only explicit paid tier (`premium`) or admins qualify; trial/free never boost.
  */
 export function userIsPayingSubscriber(user: {
   role?: string;
   trialStartsAt?: Date | string | null;
   subscription?: string | null;
 }): boolean {
-  if (user.role === "admin" || user.role === "moderator") return true;
-  const tier = String(user.subscription ?? "").toLowerCase();
-  if (tier === "trial") return false;
-  return ["active", "premium", "paid", "subscribed", "pro", "plus"].includes(tier);
+  if (user.role === "admin") return true;
+  return String(user.subscription ?? "").toLowerCase() === "premium";
 }
 
 /** @deprecated Use userIsPayingSubscriber — trial no longer grants boost. */

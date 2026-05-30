@@ -1,20 +1,16 @@
 import { showAppAlert } from "@/components/AppAlert";
+import { router, type Href } from "expo-router";
 
-export function showBoostUpgradePrompt(upgrade: () => Promise<void>): void {
+export function showBoostUpgradePrompt(): void {
   showAppAlert({
     title: "Boost unavailable during trial",
     message:
-      "Boosting prayers is only available to fully paid subscribers. Upgrade your plan now to unlock Boost.",
+      "Boosting prayers is only available to fully paid subscribers. Upgrade after your trial ends to unlock Boost.",
     buttons: [
       { text: "Not now", style: "cancel" },
       {
-        text: "Upgrade now",
-        onPress: () => {
-          void upgrade().catch((err: unknown) => {
-            const msg = err instanceof Error ? err.message : "Could not start upgrade.";
-            showAppAlert({ title: "Upgrade not completed", message: msg });
-          });
-        },
+        text: "View plans",
+        onPress: () => router.push("/(paywall)?soft=1" as Href),
       },
     ],
   });
