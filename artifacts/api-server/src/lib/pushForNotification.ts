@@ -48,8 +48,10 @@ async function sendExpoPush(
   title: string,
   body: string,
   data: Record<string, string>,
-): Promise<void> {
-  if (!expoToken || !expoToken.startsWith("ExponentPushToken[") || expoToken.length < 16) return;
+): Promise<boolean> {
+  if (!expoToken || !expoToken.startsWith("ExponentPushToken[") || expoToken.length < 16) {
+    return false;
+  }
   const message = {
     to: expoToken,
     title,
@@ -72,7 +74,7 @@ async function sendExpoPush(
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       console.warn("[push] Expo push non-OK:", res.status, t.slice(0, 200));
-      return;
+      return false;
     }
     const json = (await res.json().catch(() => null)) as {
       data?: { status?: string; message?: string; details?: { error?: string } }[];
@@ -91,20 +93,24 @@ async function sendExpoPush(
           .set({ expoPushToken: null, updatedAt: new Date() })
           .where(eq(usersTable.expoPushToken, expoToken));
       }
+      return false;
     }
+    return ticket?.status === "ok";
   } catch (e) {
     console.warn("[push] Expo push failed:", e);
+    return false;
   }
 }
 
 /** Send a push notification directly to a token (no DB row required — for broadcast/scheduled use). */
+/** @returns true when Expo accepted the push (ticket status `ok`). */
 export async function sendDirectPush(
   expoToken: string,
   title: string,
   body: string,
   data: Record<string, string> = {},
-): Promise<void> {
-  await sendExpoPush(expoToken, title, body, data);
+): Promise<boolean> {
+  return sendExpoPush(expoToken, title, body, data);
 }
 
 /** Fire-and-forget remote alert for a stored notification row (recipient must have an Expo token). */

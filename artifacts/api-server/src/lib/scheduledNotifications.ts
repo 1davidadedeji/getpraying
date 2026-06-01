@@ -1,208 +1,223 @@
-import { db, usersTable, dailyWordOverridesTable } from "@workspace/db";
-import { and, isNotNull } from "drizzle-orm";
-import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { sendDirectPush } from "./pushForNotification";
-import { resolveDailyQuote } from "./dailyWordCatalog";
-import { getDailyWordAutoRotation } from "./dailyWordSettings";
+import {
+  inDeliveryWindow,
+  localHourMinute,
+  notSentTodayLocal,
+} from "./scheduledNotificationTime";
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+/**
+ * Within each scheduled hour, keep trying until success or this minute bound.
+ * At 5-minute polls that is up to six attempts (minutes 0, 5, …, 25).
+ */
+const DELIVERY_WINDOW_MINUTE_MAX = 29;
+/** Postgres advisory lock — only one API process runs the scheduler at a time. */
+const SCHEDULER_ADVISORY_LOCK_KEY = 0x475054520001;
+let schedulerRunInFlight = false;
 
-function localHourMinute(timezone: string): { hour: number; minute: number } | null {
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      hour: "numeric",
-      minute: "numeric",
-      hour12: false,
-    }).formatToParts(new Date());
-    const h = parts.find((p) => p.type === "hour")?.value;
-    const m = parts.find((p) => p.type === "minute")?.value;
-    if (h === undefined || m === undefined) return null;
-    return { hour: parseInt(h, 10), minute: parseInt(m, 10) };
-  } catch {
-    return null;
+function parseTryLockResult(result: unknown): boolean {
+  const rows = Array.isArray(result)
+    ? result
+    : result && typeof result === "object" && "rows" in result
+      ? (result as { rows: unknown[] }).rows
+      : [];
+  return (rows[0] as { locked?: boolean } | undefined)?.locked === true;
+}
+
+type SentAtColumn =
+  | typeof usersTable.morningNotifSentAt
+  | typeof usersTable.eveningNotifSentAt
+  | typeof usersTable.dailyHelpNotifSentAt;
+
+/** SQL guard for atomic mark-sent updates. */
+function notSentTodaySql(sentAtColumn: SentAtColumn, timezone: string) {
+  return sql`(
+    ${sentAtColumn} IS NULL
+    OR to_char(${sentAtColumn} AT TIME ZONE ${timezone}, 'YYYY-MM-DD')
+       < to_char(NOW() AT TIME ZONE ${timezone}, 'YYYY-MM-DD')
+  )`;
+}
+
+async function tryAcquireSchedulerLock(): Promise<boolean> {
+  const result = await db.execute(
+    sql`SELECT pg_try_advisory_lock(${SCHEDULER_ADVISORY_LOCK_KEY}) AS locked`,
+  );
+  return parseTryLockResult(result);
+}
+
+async function releaseSchedulerLock(): Promise<void> {
+  await db.execute(sql`SELECT pg_advisory_unlock(${SCHEDULER_ADVISORY_LOCK_KEY})`);
+}
+
+function slotLockId(slot: ScheduledSlot): number {
+  switch (slot) {
+    case "morning":
+      return 1;
+    case "evening":
+      return 2;
+    case "daily_help":
+      return 3;
   }
 }
 
-function localDateString(timezone: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
-  } catch {
-    return new Date().toISOString().slice(0, 10);
+async function tryAcquireUserSlotLock(userId: number, slot: ScheduledSlot): Promise<boolean> {
+  const result = await db.execute(
+    sql`SELECT pg_try_advisory_lock(${userId}, ${slotLockId(slot)}) AS locked`,
+  );
+  return parseTryLockResult(result);
+}
+
+async function releaseUserSlotLock(userId: number, slot: ScheduledSlot): Promise<void> {
+  await db.execute(sql`SELECT pg_advisory_unlock(${userId}, ${slotLockId(slot)})`);
+}
+
+type ScheduledSlot = "morning" | "evening" | "daily_help";
+
+const SLOT_CONFIG: Record<
+  ScheduledSlot,
+  {
+    targetHour: number;
+    body: string;
+    dataType: string;
+    sentAtColumn: SentAtColumn;
+    markSent: (now: Date) => {
+      morningNotifSentAt?: Date;
+      eveningNotifSentAt?: Date;
+      dailyHelpNotifSentAt?: Date;
+    };
   }
-}
+> = {
+  morning: {
+    targetHour: 4,
+    body: "The morning prayer is ready.",
+    dataType: "morning_prayer",
+    sentAtColumn: usersTable.morningNotifSentAt,
+    markSent: (now) => ({ morningNotifSentAt: now }),
+  },
+  evening: {
+    targetHour: 17,
+    body: "The evening prayer is ready.",
+    dataType: "evening_prayer",
+    sentAtColumn: usersTable.eveningNotifSentAt,
+    markSent: (now) => ({ eveningNotifSentAt: now }),
+  },
+  daily_help: {
+    targetHour: 8,
+    body: "See who to help on Get Praying",
+    dataType: "daily_help_reminder",
+    sentAtColumn: usersTable.dailyHelpNotifSentAt,
+    markSent: (now) => ({ dailyHelpNotifSentAt: now }),
+  },
+};
 
-async function getTodayQuoteText(): Promise<string> {
-  const parsed = new Date();
-  const dateStr = parsed.toISOString().slice(0, 10);
-  const [override] = await db
-    .select({
-      quoteText: dailyWordOverridesTable.quoteText,
-      reference: dailyWordOverridesTable.reference,
-    })
-    .from(dailyWordOverridesTable)
-    .where(eq(dailyWordOverridesTable.effectiveDate, dateStr))
-    .limit(1);
-  const autoRotation = await getDailyWordAutoRotation();
-  const quote = resolveDailyQuote(parsed, autoRotation, override ?? null);
-  return quote.quoteText;
-}
-
-async function sendMorningPrayers(): Promise<void> {
-  const quote = await getTodayQuoteText();
-  const body = `The morning prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
+async function sendScheduledSlot(slot: ScheduledSlot): Promise<number> {
+  const { targetHour, body, dataType, sentAtColumn, markSent } = SLOT_CONFIG[slot];
 
   const users = await db
     .select({
       id: usersTable.id,
       token: usersTable.expoPushToken,
       timezone: usersTable.timezone,
-      morningNotifSentAt: usersTable.morningNotifSentAt,
+      sentAt: sentAtColumn,
     })
     .from(usersTable)
-    .where(and(
-      isNotNull(usersTable.expoPushToken),
-      isNotNull(usersTable.timezone),
-      eq(usersTable.scheduledNotificationsEnabled, true),
-    ));
+    .where(
+      and(
+        isNotNull(usersTable.expoPushToken),
+        isNotNull(usersTable.timezone),
+        eq(usersTable.scheduledNotificationsEnabled, true),
+      ),
+    );
 
-  const toNotify: typeof users = [];
+  let sent = 0;
+  let failed = 0;
+  const now = new Date();
+
   for (const u of users) {
     if (!u.token || !u.timezone) continue;
     const hm = localHourMinute(u.timezone);
-    // 5-minute server poll: allow a wider local-time window so we don’t miss the slot.
-    if (!hm || hm.hour !== 4 || hm.minute >= 20) continue;
-    const todayLocal = localDateString(u.timezone);
-    if (u.morningNotifSentAt) {
-      const lastSentLocal = new Intl.DateTimeFormat("en-CA", { timeZone: u.timezone }).format(
-        u.morningNotifSentAt,
-      );
-      if (lastSentLocal >= todayLocal) continue;
+    if (!inDeliveryWindow(hm, targetHour, DELIVERY_WINDOW_MINUTE_MAX)) continue;
+    if (!notSentTodayLocal(u.sentAt, u.timezone)) continue;
+
+    const userLocked = await tryAcquireUserSlotLock(u.id, slot);
+    if (!userLocked) continue;
+
+    try {
+      const [fresh] = await db
+        .select({
+          token: usersTable.expoPushToken,
+          sentAt: sentAtColumn,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, u.id))
+        .limit(1);
+
+      const token = fresh?.token?.trim();
+      if (!token || !fresh || !notSentTodayLocal(fresh.sentAt, u.timezone)) continue;
+
+      const delivered = await sendDirectPush(token, "Get Praying", body, { type: dataType });
+      if (!delivered) {
+        failed += 1;
+        console.warn(
+          `[scheduler] ${slot} push not delivered for user ${u.id}; will retry on next poll if still in window`,
+        );
+        continue;
+      }
+
+      const [marked] = await db
+        .update(usersTable)
+        .set(markSent(now))
+        .where(and(eq(usersTable.id, u.id), notSentTodaySql(sentAtColumn, u.timezone)))
+        .returning({ id: usersTable.id });
+
+      if (marked) {
+        sent += 1;
+      } else {
+        console.warn(
+          `[scheduler] ${slot} push delivered for user ${u.id} but mark-sent lost race (already sent today)`,
+        );
+      }
+    } finally {
+      await releaseUserSlotLock(u.id, slot).catch(() => {});
     }
-    toNotify.push(u);
   }
 
-  const now = new Date();
-  for (const u of toNotify) {
-    void sendDirectPush(u.token!, "Get Praying", body, { type: "morning_prayer" }).catch(() => {});
-    void db
-      .update(usersTable)
-      .set({ morningNotifSentAt: now })
-      .where(eq(usersTable.id, u.id))
-      .catch(() => {});
+  if (sent > 0 || failed > 0) {
+    console.info(`[scheduler] ${slot}: ${sent} delivered, ${failed} failed (retryable)`);
   }
-
-  if (toNotify.length > 0) {
-    console.info(`[scheduler] Morning prayer sent to ${toNotify.length} user(s)`);
-  }
-}
-
-async function sendEveningPrayers(): Promise<void> {
-  const quote = await getTodayQuoteText();
-  const body = `The evening prayer is ready: "${quote.slice(0, 80)}${quote.length > 80 ? "…" : ""}"`;
-
-  const users = await db
-    .select({
-      id: usersTable.id,
-      token: usersTable.expoPushToken,
-      timezone: usersTable.timezone,
-      eveningNotifSentAt: usersTable.eveningNotifSentAt,
-    })
-    .from(usersTable)
-    .where(and(
-      isNotNull(usersTable.expoPushToken),
-      isNotNull(usersTable.timezone),
-      eq(usersTable.scheduledNotificationsEnabled, true),
-    ));
-
-  const toNotify: typeof users = [];
-  for (const u of users) {
-    if (!u.token || !u.timezone) continue;
-    const hm = localHourMinute(u.timezone);
-    if (!hm || hm.hour !== 17 || hm.minute >= 20) continue;
-    const todayLocal = localDateString(u.timezone);
-    if (u.eveningNotifSentAt) {
-      const lastSentLocal = new Intl.DateTimeFormat("en-CA", { timeZone: u.timezone }).format(
-        u.eveningNotifSentAt,
-      );
-      if (lastSentLocal >= todayLocal) continue;
-    }
-    toNotify.push(u);
-  }
-
-  const now = new Date();
-  for (const u of toNotify) {
-    void sendDirectPush(u.token!, "Get Praying", body, { type: "evening_prayer" }).catch(() => {});
-    void db
-      .update(usersTable)
-      .set({ eveningNotifSentAt: now })
-      .where(eq(usersTable.id, u.id))
-      .catch(() => {});
-  }
-
-  if (toNotify.length > 0) {
-    console.info(`[scheduler] Evening prayer sent to ${toNotify.length} user(s)`);
-  }
-}
-
-async function sendDailyHelpReminder(): Promise<void> {
-  const users = await db
-    .select({
-      id: usersTable.id,
-      token: usersTable.expoPushToken,
-      timezone: usersTable.timezone,
-      dailyHelpNotifSentAt: usersTable.dailyHelpNotifSentAt,
-    })
-    .from(usersTable)
-    .where(and(
-      isNotNull(usersTable.expoPushToken),
-      isNotNull(usersTable.timezone),
-      eq(usersTable.scheduledNotificationsEnabled, true),
-    ));
-
-  const toNotify: typeof users = [];
-  for (const u of users) {
-    if (!u.token || !u.timezone) continue;
-    const hm = localHourMinute(u.timezone);
-    if (!hm || hm.hour !== 8 || hm.minute >= 20) continue;
-    const todayLocal = localDateString(u.timezone);
-    if (u.dailyHelpNotifSentAt) {
-      const lastSentLocal = new Intl.DateTimeFormat("en-CA", { timeZone: u.timezone }).format(
-        u.dailyHelpNotifSentAt,
-      );
-      if (lastSentLocal >= todayLocal) continue;
-    }
-    toNotify.push(u);
-  }
-
-  const now = new Date();
-  for (const u of toNotify) {
-    void sendDirectPush(u.token!, "Get Praying", "See who to help on Get Praying", {
-      type: "daily_help_reminder",
-    }).catch(() => {});
-    void db
-      .update(usersTable)
-      .set({ dailyHelpNotifSentAt: now })
-      .where(eq(usersTable.id, u.id))
-      .catch(() => {});
-  }
-
-  if (toNotify.length > 0) {
-    console.info(`[scheduler] Daily help reminder sent to ${toNotify.length} user(s)`);
-  }
+  return sent;
 }
 
 async function runScheduledChecks(): Promise<void> {
+  if (schedulerRunInFlight) {
+    return;
+  }
+  schedulerRunInFlight = true;
+
+  const locked = await tryAcquireSchedulerLock();
+  if (!locked) {
+    schedulerRunInFlight = false;
+    return;
+  }
+
   try {
-    await Promise.all([sendMorningPrayers(), sendEveningPrayers(), sendDailyHelpReminder()]);
+    await sendScheduledSlot("morning");
+    await sendScheduledSlot("evening");
+    await sendScheduledSlot("daily_help");
   } catch (e) {
     console.warn("[scheduler] Error during scheduled checks:", e);
+  } finally {
+    await releaseSchedulerLock().catch(() => {});
+    schedulerRunInFlight = false;
   }
 }
 
 export function startScheduledNotifications(): void {
-  // Run once shortly after startup in case the server restarted during a notification window
   setTimeout(() => void runScheduledChecks(), 15_000);
   setInterval(() => void runScheduledChecks(), CHECK_INTERVAL_MS);
-  console.info("[scheduler] Scheduled notification checks started (every 5 min)");
+  console.info(
+    `[scheduler] Scheduled notification checks started (every ${CHECK_INTERVAL_MS / 60_000} min, delivery window minute 0–${DELIVERY_WINDOW_MINUTE_MAX})`,
+  );
 }
