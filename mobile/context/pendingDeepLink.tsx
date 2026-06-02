@@ -1,16 +1,23 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { bumpDeferredNavigation } from "@/lib/deferredNavigation";
 import {
   deepLinkToHref,
   parseDeepLinkUrl,
   type ParsedDeepLink,
 } from "@/lib/parseDeepLink";
 
-const STORAGE_KEY = "@getpraying/pending_deeplink";
+const STORAGE_KEY = "@getpraying/pending_deeplink_v2";
+/** Deferred links older than this are discarded (avoids surprise navigation days later). */
+const PENDING_TTL_MS = 30 * 60 * 1000;
+
+type StoredPending = { url: string; capturedAt: number };
 
 interface PendingDeepLinkContextValue {
   pendingDeepLink: ParsedDeepLink | null;
+  /** False until AsyncStorage hydration finishes. */
+  hydrated: boolean;
   /** Capture from a URL; persists until consumed. */
   captureFromUrl: (url: string | null | undefined) => void;
   /** Returns the Expo Router href and clears the pending link. */
@@ -20,11 +27,20 @@ interface PendingDeepLinkContextValue {
 
 const PendingDeepLinkContext = createContext<PendingDeepLinkContextValue | null>(null);
 
+function isFresh(capturedAt: number): boolean {
+  return Date.now() - capturedAt <= PENDING_TTL_MS;
+}
+
 async function loadStored(): Promise<ParsedDeepLink | null> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return parseDeepLinkUrl(raw) ?? null;
+    const parsed = JSON.parse(raw) as StoredPending;
+    if (!parsed?.url || typeof parsed.capturedAt !== "number" || !isFresh(parsed.capturedAt)) {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return parseDeepLinkUrl(parsed.url) ?? null;
   } catch {
     return null;
   }
@@ -32,8 +48,12 @@ async function loadStored(): Promise<ParsedDeepLink | null> {
 
 async function persistUrl(url: string | null): Promise<void> {
   try {
-    if (url) await AsyncStorage.setItem(STORAGE_KEY, url);
-    else await AsyncStorage.removeItem(STORAGE_KEY);
+    if (url) {
+      const payload: StoredPending = { url, capturedAt: Date.now() };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+    }
   } catch {
     /* ignore */
   }
@@ -48,6 +68,7 @@ export function PendingDeepLinkProvider({ children }: { children: React.ReactNod
     if (!parsed) return;
     setPendingDeepLink(parsed);
     void persistUrl(url ?? null);
+    bumpDeferredNavigation();
   }, []);
 
   const clearPending = useCallback(() => {
@@ -66,6 +87,7 @@ export function PendingDeepLinkProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      await AsyncStorage.removeItem("@getpraying/pending_deeplink").catch(() => {});
       const stored = await loadStored();
       if (!cancelled && stored) setPendingDeepLink(stored);
       if (!cancelled) setHydrated(true);
@@ -91,7 +113,7 @@ export function PendingDeepLinkProvider({ children }: { children: React.ReactNod
 
   return (
     <PendingDeepLinkContext.Provider
-      value={{ pendingDeepLink, captureFromUrl, consumePendingHref, clearPending }}
+      value={{ pendingDeepLink, hydrated, captureFromUrl, consumePendingHref, clearPending }}
     >
       {children}
     </PendingDeepLinkContext.Provider>

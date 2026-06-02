@@ -1,11 +1,23 @@
 import { router, type Href } from "expo-router";
 import { InteractionManager } from "react-native";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { bumpDeferredNavigation } from "@/lib/deferredNavigation";
 import {
   isStaffRole,
   openWebAdmin,
   webAdminPathForNotification,
 } from "@/lib/webAdmin";
+
+export type NotificationNavigationTarget =
+  | { kind: "href"; href: string }
+  | { kind: "webAdmin"; path: string };
+
+/** Normalize `postId` from Expo push `data` (values are often strings). */
+export function parseNotificationPostId(raw: unknown): number {
+  if (raw === undefined || raw === null || raw === "") return NaN;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim());
+  return Number.isFinite(n) && n > 0 ? n : NaN;
+}
 
 export function notificationRowToPushData(item: {
   id: number;
@@ -76,10 +88,14 @@ export function peekPendingNotificationHref(): string | null {
   return pendingNotificationHref;
 }
 
-/** Queue only — EntitlementGate (or paywall enterApp) is the sole navigation consumer. */
-function queueNotificationHref(href: string): void {
-  if (pendingNotificationHref === href) return;
+/** Queue until EntitlementGate (or paywall enterApp) can navigate. */
+export function queueNotificationHref(href: string): void {
+  if (pendingNotificationHref === href) {
+    bumpDeferredNavigation();
+    return;
+  }
   pendingNotificationHref = href;
+  bumpDeferredNavigation();
 }
 
 /**
@@ -132,6 +148,55 @@ function libraryHrefForPrayerSlot(type: string): string {
   return "/(tabs)/library";
 }
 
+/** Resolve push/in-app notification payload to a navigation target (no navigation). */
+export function resolveNotificationTarget(
+  data: Record<string, unknown>,
+  opts?: { userRole?: string | null },
+): NotificationNavigationTarget {
+  const type = data.type != null ? String(data.type) : "";
+  const postId = parseNotificationPostId(data.postId);
+  const actorUsername = data.actorUsername != null ? String(data.actorUsername) : "";
+  const category = data.category != null ? String(data.category) : "";
+
+  const webPath = webAdminPathForNotification(
+    type,
+    opts?.userRole,
+    Number.isFinite(postId) ? postId : undefined,
+  );
+  if (webPath && (type === "mod_queue" || (type === "role_updated" && isStaffRole(opts?.userRole)))) {
+    return { kind: "webAdmin", path: webPath };
+  }
+
+  if (type === "follow" && actorUsername) {
+    return { kind: "href", href: `/user/${actorUsername}` };
+  }
+
+  if (type === "morning_prayer" || type === "evening_prayer" || type === "reminder") {
+    return { kind: "href", href: libraryHrefForPrayerSlot(type) };
+  }
+
+  if (type === "daily_help_reminder") {
+    return { kind: "href", href: "/(tabs)/" };
+  }
+
+  if (type === "category_new") {
+    return {
+      kind: "href",
+      href: category ? `/category/${encodeURIComponent(category)}` : "/(tabs)/library",
+    };
+  }
+
+  if (type === "role_updated") {
+    return { kind: "href", href: "/settings" };
+  }
+
+  if (Number.isFinite(postId)) {
+    return { kind: "href", href: `/post/${postId}` };
+  }
+
+  return { kind: "href", href: "/(tabs)/notifications" };
+}
+
 /** Routes from in-app notification rows or from Expo push `data` (same shape). */
 export async function navigateFromNotificationData(
   data: Record<string, unknown>,
@@ -143,16 +208,10 @@ export async function navigateFromNotificationData(
     deferUntilTabsReady?: boolean;
     /** When true, queue href until root entitlement gate passes (no immediate navigation). */
     deferUntilEntitled?: boolean;
+    /** When set with deferUntilEntitled, apply immediately instead of queueing. */
+    applyNowPathname?: string;
   },
 ): Promise<void> {
-  const type = data.type != null ? String(data.type) : "";
-  const postIdRaw = data.postId;
-  const postId =
-    postIdRaw !== undefined && postIdRaw !== null && postIdRaw !== ""
-      ? Number(postIdRaw)
-      : NaN;
-  const actorUsername = data.actorUsername != null ? String(data.actorUsername) : "";
-  const category = data.category != null ? String(data.category) : "";
   const notificationIdRaw = data.notificationId;
   const notificationId =
     notificationIdRaw !== undefined && notificationIdRaw !== null && notificationIdRaw !== ""
@@ -166,53 +225,26 @@ export async function navigateFromNotificationData(
     );
   }
 
-  const webPath = webAdminPathForNotification(type, opts?.userRole, Number.isFinite(postId) ? postId : undefined);
-  if (webPath && (type === "mod_queue" || (type === "role_updated" && isStaffRole(opts?.userRole)))) {
-    openWebAdmin(webPath);
+  const target = resolveNotificationTarget(data, { userRole: opts?.userRole });
+  if (target.kind === "webAdmin") {
+    openWebAdmin(target.path);
     return;
   }
 
   const defer = opts?.deferUntilEntitled ?? opts?.deferUntilTabsReady ?? false;
+  const applyNowPathname = opts?.applyNowPathname;
+  const canApplyNow =
+    defer && typeof applyNowPathname === "string" && applyNowPathname.length > 0;
 
-  const navigate = (href: string) => {
-    if (defer) {
-      queueNotificationHref(href);
-      return;
-    }
-    router.push(href as Href);
-  };
-
-  if (type === "follow" && actorUsername) {
-    navigate(`/user/${actorUsername}`);
+  if (canApplyNow) {
+    applyDeferredNotificationHref(target.href, applyNowPathname);
     return;
   }
 
-  if (type === "morning_prayer" || type === "evening_prayer" || type === "reminder") {
-    navigate(libraryHrefForPrayerSlot(type));
+  if (defer) {
+    queueNotificationHref(target.href);
     return;
   }
 
-  if (type === "daily_help_reminder") {
-    navigate("/(tabs)/");
-    return;
-  }
-
-  if (type === "category_new") {
-    navigate(
-      category ? `/category/${encodeURIComponent(category)}` : "/(tabs)/library",
-    );
-    return;
-  }
-
-  if (type === "role_updated") {
-    navigate("/settings");
-    return;
-  }
-
-  if (Number.isFinite(postId)) {
-    navigate(`/post/${postId}`);
-    return;
-  }
-
-  navigate("/(tabs)/notifications");
+  router.push(target.href as Href);
 }

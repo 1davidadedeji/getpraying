@@ -90,7 +90,8 @@ function PostCardInner({
     (post as PostWithCounts).saveCount,
   ]);
 
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
+  const canEngage = !authLoading && Boolean(token);
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -122,7 +123,7 @@ function PostCardInner({
   };
 
   const handlePray = () => {
-    if (!ensureSignedIn()) return;
+    if (authLoading || !ensureSignedIn()) return;
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.4, useNativeDriver: true }),
       Animated.spring(flameScale, { toValue: 1, useNativeDriver: true }),
@@ -150,7 +151,7 @@ function PostCardInner({
   };
 
   const handleSave = () => {
-    if (!ensureSignedIn()) return;
+    if (authLoading || !ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const invalidateSaved = () => {
       queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
@@ -370,6 +371,7 @@ function PostCardInner({
             onPress={handlePray}
             style={styles.actionBtn}
             testID="pray-btn"
+            disabled={!canEngage}
             accessibilityRole="button"
             accessibilityLabel={localPost.hasPrayed ? "Praying" : "Pray for this post"}
           >
@@ -413,6 +415,7 @@ function PostCardInner({
             onPress={handleSave}
             style={styles.actionBtn}
             testID="save-btn"
+            disabled={!canEngage}
             accessibilityRole="button"
             accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
           >

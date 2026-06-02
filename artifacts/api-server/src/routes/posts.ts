@@ -218,6 +218,48 @@ router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => 
   });
 });
 
+/** Chronological posts newer than the feed watermark (for the “new prayers” pill). */
+router.get("/posts/since", optionalAuth, async (req, res): Promise<void> => {
+  const raw = req.query.maxKnownCreatedAt;
+  const limit = Math.min(parseInt((req.query.limit as string) || "50", 10), 50);
+  const currentUser = (req as any).user as { id: number } | undefined;
+
+  if (typeof raw !== "string" || !raw.trim()) {
+    res.json({ posts: [], globalNewestCreatedAt: null });
+    return;
+  }
+  const cutoff = new Date(raw.trim());
+  if (Number.isNaN(cutoff.getTime())) {
+    res.json({ posts: [], globalNewestCreatedAt: null });
+    return;
+  }
+
+  const [posts, newestRow] = await Promise.all([
+    db
+      .select()
+      .from(postsTable)
+      .where(
+        and(
+          eq(postsTable.status, "approved"),
+          sql`date_trunc('millisecond', ${postsTable.createdAt}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
+        ),
+      )
+      .orderBy(desc(postsTable.createdAt), desc(postsTable.id))
+      .limit(limit),
+    db
+      .select({ newest: sql<Date | null>`max(${postsTable.createdAt})` })
+      .from(postsTable)
+      .where(eq(postsTable.status, "approved")),
+  ]);
+
+  const enriched = await enrichPosts(posts, currentUser?.id);
+  const globalNewestCreatedAt = newestRow[0]?.newest
+    ? new Date(newestRow[0].newest).toISOString()
+    : null;
+
+  res.json({ posts: enriched, globalNewestCreatedAt });
+});
+
 router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const limit = Math.min(parseInt((req.query.limit as string) || "20", 10), 50);
   const cursorDecoded = decodeFeedCursor(req.query.cursor as string | undefined);

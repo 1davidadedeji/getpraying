@@ -43,6 +43,14 @@ import { clamp } from "@/lib/responsiveMetrics";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
 
 const PAGE_SIZE = 20;
+const NEW_POSTS_SINCE_LIMIT = 50;
+
+function mergeNewPostsAtTop(incoming: Post[], current: Post[]): Post[] {
+  if (incoming.length === 0) return current;
+  const seen = new Set(incoming.map((p) => p.id));
+  const rest = current.filter((p) => !seen.has(p.id));
+  return [...incoming, ...rest];
+}
 const NEW_POSTS_POLL_MS = 45_000;
 /** Only show the floating “new prayers” pill after the user has scrolled into the feed (not on first paint at top). */
 const NEW_POSTS_SCROLL_GATE_PX = 40;
@@ -211,6 +219,28 @@ export default function FeedScreen() {
     }
   }, [token]);
 
+  const fetchPostsSince = useCallback(
+    async (
+      maxKnownCreatedAt: string,
+    ): Promise<{ posts: Post[]; globalNewestCreatedAt: string | null }> => {
+      const params = new URLSearchParams({
+        maxKnownCreatedAt,
+        limit: String(NEW_POSTS_SINCE_LIMIT),
+      });
+      const res = await fetch(apiUrl(`/posts/since?${params}`), {
+        headers: authHeaders(token),
+      });
+      if (!res.ok) return { posts: [], globalNewestCreatedAt: null };
+      const data = await res.json();
+      return {
+        posts: Array.isArray(data.posts) ? data.posts : [],
+        globalNewestCreatedAt:
+          typeof data.globalNewestCreatedAt === "string" ? data.globalNewestCreatedAt : null,
+      };
+    },
+    [token],
+  );
+
   const fetchPage = useCallback(
     async (
       cursor?: string | null,
@@ -357,10 +387,20 @@ export default function FeedScreen() {
     newPostsScrollGateRef.current = false;
     setNewPostsScrollGate(false);
     try {
-      const result = await fetchPage(undefined, null);
-      setPosts(result.posts);
-      setNextCursor(result.nextCursor);
-      applyFeedWatermark(result.globalNewestCreatedAt);
+      const maxKnown = maxKnownCreatedAtRef.current;
+      const [sinceResult, pageResult] = await Promise.all([
+        maxKnown
+          ? fetchPostsSince(maxKnown)
+          : Promise.resolve({ posts: [] as Post[], globalNewestCreatedAt: null }),
+        fetchPage(undefined, null),
+      ]);
+
+      const merged = mergeNewPostsAtTop(sinceResult.posts, pageResult.posts);
+      setPosts(merged.length > 0 ? merged : pageResult.posts);
+      setNextCursor(pageResult.nextCursor);
+      applyFeedWatermark(
+        pageResult.globalNewestCreatedAt ?? sinceResult.globalNewestCreatedAt,
+      );
       setError(false);
       requestAnimationFrame(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -368,7 +408,7 @@ export default function FeedScreen() {
     } catch {
       setError(true);
     }
-  }, [fetchPage, applyFeedWatermark]);
+  }, [fetchPage, fetchPostsSince, applyFeedWatermark]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

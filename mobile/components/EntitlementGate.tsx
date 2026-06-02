@@ -1,13 +1,21 @@
 import { Redirect, usePathname, useSegments } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { useAuth } from "@/context/auth";
+import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useRevenueCat } from "@/context/revenuecat";
+import {
+  getDeferredNavigationEpoch,
+  subscribeDeferredNavigation,
+} from "@/lib/deferredNavigation";
 import {
   entitlementGateIsLoading,
   userNeedsEntitlementGate,
 } from "@/lib/entitlementGate";
-import { consumePendingNotificationHref, applyDeferredNotificationHref } from "@/lib/notificationNavigation";
+import {
+  consumePendingNotificationHref,
+  applyDeferredNotificationHref,
+} from "@/lib/notificationNavigation";
 
 /**
  * Root-stack paywall guard: blocks deep links and push targets (e.g. `/post/:id`)
@@ -19,26 +27,39 @@ export function EntitlementGate({ children }: { children: React.ReactNode }) {
   const rc = useRevenueCat();
   const pathname = usePathname();
   const segments = useSegments();
-  const consumedNotificationRef = useRef(false);
+  const { pendingDeepLink, consumePendingHref, hydrated: deepLinkHydrated } =
+    usePendingDeepLink();
+  const [deferredEpoch, setDeferredEpoch] = useState(getDeferredNavigationEpoch);
 
   const needsGate = userNeedsEntitlementGate(user, rc, pathname, segments);
   const gateLoading = entitlementGateIsLoading(user, rc, pathname, segments);
 
-  useEffect(() => {
-    consumedNotificationRef.current = false;
-  }, [user?.id]);
+  useEffect(() => subscribeDeferredNavigation(() => setDeferredEpoch(getDeferredNavigationEpoch())), []);
 
   useEffect(() => {
     if (authLoading || !user?.isEmailVerified) return;
+    if (!deepLinkHydrated) return;
     if (gateLoading || needsGate) return;
-    if (consumedNotificationRef.current) return;
 
-    const href = consumePendingNotificationHref();
+    const deepHref = pendingDeepLink ? consumePendingHref() : null;
+    const notifHref = deepHref ? null : consumePendingNotificationHref();
+    const href = deepHref ?? notifHref;
     if (!href) return;
 
-    consumedNotificationRef.current = true;
     applyDeferredNotificationHref(href, pathname);
-  }, [authLoading, user?.id, user?.isEmailVerified, gateLoading, needsGate, rc.isEntitled, pathname]);
+  }, [
+    authLoading,
+    user?.id,
+    user?.isEmailVerified,
+    deepLinkHydrated,
+    gateLoading,
+    needsGate,
+    rc.isEntitled,
+    pathname,
+    pendingDeepLink,
+    deferredEpoch,
+    consumePendingHref,
+  ]);
 
   if (authLoading) {
     return <>{children}</>;

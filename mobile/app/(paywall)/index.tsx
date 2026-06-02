@@ -77,12 +77,22 @@ export default function PaywallScreen() {
       router.replace("/(tabs)" as Href);
       return;
     }
+    const deepHref = consume();
+    if (deepHref) {
+      applyDeferredNotificationHref(deepHref, pathnameRef.current);
+      return;
+    }
     const notifHref = consumePendingNotificationHref();
     if (notifHref) {
       applyDeferredNotificationHref(notifHref, pathnameRef.current);
       return;
     }
-    const route = resolvePostAuthNavigation(u, rcState, pending, consume);
+    const route = resolvePostAuthNavigation(
+      u,
+      rcState,
+      pendingDeepLinkRef.current,
+      () => null,
+    );
     if (!route) return;
     router.replace(route);
   }, []);

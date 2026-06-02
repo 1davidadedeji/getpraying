@@ -78,6 +78,7 @@ export default function PostDetailScreen() {
   const postId = Number(id);
   const insets = useSafeAreaInsets();
   const { user, token, loading: authLoading } = useAuth();
+  const authReady = !authLoading && Boolean(token);
   const [staffDeleteOpen, setStaffDeleteOpen] = useState(false);
   const [staffDeleteReason, setStaffDeleteReason] = useState("");
   const queryClient = useQueryClient();
@@ -354,6 +355,8 @@ export default function PostDetailScreen() {
     return false;
   };
 
+  const canEngage = authReady;
+
   const handleMutationError = (err: unknown, action: string) => {
     if (err instanceof ApiError && err.status === 401) {
       showAppAlert({
@@ -478,6 +481,7 @@ export default function PostDetailScreen() {
 
   const submitComment = async () => {
     if (!post || !commentDraft.trim()) return;
+    if (authLoading) return;
     if (!token) {
       showAppAlert({ title: "Sign in required", message: "Please sign in to leave a comment." });
       return;
@@ -676,6 +680,7 @@ export default function PostDetailScreen() {
               onPress={handlePray}
               style={styles.cardActionBtn}
               testID="pray-btn-inline"
+              disabled={!canEngage}
               accessibilityRole="button"
               accessibilityLabel={post.hasPrayed ? "Praying" : "Pray for this post"}
             >
@@ -701,6 +706,7 @@ export default function PostDetailScreen() {
               onPress={handleSave}
               style={styles.cardActionBtn}
               testID="save-btn-inline"
+              disabled={!canEngage}
               accessibilityRole="button"
               accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
             >
@@ -848,7 +854,7 @@ export default function PostDetailScreen() {
           onBlur={() => Keyboard.dismiss()}
           multiline
           maxLength={2000}
-          editable={!!token && !commentSubmitting}
+          editable={canEngage && !commentSubmitting}
           textAlignVertical="center"
         />
         <Pressable
@@ -859,9 +865,9 @@ export default function PostDetailScreen() {
               paddingHorizontal: sendPadH,
               paddingVertical: sendPadV,
             },
-            (!commentDraft.trim() || commentSubmitting || !token) && styles.commentSendBtnDisabled,
+            (!commentDraft.trim() || commentSubmitting || !canEngage) && styles.commentSendBtnDisabled,
           ]}
-          disabled={!commentDraft.trim() || commentSubmitting || !token}
+          disabled={!commentDraft.trim() || commentSubmitting || !canEngage}
           accessibilityRole="button"
           accessibilityLabel="Reply"
         >
@@ -896,6 +902,7 @@ export default function PostDetailScreen() {
             post.hasPrayed && styles.prayBtnActive,
           ]}
           testID="pray-btn"
+          disabled={!canEngage}
           accessibilityRole="button"
           accessibilityLabel={post.hasPrayed ? "Praying" : "Pray for this"}
         >
@@ -923,6 +930,7 @@ export default function PostDetailScreen() {
             post.isSaved && styles.iconCircleBtnActive,
           ]}
           testID="save-btn"
+          disabled={!canEngage}
           accessibilityRole="button"
           accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
         >
