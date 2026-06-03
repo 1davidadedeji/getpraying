@@ -11,7 +11,7 @@ import type { Post } from "./post";
 export interface PrayerPathDetail {
   id: number;
   name: string;
-  description: string;
+  description: string | null;
   category: string;
   tagline?: string | null;
   officialPrayers: OfficialPrayer[];

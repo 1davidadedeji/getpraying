@@ -63,16 +63,6 @@ export function PathGuideForm({
           onChange={(e) => set({ subtitle: e.target.value })}
         />
       </FormField>
-      <FormField label="Description" className="sm:col-span-2">
-        <textarea
-          className={`${inputCls} resize-none`}
-          rows={3}
-          placeholder="Shown on the guide card"
-          value={draft.content}
-          disabled={disabled}
-          onChange={(e) => set({ content: e.target.value })}
-        />
-      </FormField>
       <FormField label="Scripture" className="sm:col-span-2">
         <input
           className={inputCls}

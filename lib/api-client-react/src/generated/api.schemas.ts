@@ -284,7 +284,7 @@ export interface OfficialPrayer {
   id: number;
   title: string;
   subtitle?: string | null;
-  content: string;
+  content?: string | null;
   category: string;
   durationMinutes?: number | null;
   scripture?: string | null;
@@ -327,7 +327,7 @@ export interface OfficialPrayerDetail {
 export interface PrayerPath {
   id: number;
   name: string;
-  description: string;
+  description?: string | null;
   category: string;
   tagline?: string | null;
   prayerCount: number;
@@ -336,7 +336,7 @@ export interface PrayerPath {
 export interface PrayerPathDetail {
   id: number;
   name: string;
-  description: string;
+  description: string | null;
   category: string;
   tagline?: string | null;
   officialPrayers: OfficialPrayer[];

@@ -95,7 +95,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
           lineHeight={lhSub}
           numberOfLines={3}
         />
-      ) : (
+      ) : op.content?.trim() ? (
         <FormattedBodyText
           text={op.content}
           style={styles.officialSubtitle}
@@ -103,7 +103,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
           lineHeight={lhSub}
           numberOfLines={3}
         />
-      )}
+      ) : null}
       {op.uploadedByUsername || op.uploadedByDisplayName ? (
         <Text style={[styles.uploadedBy, { fontSize: fsUpload, marginTop: uploadMt }]}>
           Uploaded by{" "}

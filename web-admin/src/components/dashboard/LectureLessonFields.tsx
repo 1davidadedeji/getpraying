@@ -42,16 +42,6 @@ export function LectureLessonFields({
           onChange={(e) => onChange({ subtitle: e.target.value })}
         />
       </FormField>
-      <FormField label="Description *" className="sm:col-span-2">
-        <textarea
-          className={`${inputCls} resize-none`}
-          rows={3}
-          placeholder="Overview in the app"
-          value={draft.content ?? ""}
-          disabled={disabled}
-          onChange={(e) => onChange({ content: e.target.value })}
-        />
-      </FormField>
       <FormField label="Scripture" className="sm:col-span-2">
         <input
           className={inputCls}

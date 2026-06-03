@@ -368,7 +368,10 @@ router.get("/path/:id", async (req, res): Promise<void> => {
   if (!path) { res.status(404).send("Not found"); return; }
 
   const title = `${path.name} — ${APP_NAME}`;
-  const description = path.tagline ?? path.description.slice(0, 200);
+  const description =
+    path.tagline?.trim() ||
+    (path.description?.trim() ? path.description.trim().slice(0, 200) : "") ||
+    `${path.name} on ${APP_NAME}`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=60");
@@ -383,7 +386,9 @@ router.get("/path/:id", async (req, res): Promise<void> => {
       androidStoreUrl: ANDROID_STORE_URL || settings.android_play_store_url || "",
       eyebrow: path.category ?? "Prayer Path",
       headline: path.name,
-      body: path.tagline ?? path.description.slice(0, 160),
+      body:
+        path.tagline?.trim() ||
+        (path.description?.trim() ? path.description.trim().slice(0, 160) : path.name),
     }),
   );
 });

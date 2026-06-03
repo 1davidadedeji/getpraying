@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { InteractionManager } from "react-native";
+import { clearLibraryCache } from "@/lib/libraryFetchCache";
 
 /**
  * Clears auth first, then React Query after the next frame / idle work so modals
@@ -9,6 +10,7 @@ export async function logoutThenClearQueryCache(
   logout: () => Promise<void>,
   queryClient: QueryClient,
 ): Promise<void> {
+  clearLibraryCache();
   try {
     await logout();
   } catch {

@@ -15,7 +15,7 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 type PathSummary = {
   id: number;
   name: string;
-  description: string;
+  description?: string | null;
   category: string;
   tagline: string | null;
   prayerCount: number;
@@ -39,7 +39,7 @@ export default function PathsPage() {
         (data.paths ?? []).map((p: PathSummary) => ({
           id: p.id,
           name: p.name,
-          description: p.description,
+          description: p.description ?? null,
           category: p.category,
           tagline: p.tagline ?? null,
           prayerCount: p.prayerCount ?? 0,
@@ -67,7 +67,10 @@ export default function PathsPage() {
 
   return (
     <>
-      <PageHeader title="Category guides" description="12 fixed categories — add guides under each path." />
+      <PageHeader
+        title="Category guides"
+        description="13 For your situation categories — same order as the app. Add guides under each path."
+      />
 
       {loading ? (
         <Spinner />
@@ -101,7 +104,11 @@ export default function PathsPage() {
                 </div>
                 <p className="text-[13px] font-semibold text-[var(--color-primary)]">{p.name}</p>
                 {p.tagline ? <p className="mt-0.5 text-[11px] text-[var(--color-accent)]">{p.tagline}</p> : null}
-                <p className="mt-1 line-clamp-2 text-[11px] text-[var(--color-text-secondary)]">{p.description}</p>
+                {p.description?.trim() ? (
+                  <p className="mt-1 line-clamp-2 text-[11px] text-[var(--color-text-secondary)]">
+                    {p.description}
+                  </p>
+                ) : null}
               </Link>
             ))}
           </div>

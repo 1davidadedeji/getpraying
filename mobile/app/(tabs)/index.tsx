@@ -32,6 +32,7 @@ import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
@@ -201,19 +202,26 @@ export default function FeedScreen() {
   );
 
   const loadSanctuary = useCallback(async () => {
-    try {
-      const res = await fetch(apiUrl("/library/official/sanctuary"), {
-        headers: authHeaders(token),
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as {
-        morning?: OfficialPrayerRow | null;
-        evening?: OfficialPrayerRow | null;
-      };
+    const path = "/library/official/sanctuary";
+    type SanctuaryPayload = {
+      morning?: OfficialPrayerRow | null;
+      evening?: OfficialPrayerRow | null;
+    };
+    const cached = peekLibraryCache<SanctuaryPayload>(path, token);
+    if (cached) {
       setSanctuary({
-        morning: data.morning ?? null,
-        evening: data.evening ?? null,
+        morning: cached.morning ?? null,
+        evening: cached.evening ?? null,
       });
+    }
+    try {
+      const data = await fetchLibraryCached<SanctuaryPayload>(path, token);
+      if (data) {
+        setSanctuary({
+          morning: data.morning ?? null,
+          evening: data.evening ?? null,
+        });
+      }
     } catch {
       /* keep previous sanctuary */
     }

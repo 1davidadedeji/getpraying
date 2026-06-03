@@ -33,7 +33,7 @@ function toOfficialRow(p: OfficialPrayer & { audioUrl?: string | null; scheduleS
     id: p.id,
     title: p.title,
     subtitle: p.subtitle ?? null,
-    content: p.content,
+    content: p.content ?? "",
     category: p.category,
     label: p.label ?? null,
     scheduleSlot: p.scheduleSlot ?? null,
@@ -111,7 +111,14 @@ export default function PathDetailScreen() {
   const { gutter, uiScale } = useResponsiveLayout();
   const { token } = useAuth();
   const queryClient = useQueryClient();
-  const { data, isLoading } = useGetPath(pathId);
+  const { data, isLoading } = useGetPath(pathId, {
+    query: {
+      queryKey: getGetPathQueryKey(pathId),
+      enabled: Number.isFinite(pathId) && pathId > 0,
+      staleTime: 5 * 60 * 1000,
+      gcTime: 15 * 60 * 1000,
+    },
+  });
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   const scrollBot = Math.round(clamp(40 * uiScale, 32, 48));
@@ -151,7 +158,7 @@ export default function PathDetailScreen() {
     [token, queryClient, pathId],
   );
 
-  if (isLoading || !data) {
+  if ((isLoading && !data) || !data) {
     return (
       <View style={styles.centered}>
         {isLoading ? (

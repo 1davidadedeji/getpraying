@@ -9,7 +9,7 @@
 export interface PrayerPath {
   id: number;
   name: string;
-  description: string;
+  description?: string | null;
   category: string;
   tagline?: string | null;
   prayerCount: number;

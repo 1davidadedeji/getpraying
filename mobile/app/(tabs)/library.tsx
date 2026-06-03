@@ -29,6 +29,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
@@ -150,18 +151,20 @@ export default function LibraryScreen() {
 
   useTabScrollToTop(scrollLibraryToTop);
 
-  const loadSavedOfficialIds = useCallback(async () => {
+  const loadSavedOfficialIds = useCallback(async (opts?: { force?: boolean }) => {
     if (!token) {
       setSavedOfficialIds(new Set());
       return;
     }
+    const path = "/library/saved-official";
+    const cached = peekLibraryCache<{ prayers?: OfficialPrayerRow[] }>(path, token);
+    if (cached?.prayers) {
+      setSavedOfficialIds(new Set(cached.prayers.map((p) => p.id)));
+    }
     try {
-      const res = await fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) });
-      if (!res.ok) return;
-      const data = await res.json();
-      const prayers = (data as { prayers?: OfficialPrayerRow[] }).prayers ?? [];
-      const ids = new Set<number>(prayers.map((p) => p.id));
-      setSavedOfficialIds(ids);
+      const data = await fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>(path, token, opts);
+      const prayers = data?.prayers ?? [];
+      setSavedOfficialIds(new Set(prayers.map((p) => p.id)));
     } catch {
       /* silent */
     }
@@ -195,59 +198,64 @@ export default function LibraryScreen() {
     }
   }, [token, queryClient]);
 
-  const loadCategories = useCallback(async () => {
-    setLoadingCats(true);
+  const loadCategories = useCallback(async (opts?: { force?: boolean }) => {
+    const cached = peekLibraryCache<ApiLibraryCategory[]>("/library/categories", token);
+    if (cached?.length) setCategories(cached);
+    if (!cached?.length) setLoadingCats(true);
     try {
-      const res = await fetch(apiUrl("/library/categories"), { headers: authHeaders(token) });
-      if (res.ok) {
-        const data = await res.json();
-        const apiList = Array.isArray(data) ? (data as ApiLibraryCategory[]) : [];
-        setCategories(apiList.length > 0 ? apiList : LIBRARY_FALLBACK_PATHS);
-      } else {
-        setCategories(LIBRARY_FALLBACK_PATHS);
-      }
+      const data = await fetchLibraryCached<ApiLibraryCategory[] | unknown>(
+        "/library/categories",
+        token,
+        opts,
+      );
+      const apiList = Array.isArray(data) ? (data as ApiLibraryCategory[]) : [];
+      setCategories(apiList.length > 0 ? apiList : LIBRARY_FALLBACK_PATHS);
     } catch {
-      setCategories(LIBRARY_FALLBACK_PATHS);
+      if (!cached?.length) setCategories(LIBRARY_FALLBACK_PATHS);
     } finally {
       setLoadingCats(false);
     }
   }, [token]);
 
-  const loadSanctuary = useCallback(async () => {
-    setLoadingOfficial(true);
-    try {
-      const res = await fetch(apiUrl("/library/official/sanctuary"), {
-        headers: authHeaders(token),
+  const loadSanctuary = useCallback(async (opts?: { force?: boolean }) => {
+    type SanctuaryPayload = {
+      morning?: OfficialPrayerRow | null;
+      evening?: OfficialPrayerRow | null;
+    };
+    const path = "/library/official/sanctuary";
+    const cached = peekLibraryCache<SanctuaryPayload>(path, token);
+    if (cached) {
+      setSanctuary({
+        morning: cached.morning ?? null,
+        evening: cached.evening ?? null,
       });
-      if (res.ok) {
-        const data = (await res.json()) as {
-          morning?: OfficialPrayerRow | null;
-          evening?: OfficialPrayerRow | null;
-        };
+    }
+    if (!cached) setLoadingOfficial(true);
+    try {
+      const data = await fetchLibraryCached<SanctuaryPayload>(path, token, opts);
+      if (data) {
         setSanctuary({
           morning: data.morning ?? null,
           evening: data.evening ?? null,
         });
       }
     } catch {
-      setSanctuary({ morning: null, evening: null });
+      if (!cached) setSanctuary({ morning: null, evening: null });
     } finally {
       setLoadingOfficial(false);
     }
   }, [token]);
 
-  const loadLectures = useCallback(async () => {
-    setLoadingLectures(true);
+  const loadLectures = useCallback(async (opts?: { force?: boolean }) => {
+    const path = "/library/official?category=lectures&limit=20";
+    const cached = peekLibraryCache<{ prayers?: OfficialPrayerRow[] }>(path, token);
+    if (cached?.prayers) setLecturesGuides(cached.prayers);
+    if (!cached?.prayers?.length) setLoadingLectures(true);
     try {
-      const res = await fetch(apiUrl("/library/official?category=lectures&limit=20"), {
-        headers: authHeaders(token),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { prayers?: OfficialPrayerRow[] };
-        setLecturesGuides(data.prayers ?? []);
-      }
+      const data = await fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>(path, token, opts);
+      setLecturesGuides(data?.prayers ?? []);
     } catch {
-      setLecturesGuides([]);
+      if (!cached?.prayers) setLecturesGuides([]);
     } finally {
       setLoadingLectures(false);
     }

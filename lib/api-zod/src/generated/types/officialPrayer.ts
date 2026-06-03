@@ -10,7 +10,7 @@ export interface OfficialPrayer {
   id: number;
   title: string;
   subtitle?: string | null;
-  content: string;
+  content?: string | null;
   category: string;
   durationMinutes?: number | null;
   scripture?: string | null;

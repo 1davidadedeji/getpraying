@@ -76,8 +76,6 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
       return "Your role was updated";
     case "boost_alert":
       return "Boosted prayer";
-    case "daily_help_reminder":
-      return "See who to help";
     case "system":
       return "Update";
     default:

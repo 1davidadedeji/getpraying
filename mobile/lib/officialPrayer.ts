@@ -27,7 +27,8 @@ export type OfficialPrayerRow = {
   id: number;
   title: string;
   subtitle: string | null;
-  content: string;
+  /** Omitted on list endpoints; present on GET /library/official/:id. */
+  content?: string | null;
   category: string;
   label: string | null;
   scheduleSlot: string | null;

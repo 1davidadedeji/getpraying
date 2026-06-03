@@ -26,10 +26,7 @@ function parseTryLockResult(result: unknown): boolean {
   return (rows[0] as { locked?: boolean } | undefined)?.locked === true;
 }
 
-type SentAtColumn =
-  | typeof usersTable.morningNotifSentAt
-  | typeof usersTable.eveningNotifSentAt
-  | typeof usersTable.dailyHelpNotifSentAt;
+type SentAtColumn = typeof usersTable.morningNotifSentAt | typeof usersTable.eveningNotifSentAt;
 
 /** SQL guard for atomic mark-sent updates. */
 function notSentTodaySql(sentAtColumn: SentAtColumn, timezone: string) {
@@ -52,14 +49,7 @@ async function releaseSchedulerLock(): Promise<void> {
 }
 
 function slotLockId(slot: ScheduledSlot): number {
-  switch (slot) {
-    case "morning":
-      return 1;
-    case "evening":
-      return 2;
-    case "daily_help":
-      return 3;
-  }
+  return slot === "morning" ? 1 : 2;
 }
 
 async function tryAcquireUserSlotLock(userId: number, slot: ScheduledSlot): Promise<boolean> {
@@ -73,7 +63,7 @@ async function releaseUserSlotLock(userId: number, slot: ScheduledSlot): Promise
   await db.execute(sql`SELECT pg_advisory_unlock(${userId}, ${slotLockId(slot)})`);
 }
 
-type ScheduledSlot = "morning" | "evening" | "daily_help";
+type ScheduledSlot = "morning" | "evening";
 
 const SLOT_CONFIG: Record<
   ScheduledSlot,
@@ -82,11 +72,7 @@ const SLOT_CONFIG: Record<
     body: string;
     dataType: string;
     sentAtColumn: SentAtColumn;
-    markSent: (now: Date) => {
-      morningNotifSentAt?: Date;
-      eveningNotifSentAt?: Date;
-      dailyHelpNotifSentAt?: Date;
-    };
+    markSent: (now: Date) => { morningNotifSentAt?: Date; eveningNotifSentAt?: Date };
   }
 > = {
   morning: {
@@ -102,13 +88,6 @@ const SLOT_CONFIG: Record<
     dataType: "evening_prayer",
     sentAtColumn: usersTable.eveningNotifSentAt,
     markSent: (now) => ({ eveningNotifSentAt: now }),
-  },
-  daily_help: {
-    targetHour: 8,
-    body: "See who to help on Get Praying",
-    dataType: "daily_help_reminder",
-    sentAtColumn: usersTable.dailyHelpNotifSentAt,
-    markSent: (now) => ({ dailyHelpNotifSentAt: now }),
   },
 };
 
@@ -205,7 +184,6 @@ async function runScheduledChecks(): Promise<void> {
   try {
     await sendScheduledSlot("morning");
     await sendScheduledSlot("evening");
-    await sendScheduledSlot("daily_help");
   } catch (e) {
     console.warn("[scheduler] Error during scheduled checks:", e);
   } finally {

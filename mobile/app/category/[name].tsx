@@ -20,6 +20,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { fetchLibraryCached } from "@/lib/libraryFetchCache";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -54,18 +55,17 @@ export default function CategoryOfficialScreen() {
       excludeScheduled: "1",
       limit: "120",
     });
-    const [officialRes, savedRes] = await Promise.all([
-      fetch(apiUrl(`/library/official?${params}`), { headers: authHeaders(token) }),
+    const officialPath = `/library/official?${params}`;
+    const [officialData, savedData] = await Promise.all([
+      fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>(officialPath, token),
       token
-        ? fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) })
+        ? fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>("/library/saved-official", token)
         : Promise.resolve(null),
     ]);
-    if (!officialRes.ok) throw new Error("Failed to load guides");
-    const officialData = (await officialRes.json()) as { prayers?: OfficialPrayerRow[] };
+    if (!officialData) throw new Error("Failed to load guides");
     setGuides(officialData.prayers ?? []);
-    if (savedRes?.ok) {
-      const savedData = (await savedRes.json()) as { prayers?: OfficialPrayerRow[] };
-      setSavedIds(new Set((savedData.prayers ?? []).map((p) => p.id)));
+    if (savedData?.prayers) {
+      setSavedIds(new Set(savedData.prayers.map((p) => p.id)));
     } else {
       setSavedIds(new Set());
     }

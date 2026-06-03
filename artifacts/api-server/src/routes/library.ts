@@ -12,9 +12,71 @@ import { eq, and, inArray, sql, desc, isNull } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { fetchTracksForLecture, fetchTracksGroupedByLecture } from "../lib/lectureTracks";
+import { filterLibrarySituationPaths } from "../lib/libraryPathCategories";
 import { normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
+import {
+  getLibraryReadCache,
+  sendCachedJson,
+  setLibraryReadCache,
+} from "../lib/libraryReadCache";
 
 const router: IRouter = Router();
+
+/** List/card fields only — full `content` is loaded on GET /library/official/:id. */
+const officialSummarySelect = {
+  id: officialPrayersTable.id,
+  title: officialPrayersTable.title,
+  subtitle: officialPrayersTable.subtitle,
+  category: officialPrayersTable.category,
+  durationMinutes: officialPrayersTable.durationMinutes,
+  scripture: officialPrayersTable.scripture,
+  label: officialPrayersTable.label,
+  audioVoice: officialPrayersTable.audioVoice,
+  audioUrl: officialPrayersTable.audioUrl,
+  pathId: officialPrayersTable.pathId,
+  scheduleSlot: officialPrayersTable.scheduleSlot,
+  createdAt: officialPrayersTable.createdAt,
+  uploaderUsername: usersTable.username,
+  uploaderDisplayName: usersTable.displayName,
+} as const;
+
+type OfficialSummaryRow = {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  category: string;
+  durationMinutes: number | null;
+  scripture: string | null;
+  label: string | null;
+  audioVoice: string | null;
+  audioUrl: string | null;
+  pathId: number | null;
+  scheduleSlot: string | null;
+  createdAt: Date;
+  uploaderUsername: string | null;
+  uploaderDisplayName: string | null;
+  updatedAt?: Date;
+};
+
+function mapOfficialSummary(p: OfficialSummaryRow) {
+  return {
+    id: p.id,
+    title: p.title,
+    subtitle: p.subtitle,
+    category: p.category,
+    durationMinutes: p.durationMinutes,
+    scripture: p.scripture,
+    label: normalizeOfficialGuideLabel(p.label),
+    audioVoice: p.audioVoice,
+    audioUrl: p.audioUrl,
+    pathId: p.pathId,
+    scheduleSlot: p.scheduleSlot,
+    uploadedByUsername: p.uploaderUsername ?? null,
+    uploadedByDisplayName: p.uploaderDisplayName ?? null,
+    createdAt: p.createdAt,
+    ...(p.updatedAt != null ? { updatedAt: p.updatedAt } : {}),
+  };
+}
 
 /** Map path category slug to Feather icon key (matches mobile FEATHER_ICON_MAP) */
 function iconForPathCategory(category: string): string {
@@ -56,25 +118,15 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
       ? req.query.category.trim().toLowerCase()
       : null;
 
+  const cacheKey = `official:${categoryFilter ?? "all"}:${excludeScheduled}:${limit}`;
+  const cached = getLibraryReadCache(cacheKey);
+  if (cached) {
+    sendCachedJson(res, cached);
+    return;
+  }
+
   const baseOfficial = db
-    .select({
-      id: officialPrayersTable.id,
-      title: officialPrayersTable.title,
-      subtitle: officialPrayersTable.subtitle,
-      content: officialPrayersTable.content,
-      category: officialPrayersTable.category,
-      durationMinutes: officialPrayersTable.durationMinutes,
-      scripture: officialPrayersTable.scripture,
-      label: officialPrayersTable.label,
-      audioVoice: officialPrayersTable.audioVoice,
-      audioUrl: officialPrayersTable.audioUrl,
-      pathId: officialPrayersTable.pathId,
-      uploadedByUserId: officialPrayersTable.uploadedByUserId,
-      scheduleSlot: officialPrayersTable.scheduleSlot,
-      createdAt: officialPrayersTable.createdAt,
-      uploaderUsername: usersTable.username,
-      uploaderDisplayName: usersTable.displayName,
-    })
+    .select(officialSummarySelect)
     .from(officialPrayersTable)
     .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id));
 
@@ -102,82 +154,45 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
     ? await fetchTracksGroupedByLecture(prayers.map((p) => p.id))
     : null;
 
-  res.json({
+  const payload = {
     prayers: prayers.map((p) => ({
-      id: p.id,
-      title: p.title,
-      subtitle: p.subtitle,
-      content: p.content,
-      category: p.category,
-      durationMinutes: p.durationMinutes,
-      scripture: p.scripture,
-      label: normalizeOfficialGuideLabel(p.label),
-      audioVoice: p.audioVoice,
-      audioUrl: p.audioUrl,
-      pathId: p.pathId,
-      scheduleSlot: p.scheduleSlot,
-      uploadedByUsername: p.uploaderUsername ?? null,
-      uploadedByDisplayName: p.uploaderDisplayName ?? null,
-      createdAt: p.createdAt,
+      ...mapOfficialSummary(p),
       ...(isLectureList
         ? { tracks: tracksByLecture?.get(p.id) ?? [] }
         : {}),
     })),
-  });
+  };
+  setLibraryReadCache(cacheKey, payload);
+  sendCachedJson(res, payload);
 });
 
 /** Current featured morning & evening sanctuary guides (one row per slot, newest if duplicated). */
 router.get("/library/official/sanctuary", optionalAuth, async (_req, res): Promise<void> => {
+  const cacheKey = "sanctuary";
+  const cached = getLibraryReadCache(cacheKey);
+  if (cached) {
+    sendCachedJson(res, cached);
+    return;
+  }
+
   const rows = await db
-    .select({
-      id: officialPrayersTable.id,
-      title: officialPrayersTable.title,
-      subtitle: officialPrayersTable.subtitle,
-      content: officialPrayersTable.content,
-      category: officialPrayersTable.category,
-      durationMinutes: officialPrayersTable.durationMinutes,
-      scripture: officialPrayersTable.scripture,
-      label: officialPrayersTable.label,
-      audioVoice: officialPrayersTable.audioVoice,
-      audioUrl: officialPrayersTable.audioUrl,
-      pathId: officialPrayersTable.pathId,
-      scheduleSlot: officialPrayersTable.scheduleSlot,
-      createdAt: officialPrayersTable.createdAt,
-      uploaderUsername: usersTable.username,
-      uploaderDisplayName: usersTable.displayName,
-    })
+    .select(officialSummarySelect)
     .from(officialPrayersTable)
     .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id))
     .where(inArray(officialPrayersTable.scheduleSlot, ["morning", "evening"]))
     .orderBy(desc(officialPrayersTable.createdAt));
 
-  const mapRow = (p: (typeof rows)[number]) => ({
-    id: p.id,
-    title: p.title,
-    subtitle: p.subtitle,
-    content: p.content,
-    category: p.category,
-    durationMinutes: p.durationMinutes,
-    scripture: p.scripture,
-    label: normalizeOfficialGuideLabel(p.label),
-    audioVoice: p.audioVoice,
-    audioUrl: p.audioUrl,
-    pathId: p.pathId,
-    scheduleSlot: p.scheduleSlot,
-    uploadedByUsername: p.uploaderUsername ?? null,
-    uploadedByDisplayName: p.uploaderDisplayName ?? null,
-    createdAt: p.createdAt,
-  });
-
-  let morning: ReturnType<typeof mapRow> | null = null;
-  let evening: ReturnType<typeof mapRow> | null = null;
+  let morning: ReturnType<typeof mapOfficialSummary> | null = null;
+  let evening: ReturnType<typeof mapOfficialSummary> | null = null;
   for (const r of rows) {
-    if (r.scheduleSlot === "morning" && !morning) morning = mapRow(r);
-    else if (r.scheduleSlot === "evening" && !evening) evening = mapRow(r);
+    if (r.scheduleSlot === "morning" && !morning) morning = mapOfficialSummary(r);
+    else if (r.scheduleSlot === "evening" && !evening) evening = mapOfficialSummary(r);
     if (morning && evening) break;
   }
 
-  res.json({ morning, evening });
+  const payload = { morning, evening };
+  setLibraryReadCache(cacheKey, payload);
+  sendCachedJson(res, payload);
 });
 
 /** Single official prayer (saved items / deep link). Registered after /sanctuary so "sanctuary" is not parsed as an id. */
@@ -265,22 +280,8 @@ router.get("/library/saved-official", requireAuth, async (req, res): Promise<voi
 
   const rows = await db
     .select({
-      id: officialPrayersTable.id,
-      title: officialPrayersTable.title,
-      subtitle: officialPrayersTable.subtitle,
-      content: officialPrayersTable.content,
-      category: officialPrayersTable.category,
-      durationMinutes: officialPrayersTable.durationMinutes,
-      scripture: officialPrayersTable.scripture,
-      label: officialPrayersTable.label,
-      audioVoice: officialPrayersTable.audioVoice,
-      audioUrl: officialPrayersTable.audioUrl,
-      pathId: officialPrayersTable.pathId,
-      scheduleSlot: officialPrayersTable.scheduleSlot,
-      createdAt: officialPrayersTable.createdAt,
+      ...officialSummarySelect,
       updatedAt: officialPrayersTable.updatedAt,
-      uploaderUsername: usersTable.username,
-      uploaderDisplayName: usersTable.displayName,
       savedAt: savedOfficialPrayersTable.createdAt,
     })
     .from(savedOfficialPrayersTable)
@@ -293,24 +294,7 @@ router.get("/library/saved-official", requireAuth, async (req, res): Promise<voi
     .orderBy(desc(savedOfficialPrayersTable.createdAt));
 
   res.json({
-    prayers: rows.map((p) => ({
-      id: p.id,
-      title: p.title,
-      subtitle: p.subtitle,
-      content: p.content,
-      category: p.category,
-      durationMinutes: p.durationMinutes,
-      scripture: p.scripture,
-      label: normalizeOfficialGuideLabel(p.label),
-      audioVoice: p.audioVoice,
-      audioUrl: p.audioUrl,
-      pathId: p.pathId,
-      scheduleSlot: p.scheduleSlot,
-      uploadedByUsername: p.uploaderUsername ?? null,
-      uploadedByDisplayName: p.uploaderDisplayName ?? null,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-    })),
+    prayers: rows.map((p) => mapOfficialSummary(p)),
   });
 });
 
@@ -361,8 +345,17 @@ router.delete("/library/saved-official/:prayerId", requireAuth, async (req, res)
 });
 
 router.get("/library/paths", optionalAuth, async (req, res): Promise<void> => {
-  const paths = await db.select().from(prayerPathsTable).orderBy(prayerPathsTable.createdAt);
-  const pathIds = paths.map(p => p.id);
+  const cacheKey = "paths-list";
+  const cached = getLibraryReadCache(cacheKey);
+  if (cached) {
+    sendCachedJson(res, cached);
+    return;
+  }
+
+  const paths = filterLibrarySituationPaths(
+    await db.select().from(prayerPathsTable),
+  );
+  const pathIds = paths.map((p) => p.id);
   const counts = pathIds.length > 0
     ? await db
         .select({ pathId: officialPrayersTable.pathId, count: sql<number>`count(*)` })
@@ -372,16 +365,18 @@ router.get("/library/paths", optionalAuth, async (req, res): Promise<void> => {
     : [];
   const countMap = new Map(counts.map(r => [r.pathId, Number(r.count)]));
 
-  const result = paths.map(path => ({
-    id: path.id,
-    name: path.name,
-    description: path.description,
-    category: path.category,
-    tagline: path.tagline,
-    prayerCount: countMap.get(path.id) ?? 0,
-  }));
-
-  res.json({ paths: result });
+  const payload = {
+    paths: paths.map((path) => ({
+      id: path.id,
+      name: path.name,
+      description: path.description ?? "",
+      category: path.category,
+      tagline: path.tagline,
+      prayerCount: countMap.get(path.id) ?? 0,
+    })),
+  };
+  setLibraryReadCache(cacheKey, payload);
+  sendCachedJson(res, payload);
 });
 
 router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<void> => {
@@ -395,24 +390,15 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
     return;
   }
 
+  const cacheKey = `path:${pathId}:${currentUser?.id ?? "anon"}`;
+  const cached = getLibraryReadCache(cacheKey);
+  if (cached) {
+    sendCachedJson(res, cached);
+    return;
+  }
+
   const officialRows = await db
-    .select({
-      id: officialPrayersTable.id,
-      title: officialPrayersTable.title,
-      subtitle: officialPrayersTable.subtitle,
-      content: officialPrayersTable.content,
-      category: officialPrayersTable.category,
-      durationMinutes: officialPrayersTable.durationMinutes,
-      scripture: officialPrayersTable.scripture,
-      label: officialPrayersTable.label,
-      audioVoice: officialPrayersTable.audioVoice,
-      audioUrl: officialPrayersTable.audioUrl,
-      pathId: officialPrayersTable.pathId,
-      scheduleSlot: officialPrayersTable.scheduleSlot,
-      createdAt: officialPrayersTable.createdAt,
-      uploaderUsername: usersTable.username,
-      uploaderDisplayName: usersTable.displayName,
-    })
+    .select(officialSummarySelect)
     .from(officialPrayersTable)
     .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id))
     .where(
@@ -420,44 +406,10 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
     )
     .orderBy(desc(officialPrayersTable.createdAt));
 
-  const mapOfficial = (p: (typeof officialRows)[number]) => ({
-    id: p.id,
-    title: p.title,
-    subtitle: p.subtitle,
-    content: p.content,
-    category: p.category,
-    durationMinutes: p.durationMinutes,
-    scripture: p.scripture,
-    label: normalizeOfficialGuideLabel(p.label),
-    audioVoice: p.audioVoice,
-    audioUrl: p.audioUrl,
-    pathId: p.pathId,
-    scheduleSlot: p.scheduleSlot,
-    uploadedByUsername: p.uploaderUsername ?? null,
-    uploadedByDisplayName: p.uploaderDisplayName ?? null,
-    createdAt: p.createdAt,
-  });
-
-  let savedOfficialPrayers: ReturnType<typeof mapOfficial>[] = [];
+  let savedOfficialPrayers: ReturnType<typeof mapOfficialSummary>[] = [];
   if (currentUser) {
     const savedRows = await db
-      .select({
-        id: officialPrayersTable.id,
-        title: officialPrayersTable.title,
-        subtitle: officialPrayersTable.subtitle,
-        content: officialPrayersTable.content,
-        category: officialPrayersTable.category,
-        durationMinutes: officialPrayersTable.durationMinutes,
-        scripture: officialPrayersTable.scripture,
-        label: officialPrayersTable.label,
-        audioVoice: officialPrayersTable.audioVoice,
-        audioUrl: officialPrayersTable.audioUrl,
-        pathId: officialPrayersTable.pathId,
-        scheduleSlot: officialPrayersTable.scheduleSlot,
-        createdAt: officialPrayersTable.createdAt,
-        uploaderUsername: usersTable.username,
-        uploaderDisplayName: usersTable.displayName,
-      })
+      .select(officialSummarySelect)
       .from(savedOfficialPrayersTable)
       .innerJoin(
         officialPrayersTable,
@@ -472,23 +424,32 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
         ),
       )
       .orderBy(officialPrayersTable.createdAt);
-    savedOfficialPrayers = savedRows.map(mapOfficial);
+    savedOfficialPrayers = savedRows.map(mapOfficialSummary);
   }
 
-  res.json({
+  const payload = {
     id: path.id,
     name: path.name,
-    description: path.description,
+    description: path.description ?? "",
     category: path.category,
     tagline: path.tagline,
-    officialPrayers: officialRows.map(mapOfficial),
+    officialPrayers: officialRows.map(mapOfficialSummary),
     savedOfficialPrayers,
-  });
+  };
+  setLibraryReadCache(cacheKey, payload);
+  sendCachedJson(res, payload);
 });
 
 /** Explore paths: admin prayer paths + official guide counts (not user post categories) */
 router.get("/library/categories", optionalAuth, async (req, res): Promise<void> => {
-  const paths = await db.select().from(prayerPathsTable).orderBy(prayerPathsTable.name);
+  const cacheKey = "categories";
+  const cached = getLibraryReadCache(cacheKey);
+  if (cached) {
+    sendCachedJson(res, cached);
+    return;
+  }
+
+  const paths = filterLibrarySituationPaths(await db.select().from(prayerPathsTable));
   const pathIds = paths.map((p) => p.id);
   const counts =
     pathIds.length > 0
@@ -505,15 +466,15 @@ router.get("/library/categories", optionalAuth, async (req, res): Promise<void> 
       : [];
   const countMap = new Map(counts.map((r) => [r.pathId, Number(r.count)]));
 
-  res.json(
-    paths.map((p) => ({
-      name: p.name,
-      count: countMap.get(p.id) ?? 0,
-      icon: iconForPathCategory(p.category),
-      pathId: p.id,
-      category: p.category,
-    })),
-  );
+  const payload = paths.map((p) => ({
+    name: p.name,
+    count: countMap.get(p.id) ?? 0,
+    icon: iconForPathCategory(p.category),
+    pathId: p.id,
+    category: p.category,
+  }));
+  setLibraryReadCache(cacheKey, payload);
+  sendCachedJson(res, payload);
 });
 
 export default router;

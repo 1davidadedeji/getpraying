@@ -95,7 +95,7 @@ export const savedOfficialPrayersTable = pgTable(
 export const prayerPathsTable = pgTable("prayer_paths", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  description: text("description").notNull(),
+  description: text("description"),
   category: text("category").notNull(),
   tagline: text("tagline"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

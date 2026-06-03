@@ -14,81 +14,55 @@ const UPLOADS_AUDIO_BASE = "/api/static/uploads";
 const DEMO_PATHS = [
   {
     name: "Anxiety & Calm",
-    description: "Short anchors and breath prayers for heavy days.",
     category: "anxiety",
-    tagline: "You are held.",
   },
   {
     name: "Family",
-    description: "Covering your home and loved ones in prayer.",
     category: "family",
-    tagline: "A cord of three strands.",
   },
   {
     name: "Forgiveness",
-    description: "Releasing bitterness and receiving grace.",
     category: "forgiveness",
-    tagline: "As we forgive.",
   },
   {
     name: "Gratitude",
-    description: "Giving thanks in all seasons.",
     category: "gratitude",
-    tagline: "Counting gifts.",
   },
   {
     name: "Grief & Loss",
-    description: "Walking through sorrow with grace.",
     category: "grief",
-    tagline: "Grief is love with nowhere to go.",
   },
   {
     name: "Guidance",
-    description: "Prayers for direction when the path is unclear.",
     category: "guidance",
-    tagline: "He will direct your path.",
   },
   {
     name: "Healing",
-    description: "Prayers for body, mind, and spirit.",
     category: "healing",
-    tagline: "He heals the broken.",
   },
   {
     name: "Hope & Light",
-    description: "When the path ahead feels dim.",
     category: "hope",
-    tagline: "Dawn is coming.",
   },
   {
     name: "Peace & Rest",
-    description: "Evening release and rest prayers.",
     category: "peace",
-    tagline: "Be still.",
   },
   {
     name: "Relationships",
-    description: "Prayers for connection and community.",
     category: "relationships",
-    tagline: "Love one another.",
   },
   {
     name: "Strength",
-    description: "Courage when you feel spent.",
     category: "strength",
-    tagline: "He renews your strength.",
   },
   {
     name: "Wisdom",
-    description: "Seeking discernment in decisions.",
     category: "wisdom",
-    tagline: "Ask God first.",
   },
   {
     name: "Wealth & Success",
-    description: "Stewardship, provision, and purpose.",
     category: "wealth",
-    tagline: "Seek first His kingdom.",
   },
 ] as const;
 

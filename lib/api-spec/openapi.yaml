@@ -1612,6 +1612,7 @@ components:
           nullable: true
         content:
           type: string
+          nullable: true
         category:
           type: string
         durationMinutes:
@@ -1632,7 +1633,6 @@ components:
       required:
         - id
         - title
-        - content
         - category
         - createdAt
 
@@ -1731,6 +1731,7 @@ components:
           type: string
         description:
           type: string
+          nullable: true
         category:
           type: string
         tagline:
@@ -1741,7 +1742,6 @@ components:
       required:
         - id
         - name
-        - description
         - category
         - prayerCount
 
@@ -1754,6 +1754,7 @@ components:
           type: string
         description:
           type: string
+          nullable: true
         category:
           type: string
         tagline:

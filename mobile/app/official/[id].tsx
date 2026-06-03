@@ -82,6 +82,8 @@ export default function OfficialPrayerScreen() {
     query: {
       queryKey: getGetOfficialPrayerByIdQueryKey(prayerId),
       enabled: Number.isFinite(prayerId) && prayerId > 0,
+      staleTime: 5 * 60 * 1000,
+      gcTime: 15 * 60 * 1000,
     },
   });
 
