@@ -23,7 +23,10 @@ import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
 import { openLegalDocument } from "@/lib/openLegalDocument";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
-import { consumePendingNotificationHref, applyDeferredNotificationHref } from "@/lib/notificationNavigation";
+import {
+  consumePendingNotificationHref,
+  applyNotificationHref,
+} from "@/lib/notificationNavigation";
 import { formatMonthlyTrialOffer, hasPremiumEntitlement } from "@/lib/revenuecatEntitlements";
 import {
   describeEntitlementAfterPurchase,
@@ -79,12 +82,12 @@ export default function PaywallScreen() {
     }
     const deepHref = consume();
     if (deepHref) {
-      applyDeferredNotificationHref(deepHref, pathnameRef.current);
+      applyNotificationHref(deepHref, pathnameRef.current);
       return;
     }
     const notifHref = consumePendingNotificationHref();
     if (notifHref) {
-      applyDeferredNotificationHref(notifHref, pathnameRef.current);
+      applyNotificationHref(notifHref, pathnameRef.current);
       return;
     }
     const route = resolvePostAuthNavigation(

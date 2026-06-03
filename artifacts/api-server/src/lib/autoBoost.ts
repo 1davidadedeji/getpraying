@@ -43,7 +43,7 @@ export async function applyAutoBoostIfEligible(post: PostRow): Promise<PostRow> 
   const nameForPush = boosted.isAnonymous ? "Someone" : (authorUsername ?? "A member");
   void broadcastPushToRegisteredDevices({
     title: "Get Praying",
-    body: `Someone boosted their Prayer. See who.`,
+    body: `Someone needs help. See who.`,
     data: {
       type: "boost_alert",
       postId: String(boosted.id),

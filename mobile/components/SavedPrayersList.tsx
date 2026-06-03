@@ -57,6 +57,21 @@ export function SavedPrayersList({
 
   const posts = (savedData as { posts?: Post[] } | undefined)?.posts ?? [];
 
+  const handlePostUpdated = useCallback(
+    (updated: Post) => {
+      queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const raw = old as { posts?: Post[] };
+        if (!Array.isArray(raw.posts)) return old;
+        return {
+          ...raw,
+          posts: raw.posts.map((p) => (p.id === updated.id ? updated : p)),
+        };
+      });
+    },
+    [queryClient],
+  );
+
   return (
     <FlatList
       ref={listRef}
@@ -64,7 +79,7 @@ export function SavedPrayersList({
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => (
         <View style={{ paddingHorizontal }}>
-          <PostCard post={item} />
+          <PostCard post={item} onUpdated={handlePostUpdated} />
         </View>
       )}
       contentContainerStyle={contentContainerStyle}

@@ -55,6 +55,7 @@ import { submitPostReport } from "@/lib/reportPost";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { buildPostSharePayload } from "@/lib/sharePost";
 import { getApiErrorMessage } from "@/lib/apiErrors";
+import { subscribePostDetailRefresh } from "@/lib/postDetailRefresh";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -90,6 +91,7 @@ export default function PostDetailScreen() {
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
+  const engageMutationPendingRef = useRef(0);
 
   const fromProfileUsername = useMemo(() => {
     const v = Array.isArray(fromProfile) ? fromProfile[0] : fromProfile;
@@ -109,7 +111,8 @@ export default function PostDetailScreen() {
   const { data, isLoading } = useGetPost(Number(id));
 
   useEffect(() => {
-    if (data) setLocalPost(data as any);
+    if (engageMutationPendingRef.current > 0) return;
+    if (data) setLocalPost(data as Post);
   }, [data]);
 
   useEffect(() => {
@@ -252,6 +255,17 @@ export default function PostDetailScreen() {
     if (post?.id) void loadComments();
   }, [post?.id, loadComments]);
 
+  useEffect(() => {
+    return subscribePostDetailRefresh((refreshedId) => {
+      if (!Number.isFinite(postId) || refreshedId !== postId) return;
+      void loadComments();
+      setThreadOpen(true);
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      });
+    });
+  }, [postId, loadComments]);
+
   const openAuthorProfile = useCallback(() => {
     if (!post || post.isAnonymous || !post.authorUsername) return;
     if (
@@ -379,6 +393,20 @@ export default function PostDetailScreen() {
       Animated.spring(flameScale, { toValue: 1, useNativeDriver: true }),
     ]).start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const prevPrayed = post.hasPrayed;
+    const prevCount = post.prayCount;
+    engageMutationPendingRef.current += 1;
+    setLocalPost((p) =>
+      p
+        ? {
+            ...p,
+            hasPrayed: !prevPrayed,
+            prayCount: prevPrayed ? Math.max(0, prevCount - 1) : prevCount + 1,
+          }
+        : p,
+    );
+
     pray(
       { postId: post.id },
       {
@@ -395,7 +423,15 @@ export default function PostDetailScreen() {
             });
           }
         },
-        onError: (err) => handleMutationError(err, "update your prayer"),
+        onError: (err) => {
+          setLocalPost((p) =>
+            p ? { ...p, hasPrayed: prevPrayed, prayCount: prevCount } : p,
+          );
+          handleMutationError(err, "update your prayer");
+        },
+        onSettled: () => {
+          engageMutationPendingRef.current = Math.max(0, engageMutationPendingRef.current - 1);
+        },
       },
     );
   };
@@ -403,12 +439,27 @@ export default function PostDetailScreen() {
   const handleSave = () => {
     if (!post || !ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const prevSaved = post.isSaved;
+    const prevSaveCount = (post as Post & { saveCount?: number }).saveCount ?? 0;
+    engageMutationPendingRef.current += 1;
+    setLocalPost((p) =>
+      p
+        ? {
+            ...p,
+            isSaved: !prevSaved,
+            saveCount: prevSaved ? Math.max(0, prevSaveCount - 1) : prevSaveCount + 1,
+          }
+        : p,
+    );
     const invalidateSaved = () => {
       queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
     };
-    if (post.isSaved) {
+    const onSettled = () => {
+      engageMutationPendingRef.current = Math.max(0, engageMutationPendingRef.current - 1);
+    };
+    if (prevSaved) {
       unsave(
         { postId: post.id },
         {
@@ -416,7 +467,13 @@ export default function PostDetailScreen() {
             setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
             invalidateSaved();
           },
-          onError: (err) => handleMutationError(err, "unsave this prayer"),
+          onError: (err) => {
+            setLocalPost((p) =>
+              p ? { ...p, isSaved: prevSaved, saveCount: prevSaveCount } : p,
+            );
+            handleMutationError(err, "unsave this prayer");
+          },
+          onSettled,
         },
       );
     } else {
@@ -427,7 +484,13 @@ export default function PostDetailScreen() {
             setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
             invalidateSaved();
           },
-          onError: (err) => handleMutationError(err, "save this prayer"),
+          onError: (err) => {
+            setLocalPost((p) =>
+              p ? { ...p, isSaved: prevSaved, saveCount: prevSaveCount } : p,
+            );
+            handleMutationError(err, "save this prayer");
+          },
+          onSettled,
         },
       );
     }
@@ -510,10 +573,24 @@ export default function PostDetailScreen() {
       if (created) setComments((prev) => [...prev, created]);
       setThreadOpen(true);
       setCommentDraft("");
+      setLocalPost((p) => {
+        if (!p) return p;
+        const prevCount = (p as Post & { commentCount?: number }).commentCount ?? 0;
+        return {
+          ...p,
+          hasCommented: true,
+          commentCount: prevCount + 1,
+        } as Post;
+      });
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
       if (post.authorUsername) {
         queryClient.invalidateQueries({ queryKey: getGetUserProfileQueryKey(post.authorUsername) });
       }
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       showAppAlert({ title: "Comment failed", message: "Check your connection and try again." });

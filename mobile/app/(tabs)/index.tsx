@@ -52,8 +52,8 @@ function mergeNewPostsAtTop(incoming: Post[], current: Post[]): Post[] {
   return [...incoming, ...rest];
 }
 const NEW_POSTS_POLL_MS = 45_000;
-/** Only show the floating “new prayers” pill after the user has scrolled into the feed (not on first paint at top). */
-const NEW_POSTS_SCROLL_GATE_PX = 40;
+/** Show the “new prayers” pill once the user has scrolled slightly (avoids flash on first paint). */
+const NEW_POSTS_SCROLL_GATE_PX = 0;
 const NEW_POSTS_COUNT_DEBOUNCE_MS = 550;
 
 export default function FeedScreen() {

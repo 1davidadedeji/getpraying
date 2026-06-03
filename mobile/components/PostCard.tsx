@@ -71,6 +71,7 @@ function PostCardInner({
   const og = useOpenGraphPreviewState(localPost.content, localPost.id);
 
   useEffect(() => {
+    if (engageMutationPendingRef.current > 0) return;
     setLocalPost(post);
   }, [
     post.id,
@@ -92,6 +93,8 @@ function PostCardInner({
 
   const { token, user, loading: authLoading } = useAuth();
   const canEngage = !authLoading && Boolean(token);
+
+  const engageMutationPendingRef = useRef(0);
 
   const { mutate: pray } = usePrayForPost();
   const { mutate: save } = useSavePost();
@@ -129,6 +132,16 @@ function PostCardInner({
       Animated.spring(flameScale, { toValue: 1, useNativeDriver: true }),
     ]).start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const prevPrayed = localPost.hasPrayed;
+    const prevCount = localPost.prayCount;
+    engageMutationPendingRef.current += 1;
+    setLocalPost((prev) => ({
+      ...prev,
+      hasPrayed: !prevPrayed,
+      prayCount: prevPrayed ? Math.max(0, prevCount - 1) : prevCount + 1,
+    }));
+
     pray(
       { postId: localPost.id },
       {
@@ -145,7 +158,17 @@ function PostCardInner({
             });
           }
         },
-        onError: (err) => handleMutationError(err, "update your prayer"),
+        onError: (err) => {
+          setLocalPost((prev) => ({
+            ...prev,
+            hasPrayed: prevPrayed,
+            prayCount: prevCount,
+          }));
+          handleMutationError(err, "update your prayer");
+        },
+        onSettled: () => {
+          engageMutationPendingRef.current = Math.max(0, engageMutationPendingRef.current - 1);
+        },
       },
     );
   };
@@ -153,6 +176,7 @@ function PostCardInner({
   const handleSave = () => {
     if (authLoading || !ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    engageMutationPendingRef.current += 1;
     const invalidateSaved = () => {
       queryClient.invalidateQueries({ queryKey: getGetSavedPrayersQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -170,6 +194,9 @@ function PostCardInner({
             invalidateSaved();
           },
           onError: (err) => handleMutationError(err, "unsave this prayer"),
+          onSettled: () => {
+            engageMutationPendingRef.current = Math.max(0, engageMutationPendingRef.current - 1);
+          },
         },
       );
     } else {
@@ -185,6 +212,9 @@ function PostCardInner({
             invalidateSaved();
           },
           onError: (err) => handleMutationError(err, "save this prayer"),
+          onSettled: () => {
+            engageMutationPendingRef.current = Math.max(0, engageMutationPendingRef.current - 1);
+          },
         },
       );
     }

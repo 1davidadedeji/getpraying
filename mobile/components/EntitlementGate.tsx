@@ -1,5 +1,5 @@
 import { Redirect, usePathname, useSegments } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { useAuth } from "@/context/auth";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/entitlementGate";
 import {
   consumePendingNotificationHref,
-  applyDeferredNotificationHref,
+  applyNotificationHref,
 } from "@/lib/notificationNavigation";
 
 /**
@@ -27,35 +27,31 @@ export function EntitlementGate({ children }: { children: React.ReactNode }) {
   const rc = useRevenueCat();
   const pathname = usePathname();
   const segments = useSegments();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+
   const { pendingDeepLink, consumePendingHref, hydrated: deepLinkHydrated } =
     usePendingDeepLink();
   const [deferredEpoch, setDeferredEpoch] = useState(getDeferredNavigationEpoch);
 
   const needsGate = userNeedsEntitlementGate(user, rc, pathname, segments);
   const gateLoading = entitlementGateIsLoading(user, rc, pathname, segments);
+  const gateOpen = !authLoading && Boolean(user?.isEmailVerified) && !gateLoading && !needsGate;
 
   useEffect(() => subscribeDeferredNavigation(() => setDeferredEpoch(getDeferredNavigationEpoch())), []);
 
   useEffect(() => {
-    if (authLoading || !user?.isEmailVerified) return;
-    if (!deepLinkHydrated) return;
-    if (gateLoading || needsGate) return;
+    if (!gateOpen || !deepLinkHydrated) return;
 
     const deepHref = pendingDeepLink ? consumePendingHref() : null;
     const notifHref = deepHref ? null : consumePendingNotificationHref();
     const href = deepHref ?? notifHref;
     if (!href) return;
 
-    applyDeferredNotificationHref(href, pathname);
+    applyNotificationHref(href, pathnameRef.current);
   }, [
-    authLoading,
-    user?.id,
-    user?.isEmailVerified,
+    gateOpen,
     deepLinkHydrated,
-    gateLoading,
-    needsGate,
-    rc.isEntitled,
-    pathname,
     pendingDeepLink,
     deferredEpoch,
     consumePendingHref,

@@ -1,7 +1,7 @@
 import { router, type Href } from "expo-router";
-import { InteractionManager } from "react-native";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { bumpDeferredNavigation } from "@/lib/deferredNavigation";
+import { requestPostDetailRefresh } from "@/lib/postDetailRefresh";
 import {
   isStaffRole,
   openWebAdmin,
@@ -17,6 +17,13 @@ export function parseNotificationPostId(raw: unknown): number {
   if (raw === undefined || raw === null || raw === "") return NaN;
   const n = typeof raw === "number" ? raw : Number(String(raw).trim());
   return Number.isFinite(n) && n > 0 ? n : NaN;
+}
+
+/** Read post id from push payload (Expo/APNs key shapes vary). */
+export function postIdFromNotificationData(data: Record<string, unknown>): number {
+  const direct = parseNotificationPostId(data.postId);
+  if (Number.isFinite(direct)) return direct;
+  return parseNotificationPostId(data.post_id);
 }
 
 export function notificationRowToPushData(item: {
@@ -35,19 +42,17 @@ export function notificationRowToPushData(item: {
   };
 }
 
-async function markNotificationReadIfNeeded(
+function markNotificationReadIfNeeded(
   authToken: string | null | undefined,
   notificationId: number | undefined,
-): Promise<void> {
+): void {
   if (!authToken || notificationId == null || !Number.isFinite(notificationId)) return;
-  try {
-    await fetch(apiUrl(`/notifications/${notificationId}/read`), {
-      method: "POST",
-      headers: authHeaders(authToken),
-    });
-  } catch {
+  void fetch(apiUrl(`/notifications/${notificationId}/read`), {
+    method: "POST",
+    headers: authHeaders(authToken),
+  }).catch(() => {
     /* ignore */
-  }
+  });
 }
 
 export function notificationOpensWebAdmin(type: string, userRole?: string | null): boolean {
@@ -57,8 +62,6 @@ export function notificationOpensWebAdmin(type: string, userRole?: string | null
 
 /** Deferred route consumed after EntitlementGate confirms access. */
 let pendingNotificationHref: string | null = null;
-/** Prevents applying the same deferred href twice in one session (double stack entries). */
-let lastAppliedNotificationHref: string | null = null;
 
 function normalizeNotificationPath(path: string): string {
   const base = path.split("?")[0].replace(/\/+$/, "") || "/";
@@ -73,9 +76,11 @@ function isStackDetailRoute(path: string): boolean {
   return /^\/(post|user|official|path|category)\//.test(normalizeNotificationPath(path));
 }
 
-function isOnTabsRoute(pathname: string): boolean {
-  const p = pathname || "";
-  return p.includes("(tabs)") || p === "/index" || p.endsWith("/index");
+function postIdFromPath(path: string): number | null {
+  const match = normalizeNotificationPath(path).match(/^\/post\/(\d+)$/);
+  if (!match) return null;
+  const id = Number.parseInt(match[1], 10);
+  return Number.isFinite(id) && id > 0 ? id : null;
 }
 
 export function consumePendingNotificationHref(): string | null {
@@ -90,53 +95,52 @@ export function peekPendingNotificationHref(): string | null {
 
 /** Queue until EntitlementGate (or paywall enterApp) can navigate. */
 export function queueNotificationHref(href: string): void {
-  if (pendingNotificationHref === href) {
-    bumpDeferredNavigation();
-    return;
-  }
   pendingNotificationHref = href;
   bumpDeferredNavigation();
 }
 
 /**
- * Navigate to a deferred push/deep-link target without duplicating stack entries.
- * Detail routes push onto tabs so back returns to the feed once.
+ * Navigate to a push/deep-link target.
+ * - Already on the same screen: no-op.
+ * - Detail routes (`/post/:id`, etc.): push onto the root stack (back returns to prior screen).
+ * - Tab routes: push so Alerts/Library tabs remain reachable via back.
  */
-export function applyDeferredNotificationHref(href: string, currentPathname: string): void {
+export function applyNotificationHref(href: string, currentPathname: string): void {
   const targetPath = normalizeNotificationPath(href);
   const currentPath = normalizeNotificationPath(currentPathname);
 
+  const targetPostId = postIdFromPath(targetPath);
+  const currentPostId = postIdFromPath(currentPath);
+  if (targetPostId != null && targetPostId === currentPostId) {
+    pendingNotificationHref = null;
+    requestPostDetailRefresh(targetPostId);
+    return;
+  }
+
   if (notificationPathsEqual(currentPath, targetPath)) {
-    lastAppliedNotificationHref = href;
     pendingNotificationHref = null;
     return;
   }
 
-  if (lastAppliedNotificationHref === href) {
-    pendingNotificationHref = null;
-    return;
-  }
-
-  lastAppliedNotificationHref = href;
   pendingNotificationHref = null;
 
   const query = href.includes("?") ? href.slice(href.indexOf("?")) : "";
   const fullHref = `${targetPath}${query}`;
 
   if (isStackDetailRoute(targetPath)) {
-    if (isOnTabsRoute(currentPathname)) {
-      router.push(fullHref as Href);
+    if (isStackDetailRoute(currentPath)) {
+      router.replace(fullHref as Href);
       return;
     }
-    router.replace("/(tabs)" as Href);
-    InteractionManager.runAfterInteractions(() => {
-      router.push(fullHref as Href);
-    });
+    router.push(fullHref as Href);
     return;
   }
 
-  router.replace(fullHref as Href);
+  router.push(fullHref as Href);
 }
+
+/** @deprecated Use applyNotificationHref */
+export const applyDeferredNotificationHref = applyNotificationHref;
 
 function libraryHrefForPrayerSlot(type: string): string {
   if (type === "evening_prayer") {
@@ -154,7 +158,7 @@ export function resolveNotificationTarget(
   opts?: { userRole?: string | null },
 ): NotificationNavigationTarget {
   const type = data.type != null ? String(data.type) : "";
-  const postId = parseNotificationPostId(data.postId);
+  const postId = postIdFromNotificationData(data);
   const actorUsername = data.actorUsername != null ? String(data.actorUsername) : "";
   const category = data.category != null ? String(data.category) : "";
 
@@ -190,6 +194,7 @@ export function resolveNotificationTarget(
     return { kind: "href", href: "/settings" };
   }
 
+  // Prayer, comment, saved, milestone, post approved/declined, reported — all carry postId.
   if (Number.isFinite(postId)) {
     return { kind: "href", href: `/post/${postId}` };
   }
@@ -198,7 +203,7 @@ export function resolveNotificationTarget(
 }
 
 /** Routes from in-app notification rows or from Expo push `data` (same shape). */
-export async function navigateFromNotificationData(
+export function navigateFromNotificationData(
   data: Record<string, unknown>,
   opts?: {
     authToken?: string | null;
@@ -208,25 +213,24 @@ export async function navigateFromNotificationData(
     deferUntilTabsReady?: boolean;
     /** When true, queue href until root entitlement gate passes (no immediate navigation). */
     deferUntilEntitled?: boolean;
-    /** When set with deferUntilEntitled, apply immediately instead of queueing. */
+    /** Current pathname — when set with deferUntilEntitled, navigate immediately if entitled. */
     applyNowPathname?: string;
   },
-): Promise<void> {
+): void {
   const notificationIdRaw = data.notificationId;
   const notificationId =
     notificationIdRaw !== undefined && notificationIdRaw !== null && notificationIdRaw !== ""
       ? Number(notificationIdRaw)
       : NaN;
 
-  if (!opts?.skipMarkRead) {
-    await markNotificationReadIfNeeded(
-      opts?.authToken,
-      Number.isFinite(notificationId) ? notificationId : undefined,
-    );
-  }
-
   const target = resolveNotificationTarget(data, { userRole: opts?.userRole });
   if (target.kind === "webAdmin") {
+    if (!opts?.skipMarkRead) {
+      markNotificationReadIfNeeded(
+        opts?.authToken,
+        Number.isFinite(notificationId) ? notificationId : undefined,
+      );
+    }
     openWebAdmin(target.path);
     return;
   }
@@ -237,14 +241,17 @@ export async function navigateFromNotificationData(
     defer && typeof applyNowPathname === "string" && applyNowPathname.length > 0;
 
   if (canApplyNow) {
-    applyDeferredNotificationHref(target.href, applyNowPathname);
-    return;
-  }
-
-  if (defer) {
+    applyNotificationHref(target.href, applyNowPathname);
+  } else if (defer) {
     queueNotificationHref(target.href);
-    return;
+  } else {
+    applyNotificationHref(target.href, applyNowPathname ?? "");
   }
 
-  router.push(target.href as Href);
+  if (!opts?.skipMarkRead) {
+    markNotificationReadIfNeeded(
+      opts?.authToken,
+      Number.isFinite(notificationId) ? notificationId : undefined,
+    );
+  }
 }

@@ -11,14 +11,21 @@ import {
   entitlementGateIsLoading,
   userNeedsEntitlementGate,
 } from "@/lib/entitlementGate";
-import { navigateFromNotificationData } from "@/lib/notificationNavigation";
+import {
+  applyNotificationHref,
+  consumePendingNotificationHref,
+  navigateFromNotificationData,
+  peekPendingNotificationHref,
+} from "@/lib/notificationNavigation";
 import { parseDeepLinkUrl } from "@/lib/parseDeepLink";
-import { claimNotificationResponseId } from "@/lib/pushNotificationDedup";
+import {
+  claimNotificationResponseId,
+  claimNotificationResponseInSession,
+} from "@/lib/pushNotificationDedup";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 
 /**
- * - Registers syncs when the app returns to foreground.
- * - Handles notification taps (foreground, background, and cold start).
+ * Registers push tokens and routes notification taps (foreground, background, cold start).
  */
 export function PushNotificationCoordinator() {
   const { token, user } = useAuth();
@@ -34,52 +41,71 @@ export function PushNotificationCoordinator() {
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
 
-  /** Prevents duplicate handling when cold-start and listener fire together. */
-  const inflightResponseIds = useRef(new Set<string>());
   const coldStartCheckedRef = useRef(false);
 
-  const canApplyDeferredNow = useMemo(() => {
+  const canNavigateNow = useMemo(() => {
     if (!user?.isEmailVerified) return false;
     if (entitlementGateIsLoading(user, rc, pathname, segments)) return false;
     if (userNeedsEntitlementGate(user, rc, pathname, segments)) return false;
     return true;
   }, [user, rc, pathname, segments]);
 
-  const canApplyDeferredNowRef = useRef(canApplyDeferredNow);
-  canApplyDeferredNowRef.current = canApplyDeferredNow;
+  const canNavigateNowRef = useRef(canNavigateNow);
+  canNavigateNowRef.current = canNavigateNow;
+  const prevCanNavigateNowRef = useRef(false);
 
-  const handleNotificationResponse = useCallback(
-    async (
-      response: Notifications.NotificationResponse | null | undefined,
-      opts?: { persistDedup?: boolean },
-    ) => {
-      if (!response?.notification) return;
-      const id = response.notification.request.identifier;
-      if (!id) return;
+  const flushPendingNotification = useCallback(() => {
+    const href = consumePendingNotificationHref();
+    if (!href) return;
+    applyNotificationHref(href, pathnameRef.current);
+  }, []);
 
-      if (inflightResponseIds.current.has(id)) return;
-      inflightResponseIds.current.add(id);
-      setTimeout(() => inflightResponseIds.current.delete(id), 3000);
-
-      if (opts?.persistDedup) {
-        const claimed = await claimNotificationResponseId(id);
-        if (!claimed) return;
-      }
-
+  const dispatchNotification = useCallback(
+    (response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data as Record<string, unknown>;
-      const applyPath = pathnameRef.current;
 
-      await navigateFromNotificationData(data, {
+      navigateFromNotificationData(data, {
         authToken: tokenRef.current,
         userRole: userRoleRef.current,
         deferUntilEntitled: true,
-        applyNowPathname: canApplyDeferredNowRef.current ? applyPath : undefined,
+        applyNowPathname: canNavigateNowRef.current ? pathnameRef.current : undefined,
       });
+
+      if (!canNavigateNowRef.current && peekPendingNotificationHref()) {
+        /* EntitlementGate will consume when the gate opens. */
+      }
 
       queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
     },
     [queryClient],
   );
+
+  const handleNotificationResponse = useCallback(
+    async (
+      response: Notifications.NotificationResponse | null | undefined,
+      opts?: { coldStart?: boolean },
+    ) => {
+      if (!response?.notification) return;
+
+      const id = response.notification.request.identifier;
+      if (!id) return;
+
+      const claimed = opts?.coldStart
+        ? await claimNotificationResponseId(id)
+        : claimNotificationResponseInSession(id);
+      if (!claimed) return;
+
+      dispatchNotification(response);
+    },
+    [dispatchNotification],
+  );
+
+  useEffect(() => {
+    if (canNavigateNow && !prevCanNavigateNowRef.current) {
+      flushPendingNotification();
+    }
+    prevCanNavigateNowRef.current = canNavigateNow;
+  }, [canNavigateNow, flushPendingNotification]);
 
   useEffect(() => {
     const subResponse = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -125,7 +151,7 @@ export function PushNotificationCoordinator() {
       }
 
       const last = await Notifications.getLastNotificationResponseAsync();
-      await handleNotificationResponse(last, { persistDedup: true });
+      await handleNotificationResponse(last, { coldStart: true });
     })();
   }, [token, handleNotificationResponse]);
 

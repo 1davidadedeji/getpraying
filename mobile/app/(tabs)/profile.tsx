@@ -19,6 +19,7 @@ import {
 import { MaterialTabBar, Tabs, type TabBarProps } from "react-native-collapsible-tab-view";
 import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGetMe, getGetMeQueryKey, useGetSavedPrayers, getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
 import type { Post, User } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
@@ -47,6 +48,7 @@ export default function ProfileScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { gutter, uiScale, tabLabelSize } = useResponsiveLayout();
   const { user, refreshUser, token } = useAuth();
+  const queryClient = useQueryClient();
   const { pendingCount: modPending, refresh: refreshModBadge } = useModerationBadge();
   const myListRef = useRef<FlatList<Post>>(null);
   const savedListRef = useRef<FlatList<Post>>(null);
@@ -117,6 +119,22 @@ export default function ProfileScreen() {
       setLocationDraft((me as any).location ?? "");
     }
   }, [me?.id, editingLocation]);
+
+  const handlePostUpdated = useCallback(
+    (updated: Post) => {
+      const patchList = (list: Post[]) => list.map((p) => (p.id === updated.id ? updated : p));
+      setMyPosts(patchList);
+      setLikedPosts(patchList);
+      setCommentedPosts(patchList);
+      queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const raw = old as { posts?: Post[] };
+        if (!Array.isArray(raw.posts)) return old;
+        return { ...raw, posts: patchList(raw.posts) };
+      });
+    },
+    [queryClient],
+  );
 
   const { data: savedPrayersData, isLoading: loadingSavedTab } = useGetSavedPrayers({
     query: {
@@ -636,6 +654,7 @@ export default function ProfileScreen() {
           <View style={{ paddingHorizontal: prof.gutter }}>
             <PostCard
               post={item}
+              onUpdated={handlePostUpdated}
               activeProfileUsername={me.username}
               feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null}
             />
@@ -671,6 +690,7 @@ export default function ProfileScreen() {
           <View style={{ paddingHorizontal: prof.gutter }}>
             <PostCard
               post={item}
+              onUpdated={handlePostUpdated}
               activeProfileUsername={me.username}
               feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
             />
@@ -744,6 +764,7 @@ export default function ProfileScreen() {
           <View style={{ paddingHorizontal: prof.gutter }}>
             <PostCard
               post={item}
+              onUpdated={handlePostUpdated}
               activeProfileUsername={me.username}
               feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null}
             />
@@ -890,6 +911,7 @@ export default function ProfileScreen() {
                 <View style={{ paddingHorizontal: prof.gutter }}>
                   <PostCard
                     post={item}
+                    onUpdated={handlePostUpdated}
                     activeProfileUsername={me.username}
                     feedMediaFocusPostId={activeTab === "my" ? feedMediaFocusPostId : null}
                   />
@@ -922,6 +944,7 @@ export default function ProfileScreen() {
                 <View style={{ paddingHorizontal: prof.gutter }}>
                   <PostCard
                     post={item}
+                    onUpdated={handlePostUpdated}
                     activeProfileUsername={me.username}
                     feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
                   />
@@ -960,6 +983,7 @@ export default function ProfileScreen() {
                 <View style={{ paddingHorizontal: prof.gutter }}>
                   <PostCard
                     post={item}
+                    onUpdated={handlePostUpdated}
                     activeProfileUsername={me.username}
                     feedMediaFocusPostId={activeTab === "categories" ? feedMediaFocusPostId : null}
                   />

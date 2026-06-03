@@ -816,7 +816,7 @@ router.post("/posts/:postId/pray", requireAuth, async (req, res): Promise<void> 
           .values({
             userId: post.authorId,
             type: "prayer",
-            message: `prayed for your post`,
+            message: `Someone prayed for you`,
             actorId: user.id,
             postId,
             isRead: false,

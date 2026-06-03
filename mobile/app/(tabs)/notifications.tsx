@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import React, { useCallback, useRef } from "react";
 import {
   ActivityIndicator,
@@ -196,6 +196,7 @@ function NotificationItem({
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const { gutter } = useResponsiveLayout();
   const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
@@ -246,10 +247,11 @@ export default function NotificationsScreen() {
           queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
         });
     }
-    void navigateFromNotificationData(notificationRowToPushData(item), {
+    navigateFromNotificationData(notificationRowToPushData(item), {
       authToken: token,
       skipMarkRead: true,
       userRole: user?.role ?? null,
+      applyNowPathname: pathname,
     });
   };
 
