@@ -86,6 +86,15 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  // Refs kept in sync with their state counterparts so callbacks never close over
+  // a stale value — avoids the race where onEndReached fires multiple times before
+  // setLoadingMore/setNextCursor are processed by React.
+  const nextCursorRef = useRef<string | null>(null);
+  nextCursorRef.current = nextCursor;
+  const loadingMoreRef = useRef(false);
+  // Timestamp of the last successful full-page refresh — used to suppress silent
+  // auto-refreshes that would discard the user's scroll position.
+  const lastFreshAtRef = useRef<number>(0);
   const [error, setError] = useState(false);
   const listRef = useRef<FlatList>(null);
   const {
@@ -286,6 +295,7 @@ export default function FeedScreen() {
       const result = await fetchPage(undefined, category);
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
+      lastFreshAtRef.current = Date.now();
       if (!category) applyFeedWatermark(result.globalNewestCreatedAt);
       setError(false);
       setNewPostCount(0);
@@ -339,6 +349,9 @@ export default function FeedScreen() {
   useEffect(() => {
     return subscribeAppActive(() => {
       if (loading || refreshing) return;
+      // Only reset the feed if the user was away long enough that freshness matters.
+      // Shorter gaps just let the new-posts poll handle surfacing new content.
+      if (Date.now() - lastFreshAtRef.current < 5 * 60 * 1000) return;
       void loadFresh({ silent: true });
     }, 500);
   }, [loadFresh, loading, refreshing]);
@@ -350,10 +363,11 @@ export default function FeedScreen() {
       focusRefreshTimerRef.current = setTimeout(() => {
         focusRefreshTimerRef.current = null;
         if (posts.length === 0 && !loading) {
-          void loadFresh({ silent: true });
-        } else if (!loading && !refreshing) {
+          // Feed is empty (first launch or after error) — fill it.
           void loadFresh({ silent: true });
         }
+        // Don't silently reset a populated feed on every tab focus — it discards
+        // the user's scroll position. The 45s new-posts poll surfaces fresh content.
       }, 280);
       return () => {
         if (focusRefreshTimerRef.current) {
@@ -361,7 +375,7 @@ export default function FeedScreen() {
           focusRefreshTimerRef.current = null;
         }
       };
-    }, [posts.length, loading, refreshing, loadFresh, loadSanctuary]),
+    }, [posts.length, loading, loadFresh, loadSanctuary]),
   );
 
   useEffect(() => {
@@ -467,16 +481,26 @@ export default function FeedScreen() {
   }, [fetchPage, loadSanctuary, applyFeedWatermark]);
 
   const handleLoadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore) return;
+    // Use a ref (not state) as the guard — state updates are async so the
+    // state-based check lets onEndReached fire 3-6 duplicate requests before
+    // React batches the setLoadingMore(true). The ref is set synchronously.
+    if (loadingMoreRef.current || !nextCursorRef.current) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
+    const cursor = nextCursorRef.current;
     try {
-      const result = await fetchPage(nextCursor, feedCategoryRef.current);
-      setPosts((prev) => [...prev, ...result.posts]);
+      const result = await fetchPage(cursor, feedCategoryRef.current);
+      setPosts((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const fresh = result.posts.filter((p) => !existingIds.has(p.id));
+        return fresh.length > 0 ? [...prev, ...fresh] : prev;
+      });
       setNextCursor(result.nextCursor);
     } catch { /* silently fail */ } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore, fetchPage]);
+  }, [fetchPage]);
 
   const handleUpdated = useCallback((updated: Post) => {
     setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -784,17 +808,17 @@ export default function FeedScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
         onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.4}
+        onEndReachedThreshold={0.6}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         // Memory management: unmount native view trees (including Video/Audio) for
         // cards that scroll far off-screen. This is the primary defence against OOM
         // during long feed sessions. windowSize=7 keeps 3 screens above + below.
         removeClippedSubviews={Platform.OS === "ios"}
-        windowSize={7}
-        maxToRenderPerBatch={5}
-        initialNumToRender={8}
-        updateCellsBatchingPeriod={60}
+        windowSize={9}
+        maxToRenderPerBatch={8}
+        initialNumToRender={10}
+        updateCellsBatchingPeriod={40}
       />
 
       {/* "New Posts" floating pill */}

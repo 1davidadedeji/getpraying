@@ -99,12 +99,8 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
 
   await ensureAndroidNotificationChannel();
 
-  const buildFingerprint = currentBuildFingerprint();
-  const prevFingerprint = await AsyncStorage.getItem(PUSH_BUILD_KEY);
-  if (prevFingerprint && prevFingerprint !== buildFingerprint) {
-    await postPushTokenToServer(apiJwt, { token: null });
-  }
-
+  // Check / request permission first. Only send null when the user has explicitly
+  // denied permission — not on transient FCM/APNs failures.
   const { status: existing } = await Notifications.getPermissionsAsync();
   let final = existing;
   if (existing !== "granted") {
@@ -121,6 +117,9 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     return;
   }
 
+  // Resolve the Expo push token. On failure keep the existing server token intact so
+  // the user doesn't lose notifications just because FCM/APNs was briefly unavailable.
+  const buildFingerprint = currentBuildFingerprint();
   try {
     const projectId = projectIdForExpoPush();
     const tokenRes = await Notifications.getExpoPushTokenAsync(
@@ -128,8 +127,8 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     );
     const expoToken = tokenRes.data?.trim() ?? "";
     if (!isExpoPushToken(expoToken)) {
-      console.warn("[push] getExpoPushTokenAsync returned invalid token format");
-      await postPushTokenToServer(apiJwt, { token: null });
+      // Unexpected format — log and bail without clearing the old server token.
+      console.warn("[push] unexpected token format from getExpoPushTokenAsync:", expoToken.slice(0, 40));
       return;
     }
     const ok = await postPushTokenToServer(apiJwt, {
@@ -139,8 +138,10 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     });
     if (ok) await AsyncStorage.setItem(PUSH_BUILD_KEY, buildFingerprint);
   } catch (err) {
+    // Transient failure (FCM/APNs unavailable, no network, etc.).
+    // Do NOT clear the server token — the existing one may still be valid.
+    // The token will be re-registered on the next foreground or login event.
     console.warn("[push] getExpoPushTokenAsync failed:", err);
-    await postPushTokenToServer(apiJwt, { token: null }).catch(() => {});
   }
 }
 

@@ -27,7 +27,8 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   if (!expoPushAccessTokenConfigured()) {
     logger.warn(
-      "EXPO_ACCESS_TOKEN is not set — Expo push will fail with InvalidCredentials. Create a token for @timelesz_dave/get-praying (project slug get-praying).",
+      "EXPO_ACCESS_TOKEN is not set — push requests are unauthenticated (lower priority, may be rate-limited). " +
+        "Generate one at expo.dev/accounts/timelesz_dave/projects/get-praying → Access tokens, then set EXPO_ACCESS_TOKEN in .env.",
     );
   }
   startScheduledNotifications();

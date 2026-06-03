@@ -39,8 +39,18 @@ async function handleTicketError(token: string, ticket: ExpoTicket | undefined):
     code: code ?? ticket.message ?? "unknown",
     tokenPrefix: token.slice(0, 28),
   });
-  if (code === "DeviceNotRegistered" || code === "InvalidCredentials") {
+  if (code === "DeviceNotRegistered") {
+    // The device has uninstalled the app or APNs/FCM has deregistered it — safe to drop.
     await invalidateToken(token);
+  } else if (code === "InvalidCredentials") {
+    // Project-level APNs/FCM credentials in the Expo dashboard are invalid or expired.
+    // The device tokens themselves are still valid; do NOT wipe them from the DB.
+    // Fix credentials at expo.dev → project → Credentials, then tokens will work again.
+    console.error(
+      "[push] InvalidCredentials: APNs/FCM project credentials are invalid — " +
+        "update them at expo.dev/accounts/<account>/projects/<slug>/credentials. " +
+        "Device tokens have NOT been cleared.",
+    );
   }
   return false;
 }

@@ -123,64 +123,65 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
 }
 
 export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userId?: number): Promise<PostWithMeta[]> {
-  // Bulk load authors
-  const authorIds = posts.filter((p) => !p.isAnonymous && p.authorId != null).map((p) => p.authorId!);
-  let authorsMap = new Map<number, typeof usersTable.$inferSelect>();
-  if (authorIds.length > 0) {
-    const authors = await db.select().from(usersTable).where(inArray(usersTable.id, authorIds));
-    for (const a of authors) authorsMap.set(a.id, a);
-  }
-
-  let prayedSet = new Set<number>();
-  let savedSet = new Set<number>();
-  let commentedSet = new Set<number>();
   const postIds = posts.map((p) => p.id);
+  const authorIds = posts.filter((p) => !p.isAnonymous && p.authorId != null).map((p) => p.authorId!);
 
-  let viewerIsStaff = false;
-  if (userId) {
-    const [viewer] = await db
-      .select({ role: usersTable.role })
-      .from(usersTable)
-      .where(eq(usersTable.id, userId))
-      .limit(1);
-    viewerIsStaff = viewer?.role === "admin" || viewer?.role === "moderator";
-  }
+  // All seven lookups are independent — run them in one parallel batch so
+  // per-page latency is bounded by the slowest query, not their sum.
+  const [
+    authorRows,
+    viewerRow,
+    prayedRows,
+    savedRows,
+    commentedRows,
+    commentCounts,
+    saveCounts,
+  ] = await Promise.all([
+    authorIds.length > 0
+      ? db.select().from(usersTable).where(inArray(usersTable.id, authorIds))
+      : ([] as (typeof usersTable.$inferSelect)[]),
+    userId
+      ? db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1)
+      : ([] as { role: string }[]),
+    userId && postIds.length > 0
+      ? db.select({ postId: postPrayersTable.postId }).from(postPrayersTable)
+          .where(and(inArray(postPrayersTable.postId, postIds), eq(postPrayersTable.userId, userId)))
+      : ([] as { postId: number }[]),
+    userId && postIds.length > 0
+      ? db.select({ postId: savedPostsTable.postId }).from(savedPostsTable)
+          .where(and(inArray(savedPostsTable.postId, postIds), eq(savedPostsTable.userId, userId)))
+      : ([] as { postId: number }[]),
+    userId && postIds.length > 0
+      ? db.select({ postId: commentsTable.postId }).from(commentsTable)
+          .where(and(inArray(commentsTable.postId, postIds), eq(commentsTable.authorId, userId)))
+      : ([] as { postId: number }[]),
+    postIds.length > 0
+      ? db.select({ postId: commentsTable.postId, count: sql<number>`count(*)` })
+          .from(commentsTable).where(inArray(commentsTable.postId, postIds)).groupBy(commentsTable.postId)
+      : ([] as { postId: number; count: number }[]),
+    postIds.length > 0
+      ? db.select({ postId: savedPostsTable.postId, count: sql<number>`count(*)` })
+          .from(savedPostsTable).where(inArray(savedPostsTable.postId, postIds)).groupBy(savedPostsTable.postId)
+      : ([] as { postId: number; count: number }[]),
+  ]);
 
-  if (userId && posts.length > 0) {
-    const prayedRows = await db
-      .select()
-      .from(postPrayersTable)
-      .where(and(inArray(postPrayersTable.postId, postIds), eq(postPrayersTable.userId, userId)));
-    for (const r of prayedRows) prayedSet.add(r.postId);
-    const savedRows = await db
-      .select()
-      .from(savedPostsTable)
-      .where(and(inArray(savedPostsTable.postId, postIds), eq(savedPostsTable.userId, userId)));
-    for (const r of savedRows) savedSet.add(r.postId);
-    const commentRows = await db
-      .select({ postId: commentsTable.postId })
-      .from(commentsTable)
-      .where(and(inArray(commentsTable.postId, postIds), eq(commentsTable.authorId, userId)));
-    for (const r of commentRows) commentedSet.add(r.postId);
-  }
+  const authorsMap = new Map<number, typeof usersTable.$inferSelect>();
+  for (const a of authorRows) authorsMap.set(a.id, a);
+
+  const viewerIsStaff =
+    viewerRow[0]?.role === "admin" || viewerRow[0]?.role === "moderator";
+
+  const prayedSet = new Set<number>();
+  for (const r of prayedRows) prayedSet.add(r.postId);
+  const savedSet = new Set<number>();
+  for (const r of savedRows) savedSet.add(r.postId);
+  const commentedSet = new Set<number>();
+  for (const r of commentedRows) commentedSet.add(r.postId);
 
   const commentCountMap = new Map<number, number>();
+  for (const r of commentCounts) commentCountMap.set(r.postId, Number(r.count));
   const saveCountMap = new Map<number, number>();
-  if (postIds.length > 0) {
-    const commentCounts = await db
-      .select({ postId: commentsTable.postId, count: sql<number>`count(*)` })
-      .from(commentsTable)
-      .where(inArray(commentsTable.postId, postIds))
-      .groupBy(commentsTable.postId);
-    for (const r of commentCounts) commentCountMap.set(r.postId, Number(r.count));
-
-    const saveCounts = await db
-      .select({ postId: savedPostsTable.postId, count: sql<number>`count(*)` })
-      .from(savedPostsTable)
-      .where(inArray(savedPostsTable.postId, postIds))
-      .groupBy(savedPostsTable.postId);
-    for (const r of saveCounts) saveCountMap.set(r.postId, Number(r.count));
-  }
+  for (const r of saveCounts) saveCountMap.set(r.postId, Number(r.count));
 
   return posts.map((post) => {
     const author = post.isAnonymous ? null : (post.authorId ? authorsMap.get(post.authorId) ?? null : null);
