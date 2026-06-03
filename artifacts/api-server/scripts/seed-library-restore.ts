@@ -1,83 +1,34 @@
 /**
- * Ensures minimum Library demo data after testing wipes:
- * - At least 3 official rows with category "lectures" (carousel), no schedule slot
- * - Each lecture gets one or more rows in lecture_tracks (audio series)
- * - One "morning" sanctuary slot if none exists
- * - One "evening" sanctuary slot if none exists
- * Real audio URLs use /api/static/uploads (see data/uploads/*.mp3).
- *
- * Safe to run multiple times — only inserts what is missing.
+ * Fills gaps after partial wipes: lectures (≥3), morning/evening sanctuary if missing.
+ * Does not delete path guides. For a full library reset use seed:lib-pg instead.
  *
  *   pnpm --filter @workspace/api-server run seed:library-restore
  */
 import "dotenv/config";
-import { db, lectureTracksTable, officialPrayersTable, pool } from "@workspace/db";
-import { and, eq, ilike, isNull, sql } from "drizzle-orm";
+import { readdir } from "fs/promises";
+import path from "path";
+import { db, officialPrayersTable, pool } from "@workspace/db";
+import { eq, ilike, sql } from "drizzle-orm";
+import { ensureLibraryLectures } from "./lib/seedLectures.ts";
 
 const UPLOADS_AUDIO_BASE = "/api/static/uploads";
 
-const LECTURE_ROWS = [
-  {
-    title: "Abiding in the True Vine",
-    subtitle: "A teaching on resting in Christ’s life within you.",
-    content:
-      "Jesus invites us to remain in him the way a branch stays joined to the vine—drawing strength, sap, and fruitfulness from union, not striving. Pause and ask where you have been leaning on effort alone instead of leaning on him.",
-    scripture: "John 15:5",
-    durationMinutes: 12,
-    tracks: [
-      {
-        title: "Part 1 — Remaining in Christ",
-        description: "Why abiding is relationship, not performance.",
-        audioSlug: "prayer-hope",
-      },
-      {
-        title: "Part 2 — Fruit from the Vine",
-        description: "Letting his life flow through your prayers today.",
-        audioSlug: "prayer-peace",
-      },
-    ],
-  },
-  {
-    title: "Prayer as Conversation",
-    subtitle: "Learning to linger with God beyond a quick list.",
-    content:
-      "Honest prayer is relationship: speaking, listening, and making room for silence before the Father. Bring one concern to him slowly today, phrase by phrase, and leave space to sense his kindness toward you.",
-    scripture: "Philippians 4:6–7",
-    durationMinutes: 16,
-    tracks: [
-      {
-        title: "Part 1 — Speaking honestly",
-        description: "Bringing your whole heart before God.",
-        audioSlug: "prayer-wisdom",
-      },
-    ],
-  },
-  {
-    title: "Scripture and Stillness",
-    subtitle: "Letting the Word read us as we read it.",
-    content:
-      "When we open Scripture with humility, the Spirit anchors our thoughts and steadies our nerves. Choose a single verse today, speak it aloud, and sit with it for a few breaths until it begins to soften your heart.",
-    scripture: "Psalm 46:10",
-    durationMinutes: 20,
-    tracks: [
-      {
-        title: "Part 1 — Be still",
-        description: "Slowing down to hear God in his Word.",
-        audioSlug: "prayer-peace",
-      },
-      {
-        title: "Part 2 — Meditating on one verse",
-        description: "A simple rhythm for daily Scripture prayer.",
-        audioSlug: "prayer-gratitude",
-      },
-      {
-        title: "Part 3 — Carrying it into the day",
-        description: "Letting the verse shape your conversations with God.",
-        audioSlug: "prayer-strength",
-      },
-    ],
-  },
-] as const;
+function uploadDir(): string {
+  return process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
+}
+
+async function listLibpgAudioUrls(): Promise<string[]> {
+  const dir = uploadDir();
+  try {
+    const names = await readdir(dir);
+    return names
+      .filter((n) => n.toLowerCase().endsWith(".mp3"))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map((n) => `${UPLOADS_AUDIO_BASE}/${n}`);
+  } catch {
+    return [];
+  }
+}
 
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) {
@@ -85,46 +36,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const [{ lectCount }] = await db
-    .select({ lectCount: sql<number>`count(*)::int` })
-    .from(officialPrayersTable)
-    .where(and(eq(officialPrayersTable.category, "lectures"), isNull(officialPrayersTable.scheduleSlot)));
-
-  const needLectures = Math.max(0, 3 - Number(lectCount ?? 0));
-  if (needLectures > 0) {
-    const slice = LECTURE_ROWS.slice(0, needLectures);
-    for (let i = 0; i < slice.length; i++) {
-      const row = slice[i]!;
-      const [inserted] = await db
-        .insert(officialPrayersTable)
-        .values({
-          title: row.title,
-          subtitle: row.subtitle,
-          content: row.content,
-          category: "lectures",
-          scripture: row.scripture,
-          label: "Lecture",
-          durationMinutes: row.durationMinutes + i,
-          audioUrl: null,
-        })
-        .returning({ id: officialPrayersTable.id });
-
-      if (inserted?.id) {
-        await db.insert(lectureTracksTable).values(
-          row.tracks.map((track, orderIndex) => ({
-            lectureId: inserted.id,
-            title: track.title,
-            description: track.description,
-            audioUrl: `${UPLOADS_AUDIO_BASE}/${track.audioSlug}.mp3`,
-            orderIndex,
-          })),
-        );
-      }
-    }
-    console.log(`[seed-library-restore] Inserted ${slice.length} lecture row(s) with audio series.`);
-  } else {
-    console.log("[seed-library-restore] Lectures quota already satisfied (≥3).");
+  const audioUrls = await listLibpgAudioUrls();
+  if (audioUrls.length === 0) {
+    console.warn("[seed-library-restore] No mp3 files in uploads — run seed:lib-pg first.");
   }
+
+  await ensureLibraryLectures(audioUrls, false);
 
   const [{ mCount }] = await db
     .select({ mCount: sql<number>`count(*)::int` })
@@ -136,17 +53,15 @@ async function main(): Promise<void> {
       title: "Morning Light with the Lord",
       subtitle: "A brief welcome before the noise of the day.",
       content:
-        "Father, mercies are new this morning—not because everything is solved, but because you are steadfast. Quiet my hurried spirit, loosen my grip on anxiety, and help me greet this day awake to your presence. When worry surfaces, gently turn my gaze back toward your faithfulness.",
+        "Father, mercies are new this morning. Quiet my hurried spirit and help me greet this day awake to your presence.",
       category: "gratitude",
       scheduleSlot: "morning",
       label: "Official Prayer",
       scripture: "Lamentations 3:22–23",
       durationMinutes: 8,
-      audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-morning-sanctuary.mp3`,
+      audioUrl: audioUrls[0] ?? null,
     });
     console.log("[seed-library-restore] Inserted morning sanctuary slot row.");
-  } else {
-    console.log("[seed-library-restore] Morning slot already present — skipping.");
   }
 
   const [{ eCount }] = await db
@@ -158,18 +73,15 @@ async function main(): Promise<void> {
     await db.insert(officialPrayersTable).values({
       title: "Evening Rest in the Lord",
       subtitle: "Laying down the weight of the day.",
-      content:
-        "Father, I lay down what I cannot control. Quiet my mind; let me rest in your care tonight. Whatever was left undone or said imperfectly, I release it to you. Thank you for walking with me through this day.",
+      content: "Father, I lay down what I cannot control. Let me rest in your care tonight.",
       category: "peace",
       scheduleSlot: "evening",
       label: "Official Prayer",
       scripture: "Psalm 4:8",
       durationMinutes: 7,
-      audioUrl: `${UPLOADS_AUDIO_BASE}/prayer-evening-sanctuary.mp3`,
+      audioUrl: audioUrls[1] ?? audioUrls[0] ?? null,
     });
     console.log("[seed-library-restore] Inserted evening sanctuary slot row.");
-  } else {
-    console.log("[seed-library-restore] Evening slot already present — skipping.");
   }
 
   const badLabelRows = await db
@@ -188,6 +100,7 @@ async function main(): Promise<void> {
   }
 
   await pool.end();
+  console.log("[seed-library-restore] Done.");
 }
 
 main().catch((err) => {

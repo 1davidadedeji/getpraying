@@ -6,7 +6,8 @@
  * Remaining MP3s → “For your situation” path guides (in PATHS order; extra paths
  * share the last situation file if there are fewer audios than paths).
  *
- * Safe to run multiple times — clears and reseeds official_prayers and prayer_paths.
+ * Safe to run multiple times — clears and reseeds prayer_paths, path guides, sanctuary slots,
+ * and the lectures carousel (3 items + tracks). Does not wipe users or feed posts.
  *
  *   pnpm --filter @workspace/api-server run seed:lib-pg
  */
@@ -16,6 +17,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { db, officialPrayersTable, pool, prayerPathsTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
+import { ensureLibraryLectures } from "./lib/seedLectures.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,6 +53,7 @@ async function copyLibPgAudios(): Promise<{
   morning: string;
   evening: string;
   byPathIndex: (string | null)[];
+  allUrls: string[];
 }> {
   const srcDir = libPgSourceDir();
   let names: string[];
@@ -86,7 +89,7 @@ async function copyLibPgAudios(): Promise<{
     if (situationFiles.length === 0) return null;
     return situationFiles[Math.min(idx, situationFiles.length - 1)] ?? null;
   });
-  return { morning, evening, byPathIndex };
+  return { morning, evening, byPathIndex, allUrls: urls };
 }
 
 const PATHS = [
@@ -244,7 +247,7 @@ async function main(): Promise<void> {
   const paths = await db.select().from(prayerPathsTable).orderBy(asc(prayerPathsTable.id));
   console.log(`[seed-lib-pg] Inserted ${paths.length} prayer paths.`);
 
-  const { morning, evening, byPathIndex } = await copyLibPgAudios();
+  const { morning, evening, byPathIndex, allUrls } = await copyLibPgAudios();
 
   const categoryToPathId = new Map(paths.map((p) => [p.category, p.id]));
   const morningPathId = categoryToPathId.get("gratitude") ?? paths[0]?.id;
@@ -298,6 +301,9 @@ async function main(): Promise<void> {
 
   await db.insert(officialPrayersTable).values(rows);
   console.log(`[seed-lib-pg] Inserted ${rows.length} official prayers (2 sanctuary + ${rows.length - 2} path guides).`);
+
+  await ensureLibraryLectures(allUrls, true);
+  console.log("[seed-lib-pg] Lecture carousel seeded.");
 
   await pool.end();
   console.log("[seed-lib-pg] Done.");

@@ -1,5 +1,6 @@
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { expoPushRequestHeaders } from "./expoPushHttp";
 
 function pushTitle(type: string, actorUsername: string | null): string {
   switch (type) {
@@ -64,11 +65,7 @@ async function sendExpoPush(
   try {
     const res = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Accept-Encoding": "gzip, deflate",
-        "Content-Type": "application/json",
-      },
+      headers: expoPushRequestHeaders(),
       body: JSON.stringify([message]),
     });
     if (!res.ok) {

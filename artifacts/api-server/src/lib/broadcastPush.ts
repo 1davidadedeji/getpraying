@@ -1,5 +1,7 @@
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import { expoPushRequestHeaders } from "./expoPushHttp";
+import { sendDirectPush } from "./pushForNotification";
 
 /** Expo accepts multiple messages per request; keep batches small for reliability. */
 const CHUNK = 96;
@@ -19,16 +21,17 @@ async function sendExpoBatch(
   try {
     const res = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Accept-Encoding": "gzip, deflate",
-        "Content-Type": "application/json",
-      },
+      headers: expoPushRequestHeaders(),
       body: JSON.stringify(batch),
     });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       console.warn("[broadcastPush] Expo non-OK:", res.status, t.slice(0, 280));
+      if (t.includes("PUSH_TOO_MANY_EXPERIENCE_IDS") && batch.length > 1) {
+        for (const msg of batch) {
+          await sendDirectPush(msg.to, msg.title, msg.body, msg.data);
+        }
+      }
       return;
     }
     const json = (await res.json().catch(() => null)) as {

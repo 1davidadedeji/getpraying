@@ -1,6 +1,7 @@
 import "dotenv/config";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { expoPushAccessTokenConfigured } from "./lib/expoPushHttp";
 import { startScheduledNotifications } from "./lib/scheduledNotifications";
 
 const rawPort = process.env["PORT"];
@@ -24,5 +25,10 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  if (!expoPushAccessTokenConfigured()) {
+    logger.warn(
+      "EXPO_ACCESS_TOKEN is not set — Expo push may fail with InvalidCredentials. Set it for @timelesz_dave/get-praying.",
+    );
+  }
   startScheduledNotifications();
 });

@@ -169,16 +169,6 @@ export function LectureTracksEditor({
                   onChange={(e) => update(index, { title: e.target.value })}
                 />
               </Field>
-              <Field label="Description" className="sm:col-span-2">
-                <textarea
-                  className={`${inputCls} resize-none`}
-                  rows={2}
-                  placeholder="Shown under the part title on each card in the app"
-                  value={track.description}
-                  disabled={disabled}
-                  onChange={(e) => update(index, { description: e.target.value })}
-                />
-              </Field>
               <AdminAudioField
                 className="sm:col-span-2"
                 label="Audio file *"
