@@ -27,6 +27,7 @@ import { Text, TextInput } from "react-native";
 import { AppAlertHost } from "@/components/AppAlert";
 import { EntitlementGate } from "@/components/EntitlementGate";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
+import { ensureAppBackgroundMediaPause } from "@/lib/mediaPlaybackCoordinator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/auth";
 import { FeedNoticeProvider } from "@/context/feedNotice";
@@ -55,6 +56,7 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       staleTime: 30_000,
+      refetchOnWindowFocus: false,
       // Free cached data from memory after 2 minutes of disuse.
       // Default is 5 minutes; shorter GC time prevents the post cache from
       // growing unboundedly as the user browses and reduces heap pressure.
@@ -173,6 +175,7 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.cream);
+    ensureAppBackgroundMediaPause();
   }, []);
 
   const [fontsLoaded, fontError] = useFonts({

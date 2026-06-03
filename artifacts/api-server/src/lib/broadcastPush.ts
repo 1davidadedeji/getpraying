@@ -1,59 +1,6 @@
 import { db, usersTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
-import { expoPushRequestHeaders } from "./expoPushHttp";
-import { sendDirectPush } from "./pushForNotification";
-
-/** Expo accepts multiple messages per request; keep batches small for reliability. */
-const CHUNK = 96;
-
-async function sendExpoBatch(
-  batch: Array<{
-    to: string;
-    title: string;
-    body: string;
-    data: Record<string, string>;
-    sound?: string;
-    priority?: "high" | "normal" | "default";
-    channelId?: string;
-  }>,
-): Promise<void> {
-  if (batch.length === 0) return;
-  try {
-    const res = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: expoPushRequestHeaders(),
-      body: JSON.stringify(batch),
-    });
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.warn("[broadcastPush] Expo non-OK:", res.status, t.slice(0, 280));
-      if (t.includes("PUSH_TOO_MANY_EXPERIENCE_IDS") && batch.length > 1) {
-        for (const msg of batch) {
-          await sendDirectPush(msg.to, msg.title, msg.body, msg.data);
-        }
-      }
-      return;
-    }
-    const json = (await res.json().catch(() => null)) as {
-      data?: { status?: string; message?: string; details?: { error?: string } }[];
-    } | null;
-    const tickets = Array.isArray(json?.data) ? json!.data! : [];
-    for (let i = 0; i < tickets.length; i++) {
-      const ticket = tickets[i];
-      const token = batch[i]?.to;
-      if (!ticket || ticket.status !== "error" || !token) continue;
-      const code = ticket.details?.error;
-      if (code === "DeviceNotRegistered" || code === "InvalidCredentials") {
-        await db
-          .update(usersTable)
-          .set({ expoPushToken: null, updatedAt: new Date() })
-          .where(eq(usersTable.expoPushToken, token));
-      }
-    }
-  } catch (e) {
-    console.warn("[broadcastPush] Expo request failed:", e);
-  }
-}
+import { sql } from "drizzle-orm";
+import { sendExpoPushMessages } from "./expoPushSend";
 
 /** Fire Expo push to all registered device tokens (no per-user notification rows). */
 export async function broadcastPushToRegisteredDevices(opts: {
@@ -71,9 +18,7 @@ export async function broadcastPushToRegisteredDevices(opts: {
 
   const seen = new Set<string>();
   const exclude = opts.excludeUserIds ?? new Set<number>();
-  let sent = 0;
-
-  let batch: Array<{
+  const messages: Array<{
     to: string;
     title: string;
     body: string;
@@ -89,7 +34,7 @@ export async function broadcastPushToRegisteredDevices(opts: {
     if (seen.has(raw)) continue;
     seen.add(raw);
 
-    batch.push({
+    messages.push({
       to: raw,
       title: opts.title,
       body: opts.body.length > 180 ? `${opts.body.slice(0, 177)}…` : opts.body,
@@ -98,12 +43,10 @@ export async function broadcastPushToRegisteredDevices(opts: {
       priority: "high",
       channelId: "default",
     });
-    sent++;
-    if (batch.length >= CHUNK) {
-      await sendExpoBatch(batch);
-      batch = [];
-    }
   }
-  if (batch.length > 0) await sendExpoBatch(batch);
-  return sent;
+
+  if (messages.length === 0) return 0;
+
+  const results = await sendExpoPushMessages(messages);
+  return results.filter(Boolean).length;
 }

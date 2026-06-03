@@ -61,7 +61,8 @@ export function EntitlementGate({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (gateLoading) {
+  // Only block UI for users who still need the paywall — not during background RC checks for subscribers.
+  if (gateLoading && needsGate) {
     return <AppLoadingScreen variant="splash" />;
   }
 

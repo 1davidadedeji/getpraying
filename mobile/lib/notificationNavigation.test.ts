@@ -97,6 +97,14 @@ describe("resolveNotificationTarget", () => {
     });
   });
 
+  it("routes daily_help_reminder to library", async () => {
+    const { resolveNotificationTarget } = await import("./notificationNavigation");
+    expect(resolveNotificationTarget({ type: "daily_help_reminder" })).toEqual({
+      kind: "href",
+      href: "/(tabs)/library",
+    });
+  });
+
   it("falls back to notifications tab when post id is missing", async () => {
     const { resolveNotificationTarget } = await import("./notificationNavigation");
     expect(resolveNotificationTarget({ type: "prayer" })).toEqual({

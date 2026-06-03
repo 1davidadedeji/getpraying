@@ -9,7 +9,7 @@ import {
   commentsTable,
   savedPostsTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, ne } from "drizzle-orm";
 import { optionalAuth, requireAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { pushForNotificationById } from "../lib/pushForNotification";
@@ -151,6 +151,13 @@ router.post("/users/me/push-token", requireAuth, async (req, res): Promise<void>
   const tz = req.body?.timezone;
   if (typeof tz === "string" && tz.trim().length > 0) {
     updates.timezone = tz.trim().slice(0, 64);
+  }
+
+  if (token != null) {
+    await db
+      .update(usersTable)
+      .set({ expoPushToken: null, updatedAt: new Date() })
+      .where(and(eq(usersTable.expoPushToken, token), ne(usersTable.id, user.id)));
   }
 
   await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));

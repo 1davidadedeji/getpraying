@@ -1,6 +1,6 @@
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { expoPushRequestHeaders } from "./expoPushHttp";
+import { sendSingleExpoPush } from "./expoPushSend";
 
 function pushTitle(type: string, actorUsername: string | null): string {
   switch (type) {
@@ -44,61 +44,6 @@ function stringifyData(data: Record<string, string | number | null | undefined>)
   return out;
 }
 
-async function sendExpoPush(
-  expoToken: string,
-  title: string,
-  body: string,
-  data: Record<string, string>,
-): Promise<boolean> {
-  if (!expoToken || !expoToken.startsWith("ExponentPushToken[") || expoToken.length < 16) {
-    return false;
-  }
-  const message = {
-    to: expoToken,
-    title,
-    body,
-    data,
-    sound: "default",
-    priority: "high" as const,
-    channelId: "default",
-  };
-  try {
-    const res = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: expoPushRequestHeaders(),
-      body: JSON.stringify([message]),
-    });
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.warn("[push] Expo push non-OK:", res.status, t.slice(0, 200));
-      return false;
-    }
-    const json = (await res.json().catch(() => null)) as {
-      data?: { status?: string; message?: string; details?: { error?: string } }[];
-    } | null;
-    const ticket = Array.isArray(json?.data) ? json!.data![0] : undefined;
-    if (ticket?.status === "error") {
-      const code = ticket.details?.error;
-      console.warn("[push] Expo ticket error:", {
-        code: code ?? ticket.message ?? "unknown",
-        tokenPrefix: expoToken.slice(0, 28),
-        apns: ticket.details,
-      });
-      if (code === "DeviceNotRegistered" || code === "InvalidCredentials") {
-        await db
-          .update(usersTable)
-          .set({ expoPushToken: null, updatedAt: new Date() })
-          .where(eq(usersTable.expoPushToken, expoToken));
-      }
-      return false;
-    }
-    return ticket?.status === "ok";
-  } catch (e) {
-    console.warn("[push] Expo push failed:", e);
-    return false;
-  }
-}
-
 /** Send a push notification directly to a token (no DB row required — for broadcast/scheduled use). */
 /** @returns true when Expo accepted the push (ticket status `ok`). */
 export async function sendDirectPush(
@@ -107,11 +52,16 @@ export async function sendDirectPush(
   body: string,
   data: Record<string, string> = {},
 ): Promise<boolean> {
-  return sendExpoPush(expoToken, title, body, data);
+  return sendSingleExpoPush({
+    to: expoToken,
+    title,
+    body,
+    data,
+  });
 }
 
 /** Fire-and-forget remote alert for a stored notification row (recipient must have an Expo token). */
-export async function pushForNotificationById(notificationId: number): Promise<void> {
+export async function pushForNotificationById(notificationId: number): Promise<boolean> {
   try {
     const [row] = await db
       .select({
@@ -122,13 +72,23 @@ export async function pushForNotificationById(notificationId: number): Promise<v
         actorId: notificationsTable.actorId,
         category: notificationsTable.category,
         token: usersTable.expoPushToken,
+        recipientId: notificationsTable.userId,
       })
       .from(notificationsTable)
       .innerJoin(usersTable, eq(usersTable.id, notificationsTable.userId))
       .where(eq(notificationsTable.id, notificationId))
       .limit(1);
 
-    if (!row?.token?.trim()) return;
+    if (!row) {
+      console.warn("[push] notification not found:", notificationId);
+      return false;
+    }
+
+    const token = row.token?.trim();
+    if (!token) {
+      console.warn("[push] no expo token for user", row.recipientId, "notification", notificationId);
+      return false;
+    }
 
     const anonymousTypes = new Set(["post_reported", "mod_queue"]);
     let actorUsername: string | null = null;
@@ -156,8 +116,13 @@ export async function pushForNotificationById(notificationId: number): Promise<v
       category: row.category,
     });
 
-    await sendExpoPush(row.token.trim(), title, body, data);
+    const ok = await sendSingleExpoPush({ to: token, title, body, data });
+    if (!ok) {
+      console.warn("[push] delivery failed for notification", notificationId, "user", row.recipientId);
+    }
+    return ok;
   } catch (e) {
     console.warn("[push] pushForNotificationById:", e);
+    return false;
   }
 }

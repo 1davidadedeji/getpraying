@@ -39,6 +39,7 @@ import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
+import { publishPostEngagement } from "@/lib/postEngagementSync";
 
 type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCommented?: boolean };
 
@@ -148,7 +149,14 @@ function PostCardInner({
         onSuccess: (res) => {
           setLocalPost((prev) => {
             const next = { ...prev, hasPrayed: res.hasPrayed, prayCount: res.prayCount };
-            queueMicrotask(() => onUpdated?.(next));
+            queueMicrotask(() => {
+              onUpdated?.(next);
+              publishPostEngagement({
+                postId: next.id,
+                hasPrayed: next.hasPrayed,
+                prayCount: next.prayCount,
+              });
+            });
             return next;
           });
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -188,7 +196,14 @@ function PostCardInner({
           onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((prev) => {
               const next = { ...prev, isSaved: res.isSaved, saveCount: res.saveCount };
-              queueMicrotask(() => onUpdated?.(next));
+              queueMicrotask(() => {
+                onUpdated?.(next);
+                publishPostEngagement({
+                  postId: next.id,
+                  isSaved: next.isSaved,
+                  saveCount: (next as PostWithCounts).saveCount,
+                });
+              });
               return next;
             });
             invalidateSaved();
@@ -206,7 +221,14 @@ function PostCardInner({
           onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((prev) => {
               const next = { ...prev, isSaved: res.isSaved, saveCount: res.saveCount };
-              queueMicrotask(() => onUpdated?.(next));
+              queueMicrotask(() => {
+                onUpdated?.(next);
+                publishPostEngagement({
+                  postId: next.id,
+                  isSaved: next.isSaved,
+                  saveCount: (next as PostWithCounts).saveCount,
+                });
+              });
               return next;
             });
             invalidateSaved();

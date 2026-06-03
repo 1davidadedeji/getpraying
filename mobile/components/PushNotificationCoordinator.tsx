@@ -22,6 +22,11 @@ import {
   claimNotificationResponseId,
   claimNotificationResponseInSession,
 } from "@/lib/pushNotificationDedup";
+import {
+  enrichNotificationPayload,
+  normalizeNotificationPayload,
+} from "@/lib/notificationPayload";
+import { scheduleOnAppActive } from "@/lib/appResume";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 
 /**
@@ -61,8 +66,10 @@ export function PushNotificationCoordinator() {
   }, []);
 
   const dispatchNotification = useCallback(
-    (response: Notifications.NotificationResponse) => {
-      const data = response.notification.request.content.data as Record<string, unknown>;
+    async (response: Notifications.NotificationResponse) => {
+      const raw = response.notification.request.content.data;
+      const normalized = normalizeNotificationPayload(raw);
+      const data = await enrichNotificationPayload(normalized, tokenRef.current);
 
       navigateFromNotificationData(data, {
         authToken: tokenRef.current,
@@ -95,7 +102,7 @@ export function PushNotificationCoordinator() {
         : claimNotificationResponseInSession(id);
       if (!claimed) return;
 
-      dispatchNotification(response);
+      await dispatchNotification(response);
     },
     [dispatchNotification],
   );
@@ -126,7 +133,7 @@ export function PushNotificationCoordinator() {
       if (state !== "active") return;
       const jwt = tokenRef.current;
       if (!jwt) return;
-      void registerAndSyncPushToken(jwt);
+      scheduleOnAppActive(() => void registerAndSyncPushToken(jwt), 600);
     };
     const subApp = AppState.addEventListener("change", onAppState);
 

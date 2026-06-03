@@ -4,6 +4,7 @@
  */
 
 import { Audio } from "expo-av";
+import { AppState } from "react-native";
 
 const controllers = new Map<symbol, () => Promise<void>>();
 
@@ -51,6 +52,17 @@ export function registerMediaController(pause: () => Promise<void>): {
       controllers.delete(id);
     },
   };
+}
+
+let appBackgroundPauseInstalled = false;
+
+/** Pause feed/detail media when the app leaves the foreground (avoids resume freezes). */
+export function ensureAppBackgroundMediaPause(): void {
+  if (appBackgroundPauseInstalled) return;
+  appBackgroundPauseInstalled = true;
+  AppState.addEventListener("change", (state) => {
+    if (state !== "active") void pauseAllMediaExcept(null);
+  });
 }
 
 /** Pause every registered player except the one identified by keepId (if provided). */

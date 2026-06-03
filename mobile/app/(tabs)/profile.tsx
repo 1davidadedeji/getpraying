@@ -35,6 +35,7 @@ import { useModerationBadge } from "@/context/moderationBadge";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
+import { applyEngagementPatch, subscribePostEngagement } from "@/lib/postEngagementSync";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { usePauseMediaOnBlur } from "@/hooks/usePauseMediaOnBlur";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -119,6 +120,16 @@ export default function ProfileScreen() {
       setLocationDraft((me as any).location ?? "");
     }
   }, [me?.id, editingLocation]);
+
+  useEffect(() => {
+    return subscribePostEngagement((patch) => {
+      const patchList = (list: Post[]) =>
+        list.map((p) => applyEngagementPatch(p, patch));
+      setMyPosts(patchList);
+      setLikedPosts(patchList);
+      setCommentedPosts(patchList);
+    });
+  }, []);
 
   const handlePostUpdated = useCallback(
     (updated: Post) => {

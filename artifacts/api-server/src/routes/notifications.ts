@@ -52,6 +52,50 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
   );
 });
 
+router.get("/notifications/:notificationId", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user;
+  const rawId = Array.isArray(req.params.notificationId)
+    ? req.params.notificationId[0]
+    : req.params.notificationId;
+  const notificationId = parseInt(rawId, 10);
+  if (Number.isNaN(notificationId)) {
+    res.status(400).json({ error: "Invalid notification id" });
+    return;
+  }
+
+  const [n] = await db
+    .select()
+    .from(notificationsTable)
+    .where(
+      and(eq(notificationsTable.id, notificationId), eq(notificationsTable.userId, user.id)),
+    )
+    .limit(1);
+
+  if (!n) {
+    res.status(404).json({ error: "Notification not found" });
+    return;
+  }
+
+  let actorUsername: string | null = null;
+  const hideActor = n.type === "post_reported" || n.type === "mod_queue";
+  if (n.actorId != null && !hideActor) {
+    const [a] = await db
+      .select({ username: usersTable.username })
+      .from(usersTable)
+      .where(eq(usersTable.id, n.actorId))
+      .limit(1);
+    actorUsername = a?.username ?? null;
+  }
+
+  res.json({
+    id: n.id,
+    type: n.type,
+    postId: n.postId,
+    category: n.category,
+    actorUsername: hideActor ? null : actorUsername,
+  });
+});
+
 router.post("/notifications/read", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
 

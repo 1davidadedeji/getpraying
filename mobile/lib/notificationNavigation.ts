@@ -180,7 +180,7 @@ export function resolveNotificationTarget(
   }
 
   if (type === "daily_help_reminder") {
-    return { kind: "href", href: "/(tabs)/" };
+    return { kind: "href", href: "/(tabs)/library" };
   }
 
   if (type === "category_new") {

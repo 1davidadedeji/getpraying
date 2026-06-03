@@ -42,6 +42,8 @@ import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
+import { subscribeAppActive } from "@/lib/appResume";
+import { applyEngagementPatch, subscribePostEngagement } from "@/lib/postEngagementSync";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_SINCE_LIMIT = 50;
@@ -326,13 +328,40 @@ export default function FeedScreen() {
     void loadSanctuary();
   }, [feedJumpToTopNonce, loadSanctuary]);
 
+  const focusRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return subscribePostEngagement((patch) => {
+      setPosts((prev) => prev.map((p) => applyEngagementPatch(p, patch)));
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeAppActive(() => {
+      if (loading || refreshing) return;
+      void loadFresh({ silent: true });
+    }, 500);
+  }, [loadFresh, loading, refreshing]);
+
   useFocusEffect(
     useCallback(() => {
-      if (posts.length === 0 && !loading) {
-        void loadFresh({ silent: true });
-      }
       void loadSanctuary();
-    }, [posts.length, loading, loadFresh, loadSanctuary]),
+      if (focusRefreshTimerRef.current) clearTimeout(focusRefreshTimerRef.current);
+      focusRefreshTimerRef.current = setTimeout(() => {
+        focusRefreshTimerRef.current = null;
+        if (posts.length === 0 && !loading) {
+          void loadFresh({ silent: true });
+        } else if (!loading && !refreshing) {
+          void loadFresh({ silent: true });
+        }
+      }, 280);
+      return () => {
+        if (focusRefreshTimerRef.current) {
+          clearTimeout(focusRefreshTimerRef.current);
+          focusRefreshTimerRef.current = null;
+        }
+      };
+    }, [posts.length, loading, refreshing, loadFresh, loadSanctuary]),
   );
 
   useEffect(() => {

@@ -55,6 +55,8 @@ import { submitPostReport } from "@/lib/reportPost";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { buildPostSharePayload } from "@/lib/sharePost";
 import { getApiErrorMessage } from "@/lib/apiErrors";
+import { subscribeAppActive } from "@/lib/appResume";
+import { publishPostEngagement } from "@/lib/postEngagementSync";
 import { subscribePostDetailRefresh } from "@/lib/postDetailRefresh";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -113,6 +115,19 @@ export default function PostDetailScreen() {
   useEffect(() => {
     if (engageMutationPendingRef.current > 0) return;
     if (data) setLocalPost(data as Post);
+  }, [data]);
+
+  useEffect(() => {
+    if (!data || engageMutationPendingRef.current > 0) return;
+    const p = data as Post & { commentCount?: number; hasCommented?: boolean };
+    publishPostEngagement({
+      postId: p.id,
+      commentCount: p.commentCount,
+      hasCommented: p.hasCommented,
+      prayCount: p.prayCount,
+      hasPrayed: p.hasPrayed,
+      isSaved: p.isSaved,
+    });
   }, [data]);
 
   useEffect(() => {
@@ -243,13 +258,32 @@ export default function PostDetailScreen() {
         return;
       }
       const dataJson = await res.json();
-      setComments((dataJson.comments ?? []) as CommentRow[]);
+      const list = (dataJson.comments ?? []) as CommentRow[];
+      setComments(list);
+      if (post?.id) {
+        const userCommented =
+          user?.id != null && list.some((c) => c.authorId === user.id);
+        publishPostEngagement({
+          postId: post.id,
+          commentCount: list.length,
+          hasCommented: userCommented,
+        });
+        setLocalPost((p) =>
+          p
+            ? ({
+                ...p,
+                commentCount: list.length,
+                hasCommented: userCommented,
+              } as Post)
+            : p,
+        );
+      }
     } catch {
       setComments([]);
     } finally {
       setCommentsLoading(false);
     }
-  }, [post?.id, token]);
+  }, [post?.id, token, user?.id]);
 
   useEffect(() => {
     if (post?.id) void loadComments();
@@ -259,12 +293,21 @@ export default function PostDetailScreen() {
     return subscribePostDetailRefresh((refreshedId) => {
       if (!Number.isFinite(postId) || refreshedId !== postId) return;
       void loadComments();
+      queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
       setThreadOpen(true);
       requestAnimationFrame(() => {
         listRef.current?.scrollToEnd({ animated: true });
       });
     });
-  }, [postId, loadComments]);
+  }, [postId, loadComments, queryClient]);
+
+  useEffect(() => {
+    return subscribeAppActive(() => {
+      if (!Number.isFinite(postId)) return;
+      queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
+      void loadComments();
+    }, 450);
+  }, [postId, loadComments, queryClient]);
 
   const openAuthorProfile = useCallback(() => {
     if (!post || post.isAnonymous || !post.authorUsername) return;
@@ -570,17 +613,22 @@ export default function PostDetailScreen() {
       }
       const dataJson = await res.json();
       const created = dataJson.comment as CommentRow | undefined;
+      const nextCount = comments.length + (created ? 1 : 0);
       if (created) setComments((prev) => [...prev, created]);
       setThreadOpen(true);
       setCommentDraft("");
       setLocalPost((p) => {
         if (!p) return p;
-        const prevCount = (p as Post & { commentCount?: number }).commentCount ?? 0;
         return {
           ...p,
           hasCommented: true,
-          commentCount: prevCount + 1,
+          commentCount: nextCount,
         } as Post;
+      });
+      publishPostEngagement({
+        postId: post.id,
+        hasCommented: true,
+        commentCount: nextCount,
       });
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
