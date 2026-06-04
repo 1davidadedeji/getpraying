@@ -102,7 +102,7 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable
-          onPress={() => goBackOrFallback("/(tabs)" as Href)}
+          onPress={() => goBackOrFallback("/" as Href)}
           style={[styles.backBtn, { width: backBtnSz, height: backBtnSz, marginBottom: Math.round(8 * uiScale) }]}
         >
           <Feather name="arrow-left" size={backIcn} color={colors.primary} />

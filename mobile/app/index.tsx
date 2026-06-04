@@ -43,6 +43,11 @@ export default function WelcomeScreen() {
   const authRef = useRef({ user, token, loading });
   authRef.current = { user, token, loading };
 
+  // True while this screen is the active/focused route.  When login, register,
+  // verify, or onboarding are on top they drive their own post-auth navigation;
+  // this gate stops index.tsx from competing with a second router.replace().
+  const isFocusedRef = useRef(true);
+
   const postAuthRoute = useMemo(() => {
     if (loading || !user || !token) return null;
     const route = getPostAuthRoute(user, rc, pendingDeepLink);
@@ -63,6 +68,11 @@ export default function WelcomeScreen() {
 
   const redirectIfNeeded = useCallback(() => {
     const frame = requestAnimationFrame(() => {
+      // Only navigate when this screen is focused.  Auth screens (login, register,
+      // verify, onboarding) push/replace on top of index and drive their own
+      // post-auth navigation.  Without this guard, index fires a competing
+      // router.replace() from its useEffect, producing a double-navigation flicker.
+      if (!isFocusedRef.current) return;
       const { user: u, token: t, loading: l } = authRef.current;
       if (l || !t || !u) return;
       const route = getPostAuthRoute(u, rc, pendingDeepLink);
@@ -79,11 +89,16 @@ export default function WelcomeScreen() {
     return redirectIfNeeded();
   }, [postAuthRoute, redirectIfNeeded]);
 
-  // Re-route when returning from paywall (same session still needs the gate).
+  // Track focus so the useEffect above is gated when auth screens are on top.
+  // useFocusEffect also drives the redirect when index regains focus (e.g.
+  // the user presses Back from a screen that didn't navigate away).
   useFocusEffect(
     useCallback(() => {
-      if (!postAuthRoute) return;
-      return redirectIfNeeded();
+      isFocusedRef.current = true;
+      if (postAuthRoute) redirectIfNeeded();
+      return () => {
+        isFocusedRef.current = false;
+      };
     }, [postAuthRoute, redirectIfNeeded]),
   );
 

@@ -73,7 +73,6 @@ export default function PaywallScreen() {
 
     const u = userRef.current;
     const rcState = rcRef.current;
-    const pending = pendingDeepLinkRef.current;
     const consume = consumePendingHrefRef.current;
 
     if (!u) {
@@ -101,6 +100,7 @@ export default function PaywallScreen() {
   }, []);
 
   const leavePaywall = useCallback(async () => {
+    if (signingOut.current) return; // double-tap guard
     signingOut.current = true;
     await logoutThenClearQueryCache(logout, queryClient);
   }, [logout, queryClient]);
@@ -128,10 +128,19 @@ export default function PaywallScreen() {
     [dismissPaywall, enterApp, isSoftPaywall],
   );
 
+  // Navigate only after React commits user=null — prevents the tab layout from
+  // briefly seeing the old auth state and re-redirecting to paywall.
+  // Use back() so the stack shrinks cleanly: in the signup flow it is
+  // [welcome → paywall], so back() lands on welcome without stacking a second
+  // welcome on top.  replace("/") is the fallback when nothing is below.
   useEffect(() => {
     if (!signingOut.current || user !== null) return;
     signingOut.current = false;
-    router.replace("/");
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
   }, [user]);
 
   useEffect(() => {
