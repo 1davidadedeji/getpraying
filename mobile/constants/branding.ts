@@ -5,14 +5,14 @@
  */
 export const APP_LOGO_SOURCE = require("../assets/images/icon-bg.png");
 
-/** Full app tile — native splash and JS bootstrap loading only. */
-export const SPLASH_LOGO_SOURCE = require("../assets/images/icon.png");
+/** Full app tile (flattened on splash cream) — native splash and JS bootstrap only. */
+export const SPLASH_LOGO_SOURCE = require("../assets/images/splash-icon.png");
 
 /** Cream fill sampled from icon.png — splash `backgroundColor` in app.json. */
 export const SPLASH_BACKGROUND_COLOR = "#F5EFE3";
 
 /** Fixed logical px — must match native splash `imageWidth` in app.json. */
-export const SPLASH_LOGO_SIZE_PX = 280;
+export const SPLASH_LOGO_SIZE_PX = 300;
 
 /** @deprecated Use SPLASH_LOGO_SIZE_PX — splash logo is fixed to match native splash. */
 export function splashLogoSizePx(_uiScale: number): number {

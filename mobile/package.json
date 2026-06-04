@@ -13,8 +13,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "round-icons": "node ./scripts/round-icons.mjs",
+    "generate-splash-icon": "node ./scripts/generate-splash-icon.mjs",
+    "copy-storekit-config": "node ./scripts/copy-storekit-config.mjs",
+    "prebuild:ios": "expo prebuild --platform ios && pnpm run copy-storekit-config",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "pnpm run generate-splash-icon && pnpm run copy-storekit-config && expo run:ios --device \"iPhone 17 Pro\"",
+    "ios:clean": "pnpm run generate-splash-icon && expo prebuild --platform ios --clean && pnpm run copy-storekit-config && expo run:ios --device \"iPhone 17 Pro\""
   },
   "devDependencies": {
     "@babel/code-frame": "^7.26.2",
@@ -79,6 +83,7 @@
     "react-native": "0.81.5",
     "react-native-collapsible-tab-view": "^8.0.1",
     "react-native-pager-view": "6.9.1",
-    "react-native-purchases": "^9.15.0"
+    "react-native-purchases": "^9.15.0",
+    "expo": "~54.0.34"
   }
 }

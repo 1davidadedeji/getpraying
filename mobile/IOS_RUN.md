@@ -22,10 +22,30 @@ This repo does not pin an exotic iOS **deployment target** in `app.json` for sim
 From the repo root:
 
 ```bash
-cd mobile && pnpm exec expo run:ios
+cd mobile && pnpm run ios
 ```
 
-If the default destination fails, pass `--device "<Simulator Name>"` as above.
+This generates `assets/images/splash-icon.png`, then builds and opens the **iPhone 17 Pro** simulator (avoids the “no code signing certificates” error when a physical iPhone is connected).
+
+If the default simulator name fails, list devices with `xcrun simctl list devices available` and run:
+
+```bash
+cd mobile && pnpm run generate-splash-icon && npx expo run:ios --device "Your Simulator Name"
+```
+
+### Stale bundle id (`org.name.GetPraying` vs `com.getpraying.app`)
+
+If RevenueCat logs the wrong bundle id, delete the old app from the simulator (long-press → Delete App), then:
+
+```bash
+cd mobile && pnpm run ios:clean
+```
+
+That regenerates `ios/` from `app.json` (`com.getpraying.app`) and reinstalls.
+
+### RevenueCat offerings on the simulator
+
+Attach a StoreKit configuration in Xcode: **Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration** → select `ios/Configuration.storekit` (copied from `mobile/Configuration.storekit` via `pnpm run copy-storekit-config`). Product id: `getpraying_monthly_699`.
 
 ## Universal Links (open shared prayers in the app)
 

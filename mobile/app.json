@@ -9,10 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#F5EFE3",
-      "imageWidth": 280
+      "imageWidth": 300
     },
     "ios": {
       "supportsTablet": true,
@@ -78,10 +78,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
+          "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#F5EFE3",
-          "imageWidth": 280
+          "imageWidth": 300
         }
       ],
       [

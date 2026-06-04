@@ -101,8 +101,13 @@ function RevenueCatUserSync({
     (async () => {
       try {
         const Purchases = getPurchases();
-        const info = await Purchases.logOut();
-        onCustomerInfo(info);
+        const isAnonymous = await Purchases.isAnonymous();
+        if (isAnonymous) {
+          onCustomerInfo(await Purchases.getCustomerInfo());
+        } else {
+          const info = await Purchases.logOut();
+          onCustomerInfo(info);
+        }
       } catch {
         onCustomerInfo(null);
       } finally {
