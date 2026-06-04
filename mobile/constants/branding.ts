@@ -1,9 +1,15 @@
 /**
- * In-app brand mark (cream-background screens, native splash).
- * OS app icon uses `assets/images/icon.png`; Android notification tray uses
+ * Welcome / auth mark (ladder on transparent). OS app icon and native splash
+ * use `assets/images/icon.png`; Android notification tray uses
  * `assets/images/notification-icon.png` via app.json.
  */
 export const APP_LOGO_SOURCE = require("../assets/images/icon-bg.png");
+
+/** Full app tile — native splash and JS bootstrap loading only. */
+export const SPLASH_LOGO_SOURCE = require("../assets/images/icon.png");
+
+/** Cream fill sampled from icon.png — splash `backgroundColor` in app.json. */
+export const SPLASH_BACKGROUND_COLOR = "#F5EFE3";
 
 /** Fixed logical px — must match native splash `imageWidth` in app.json. */
 export const SPLASH_LOGO_SIZE_PX = 280;

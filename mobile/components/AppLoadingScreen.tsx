@@ -1,6 +1,7 @@
 import React from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { AppLogo } from "@/components/AppLogo";
+import { SPLASH_BACKGROUND_COLOR } from "@/constants/branding";
 import colors from "@/constants/colors";
 
 type Props = {
@@ -47,10 +48,10 @@ const styles = StyleSheet.create({
     zIndex: 10000,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.cream,
+    backgroundColor: SPLASH_BACKGROUND_COLOR,
   },
   bg: {
-    backgroundColor: colors.cream,
+    backgroundColor: SPLASH_BACKGROUND_COLOR,
   },
   spinner: {
     position: "absolute",

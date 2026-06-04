@@ -5,6 +5,7 @@ import {
   APP_LOGO_SOURCE,
   appLogoSizePx,
   SPLASH_LOGO_SIZE_PX,
+  SPLASH_LOGO_SOURCE,
   welcomeLogoSizePx,
 } from "@/constants/branding";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -27,9 +28,11 @@ export function AppLogo({ variant = "default", size, style }: Props) {
         ? welcomeLogoSizePx(uiScale)
         : appLogoSizePx(uiScale));
 
+  const source = variant === "splash" ? SPLASH_LOGO_SOURCE : APP_LOGO_SOURCE;
+
   return (
     <Image
-      source={APP_LOGO_SOURCE}
+      source={source}
       style={[styles.logo, { width: side, height: side }, style]}
       contentFit="contain"
       accessibilityLabel="Get Praying app logo"
