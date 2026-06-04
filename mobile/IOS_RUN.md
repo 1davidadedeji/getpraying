@@ -35,13 +35,25 @@ cd mobile && pnpm run generate-splash-icon && npx expo run:ios --device "Your Si
 
 ### Stale bundle id (`org.name.GetPraying` vs `com.getpraying.app`)
 
-If RevenueCat logs the wrong bundle id, delete the old app from the simulator (long-press → Delete App), then:
+RevenueCat still shows `org.name.GetPraying` when the **simulator is launching an old install**, not your latest Xcode build. The native project is already `com.getpraying.app`; `pnpm run ios` / `ios:clean` use `scripts/run-ios-simulator.mjs`, which uninstalls both bundle ids on the target simulator before installing.
+
+If you used `npx expo run:ios` without `--device <simulator-udid>`, Expo may pick a **physical iPhone** (`CommandError: No code signing certificates`) or open the wrong app. Use:
 
 ```bash
 cd mobile && pnpm run ios:clean
 ```
 
-That regenerates `ios/` from `app.json` (`com.getpraying.app`) and reinstalls.
+Do **not** use `npx expo run:ios --simulator` (not supported in Expo 54).
+
+### Code signing on simulator
+
+This app uses **Associated Domains** (Universal Links). Expo therefore requires a **development signing identity** even for simulator builds. If you see `No code signing certificates are available`:
+
+1. Open `mobile/ios/GetPraying.xcworkspace` in Xcode.
+2. Select the **GetPraying** target → **Signing & Capabilities**.
+3. Enable **Automatically manage signing** and choose your **Team**.
+
+Or set `ios.appleTeamId` in `app.json` after you know your team id.
 
 ### RevenueCat offerings on the simulator
 

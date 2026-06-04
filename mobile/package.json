@@ -17,8 +17,8 @@
     "copy-storekit-config": "node ./scripts/copy-storekit-config.mjs",
     "prebuild:ios": "expo prebuild --platform ios && pnpm run copy-storekit-config",
     "android": "expo run:android",
-    "ios": "pnpm run generate-splash-icon && pnpm run copy-storekit-config && expo run:ios --device \"iPhone 17 Pro\"",
-    "ios:clean": "pnpm run generate-splash-icon && expo prebuild --platform ios --clean && pnpm run copy-storekit-config && expo run:ios --device \"iPhone 17 Pro\""
+    "ios": "pnpm run generate-splash-icon && pnpm run copy-storekit-config && node ./scripts/run-ios-simulator.mjs",
+    "ios:clean": "pnpm run generate-splash-icon && CI=1 expo prebuild --platform ios --clean && pnpm run copy-storekit-config && node ./scripts/run-ios-simulator.mjs"
   },
   "devDependencies": {
     "@babel/code-frame": "^7.26.2",
