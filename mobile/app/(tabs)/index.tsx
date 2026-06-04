@@ -43,7 +43,8 @@ import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
 import { subscribeAppActive } from "@/lib/appResume";
-import { applyEngagementPatch, subscribePostEngagement } from "@/lib/postEngagementSync";
+import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
+import { LIVE_FEED_ENGAGEMENT_POLL_MS } from "@/lib/liveSync";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_SINCE_LIMIT = 50;
@@ -343,8 +344,50 @@ export default function FeedScreen() {
   useEffect(() => {
     return subscribePostEngagement((patch) => {
       setPosts((prev) => prev.map((p) => applyEngagementPatch(p, patch)));
+      setSearchPosts((prev) => prev.map((p) => applyEngagementPatch(p, patch)));
     });
   }, []);
+
+  useEffect(() => {
+    return subscribePostRemoved((removedId) => {
+      setPosts((prev) => filterRemovedPost(prev, removedId));
+      setSearchPosts((prev) => filterRemovedPost(prev, removedId));
+    });
+  }, []);
+
+  const mergeFeedEngagement = useCallback(async () => {
+    if (loading || refreshing || feedCategory != null || posts.length === 0) return;
+    try {
+      const result = await fetchPage(undefined, null);
+      const freshById = new Map(result.posts.map((p) => [p.id, p]));
+      setPosts((prev) =>
+        prev.map((p) => {
+          const fresh = freshById.get(p.id);
+          if (!fresh) return p;
+          return applyEngagementPatch(p, {
+            postId: p.id,
+            prayCount: fresh.prayCount,
+            hasPrayed: fresh.hasPrayed,
+            isSaved: fresh.isSaved,
+            commentCount: (fresh as Post & { commentCount?: number }).commentCount,
+            hasCommented: (fresh as Post & { hasCommented?: boolean }).hasCommented,
+            saveCount: (fresh as Post & { saveCount?: number }).saveCount,
+          });
+        }),
+      );
+    } catch {
+      /* silent */
+    }
+  }, [loading, refreshing, feedCategory, posts.length, fetchPage]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const interval = setInterval(() => {
+        void mergeFeedEngagement();
+      }, LIVE_FEED_ENGAGEMENT_POLL_MS);
+      return () => clearInterval(interval);
+    }, [mergeFeedEngagement]),
+  );
 
   useEffect(() => {
     return subscribeAppActive(() => {

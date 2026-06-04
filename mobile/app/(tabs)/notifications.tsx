@@ -21,6 +21,7 @@ import { LAYOUT } from "@/constants/layout";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { timeAgo } from "@/lib/timeAgo";
+import { LIVE_NOTIFICATIONS_POLL_MS } from "@/lib/liveSync";
 import { apiUrl, authHeaders } from "@/lib/api";
 import {
   navigateFromNotificationData,
@@ -57,7 +58,7 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
     case "saved":
       return n.actorUsername ? `${n.actorUsername} saved your prayer` : "Someone saved your prayer";
     case "comment":
-      return n.actorUsername ? `${n.actorUsername} commented` : "New comment on your prayer";
+      return n.actorUsername ? `${n.actorUsername} commented` : "New comment";
     case "follow":
       return n.actorUsername ? `${n.actorUsername} followed you` : "New follower";
     case "post_reported":
@@ -65,7 +66,7 @@ function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }):
     case "reminder":
       return "Prayer reminder";
     case "category_new":
-      return n.category ? `New in library: ${n.category}` : "Library update";
+      return n.category ? `New in library: ${n.category}` : "New library content";
     case "post_approved":
       return "Prayer approved";
     case "post_declined":
@@ -198,7 +199,12 @@ export default function NotificationsScreen() {
   const { gutter } = useResponsiveLayout();
   const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
-  const { data, isLoading, refetch, isFetching } = useGetNotifications();
+  const { data, isLoading, refetch, isFetching } = useGetNotifications({
+    query: {
+      queryKey: getGetNotificationsQueryKey(),
+      refetchInterval: LIVE_NOTIFICATIONS_POLL_MS,
+    },
+  });
   const { mutate: markAll } = useMarkAllNotificationsRead({
     mutation: {
       onMutate: () => {

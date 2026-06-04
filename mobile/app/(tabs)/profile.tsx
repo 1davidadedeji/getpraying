@@ -35,7 +35,7 @@ import { useModerationBadge } from "@/context/moderationBadge";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
-import { applyEngagementPatch, subscribePostEngagement } from "@/lib/postEngagementSync";
+import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { usePauseMediaOnBlur } from "@/hooks/usePauseMediaOnBlur";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -130,6 +130,21 @@ export default function ProfileScreen() {
       setCommentedPosts(patchList);
     });
   }, []);
+
+  useEffect(() => {
+    return subscribePostRemoved((removedId) => {
+      const drop = (list: Post[]) => filterRemovedPost(list, removedId);
+      setMyPosts(drop);
+      setLikedPosts(drop);
+      setCommentedPosts(drop);
+      queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const raw = old as { posts?: Post[] };
+        if (!Array.isArray(raw.posts)) return old;
+        return { ...raw, posts: filterRemovedPost(raw.posts, removedId) };
+      });
+    });
+  }, [queryClient]);
 
   const handlePostUpdated = useCallback(
     (updated: Post) => {

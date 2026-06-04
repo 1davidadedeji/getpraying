@@ -32,6 +32,7 @@ import { clamp } from "@/lib/responsiveMetrics";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
 
 interface UserProfile {
   id: number;
@@ -108,6 +109,24 @@ export default function UserProfileScreen() {
   }, [activeTab, clearFeedMediaFocus]);
 
   usePauseMediaOnBlur(clearFeedMediaFocus);
+
+  useEffect(() => {
+    return subscribePostEngagement((patch) => {
+      const patchList = (list: Post[]) => list.map((p) => applyEngagementPatch(p, patch));
+      setPosts(patchList);
+      setInteractions(patchList);
+      setSaved(patchList);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribePostRemoved((removedId) => {
+      const drop = (list: Post[]) => filterRemovedPost(list, removedId);
+      setPosts(drop);
+      setInteractions(drop);
+      setSaved(drop);
+    });
+  }, []);
 
   const onPrayersViewable = useCallback(
     (info: Parameters<typeof onParentViewable>[0]) => {

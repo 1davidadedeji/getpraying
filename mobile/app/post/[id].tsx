@@ -56,8 +56,10 @@ import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { buildPostSharePayload } from "@/lib/sharePost";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { subscribeAppActive } from "@/lib/appResume";
-import { publishPostEngagement } from "@/lib/postEngagementSync";
+import { publishPostEngagement, publishPostRemoved } from "@/lib/postEngagementSync";
 import { subscribePostDetailRefresh } from "@/lib/postDetailRefresh";
+import { isNotFoundError, LIVE_COMMENTS_POLL_MS, LIVE_POST_POLL_MS } from "@/lib/liveSync";
+import { useScreenFocused } from "@/hooks/useScreenFocused";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -91,6 +93,7 @@ export default function PostDetailScreen() {
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [postUnavailable, setPostUnavailable] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
   const engageMutationPendingRef = useRef(0);
@@ -110,7 +113,21 @@ export default function PostDetailScreen() {
     if (mediaFirst) setBodyExpanded(true);
   }, [mediaFirst]);
 
-  const { data, isLoading } = useGetPost(Number(id));
+  const screenFocused = useScreenFocused();
+
+  useEffect(() => {
+    setPostUnavailable(false);
+  }, [postId]);
+
+  const { data, isLoading, isError, error } = useGetPost(Number(id), {
+    query: {
+      queryKey: getGetPostQueryKey(postId),
+      enabled: Number.isFinite(postId) && !postUnavailable,
+      refetchInterval: screenFocused && !postUnavailable ? LIVE_POST_POLL_MS : false,
+    },
+  });
+
+  const postNotFound = postUnavailable || (isError && isNotFoundError(error));
 
   useEffect(() => {
     if (engageMutationPendingRef.current > 0) return;
@@ -246,15 +263,20 @@ export default function PostDetailScreen() {
     setThreadOpen(true);
   }, [postId]);
 
-  const loadComments = useCallback(async () => {
+  const loadComments = useCallback(async (opts?: { silent?: boolean }) => {
     if (!post?.id) return;
-    setCommentsLoading(true);
+    if (!opts?.silent) setCommentsLoading(true);
     try {
       const res = await fetch(apiUrl(`/posts/${post.id}/comments`), {
         headers: authHeaders(token),
       });
-      if (!res.ok) {
+      if (res.status === 404) {
+        setPostUnavailable(true);
         setComments([]);
+        return;
+      }
+      if (!res.ok) {
+        if (!opts?.silent) setComments([]);
         return;
       }
       const dataJson = await res.json();
@@ -279,15 +301,23 @@ export default function PostDetailScreen() {
         );
       }
     } catch {
-      setComments([]);
+      if (!opts?.silent) setComments([]);
     } finally {
-      setCommentsLoading(false);
+      if (!opts?.silent) setCommentsLoading(false);
     }
   }, [post?.id, token, user?.id]);
 
   useEffect(() => {
-    if (post?.id) void loadComments();
-  }, [post?.id, loadComments]);
+    if (post?.id && !postNotFound) void loadComments();
+  }, [post?.id, postNotFound, loadComments]);
+
+  useEffect(() => {
+    if (!post?.id || !screenFocused || postNotFound) return;
+    const interval = setInterval(() => {
+      void loadComments({ silent: true });
+    }, LIVE_COMMENTS_POLL_MS);
+    return () => clearInterval(interval);
+  }, [post?.id, screenFocused, postNotFound, loadComments]);
 
   useEffect(() => {
     return subscribePostDetailRefresh((refreshedId) => {
@@ -348,6 +378,7 @@ export default function PostDetailScreen() {
         body,
       });
       if (res.ok) {
+        publishPostRemoved(post.id);
         queryClient.removeQueries({ queryKey: getGetPostQueryKey(post.id) });
         queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetTrendingPostsQueryKey() });
@@ -457,6 +488,11 @@ export default function PostDetailScreen() {
           setLocalPost((p) =>
             p ? { ...p, hasPrayed: res.hasPrayed, prayCount: res.prayCount } : p,
           );
+          publishPostEngagement({
+            postId: post.id,
+            hasPrayed: res.hasPrayed,
+            prayCount: res.prayCount,
+          });
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetPostsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
@@ -508,6 +544,11 @@ export default function PostDetailScreen() {
         {
           onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
+            publishPostEngagement({
+              postId: post.id,
+              isSaved: res.isSaved,
+              saveCount: res.saveCount,
+            });
             invalidateSaved();
           },
           onError: (err) => {
@@ -525,6 +566,11 @@ export default function PostDetailScreen() {
         {
           onSuccess: (res: SavePostStateResponse) => {
             setLocalPost((p) => (p ? { ...p, isSaved: res.isSaved, saveCount: res.saveCount } : p));
+            publishPostEngagement({
+              postId: post.id,
+              isSaved: res.isSaved,
+              saveCount: res.saveCount,
+            });
             invalidateSaved();
           },
           onError: (err) => {
@@ -599,6 +645,11 @@ export default function PostDetailScreen() {
         headers: authHeaders(token, { "Content-Type": "application/json" }),
         body: JSON.stringify({ content: commentDraft.trim() }),
       });
+      if (res.status === 404) {
+        setPostUnavailable(true);
+        showAppAlert({ title: "Prayer unavailable", message: "This prayer has been deleted." });
+        return;
+      }
       if (res.status === 401) {
         showAppAlert({ title: "Sign in required", message: "Please sign in to leave a comment." });
         return;
@@ -651,6 +702,24 @@ export default function PostDetailScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.emptyComments}>Invalid prayer link</Text>
+      </View>
+    );
+  }
+
+  if (postNotFound) {
+    return (
+      <View style={[styles.centered, { paddingHorizontal: gutter }]}>
+        <Ionicons name="trash-outline" size={48} color={colors.muted} />
+        <Text style={styles.unavailableTitle}>This prayer has been deleted</Text>
+        <Text style={styles.unavailableSub}>It may have been removed by its author or a moderator.</Text>
+        <Pressable
+          onPress={() => goBackOrFallback("/(tabs)" as Href)}
+          style={({ pressed }) => [styles.unavailableBtn, pressed && { opacity: 0.9 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.unavailableBtnText}>Go back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -1150,6 +1219,33 @@ export default function PostDetailScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.cream },
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center" },
+  unavailableTitle: {
+    fontFamily: "NotoSerif_700Bold",
+    fontSize: 18,
+    color: colors.primary,
+    marginTop: 16,
+    textAlign: "center",
+  },
+  unavailableSub: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 14,
+    color: colors.muted,
+    marginTop: 8,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  unavailableBtn: {
+    marginTop: 24,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
+  unavailableBtnText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 15,
+    color: colors.surface,
+  },
   detailCard: {
     alignSelf: "center" as const,
     width: "100%" as const,

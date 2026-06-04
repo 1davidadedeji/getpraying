@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { useGetSavedPrayers, getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { SAVED_POSTS_EMPTY } from "@/constants/savedList";
+import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -56,6 +57,28 @@ export function SavedPrayersList({
   });
 
   const posts = (savedData as { posts?: Post[] } | undefined)?.posts ?? [];
+
+  useEffect(() => {
+    return subscribePostEngagement((patch) => {
+      queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const raw = old as { posts?: Post[] };
+        if (!Array.isArray(raw.posts)) return old;
+        return { ...raw, posts: raw.posts.map((p) => applyEngagementPatch(p, patch)) };
+      });
+    });
+  }, [queryClient]);
+
+  useEffect(() => {
+    return subscribePostRemoved((removedId) => {
+      queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const raw = old as { posts?: Post[] };
+        if (!Array.isArray(raw.posts)) return old;
+        return { ...raw, posts: filterRemovedPost(raw.posts, removedId) };
+      });
+    });
+  }, [queryClient]);
 
   const handlePostUpdated = useCallback(
     (updated: Post) => {

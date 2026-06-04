@@ -5,6 +5,7 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { useGetNotifications, getGetNotificationsQueryKey } from "@workspace/api-client-react";
 import type { Notification } from "@workspace/api-client-react";
+import { LIVE_NOTIFICATIONS_POLL_MS } from "@/lib/liveSync";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
@@ -185,6 +186,7 @@ function useNotificationsUnreadCount() {
       queryKey: getGetNotificationsQueryKey(),
       enabled: !!token,
       staleTime: 20_000,
+      refetchInterval: LIVE_NOTIFICATIONS_POLL_MS,
     },
   });
   return useMemo(() => {
