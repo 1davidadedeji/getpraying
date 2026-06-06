@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { ResizeMode, Video } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { router, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -114,6 +114,11 @@ export default function NewPostScreen() {
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [audioLibraryOpen, setAudioLibraryOpen] = useState(false);
+
+  const previewVideoPlayer = useVideoPlayer(
+    pendingMedia?.kind === "video" ? { uri: pendingMedia.uri } : null,
+    (p) => { p.muted = true; },
+  );
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   const { gutter, uiScale, cardRadius } = useResponsiveLayout();
@@ -654,13 +659,11 @@ export default function NewPostScreen() {
               />
             ) : pendingMedia.kind === "video" ? (
               <View style={styles.videoPreviewContainer}>
-                <Video
-                  source={{ uri: pendingMedia.uri }}
+                <VideoView
+                  player={previewVideoPlayer}
                   style={styles.imagePreview}
-                  resizeMode={ResizeMode.COVER}
-                  shouldPlay={false}
-                  useNativeControls={false}
-                  isMuted
+                  contentFit="cover"
+                  nativeControls={false}
                 />
                 <View style={styles.videoPreviewOverlay} pointerEvents="none">
                   <View style={styles.videoPlayBadge}>

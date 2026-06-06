@@ -1,43 +1,31 @@
 /**
- * Single active media policy: official guides, post video, and post audio register a pause
+ * Single active media policy: post video and post audio register a pause
  * callback; before any clip starts (or un-mutes), all other registered players pause.
+ *
+ * The expo-av sound cache has been removed — each CapsuleAudioPlayer manages
+ * its own AudioPlayer via expo-audio's useAudioPlayer hook, which handles
+ * async loading without blocking the iOS media thread.
  */
 
-import { Audio } from "expo-av";
+import { setAudioModeAsync } from "expo-audio";
 import { AppState } from "react-native";
 
 const controllers = new Map<symbol, () => Promise<void>>();
+let audioModeConfigured = false;
+let appBackgroundPauseInstalled = false;
 
-type CachedSoundEntry = {
-  sound: Audio.Sound;
-  refCount: number;
-  durationMs: number;
-};
-
-const soundCache = new Map<string, CachedSoundEntry>();
-const SOUND_CACHE_TTL_MS = 90_000;
-const soundCacheTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-function clearSoundCacheTimer(uri: string): void {
-  const t = soundCacheTimers.get(uri);
-  if (t) {
-    clearTimeout(t);
-    soundCacheTimers.delete(uri);
+/**
+ * Ensures iOS plays audio even when the physical silent switch is on.
+ * Safe to call multiple times — the native call is made only once.
+ */
+export async function ensureAudioMode(): Promise<void> {
+  if (audioModeConfigured) return;
+  audioModeConfigured = true;
+  try {
+    await setAudioModeAsync({ playsInSilentModeIOS: true });
+  } catch {
+    /* non-fatal */
   }
-}
-
-function scheduleSoundEviction(uri: string): void {
-  clearSoundCacheTimer(uri);
-  soundCacheTimers.set(
-    uri,
-    setTimeout(() => {
-      const entry = soundCache.get(uri);
-      if (!entry || entry.refCount > 0) return;
-      void entry.sound.unloadAsync().catch(() => {});
-      soundCache.delete(uri);
-      soundCacheTimers.delete(uri);
-    }, SOUND_CACHE_TTL_MS),
-  );
 }
 
 export function registerMediaController(pause: () => Promise<void>): {
@@ -48,15 +36,11 @@ export function registerMediaController(pause: () => Promise<void>): {
   controllers.set(id, pause);
   return {
     id,
-    unregister: () => {
-      controllers.delete(id);
-    },
+    unregister: () => controllers.delete(id),
   };
 }
 
-let appBackgroundPauseInstalled = false;
-
-/** Pause feed/detail media when the app leaves the foreground (avoids resume freezes). */
+/** Pause feed/detail media when the app leaves the foreground. */
 export function ensureAppBackgroundMediaPause(): void {
   if (appBackgroundPauseInstalled) return;
   appBackgroundPauseInstalled = true;
@@ -65,7 +49,7 @@ export function ensureAppBackgroundMediaPause(): void {
   });
 }
 
-/** Pause every registered player except the one identified by keepId (if provided). */
+/** Pause every registered player except the one identified by keepId. */
 export async function pauseAllMediaExcept(keepId: symbol | null): Promise<void> {
   for (const [id, pause] of controllers) {
     if (keepId !== null && id === keepId) continue;
@@ -75,45 +59,4 @@ export async function pauseAllMediaExcept(keepId: symbol | null): Promise<void> 
       /* ignore */
     }
   }
-}
-
-/** Reuse loaded expo-av sounds across feed cell remounts to avoid reload spinners. */
-export async function acquireCachedSound(uri: string): Promise<{
-  sound: Audio.Sound;
-  durationMs: number;
-  release: () => void;
-}> {
-  clearSoundCacheTimer(uri);
-  const existing = soundCache.get(uri);
-  if (existing) {
-    existing.refCount += 1;
-    return {
-      sound: existing.sound,
-      durationMs: existing.durationMs,
-      release: () => {
-        existing.refCount = Math.max(0, existing.refCount - 1);
-        if (existing.refCount === 0) scheduleSoundEviction(uri);
-      },
-    };
-  }
-
-  await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-  const { sound } = await Audio.Sound.createAsync(
-    { uri },
-    { shouldPlay: false, isLooping: false, positionMillis: 0 },
-  );
-  const status = await sound.getStatusAsync();
-  const durationMs =
-    status.isLoaded && typeof status.durationMillis === "number" ? status.durationMillis : 0;
-
-  const entry: CachedSoundEntry = { sound, refCount: 1, durationMs };
-  soundCache.set(uri, entry);
-  return {
-    sound,
-    durationMs,
-    release: () => {
-      entry.refCount = Math.max(0, entry.refCount - 1);
-      if (entry.refCount === 0) scheduleSoundEviction(uri);
-    },
-  };
 }

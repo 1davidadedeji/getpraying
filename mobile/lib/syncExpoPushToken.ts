@@ -8,6 +8,12 @@ import { apiFetch } from "@/lib/api";
 const PUSH_BUILD_KEY = "@getpraying/push-build-fingerprint";
 const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
 
+/**
+ * TEMP(ios-boot-test): when true, skips permission prompts, APNs, and getExpoPushTokenAsync
+ * on cold start / resume. Set to false (or delete) after validating boot performance on device.
+ */
+export const BYPASS_PUSH_TOKEN_SYNC = true;
+
 export function isExpoPushToken(token: string): boolean {
   const t = token.trim();
   return t.startsWith(EXPO_PUSH_TOKEN_PREFIX) && t.endsWith("]");
@@ -97,6 +103,11 @@ export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: st
 
 export async function registerAndSyncPushToken(apiJwt: string | null): Promise<void> {
   if (!apiJwt || !Device.isDevice) return;
+
+  if (BYPASS_PUSH_TOKEN_SYNC) {
+    console.info("[push] BYPASS_PUSH_TOKEN_SYNC — skipping registerAndSyncPushToken (ios boot test)");
+    return;
+  }
 
   await ensureAndroidNotificationChannel();
 

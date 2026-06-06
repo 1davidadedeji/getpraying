@@ -1,10 +1,10 @@
-import { Audio } from "expo-av";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, View } from "react-native";
+import { AppState } from "react-native";
 import colors from "@/constants/colors";
 import { CapsuleMediaControls } from "@/components/CapsuleMediaControls";
 import {
-  acquireCachedSound,
+  ensureAudioMode,
   pauseAllMediaExcept,
   registerMediaController,
 } from "@/lib/mediaPlaybackCoordinator";
@@ -22,8 +22,6 @@ type Props = {
   autoPlay?: boolean;
 };
 
-const POSITION_UI_INTERVAL_MS = 250;
-
 /** Minimal pill audio player: play/pause, time, seek bar, volume. */
 export function CapsuleAudioPlayer({
   audioUrl,
@@ -35,316 +33,182 @@ export function CapsuleAudioPlayer({
   autoPlay = false,
 }: Props) {
   const uri = resolveMediaUrl(audioUrl ?? null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [loading, setLoading] = useState(!!uri);
-  const [playing, setPlaying] = useState(false);
+
+  // expo-audio: creates an AudioPlayer whose lifecycle is tied to this component.
+  // Passing null keeps the player idle. 250 ms = position scrubber update rate.
+  const player = useAudioPlayer(uri ? { uri } : null, 250);
+  // Reactive status — replaces the expo-av setOnPlaybackStatusUpdate callback.
+  const status = useAudioPlayerStatus(player);
+
+  // UI state that needs to trigger re-renders.
   const [muted, setMuted] = useState(false);
   const [feedAudible, setFeedAudible] = useState(false);
-  const [ended, setEnded] = useState(false);
-  const [positionMs, setPositionMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
 
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const playingRef = useRef(false);
+  // Behavioural refs that don't need to cause re-renders.
+  const endedRef = useRef(false);
   const controllerIdRef = useRef<symbol | null>(null);
-  const durationHeldRef = useRef(0);
-  const releaseSoundRef = useRef<(() => void) | null>(null);
-  const lastPositionUiAtRef = useRef(0);
+  const prevPlayingRef = useRef<boolean | null>(null);
+
   const onPlayingChangeRef = useRef(onPlayingChange);
   onPlayingChangeRef.current = onPlayingChange;
   const onPlaybackFinishedRef = useRef(onPlaybackFinished);
   onPlaybackFinishedRef.current = onPlaybackFinished;
 
+  // Derived values from status (expo-audio uses seconds; UI expects milliseconds).
+  const playing = status.playing;
+  const positionMs = Math.round(status.currentTime * 1000);
+  const durationMs = Math.round(status.duration * 1000);
+  // Consider loaded once the duration is known (expo-audio resolves this async).
+  const loading = !!uri && status.duration === 0 && !status.didJustFinish;
+
+  // Notify parent of playing state changes without firing on mount.
   useEffect(() => {
-    soundRef.current = sound;
-  }, [sound]);
-  useEffect(() => {
-    playingRef.current = playing;
+    if (prevPlayingRef.current === playing) return;
+    prevPlayingRef.current = playing;
+    onPlayingChangeRef.current?.(playing);
   }, [playing]);
 
+  // Reset all local state when the audio source changes.
+  useEffect(() => {
+    setMuted(false);
+    setFeedAudible(false);
+    endedRef.current = false;
+    prevPlayingRef.current = null;
+  }, [uri]);
+
+  // Seek back to the beginning and fire the finished callback when playback ends.
+  useEffect(() => {
+    if (!status.didJustFinish) return;
+    endedRef.current = true;
+    onPlayingChangeRef.current?.(false);
+    onPlaybackFinishedRef.current?.();
+    player.seekTo(0);
+  }, [status.didJustFinish, player]);
+
+  // Register with the coordinator so other media can pause this player.
   useEffect(() => {
     const { id, unregister } = registerMediaController(async () => {
-      const s = soundRef.current;
-      if (!s) return;
-      try {
-        const st = await s.getStatusAsync();
-        if (st.isLoaded && st.isPlaying) await s.pauseAsync();
-        if (st.isLoaded && typeof st.positionMillis === "number") setPositionMs(st.positionMillis);
-      } catch {
-        /* ignore */
-      } finally {
-        setPlaying(false);
-        setFeedAudible(false);
-        onPlayingChangeRef.current?.(false);
-      }
+      player.pause();
+      setFeedAudible(false);
     });
     controllerIdRef.current = id;
     return () => {
       unregister();
       controllerIdRef.current = null;
     };
-  }, []);
+  }, [player]);
 
+  // Pause when the app moves to the background.
   useEffect(() => {
-    const sub = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active") {
-        soundRef.current?.pauseAsync().catch(() => {});
-        setPlaying(false);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        player.pause();
         setFeedAudible(false);
-        onPlayingChangeRef.current?.(false);
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [player]);
 
+  // Auto-play: trigger once the source has loaded.
   useEffect(() => {
-    if (!uri) {
-      releaseSoundRef.current?.();
-      releaseSoundRef.current = null;
-      setSound(null);
-      setLoading(false);
-      setPlaying(false);
-      setMuted(false);
-      setFeedAudible(false);
-      setEnded(false);
-      setPositionMs(0);
-      setDurationMs(0);
-      durationHeldRef.current = 0;
-      onPlayingChangeRef.current?.(false);
-      return;
-    }
-
-    let mounted = true;
-    setLoading(true);
-
-    (async () => {
-      try {
-        const cached = await acquireCachedSound(uri);
-        if (!mounted) {
-          cached.release();
-          return;
-        }
-        releaseSoundRef.current?.();
-        releaseSoundRef.current = cached.release;
-        setSound(cached.sound);
-        durationHeldRef.current = cached.durationMs;
-        setDurationMs(cached.durationMs);
-
-        cached.sound.setOnPlaybackStatusUpdate((st) => {
-          if (!st.isLoaded) return;
-          if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
-            durationHeldRef.current = st.durationMillis;
-            setDurationMs(st.durationMillis);
-          }
-          if (typeof st.positionMillis === "number") {
-            const now = Date.now();
-            if (
-              now - lastPositionUiAtRef.current >= POSITION_UI_INTERVAL_MS ||
-              st.didJustFinish ||
-              st.isPlaying !== playingRef.current
-            ) {
-              lastPositionUiAtRef.current = now;
-              setPositionMs(st.positionMillis);
-            }
-          }
-          if (typeof st.isPlaying === "boolean") {
-            setPlaying(st.isPlaying);
-            onPlayingChangeRef.current?.(st.isPlaying);
-          }
-          if (st.didJustFinish) {
-            setPlaying(false);
-            setEnded(true);
-            onPlayingChangeRef.current?.(false);
-            setPositionMs(0);
-            onPlaybackFinishedRef.current?.();
-            void (async () => {
-              try {
-                await cached.sound.setPositionAsync(0);
-                await cached.sound.pauseAsync();
-              } catch {
-                /* ignore */
-              }
-            })();
-          }
-        });
-
-        const st = await cached.sound.getStatusAsync();
-        if (mounted && st.isLoaded && typeof st.positionMillis === "number") {
-          setPositionMs(st.positionMillis);
-        }
-      } catch {
-        if (mounted) setSound(null);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      const s = soundRef.current;
-      if (s) {
-        void s.pauseAsync().catch(() => {});
-        try {
-          s.setOnPlaybackStatusUpdate(null);
-        } catch {
-          /* ignore */
-        }
-      }
-      releaseSoundRef.current?.();
-      releaseSoundRef.current = null;
-    };
-  }, [uri]);
-
-  useEffect(() => {
-    if (!autoPlay || loading || !sound) return;
+    if (!autoPlay || loading || !uri) return;
     const cid = controllerIdRef.current;
     if (cid == null) return;
     void (async () => {
       await pauseAllMediaExcept(cid);
-      try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        await sound.setVolumeAsync(1);
-        await sound.setPositionAsync(0);
-        await sound.playAsync();
-        setPlaying(true);
-        setMuted(false);
-        setEnded(false);
-        onPlayingChangeRef.current?.(true);
-      } catch {
-        /* ignore */
-      }
+      await ensureAudioMode();
+      player.volume = 1;
+      player.seekTo(0);
+      player.play();
+      setMuted(false);
+      endedRef.current = false;
     })();
-  }, [autoPlay, loading, sound]);
+    // Only fire once when loading resolves — exhaustive deps would re-trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, uri]);
 
-  const runFeedAutoplay = useCallback(async () => {
-    const s = soundRef.current;
-    const cid = controllerIdRef.current;
-    if (!s || cid == null || !feedMediaFocused) return;
-    await pauseAllMediaExcept(cid);
-    try {
-      await s.setPositionAsync(0);
-      await s.setVolumeAsync(0);
-      await s.playAsync();
-      setPlaying(true);
-      setMuted(true);
-      setFeedAudible(false);
-      setEnded(false);
-      onPlayingChangeRef.current?.(true);
-    } catch {
-      /* ignore */
-    }
-  }, [feedMediaFocused]);
-
+  // Feed auto-play: muted playback when the feed cell scrolls into view.
   useEffect(() => {
     if (!feedMediaFocused) {
       setFeedAudible(false);
-      void (async () => {
-        const s = soundRef.current;
-        if (!s) return;
-        try {
-          await s.pauseAsync();
-        } catch {
-          /* ignore */
-        }
-        setPlaying(false);
-        setMuted(false);
-        onPlayingChangeRef.current?.(false);
-      })();
+      player.pause();
       return;
     }
-    if (!loading && sound) void runFeedAutoplay();
-  }, [feedMediaFocused, loading, sound, runFeedAutoplay]);
-
-  const togglePlay = async () => {
-    const s = soundRef.current;
+    if (loading || !uri) return;
     const cid = controllerIdRef.current;
-    if (!s || cid == null) return;
+    if (cid == null) return;
+    void (async () => {
+      await pauseAllMediaExcept(cid);
+      await ensureAudioMode();
+      player.volume = 0;
+      player.seekTo(0);
+      player.play();
+      setMuted(true);
+      setFeedAudible(false);
+      endedRef.current = false;
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedMediaFocused, loading, uri]);
 
+  const togglePlay = useCallback(async () => {
+    const cid = controllerIdRef.current;
+    if (cid == null) return;
+
+    // Feed cell: first tap unmutes rather than pausing.
     if (feedMediaFocused && !feedAudible) {
       await pauseAllMediaExcept(cid);
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      try {
-        await s.setVolumeAsync(1);
-        if (ended) {
-          await s.setPositionAsync(0);
-          setEnded(false);
-          setPositionMs(0);
-        }
-        await s.playAsync();
-        setPlaying(true);
-        setMuted(false);
-        setFeedAudible(true);
-        onPlayingChangeRef.current?.(true);
-      } catch {
-        /* ignore */
+      await ensureAudioMode();
+      player.volume = 1;
+      if (endedRef.current) {
+        player.seekTo(0);
+        endedRef.current = false;
       }
+      player.play();
+      setMuted(false);
+      setFeedAudible(true);
       return;
     }
 
-    if (playingRef.current) {
-      await s.pauseAsync();
-      setPlaying(false);
-      onPlayingChangeRef.current?.(false);
+    if (playing) {
+      player.pause();
     } else {
       await pauseAllMediaExcept(cid);
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      try {
-        if (ended) {
-          await s.setPositionAsync(0);
-          setEnded(false);
-          setPositionMs(0);
-        }
-        if (!muted) await s.setVolumeAsync(1);
-        await s.playAsync();
-        setPlaying(true);
-        onPlayingChangeRef.current?.(true);
-      } catch {
-        /* ignore */
+      await ensureAudioMode();
+      if (endedRef.current) {
+        player.seekTo(0);
+        endedRef.current = false;
       }
+      if (!muted) player.volume = 1;
+      player.play();
     }
-  };
+  }, [feedMediaFocused, feedAudible, playing, muted, player]);
 
-  const toggleMute = async () => {
-    const s = soundRef.current;
-    if (!s) return;
+  const toggleMute = useCallback(async () => {
+    // Feed cell: mute button becomes "unmute / play audibly".
     if (feedMediaFocused) {
       if (!feedAudible) {
         void togglePlay();
         return;
       }
-      try {
-        await s.setVolumeAsync(0);
-        setMuted(true);
-        setFeedAudible(false);
-      } catch {
-        /* ignore */
-      }
+      player.volume = 0;
+      setMuted(true);
+      setFeedAudible(false);
       return;
     }
     const nextMuted = !muted;
-    try {
-      await s.setVolumeAsync(nextMuted ? 0 : 1);
-      setMuted(nextMuted);
-    } catch {
-      /* ignore */
-    }
-  };
+    player.volume = nextMuted ? 0 : 1;
+    setMuted(nextMuted);
+  }, [feedMediaFocused, feedAudible, muted, player, togglePlay]);
 
-  const seekProgress = async (progress01: number) => {
-    const s = soundRef.current;
-    if (!s) return;
-    const p = Math.min(1, Math.max(0, progress01));
-    try {
-      const st = await s.getStatusAsync();
-      if (!st.isLoaded || typeof st.durationMillis !== "number" || st.durationMillis <= 0) return;
-      const ms = Math.round(p * st.durationMillis);
-      await s.setPositionAsync(ms);
-      setPositionMs(ms);
-      setEnded(false);
-    } catch {
-      /* ignore */
-    }
-  };
+  const seekProgress = useCallback(
+    (progress01: number) => {
+      if (durationMs <= 0) return;
+      const secs = (Math.min(1, Math.max(0, progress01)) * durationMs) / 1000;
+      player.seekTo(secs);
+      endedRef.current = false;
+    },
+    [durationMs, player],
+  );
 
   if (!uri) return null;
 
@@ -362,8 +226,8 @@ export function CapsuleAudioPlayer({
       backgroundColor={backgroundColor}
       onTogglePlay={() => void togglePlay()}
       onToggleMute={() => void toggleMute()}
-      onSeek={(p) => void seekProgress(p)}
-      disabled={!sound}
+      onSeek={seekProgress}
+      disabled={loading}
     />
   );
 }

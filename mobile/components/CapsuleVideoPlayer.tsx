@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { ResizeMode, Video, type AVPlaybackStatus } from "expo-av";
+import { useEvent, useEventListener } from "expo";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -31,7 +32,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Video viewport + capsule controls matching audio player. */
+/** Video viewport + capsule controls matching the audio player. */
 export function CapsuleVideoPlayer({
   videoUrl,
   accentColor = colors.primary,
@@ -48,9 +49,15 @@ export function CapsuleVideoPlayer({
   const cornerRad = borderRadius ?? Math.round(clamp(16 * uiScale, 12, 20));
   const openIcn = Math.round(clamp(18 * uiScale, 16, 20));
 
-  const videoRef = useRef<Video | null>(null);
-  const controllerIdRef = useRef<symbol | null>(null);
+  // expo-video: player owns the media session. The setup callback runs once on
+  // creation (synchronous) — it must not read props that change over time.
+  const player = useVideoPlayer(uri ? { uri } : null, (p) => {
+    p.loop = false;
+    p.muted = true; // always start muted; audio is enabled imperatively below
+  });
+
   const videoOpacity = useRef(new Animated.Value(0)).current;
+  const controllerIdRef = useRef<symbol | null>(null);
   const wasPlayingRef = useRef(false);
 
   const [ready, setReady] = useState(false);
@@ -62,6 +69,13 @@ export function CapsuleVideoPlayer({
   const [durationMs, setDurationMs] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
 
+  // Keep player.muted in sync with our derived isMuted value.
+  const isMuted = feedMediaFocused ? !feedAudible : muted;
+  useEffect(() => {
+    player.muted = isMuted;
+  }, [isMuted, player]);
+
+  // Reset all state whenever the video source changes.
   useEffect(() => {
     videoOpacity.setValue(0);
     setReady(false);
@@ -72,19 +86,66 @@ export function CapsuleVideoPlayer({
     setEnded(false);
     setPositionMs(0);
     setDurationMs(0);
-  }, [uri, videoOpacity]);
+  }, [uri, videoOpacity, feedMediaFocused]);
 
+  // ── Status change: fade in when ready, capture video dimensions ─────────────
+  // useEventListener is a hook form of player.addListener — safe inside render.
+  useEventListener(player, "statusChange", ({ status }) => {
+    if (status !== "readyToPlay") return;
+    const dur = Math.round(player.duration * 1000);
+    if (dur > 0) setDurationMs(dur);
+    // player.videoSize is available once the video is ready to play.
+    const vs = player.videoSize;
+    if (vs && vs.width > 0 && vs.height > 0) setNaturalSize(vs);
+    setReady(true);
+    Animated.timing(videoOpacity, {
+      toValue: 1,
+      duration: 240,
+      useNativeDriver: true,
+    }).start();
+  });
+
+  // ── Playing state: keep React state in sync with the native player ──────────
+  const { isPlaying } = useEvent(player, "playingChange", { isPlaying: player.playing });
+  useEffect(() => {
+    setPlaying(isPlaying);
+    if (isPlaying && !wasPlayingRef.current) {
+      const cid = controllerIdRef.current;
+      if (cid != null) void pauseAllMediaExcept(cid);
+    }
+    wasPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  // ── End of playback ─────────────────────────────────────────────────────────
+  useEventListener(player, "playToEnd", () => {
+    setPlaying(false);
+    setEnded(true);
+    wasPlayingRef.current = false;
+    // Park just before the end so the last frame stays visible.
+    const parkAt = Math.max(0, player.duration - 0.08);
+    player.currentTime = parkAt;
+    setPositionMs(Math.round(parkAt * 1000));
+    if (durationMs > 0) setPositionMs(durationMs);
+  });
+
+  // ── Position polling while playing (250 ms = smooth scrubber) ───────────────
+  useEffect(() => {
+    if (!playing) return;
+    const id = setInterval(() => {
+      const ms = Math.round(player.currentTime * 1000);
+      setPositionMs(ms);
+      // Keep durationMs up to date in case it resolved after readyToPlay.
+      const dur = Math.round(player.duration * 1000);
+      if (dur > 0 && dur !== durationMs) setDurationMs(dur);
+    }, 250);
+    return () => clearInterval(id);
+  }, [playing, player, durationMs]);
+
+  // ── Coordinator: let other media pause this player ───────────────────────────
   useEffect(() => {
     const { id, unregister } = registerMediaController(async () => {
-      const v = videoRef.current;
-      if (v) {
-        try {
-          await v.pauseAsync();
-          if (feedMediaFocused) await v.setPositionAsync(0);
-        } catch {
-          /* ignore */
-        }
-      }
+      player.pause();
+      if (feedMediaFocused) player.currentTime = 0;
       setPlaying(false);
       setFeedAudible(false);
       setMuted(true);
@@ -94,167 +155,102 @@ export function CapsuleVideoPlayer({
       unregister();
       controllerIdRef.current = null;
     };
-  }, [feedMediaFocused]);
+  }, [feedMediaFocused, player]);
 
+  // ── App background: always pause ────────────────────────────────────────────
   useEffect(() => {
-    return () => {
-      const v = videoRef.current;
-      if (!v) return;
-      void (async () => {
-        try {
-          await v.pauseAsync();
-          await v.unloadAsync();
-        } catch {
-          /* ignore */
-        }
-      })();
-    };
-  }, [uri]);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active") {
-        videoRef.current?.pauseAsync().catch(() => {});
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        player.pause();
         setPlaying(false);
         setFeedAudible(false);
         setMuted(true);
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [player]);
 
+  // ── Feed focus: auto-play muted when cell enters view ───────────────────────
   useEffect(() => {
     if (!feedMediaFocused) {
       setFeedAudible(false);
       setMuted(false);
       setPlaying(false);
       setEnded(false);
-      void (async () => {
-        const v = videoRef.current;
-        if (!v) return;
-        try {
-          await v.pauseAsync();
-          await v.setPositionAsync(0);
-        } catch {
-          /* ignore */
-        }
-        setPositionMs(0);
-      })();
+      player.pause();
+      player.currentTime = 0;
+      setPositionMs(0);
       return;
     }
-    const id = controllerIdRef.current;
-    if (id == null) return;
-    void pauseAllMediaExcept(id);
+    const cid = controllerIdRef.current;
+    if (cid == null) return;
+    void pauseAllMediaExcept(cid);
+    // Start muted autoplay — player.muted is already synced via the isMuted effect.
+    player.play();
     setPlaying(true);
     setMuted(true);
     setFeedAudible(false);
     setEnded(false);
-  }, [feedMediaFocused]);
+  }, [feedMediaFocused, player]);
 
-  const onStatus = useCallback((st: AVPlaybackStatus) => {
-    if (!st.isLoaded) return;
-    if (typeof st.positionMillis === "number") setPositionMs(st.positionMillis);
-    if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
-      setDurationMs(st.durationMillis);
-    }
-    if ("isPlaying" in st) {
-      const p = !!st.isPlaying;
-      setPlaying(p);
-      if (p && !wasPlayingRef.current) {
-        const cid = controllerIdRef.current;
-        if (cid != null) void pauseAllMediaExcept(cid);
-      }
-      wasPlayingRef.current = p;
-    }
-    if ("didJustFinish" in st && st.didJustFinish) {
-      setPlaying(false);
-      setEnded(true);
-      wasPlayingRef.current = false;
-      const v = videoRef.current;
-      const dur = typeof st.durationMillis === "number" ? st.durationMillis : durationMs;
-      if (v && dur > 120) {
-        void v.setPositionAsync(Math.max(0, dur - 80)).catch(() => {});
-      }
-      if (typeof st.durationMillis === "number" && st.durationMillis > 0) {
-        setPositionMs(st.durationMillis);
-      }
-    }
-  }, [durationMs]);
+  // ────────────────────────────────────────────────────────────────────────────
 
-  const replayFromStart = async () => {
-    const v = videoRef.current;
-    if (!v) return;
-    try {
-      await v.setPositionAsync(0);
-      setPositionMs(0);
-      setEnded(false);
-      setPlaying(true);
-      await v.playAsync();
-    } catch {
-      /* ignore */
-    }
-  };
+  const replayFromStart = useCallback(async () => {
+    player.currentTime = 0;
+    setPositionMs(0);
+    setEnded(false);
+    player.play();
+    setPlaying(true);
+  }, [player]);
 
-  const togglePlay = async () => {
-    const v = videoRef.current;
+  const togglePlay = useCallback(async () => {
     const cid = controllerIdRef.current;
-    if (!v || cid == null) return;
+    if (cid == null) return;
 
     if (ended) {
       void replayFromStart();
       return;
     }
 
+    // Feed cell first tap → unmute rather than pause.
     if (feedMediaFocused && !feedAudible) {
       await pauseAllMediaExcept(cid);
       setMuted(false);
       setFeedAudible(true);
+      player.play();
       setPlaying(true);
-      try {
-        await v.playAsync();
-      } catch {
-        /* ignore */
-      }
       return;
     }
 
-    try {
-      const st = await v.getStatusAsync();
-      if (!st.isLoaded) return;
-      if (st.isPlaying) {
-        await v.pauseAsync();
-        setPlaying(false);
-      } else {
-        await pauseAllMediaExcept(cid);
-        await v.playAsync();
-        setPlaying(true);
-      }
-    } catch {
-      /* ignore */
+    if (playing) {
+      player.pause();
+      setPlaying(false);
+    } else {
+      await pauseAllMediaExcept(cid);
+      player.play();
+      setPlaying(true);
     }
-  };
+  }, [ended, feedMediaFocused, feedAudible, playing, player, replayFromStart]);
 
-  const toggleMute = async () => {
+  const toggleMute = useCallback(() => {
     if (feedMediaFocused && !feedAudible) {
       void togglePlay();
       return;
     }
     setMuted((m) => !m);
     if (feedMediaFocused) setFeedAudible((a) => !a);
-  };
+  }, [feedMediaFocused, feedAudible, togglePlay]);
 
-  const seekProgress = async (progress01: number) => {
-    const v = videoRef.current;
-    if (!v || durationMs <= 0) return;
-    const ms = Math.round(Math.min(1, Math.max(0, progress01)) * durationMs);
-    try {
-      await v.setPositionAsync(ms);
-      setPositionMs(ms);
+  const seekProgress = useCallback(
+    (progress01: number) => {
+      if (durationMs <= 0) return;
+      const secs = (Math.min(1, Math.max(0, progress01)) * durationMs) / 1000;
+      player.currentTime = secs;
+      setPositionMs(Math.round(secs * 1000));
       setEnded(false);
-    } catch {
-      /* ignore */
-    }
-  };
+    },
+    [durationMs, player],
+  );
 
   if (!uri) return null;
 
@@ -266,11 +262,12 @@ export function CapsuleVideoPlayer({
         ? Math.max(9 / 16, rawAspect)
         : Math.min(16 / 9, rawAspect)
       : VIDEO_UNKNOWN_ASPECT;
-  const videoResizeMode =
-    rawAspect != null && rawAspect < 1 ? ResizeMode.CONTAIN : ResizeMode.COVER;
+
+  // contentFit mirrors the old ResizeMode logic: contain for portrait, cover for landscape.
+  const contentFit: "contain" | "cover" =
+    rawAspect != null && rawAspect < 1 ? "contain" : "cover";
+
   const feedSilent = feedMediaFocused && !feedAudible;
-  const shouldPlay = feedMediaFocused ? playing && !ended : playing;
-  const isMuted = feedMediaFocused ? !feedAudible : muted;
 
   const trailing =
     feedMediaFocused && onOpenDetail && !ended ? (
@@ -299,27 +296,17 @@ export function CapsuleVideoPlayer({
       >
         <View style={[StyleSheet.absoluteFillObject, styles.placeholder, { borderRadius: cornerRad }]} />
         <Animated.View style={[styles.videoFill, { borderRadius: cornerRad, opacity: videoOpacity }]}>
-          <Video
-            ref={videoRef}
-            source={{ uri }}
+          {/*
+            VideoView renders the player's output. All playback control happens
+            via the `player` object — no `shouldPlay` / `isMuted` props needed.
+            nativeControls={false} keeps our custom CapsuleMediaControls in charge.
+          */}
+          <VideoView
+            player={player}
             style={StyleSheet.absoluteFillObject}
-            shouldPlay={shouldPlay}
-            isMuted={isMuted}
-            isLooping={false}
-            useNativeControls={false}
-            resizeMode={videoResizeMode}
-            onPlaybackStatusUpdate={onStatus}
-            onReadyForDisplay={(event: { naturalSize?: { width: number; height: number } }) => {
-              if (event?.naturalSize) {
-                setNaturalSize({ width: event.naturalSize.width, height: event.naturalSize.height });
-              }
-              setReady(true);
-              Animated.timing(videoOpacity, {
-                toValue: 1,
-                duration: 240,
-                useNativeDriver: true,
-              }).start();
-            }}
+            contentFit={contentFit}
+            nativeControls={false}
+            allowsFullscreen={false}
           />
         </Animated.View>
       </View>
@@ -334,8 +321,8 @@ export function CapsuleVideoPlayer({
           accentColor={accentColor}
           backgroundColor={backgroundColor}
           onTogglePlay={() => void togglePlay()}
-          onToggleMute={() => void toggleMute()}
-          onSeek={(p) => void seekProgress(p)}
+          onToggleMute={toggleMute}
+          onSeek={seekProgress}
           trailing={trailing}
           disabled={!ready}
         />

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type {
   CustomerInfo,
   PurchasesOfferings,
@@ -139,13 +139,18 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   /** Set immediately after a successful purchase while RC receipt validation may still lag. */
   const [optimisticEntitlement, setOptimisticEntitlement] = useState(false);
+  const lastServerRefreshRef = useRef(0);
 
   const applyCustomerInfo = useCallback(
     (info: CustomerInfo | null) => {
       setCustomerInfo(info);
       if (hasPremiumEntitlement(info)) {
         setOptimisticEntitlement(false);
-        void refreshUserFromServer();
+        const now = Date.now();
+        if (now - lastServerRefreshRef.current > 30_000) {
+          lastServerRefreshRef.current = now;
+          void refreshUserFromServer();
+        }
       }
     },
     [refreshUserFromServer],
@@ -206,18 +211,19 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
         const Purchases = getPurchases();
         await Purchases.configure({ apiKey });
         setEnabled(true);
+        // Unblock splash + entitlement gate before StoreKit customer-info fetch (slow on physical iOS).
+        setIsReady(true);
 
         removeListener = Purchases.addCustomerInfoUpdateListener(applyCustomerInfo);
 
-        try {
-          const info = await Purchases.getCustomerInfo();
-          applyCustomerInfo(info);
-        } catch {
-          /* ignore */
-        }
-
-        setIsReady(true);
-        // StoreKit offerings load only when paywall requests them — not at startup.
+        void (async () => {
+          try {
+            const info = await Purchases.getCustomerInfo();
+            applyCustomerInfo(info);
+          } catch {
+            /* ignore — listener will update when StoreKit responds */
+          }
+        })();
       } catch (e) {
         console.warn("[revenuecat] configure failed:", e);
         setEnabled(false);

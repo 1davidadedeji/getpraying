@@ -150,7 +150,7 @@ export function PushNotificationCoordinator() {
 
     void (async () => {
       coldStartCheckedRef.current = true;
-      await registerAndSyncPushToken(token);
+      void registerAndSyncPushToken(token);
 
       const initialUrl = await Linking.getInitialURL();
       if (parseDeepLinkUrl(initialUrl)) {

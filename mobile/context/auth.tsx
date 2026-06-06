@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [storedToken, storedUser] = await Promise.all([
+        const [storedToken] = await Promise.all([
           AsyncStorage.getItem(TOKEN_KEY),
           AsyncStorage.getItem(USER_KEY),
         ]);
@@ -65,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || !token) return;
     void syncDeviceTimezone(token);
+    // TEMP(ios-boot-test): gated by BYPASS_PUSH_TOKEN_SYNC in syncExpoPushToken.ts
     void registerAndSyncPushToken(token);
   }, [loading, token]);
 

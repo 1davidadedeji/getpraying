@@ -1,4 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { DiagnosticBridge } from "@/components/DiagnosticBridge";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +9,6 @@ import {
   Animated,
   FlatList,
   Image,
-  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -106,7 +106,6 @@ export default function PostDetailScreen() {
     const v = Array.isArray(focusMedia) ? focusMedia[0] : focusMedia;
     return v === "1" || v === "true";
   }, [focusMedia]);
-  const [threadOpen, setThreadOpen] = useState(true);
   const [bodyExpanded, setBodyExpanded] = useState(() => mediaFirst);
 
   useEffect(() => {
@@ -122,7 +121,7 @@ export default function PostDetailScreen() {
   const { data, isLoading, isError, error } = useGetPost(Number(id), {
     query: {
       queryKey: getGetPostQueryKey(postId),
-      enabled: Number.isFinite(postId) && !postUnavailable,
+      enabled: Number.isFinite(postId) && !postUnavailable && authReady,
       refetchInterval: screenFocused && !postUnavailable ? LIVE_POST_POLL_MS : false,
     },
   });
@@ -190,12 +189,9 @@ export default function PostDetailScreen() {
   const prayerMb = Math.round(clamp(20 * uiScale, 16, 24));
   const dividerMb = Math.round(clamp(14 * uiScale, 12, 16));
   const flameIcn = Math.round(clamp(18 * uiScale, 16, 20));
-  const prayCountGap = Math.round(clamp(6 * uiScale, 5, 8));
   const fsPrayCount = Math.round(clamp(13 * uiScale, 12, 14));
   const fsCommentsTitle = Math.round(clamp(13 * uiScale, 12, 14));
   const commentsTitleMb = Math.round(clamp(10 * uiScale, 8, 12));
-  const fsReplyHint = Math.round(clamp(13 * uiScale, 12, 14));
-  const replyHintMb = Math.round(clamp(10 * uiScale, 8, 12));
   const commentsLoadPadV = Math.round(clamp(14 * uiScale, 12, 16));
   const commentsLoadMb = Math.round(clamp(6 * uiScale, 5, 8));
   const stickyGap = Math.round(clamp(8 * uiScale, 6, 10));
@@ -259,10 +255,6 @@ export default function PostDetailScreen() {
   const detailCardBorder = Math.max(1, Math.round(1.5 * uiScale));
   const detailCardOuterMb = Math.round(clamp(16 * uiScale, 14, 20));
 
-  useEffect(() => {
-    setThreadOpen(true);
-  }, [postId]);
-
   const loadComments = useCallback(async (opts?: { silent?: boolean }) => {
     if (!post?.id) return;
     if (!opts?.silent) setCommentsLoading(true);
@@ -322,7 +314,6 @@ export default function PostDetailScreen() {
       if (!Number.isFinite(postId) || refreshedId !== postId) return;
       void loadComments();
       queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
-      setThreadOpen(true);
       requestAnimationFrame(() => {
         listRef.current?.scrollToEnd({ animated: true });
       });
@@ -332,10 +323,12 @@ export default function PostDetailScreen() {
   useEffect(() => {
     return subscribeAppActive(() => {
       if (!Number.isFinite(postId)) return;
+      // Invalidate TanStack query only — it will refetch the post and the
+      // live-poll interval handles comments. Firing both simultaneously was
+      // creating a 2-connection burst that saturated the NSURLSession pool.
       queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
-      void loadComments();
     }, 450);
-  }, [postId, loadComments, queryClient]);
+  }, [postId, queryClient]);
 
   const openAuthorProfile = useCallback(() => {
     if (!post || post.isAnonymous || !post.authorUsername) return;
@@ -607,19 +600,17 @@ export default function PostDetailScreen() {
           onPress: () => {
             void (async () => {
               const result = await submitPostReport(post.id, token);
-              InteractionManager.runAfterInteractions(() => {
-                if (result.ok) {
-                  showAppAlert({
-                    title: "Report submitted",
-                    message: result.message,
-                  });
-                } else {
-                  showAppAlert({
-                    title: "Could not submit report",
-                    message: result.error,
-                  });
-                }
-              });
+              if (result.ok) {
+                showAppAlert({
+                  title: "Report submitted",
+                  message: result.message,
+                });
+              } else {
+                showAppAlert({
+                  title: "Could not submit report",
+                  message: result.error,
+                });
+              }
             })();
           },
         },
@@ -663,7 +654,6 @@ export default function PostDetailScreen() {
       const created = dataJson.comment as CommentRow | undefined;
       const nextCount = comments.length + (created ? 1 : 0);
       if (created) setComments((prev) => [...prev, created]);
-      setThreadOpen(true);
       setCommentDraft("");
       setLocalPost((p) => {
         if (!p) return p;
@@ -721,10 +711,27 @@ export default function PostDetailScreen() {
     );
   }
 
-  if (isLoading || !post) {
+  if (isLoading && !post) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.flame} size="large" />
+      </View>
+    );
+  }
+
+  if (!post) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.unavailableTitle}>Couldn&apos;t load this prayer</Text>
+        <Text style={styles.unavailableSub}>Check your connection and try again.</Text>
+        <Pressable
+          onPress={() => void queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) })}
+          style={({ pressed }) => [styles.unavailableBtn, pressed && { opacity: 0.9 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading prayer"
+        >
+          <Text style={styles.unavailableBtnText}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
@@ -1004,6 +1011,7 @@ export default function PostDetailScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? kbOffset : 0}
     >
+      <DiagnosticBridge />
       <FlatList
         ref={listRef}
         style={styles.flex}

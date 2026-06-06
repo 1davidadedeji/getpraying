@@ -70,6 +70,7 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileMainTabKey>("my");
   const activeTabRef = useRef<ProfileMainTabKey>(activeTab);
   activeTabRef.current = activeTab;
+  const lastProfileFocusFetchRef = useRef(0);
   /** Measured height for collapsible-tab-view — avoids first row rendering under the profile hero. */
   const [profileCollapsibleHeaderH, setProfileCollapsibleHeaderH] = useState(380);
 
@@ -268,7 +269,11 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (token) void refetchMe();
+      if (!token) return;
+      const now = Date.now();
+      if (now - lastProfileFocusFetchRef.current < 8000) return;
+      lastProfileFocusFetchRef.current = now;
+      void refetchMe();
       void refreshModBadge();
       void loadMyPosts();
       void loadInteractions();
