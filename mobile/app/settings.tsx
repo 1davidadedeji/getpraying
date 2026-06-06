@@ -24,7 +24,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { clamp } from "@/lib/responsiveMetrics";
 import { useModerationBadge } from "@/context/moderationBadge";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
@@ -107,9 +107,10 @@ export default function SettingsScreen() {
     if (!token) return;
     setSavingNotifPref(true);
     try {
-      await fetch(apiUrl("/users/me"), {
+      await apiFetch("/users/me", {
         method: "PATCH",
-        headers: authHeaders(token, { "Content-Type": "application/json" }),
+        token,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledNotificationsEnabled: value }),
       });
       void syncDeviceTimezone(token);
@@ -139,9 +140,9 @@ export default function SettingsScreen() {
             if (!token) return;
             setDeletingAccount(true);
             try {
-              const res = await fetch(apiUrl("/auth/account"), {
+              const res = await apiFetch("/auth/account", {
                 method: "DELETE",
-                headers: authHeaders(token),
+                token,
               });
               if (res.ok) {
                 await logoutThenClearQueryCache(logout, queryClient);

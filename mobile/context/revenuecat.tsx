@@ -50,6 +50,8 @@ type RevenueCatState = {
   isPremiumTrial: boolean;
   canUseBoost: boolean;
   refresh: () => Promise<CustomerInfo | null>;
+  /** Load StoreKit offerings — call from paywall only (slow on physical iOS). */
+  loadCatalog: () => Promise<void>;
   purchaseMonthly: () => Promise<void>;
   purchasePackage: (pkg: PurchasesPackage) => Promise<void>;
   restore: () => Promise<CustomerInfo>;
@@ -80,12 +82,9 @@ function getRevenueCatApiKey(): string {
 function RevenueCatUserSync({
   enabled,
   onCustomerInfo,
-  onUserLinked,
 }: {
   enabled: boolean;
   onCustomerInfo: (info: CustomerInfo | null) => void;
-  /** Fire-and-forget catalog refresh after account link (must not block navigation). */
-  onUserLinked?: () => void;
 }) {
   const { user } = useAuth();
   const [linkedUserId, setLinkedUserId] = useState<number | null>(null);
@@ -119,12 +118,11 @@ function RevenueCatUserSync({
         const { customerInfo: info } = await Purchases.logIn(String(user.id));
         onCustomerInfo(info);
         setLinkedUserId(user.id);
-        onUserLinked?.();
       } catch {
         /* ignore — anonymous customer still works for new purchases */
       }
     })();
-  }, [enabled, user?.id, linkedUserId, onCustomerInfo, onUserLinked]);
+  }, [enabled, user?.id, linkedUserId, onCustomerInfo]);
 
   return null;
 }
@@ -219,15 +217,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
         }
 
         setIsReady(true);
-
-        void (async () => {
-          setCatalogLoading(true);
-          try {
-            applyCatalog(await fetchSubscriptionCatalog(Purchases));
-          } finally {
-            setCatalogLoading(false);
-          }
-        })();
+        // StoreKit offerings load only when paywall requests them — not at startup.
       } catch (e) {
         console.warn("[revenuecat] configure failed:", e);
         setEnabled(false);
@@ -340,6 +330,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       isPremiumTrial,
       canUseBoost,
       refresh,
+      loadCatalog,
       purchaseMonthly,
       purchasePackage,
       restore,
@@ -361,6 +352,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       canUseBoost,
       serverBoostEligible,
       refresh,
+      loadCatalog,
       purchaseMonthly,
       purchasePackage,
       restore,
@@ -372,7 +364,6 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       <RevenueCatUserSync
         enabled={enabled}
         onCustomerInfo={applyCustomerInfo}
-        onUserLinked={() => void loadCatalog()}
       />
       {children}
     </RevenueCatContext.Provider>
@@ -398,6 +389,7 @@ export function useRevenueCat(): RevenueCatState {
       isPremiumTrial: false,
       canUseBoost: false,
       refresh: async () => null,
+      loadCatalog: async () => {},
       purchaseMonthly: async () => {
         throw new Error("RevenueCatProvider missing");
       },

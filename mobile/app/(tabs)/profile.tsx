@@ -33,7 +33,7 @@ import { SAVED_POSTS_EMPTY } from "@/constants/savedList";
 import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
@@ -193,9 +193,9 @@ export default function ProfileScreen() {
       const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
       formData.append("file", { uri, name: filename, type: mimeType } as any);
 
-      const res = await fetch(apiUrl("/uploads/avatar"), {
+      const res = await apiFetch("/uploads/avatar", {
         method: "POST",
-        headers: authHeaders(token),
+        token,
         body: formData,
       });
       if (res.ok) {
@@ -215,9 +215,10 @@ export default function ProfileScreen() {
     if (!token) return;
     setSavingLocation(true);
     try {
-      const res = await fetch(apiUrl("/users/me"), {
+      const res = await apiFetch("/users/me", {
         method: "PATCH",
-        headers: authHeaders(token, { "Content-Type": "application/json" }),
+        token,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ location: locationDraft.trim() }),
       });
       if (res.ok) {
@@ -236,9 +237,7 @@ export default function ProfileScreen() {
     if (!user?.username || !token) return;
     setLoadingPosts(true);
     try {
-      const res = await fetch(apiUrl(`/users/${user.username}/posts?limit=50`), {
-        headers: authHeaders(token),
-      });
+      const res = await apiFetch(`/users/${user.username}/posts?limit=50`, { token });
       if (res.ok) {
         const data = await res.json();
         setMyPosts(data.posts ?? []);
@@ -255,8 +254,8 @@ export default function ProfileScreen() {
     setLoadingInteractions(true);
     try {
       const [likedRes, commentedRes] = await Promise.all([
-        fetch(apiUrl("/users/me/liked-posts"), { headers: authHeaders(token) }),
-        fetch(apiUrl("/users/me/commented-posts"), { headers: authHeaders(token) }),
+        apiFetch("/users/me/liked-posts", { token }),
+        apiFetch("/users/me/commented-posts", { token }),
       ]);
       if (likedRes.ok) setLikedPosts(((await likedRes.json()) as { posts?: Post[] }).posts ?? []);
       if (commentedRes.ok) setCommentedPosts(((await commentedRes.json()) as { posts?: Post[] }).posts ?? []);

@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 const PUSH_BUILD_KEY = "@getpraying/push-build-fingerprint";
 const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
@@ -64,9 +64,10 @@ async function postPushTokenToServer(
     body.platform = payload.platform ?? Platform.OS;
     if (payload.buildFingerprint) body.buildFingerprint = payload.buildFingerprint;
   }
-  const res = await fetch(apiUrl("/users/me/push-token"), {
+  const res = await apiFetch("/users/me/push-token", {
     method: "POST",
-    headers: authHeaders(apiJwt, { "Content-Type": "application/json" }),
+    token: apiJwt,
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {

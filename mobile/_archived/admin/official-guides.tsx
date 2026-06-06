@@ -23,7 +23,7 @@ import colors from "@/constants/colors";
 import type { ApiLibraryCategory } from "@/constants/libraryFallbackPaths";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { AUDIO_DOCUMENT_PICKER_TYPES } from "@/lib/audioDocumentTypes";
 import { normalizeAudioMime } from "@/lib/audioMime";
 import {
@@ -76,7 +76,7 @@ export default function AdminOfficialGuidesScreen() {
     if (!token) return;
     setLoadingExisting(true);
     try {
-      const res = await fetch(apiUrl("/library/official?limit=100"), { headers: authHeaders(token) });
+      const res = await apiFetch("/library/official?limit=100", { token });
       if (!res.ok) return;
       const data = await res.json();
       setExistingPrayers((data as { prayers?: OfficialPrayerRow[] }).prayers ?? []);
@@ -99,9 +99,9 @@ export default function AdminOfficialGuidesScreen() {
           onPress: async () => {
             setDeletingId(prayer.id);
             try {
-              const res = await fetch(apiUrl(`/admin/official-prayers/${prayer.id}`), {
+              const res = await apiFetch(`/admin/official-prayers/${prayer.id}`, {
                 method: "DELETE",
-                headers: authHeaders(token),
+                token,
               });
               if (res.ok) {
                 setExistingPrayers((prev) => prev.filter((p) => p.id !== prayer.id));
@@ -170,7 +170,7 @@ export default function AdminOfficialGuidesScreen() {
   const loadPaths = useCallback(async () => {
     setPathsLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/categories"), { headers: authHeaders(token) });
+      const res = await apiFetch("/library/categories", { token });
       if (!res.ok) {
         setPaths([]);
         return;
@@ -299,9 +299,10 @@ export default function AdminOfficialGuidesScreen() {
           return;
         }
         const categoryPut = publishKind === "lecture" ? "lectures" : editCategoryBaseline;
-        const res = await fetch(apiUrl(`/admin/official-prayers/${editingOfficialId}`), {
+        const res = await apiFetch(`/admin/official-prayers/${editingOfficialId}`, {
           method: "PUT",
-          headers: authHeaders(token, { "Content-Type": "application/json" }),
+          token,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: t,
             content: c,
@@ -382,9 +383,10 @@ export default function AdminOfficialGuidesScreen() {
       }
 
       if (publishKind === "lecture") {
-        const res = await fetch(apiUrl("/admin/official-prayers"), {
+        const res = await apiFetch("/admin/official-prayers", {
           method: "POST",
-          headers: authHeaders(token, { "Content-Type": "application/json" }),
+          token,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: t,
             content: c,
@@ -421,9 +423,10 @@ export default function AdminOfficialGuidesScreen() {
       const category = (selectedPath!.category ?? "general").trim() || "general";
       const archivePathId = selectedPath!.pathId;
 
-      const res = await fetch(apiUrl("/admin/official-prayers/schedule-slot"), {
+      const res = await apiFetch("/admin/official-prayers/schedule-slot", {
         method: "POST",
-        headers: authHeaders(token, { "Content-Type": "application/json" }),
+        token,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slot: scheduleSlot,
           archivePathId,

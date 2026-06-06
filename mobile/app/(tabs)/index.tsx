@@ -31,7 +31,7 @@ import { LAYOUT } from "@/constants/layout";
 import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
@@ -59,6 +59,8 @@ const NEW_POSTS_POLL_MS = 45_000;
 /** Show the “new prayers” pill once the user has scrolled slightly (avoids flash on first paint). */
 const NEW_POSTS_SCROLL_GATE_PX = 0;
 const NEW_POSTS_COUNT_DEBOUNCE_MS = 550;
+/** iOS scroll proximity fallback — FlatList onEndReached is unreliable with variable-height cells. */
+const LOAD_MORE_SCROLL_PADDING_PX = 360;
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
@@ -86,6 +88,7 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   // Refs kept in sync with their state counterparts so callbacks never close over
   // a stale value — avoids the race where onEndReached fires multiple times before
@@ -93,6 +96,8 @@ export default function FeedScreen() {
   const nextCursorRef = useRef<string | null>(null);
   nextCursorRef.current = nextCursor;
   const loadingMoreRef = useRef(false);
+  const postsRef = useRef(posts);
+  postsRef.current = posts;
   // Timestamp of the last successful full-page refresh — used to suppress silent
   // auto-refreshes that would discard the user's scroll position.
   const lastFreshAtRef = useRef<number>(0);
@@ -155,9 +160,7 @@ export default function FeedScreen() {
     async (q: string) => {
       setSearchLoading(true);
       try {
-        const res = await fetch(apiUrl(`/search?${new URLSearchParams({ q })}`), {
-          headers: authHeaders(token),
-        });
+        const res = await apiFetch(`/search?${new URLSearchParams({ q })}`, { token });
         if (!res.ok) {
           setSearchUsers([]);
           setSearchPosts([]);
@@ -247,9 +250,7 @@ export default function FeedScreen() {
         maxKnownCreatedAt,
         limit: String(NEW_POSTS_SINCE_LIMIT),
       });
-      const res = await fetch(apiUrl(`/posts/since?${params}`), {
-        headers: authHeaders(token),
-      });
+      const res = await apiFetch(`/posts/since?${params}`, { token });
       if (!res.ok) return { posts: [], globalNewestCreatedAt: null };
       const data = await res.json();
       return {
@@ -270,10 +271,8 @@ export default function FeedScreen() {
       if (cursor) params.set("cursor", cursor);
       if (category) params.set("category", category);
 
-      const res = await fetch(apiUrl(`/posts?${params}`), {
-        headers: authHeaders(token),
-      });
-      if (!res.ok) return { posts: [], nextCursor: null, globalNewestCreatedAt: null };
+      const res = await apiFetch(`/posts?${params}`, { token });
+      if (!res.ok) throw new Error(`GET /posts failed: ${res.status}`);
       const data = await res.json();
       const rawNext = data.nextCursor;
       const nc =
@@ -356,7 +355,9 @@ export default function FeedScreen() {
   }, []);
 
   const mergeFeedEngagement = useCallback(async () => {
-    if (loading || refreshing || feedCategory != null || posts.length === 0) return;
+    if (loading || refreshing || loadingMoreRef.current || feedCategory != null || posts.length === 0) {
+      return;
+    }
     try {
       const result = await fetchPage(undefined, null);
       const freshById = new Map(result.posts.map((p) => [p.id, p]));
@@ -428,9 +429,9 @@ export default function FeedScreen() {
       const maxKnown = maxKnownCreatedAtRef.current;
       if (!maxKnown) return;
       try {
-        const res = await fetch(
-          apiUrl(`/posts/new-count?maxKnownCreatedAt=${encodeURIComponent(maxKnown)}`),
-          { headers: authHeaders(token) },
+        const res = await apiFetch(
+          `/posts/new-count?maxKnownCreatedAt=${encodeURIComponent(maxKnown)}`,
+          { token },
         );
         if (!res.ok) return;
         const data = (await res.json()) as {
@@ -530,20 +531,49 @@ export default function FeedScreen() {
     if (loadingMoreRef.current || !nextCursorRef.current) return;
     loadingMoreRef.current = true;
     setLoadingMore(true);
+    setLoadMoreError(false);
     const cursor = nextCursorRef.current;
+    const startedAt = Date.now();
     try {
-      const result = await fetchPage(cursor, feedCategoryRef.current);
-      setPosts((prev) => {
-        const existingIds = new Set(prev.map((p) => p.id));
-        const fresh = result.posts.filter((p) => !existingIds.has(p.id));
-        return fresh.length > 0 ? [...prev, ...fresh] : prev;
-      });
+      let result = await fetchPage(cursor, feedCategoryRef.current);
+      const dedupeFresh = (page: Post[]) => {
+        const existingIds = new Set(postsRef.current.map((p) => p.id));
+        return page.filter((p) => !existingIds.has(p.id));
+      };
+
+      let fresh = dedupeFresh(result.posts);
+      if (
+        fresh.length === 0 &&
+        result.nextCursor &&
+        result.nextCursor !== cursor &&
+        result.posts.length > 0
+      ) {
+        result = await fetchPage(result.nextCursor, feedCategoryRef.current);
+        fresh = dedupeFresh(result.posts);
+      }
+
+      if (fresh.length > 0) {
+        setPosts((prev) => [...prev, ...fresh]);
+      }
       setNextCursor(result.nextCursor);
-    } catch { /* silently fail */ } finally {
+      if (__DEV__) {
+        console.info("[feed] load-more ok", {
+          ms: Date.now() - startedAt,
+          added: fresh.length,
+          nextCursor: result.nextCursor,
+        });
+      }
+    } catch (err) {
+      setLoadMoreError(true);
+      if (__DEV__) console.warn("[feed] load-more failed", err);
+    } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
   }, [fetchPage]);
+
+  const handleLoadMoreRef = useRef(handleLoadMore);
+  handleLoadMoreRef.current = handleLoadMore;
 
   const handleUpdated = useCallback((updated: Post) => {
     setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -559,11 +589,19 @@ export default function FeedScreen() {
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       onScrollHideBar(event);
-      const y = event.nativeEvent.contentOffset.y;
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      const y = contentOffset.y;
       const passed = y >= NEW_POSTS_SCROLL_GATE_PX;
       if (passed !== newPostsScrollGateRef.current) {
         newPostsScrollGateRef.current = passed;
         setNewPostsScrollGate(passed);
+      }
+      // Physical iOS devices often miss onEndReached with variable-height PostCards
+      // and removeClippedSubviews; proximity scroll is the reliable trigger there.
+      if (Platform.OS === "ios" && nextCursorRef.current) {
+        const nearBottom =
+          layoutMeasurement.height + y >= contentSize.height - LOAD_MORE_SCROLL_PADDING_PX;
+        if (nearBottom) void handleLoadMoreRef.current();
       }
     },
     [onScrollHideBar],
@@ -748,14 +786,24 @@ export default function FeedScreen() {
     ],
   );
 
-  const renderFooter = () => {
-    if (!loadingMore) return null;
+  const renderFooter = useCallback(() => {
+    if (!loadingMore && !nextCursor && !loadMoreError) return null;
     return (
       <View style={styles.footerLoader}>
-        <ActivityIndicator color={colors.flame} />
+        {loadingMore ? <ActivityIndicator color={colors.flame} /> : null}
+        {loadMoreError && !loadingMore ? (
+          <Pressable
+            onPress={() => void handleLoadMoreRef.current()}
+            style={styles.loadMoreRetry}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading more prayers"
+          >
+            <Text style={styles.loadMoreRetryText}>Tap to load more</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
-  };
+  }, [loadingMore, nextCursor, loadMoreError]);
 
   const renderPostItem = useCallback(
     ({ item }: { item: Post }) => (
@@ -851,13 +899,12 @@ export default function FeedScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
         onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.6}
+        onEndReachedThreshold={0.4}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        // Memory management: unmount native view trees (including Video/Audio) for
-        // cards that scroll far off-screen. This is the primary defence against OOM
-        // during long feed sessions. windowSize=7 keeps 3 screens above + below.
-        removeClippedSubviews={Platform.OS === "ios"}
+        // Clipping on iOS breaks scroll measurement for onEndReached with variable-height
+        // media cards; Android defaults to clipping for memory. windowSize caps memory.
+        removeClippedSubviews={Platform.OS === "android"}
         windowSize={9}
         maxToRenderPerBatch={8}
         initialNumToRender={10}
@@ -1339,8 +1386,19 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   footerLoader: {
+    minHeight: 56,
     paddingVertical: 20,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  loadMoreRetry: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  loadMoreRetryText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    color: colors.primary,
   },
   newPostsPillWrap: {
     position: "absolute",

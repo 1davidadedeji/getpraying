@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Href, router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,10 +11,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  getGetOfficialPrayerByIdQueryKey,
-  useGetOfficialPrayerById,
-} from "@workspace/api-client-react";
 import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import { LectureTrackList } from "@/components/LectureTrackList";
@@ -22,10 +18,32 @@ import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
+import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import { clamp } from "@/lib/responsiveMetrics";
-import { officialGuideBadgeLabel, type LectureTrackRow } from "@/lib/officialPrayer";
+import {
+  officialGuideBadgeLabel,
+  type LectureTrackRow,
+  type OfficialPrayerRow,
+} from "@/lib/officialPrayer";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
+
+const DETAIL_TIMEOUT_MS = 25_000;
+const LECTURES_LIST_PATH = "/library/official?category=lectures&limit=20";
+
+type OfficialDetail = OfficialPrayerRow & {
+  updatedAt?: string | Date | null;
+};
+
+function findCachedOfficialSummary(
+  prayerId: number,
+  token: string | null,
+): OfficialPrayerRow | null {
+  const detail = peekLibraryCache<OfficialDetail>(`/library/official/${prayerId}`, token);
+  if (detail) return detail;
+  const lectures = peekLibraryCache<{ prayers?: OfficialPrayerRow[] }>(LECTURES_LIST_PATH, token);
+  return lectures?.prayers?.find((p) => p.id === prayerId) ?? null;
+}
 
 function scheduleSlotBadge(s: string | null | undefined): string {
   if (!s) return "";
@@ -77,17 +95,49 @@ export default function OfficialPrayerScreen() {
   const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [data, setData] = useState<OfficialDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useGetOfficialPrayerById(prayerId, {
-    query: {
-      queryKey: getGetOfficialPrayerByIdQueryKey(prayerId),
-      enabled: Number.isFinite(prayerId) && prayerId > 0,
-      staleTime: 5 * 60 * 1000,
-      gcTime: 15 * 60 * 1000,
-    },
-  });
+  const cachedSummary = useMemo(
+    () => (Number.isFinite(prayerId) && prayerId > 0 ? findCachedOfficialSummary(prayerId, token) : null),
+    [prayerId, token],
+  );
 
-  const bodyText = (data?.content ?? "").trim();
+  const loadDetail = useCallback(async () => {
+    if (!Number.isFinite(prayerId) || prayerId <= 0) return;
+    setLoading(true);
+    setError(false);
+    const startedAt = Date.now();
+    try {
+      const cached = await fetchLibraryCached<OfficialDetail>(
+        `/library/official/${prayerId}`,
+        token,
+        { force: true, timeoutMs: DETAIL_TIMEOUT_MS },
+      );
+      if (!cached) {
+        setError(true);
+        if (__DEV__) {
+          console.warn("[library] official detail failed", { prayerId, ms: Date.now() - startedAt });
+        }
+        return;
+      }
+      setData(cached);
+      if (__DEV__) {
+        console.info("[library] official detail ok", { prayerId, ms: Date.now() - startedAt });
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [prayerId, token]);
+
+  useEffect(() => {
+    void loadDetail();
+  }, [loadDetail]);
+
+  const bodyText = (data?.content ?? cachedSummary?.content ?? "").trim();
   const longBody = useMemo(
     () => bodyText.length > 280 || (bodyText.match(/\n/g)?.length ?? 0) > 4,
     [bodyText],
@@ -96,10 +146,12 @@ export default function OfficialPrayerScreen() {
   const checkSaved = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) });
-      if (!res.ok) return;
-      const j = (await res.json()) as { prayers?: { id: number }[] };
-      setIsSaved(!!(j.prayers ?? []).find((p) => p.id === prayerId));
+      const saved = await fetchLibraryCached<{ prayers?: { id: number }[] }>(
+        "/library/saved-official",
+        token,
+        { timeoutMs: DETAIL_TIMEOUT_MS },
+      );
+      setIsSaved(!!(saved?.prayers ?? []).find((p) => p.id === prayerId));
     } catch {
       /* noop */
     }
@@ -124,9 +176,9 @@ export default function OfficialPrayerScreen() {
     setIsSaved(!was);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const res = await fetch(apiUrl(`/library/saved-official/${prayerId}`), {
+      const res = await apiFetch(`/library/saved-official/${prayerId}`, {
+        token,
         method: was ? "DELETE" : "POST",
-        headers: authHeaders(token),
       });
       if (!res.ok) {
         setIsSaved(was);
@@ -142,14 +194,19 @@ export default function OfficialPrayerScreen() {
     }
   };
 
-  if (isError) {
+  if (error && !data && !cachedSummary) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.err}>This guide is unavailable or was removed.</Text>
+        <Text style={styles.err}>This guide couldn&apos;t be loaded.</Text>
+        <Pressable onPress={() => void loadDetail()} style={styles.retryBtn}>
+          <Text style={styles.retryBtnText}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
-  if (isLoading || !data) {
+
+  const d = data ?? cachedSummary;
+  if (!d) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.accent} size="large" />
@@ -157,12 +214,11 @@ export default function OfficialPrayerScreen() {
     );
   }
 
-  const d = data;
   const isLecture = (d.category ?? "").toLowerCase() === "lectures";
-  const lectureTracks: LectureTrackRow[] = isLecture ? (d.tracks ?? []) : [];
+  const lectureTracks: LectureTrackRow[] = isLecture ? (data?.tracks ?? d.tracks ?? []) : [];
   const updated =
-    d.updatedAt && d.createdAt && d.updatedAt !== d.createdAt
-      ? new Date(d.updatedAt)
+    data?.updatedAt && data?.createdAt && data.updatedAt !== data.createdAt
+      ? new Date(data.updatedAt)
       : null;
 
   const showSeeAlsoRowPath = Boolean(d.pathId && d.pathId > 0 && !isLecture);
@@ -175,6 +231,12 @@ export default function OfficialPrayerScreen() {
       contentContainerStyle={[styles.container, { paddingHorizontal: gutter, paddingBottom: insets.bottom + botPad }]}
       showsVerticalScrollIndicator={false}
     >
+      {loading && !data ? (
+        <View style={styles.loadingBanner}>
+          <ActivityIndicator color={colors.accent} size="small" />
+          <Text style={styles.loadingBannerText}>Loading full guide…</Text>
+        </View>
+      ) : null}
       <View style={[styles.topRow, { gap: rowGap, marginBottom: topMb }]}>
         <View style={[styles.topMeta, { gap: metaGap, flex: 1 }]}>
           <Text style={[styles.badge, { fontSize: fsBadge }]}>
@@ -296,7 +358,7 @@ export default function OfficialPrayerScreen() {
         </View>
       ) : null}
 
-      <Pressable onPress={() => void refetch()} style={[styles.refresh, { marginTop: refreshMt }]}>
+      <Pressable onPress={() => void loadDetail()} style={[styles.refresh, { marginTop: refreshMt }]}>
         <Text style={[styles.refreshText, { fontSize: fsRefresh }]}>Refresh if something looks out of date</Text>
       </Pressable>
     </ScrollView>
@@ -305,7 +367,30 @@ export default function OfficialPrayerScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, backgroundColor: colors.cream, alignItems: "center", justifyContent: "center", padding: 24 },
-  err: { fontFamily: "PlusJakartaSans_400Regular", color: colors.muted, textAlign: "center" },
+  err: { fontFamily: "PlusJakartaSans_400Regular", color: colors.muted, textAlign: "center", marginBottom: 12 },
+  retryBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+  },
+  retryBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    color: colors.surface,
+  },
+  loadingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  loadingBannerText: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 13,
+    color: colors.muted,
+  },
   container: { paddingTop: 8 },
   topRow: { flexDirection: "row", alignItems: "flex-start" },
   topMeta: {},

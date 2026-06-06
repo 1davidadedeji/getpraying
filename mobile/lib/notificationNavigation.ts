@@ -1,5 +1,5 @@
 import { router, type Href } from "expo-router";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { bumpDeferredNavigation } from "@/lib/deferredNavigation";
 import { requestPostDetailRefresh } from "@/lib/postDetailRefresh";
 import {
@@ -47,9 +47,9 @@ function markNotificationReadIfNeeded(
   notificationId: number | undefined,
 ): void {
   if (!authToken || notificationId == null || !Number.isFinite(notificationId)) return;
-  void fetch(apiUrl(`/notifications/${notificationId}/read`), {
+  void apiFetch(`/notifications/${notificationId}/read`, {
     method: "POST",
-    headers: authHeaders(authToken),
+    token: authToken,
   }).catch(() => {
     /* ignore */
   });

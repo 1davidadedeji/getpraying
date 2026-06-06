@@ -25,7 +25,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
 
 function toOfficialRow(p: OfficialPrayer & { audioUrl?: string | null; scheduleSlot?: string | null }): OfficialPrayerRow {
@@ -147,9 +147,9 @@ export default function PathDetailScreen() {
     async (prayerId: number, currentlySaved: boolean) => {
       if (!token) return;
       const method = currentlySaved ? "DELETE" : "POST";
-      const res = await fetch(apiUrl(`/library/saved-official/${prayerId}`), {
+      const res = await apiFetch(`/library/saved-official/${prayerId}`, {
         method,
-        headers: authHeaders(token),
+        token,
       });
       if (res.ok) {
         await queryClient.invalidateQueries({ queryKey: getGetPathQueryKey(pathId) });

@@ -16,7 +16,7 @@ import { SAVED_OFFICIAL_EMPTY } from "@/constants/savedOfficialList";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type Props = {
@@ -60,7 +60,7 @@ export function SavedOfficialPrayersList({
     }
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) });
+      const res = await apiFetch("/library/saved-official", { token });
       if (!res.ok) {
         setPrayers([]);
         return;
@@ -95,9 +95,9 @@ export function SavedOfficialPrayersList({
     onToggleSave?.(id);
 
     try {
-      const res = await fetch(apiUrl(`/library/saved-official/${id}`), {
+      const res = await apiFetch(`/library/saved-official/${id}`, {
         method: "DELETE",
-        headers: authHeaders(token),
+        token,
       });
       if (!res.ok) {
         // Revert: reload list on failure

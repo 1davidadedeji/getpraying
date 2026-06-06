@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -62,9 +62,7 @@ export default function AdminUsersScreen() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/admin/users?limit=200"), {
-        headers: authHeaders(token),
-      });
+      const res = await apiFetch("/admin/users?limit=200", { token });
       const data = await res.json().catch(() => ({}));
       setAllUsers(Array.isArray(data.users) ? data.users : []);
     } catch {
@@ -99,9 +97,10 @@ export default function AdminUsersScreen() {
           onPress: async () => {
             if (!token) return;
             try {
-              const res = await fetch(apiUrl(`/admin/users/${userId}/role`), {
+              const res = await apiFetch(`/admin/users/${userId}/role`, {
                 method: "POST",
-                headers: authHeaders(token, { "Content-Type": "application/json" }),
+                token,
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ role }),
               });
               const data = await res.json().catch(() => ({}));
@@ -132,9 +131,9 @@ export default function AdminUsersScreen() {
           onPress: async () => {
             if (!token) return;
             try {
-              const res = await fetch(apiUrl(`/admin/users/${userId}`), {
+              const res = await apiFetch(`/admin/users/${userId}`, {
                 method: "DELETE",
-                headers: authHeaders(token),
+                token,
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {
@@ -167,9 +166,9 @@ export default function AdminUsersScreen() {
           onPress: async () => {
             if (!token) return;
             try {
-              const res = await fetch(apiUrl(`/admin/users/${userId}/${action}`), {
+              const res = await apiFetch(`/admin/users/${userId}/${action}`, {
                 method: "POST",
-                headers: authHeaders(token),
+                token,
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {

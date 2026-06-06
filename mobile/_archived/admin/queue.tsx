@@ -32,7 +32,7 @@ import colors from "@/constants/colors";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { useAuth } from "@/context/auth";
 import { useModerationBadge } from "@/context/moderationBadge";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -400,9 +400,7 @@ function ModActivityCard({ token }: { token: string | null }) {
     if (!token) return;
     (async () => {
       try {
-        const res = await fetch(apiUrl("/admin/moderators/activity"), {
-          headers: authHeaders(token),
-        });
+        const res = await apiFetch("/admin/moderators/activity", { token });
         const data = await res.json().catch(() => ({}));
         setRows(Array.isArray(data.moderators) ? data.moderators : []);
       } catch {
@@ -484,9 +482,9 @@ function ReviewedPostCard({
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl(`/admin/posts/${post.id}/requeue`), {
+      const res = await apiFetch(`/admin/posts/${post.id}/requeue`, {
         method: "POST",
-        headers: authHeaders(token),
+        token,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

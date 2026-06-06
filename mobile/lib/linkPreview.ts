@@ -1,5 +1,7 @@
 /** Best-effort Open Graph parsing for lightweight in-app link previews (native fetch, no DOM). */
 
+import { fetchWithTimeout } from "@workspace/api-client-react";
+
 const HTTPS_RE = /https:\/\/[^\s<>"'`[\]()]+/gi;
 
 export type LinkPreview = {
@@ -110,19 +112,23 @@ export async function fetchOpenGraphPreview(
   opts?: { timeoutMs?: number },
 ): Promise<LinkPreview | null> {
   const timeoutMs = opts?.timeoutMs ?? 12_000;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const startedAt = Date.now();
+  const startIso = new Date(startedAt).toISOString();
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "GET",
       redirect: "follow",
-      signal: ctrl.signal,
+      timeoutMs,
       headers: {
         Accept: "text/html,application/xhtml+xml",
         /** Many CDNs behave better with a common desktop UA when scraping OG tags. */
         "User-Agent": "Mozilla/5.0 (compatible; GetPraying/1.0; +https://share.getpraying.com)",
       },
     });
+    const endedAt = Date.now();
+    console.info(
+      `[Fetch] ${url} took ${endedAt - startedAt}ms (start=${startIso}, end=${new Date(endedAt).toISOString()})`,
+    );
     if (!res.ok) return null;
     const html = await res.text();
     if (!html) return null;
@@ -150,9 +156,14 @@ export async function fetchOpenGraphPreview(
       title: ogTitle,
       imageUrl,
     };
-  } catch {
+  } catch (err) {
+    const endedAt = Date.now();
+    const endIso = new Date(endedAt).toISOString();
+    const durationMs = endedAt - startedAt;
+    console.warn(
+      `[Fetch] ${url} failed after ${durationMs}ms (start=${startIso}, end=${endIso})`,
+      err,
+    );
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }

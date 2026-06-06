@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 /** Poll often so mods see pending count + notification list stay in sync after a colleague acts. */
 const POLL_INTERVAL_MS = 12_000;
@@ -32,7 +32,7 @@ export function ModerationBadgeProvider({ children }: { children: React.ReactNod
       return;
     }
     try {
-      const res = await fetch(apiUrl("/admin/pending-count"), { headers: authHeaders(token) });
+      const res = await apiFetch("/admin/pending-count", { token });
       if (!res.ok) return;
       const data = await res.json();
       const next = typeof data.count === "number" ? data.count : 0;

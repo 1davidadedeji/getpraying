@@ -1,5 +1,9 @@
+import { formatApiLogPath, logApiFetch } from "./api-fetch-log";
+import { DEFAULT_API_TIMEOUT_MS, fetchWithTimeout } from "./fetch-with-timeout";
+
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
+  timeoutMs?: number;
 };
 
 export type ErrorType<T = unknown> = ApiError<T>;
@@ -324,7 +328,8 @@ export async function customFetch<T = unknown>(
   options: CustomFetchOptions = {},
 ): Promise<T> {
   input = applyBaseUrl(input);
-  const { responseType = "auto", headers: headersInit, ...init } = options;
+  const { responseType = "auto", headers: headersInit, timeoutMs = DEFAULT_API_TIMEOUT_MS, ...init } =
+    options;
 
   const method = resolveMethod(input, init.method);
 
@@ -356,8 +361,22 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
+  const logPath = formatApiLogPath(requestInfo.url);
+  const startedAt = Date.now();
 
-  const response = await fetch(input, { ...init, method, headers });
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(input, {
+      ...init,
+      method,
+      headers,
+      timeoutMs,
+    });
+    logApiFetch(logPath, startedAt);
+  } catch (err) {
+    logApiFetch(logPath, startedAt, err);
+    throw err;
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

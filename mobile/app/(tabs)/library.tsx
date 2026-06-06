@@ -28,7 +28,7 @@ import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
@@ -121,6 +121,25 @@ export default function LibraryScreen() {
     return [...lecturesGuides, { _explorePlaceholder: true }];
   }, [lecturesGuides]);
 
+  const savedListData = useMemo(
+    () =>
+      loadingSaved
+        ? []
+        : [
+            ...savedOfficialList.map((op) => ({
+              type: "official" as const,
+              id: `o-${op.id}`,
+              item: op,
+            })),
+            ...savedPosts.map((p) => ({
+              type: "post" as const,
+              id: `p-${p.id}`,
+              item: p,
+            })),
+          ],
+    [loadingSaved, savedOfficialList, savedPosts],
+  );
+
   useEffect(() => {
     setLectureScrollIndex(0);
   }, [lecturesGuides]);
@@ -179,8 +198,8 @@ export default function LibraryScreen() {
     setLoadingSaved(true);
     try {
       const [officialRes, postsRes] = await Promise.all([
-        fetch(apiUrl("/library/saved-official"), { headers: authHeaders(token) }),
-        fetch(apiUrl("/library/saved"), { headers: authHeaders(token) }),
+        apiFetch("/library/saved-official", { token }),
+        apiFetch("/library/saved", { token }),
       ]);
       if (officialRes.ok) {
         const data = await officialRes.json();
@@ -276,9 +295,9 @@ export default function LibraryScreen() {
       });
 
       try {
-        const res = await fetch(apiUrl(`/library/saved-official/${id}`), {
+        const res = await apiFetch(`/library/saved-official/${id}`, {
           method: wasSaved ? "DELETE" : "POST",
-          headers: authHeaders(token),
+          token,
         });
         if (!res.ok) {
           // Revert on failure
@@ -393,6 +412,14 @@ export default function LibraryScreen() {
     [lectureSnapInterval, lectureCarouselData.length],
   );
 
+  const openOfficialPrayer = useCallback(
+    (id: number) => {
+      void fetchLibraryCached(`/library/official/${id}`, token, { force: true });
+      router.push(`/official/${id}` as never);
+    },
+    [token],
+  );
+
   const renderLectureCarouselItem = useCallback(
     (info: ListRenderItemInfo<LectureCarouselItem>) => {
       const { item } = info;
@@ -434,7 +461,7 @@ export default function LibraryScreen() {
             },
             pressed && styles.cardPressed,
           ]}
-          onPress={() => router.push(`/official/${op.id}` as never)}
+          onPress={() => openOfficialPrayer(op.id)}
           accessibilityRole="button"
           accessibilityLabel={`Open lecture: ${op.title}`}
         >
@@ -467,7 +494,7 @@ export default function LibraryScreen() {
         </Pressable>
       );
     },
-    [lectureCardWidth, lecturesGuides, uiScale],
+    [lectureCardWidth, lecturesGuides, uiScale, openOfficialPrayer],
   );
 
   const openPath = (cat: CategoryItem) => {
@@ -483,6 +510,12 @@ export default function LibraryScreen() {
                 .toLowerCase()
                 .replace(/[^a-z0-9/]+/g, "-")
                 .replace(/^-|-$/g, "");
+      const params = new URLSearchParams({
+        category: slug,
+        excludeScheduled: "1",
+        limit: "120",
+      });
+      void fetchLibraryCached(`/library/official?${params}`, token, { force: true });
       router.push(`/category/${encodeURIComponent(slug)}` as never);
     }
   };
@@ -624,6 +657,7 @@ export default function LibraryScreen() {
       {activeTab === "categories" && (
         <ScrollView
           ref={categoriesScrollRef}
+          style={styles.tabScroll}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollPadBottom, paddingHorizontal: 0 }]}
         >
@@ -696,6 +730,7 @@ export default function LibraryScreen() {
                 <>
                   <FlatList
                     horizontal
+                    nestedScrollEnabled
                     data={lectureCarouselData}
                     keyExtractor={(it) =>
                       !("id" in it) ? "__explore_more" : String((it as OfficialPrayerRow).id)}
@@ -765,7 +800,8 @@ export default function LibraryScreen() {
       {activeTab === "saved" && (
         <FlatList
           ref={savedListRef}
-          data={loadingSaved ? [] : [...savedOfficialList.map(op => ({ type: "official" as const, id: `o-${op.id}`, item: op })), ...savedPosts.map(p => ({ type: "post" as const, id: `p-${p.id}`, item: p }))]}
+          style={styles.tabScroll}
+          data={savedListData}
           keyExtractor={(row) => row.id}
           renderItem={({ item: row }) => {
             if (row.type === "official") {
@@ -780,7 +816,7 @@ export default function LibraryScreen() {
                       if (!token) return;
                       setSavedOfficialList((prev) => prev.filter((p) => p.id !== op.id));
                       setSavedOfficialIds((prev) => { const next = new Set(prev); next.delete(op.id); return next; });
-                      await fetch(apiUrl(`/library/saved-official/${op.id}`), { method: "DELETE", headers: authHeaders(token) }).catch(() => void loadSaved());
+                      await apiFetch(`/library/saved-official/${op.id}`, { method: "DELETE", token }).catch(() => void loadSaved());
                     }}
                   />
                 </View>
@@ -909,6 +945,9 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: colors.surface,
+  },
+  tabScroll: {
+    flex: 1,
   },
   scrollContent: {
     paddingTop: 4,

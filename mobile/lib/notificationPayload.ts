@@ -1,4 +1,4 @@
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { notificationRowToPushData } from "@/lib/notificationNavigation";
 import { normalizeNotificationPayload } from "@/lib/notificationPayloadNormalize";
 
@@ -30,9 +30,7 @@ export async function enrichNotificationPayload(
   if (!Number.isFinite(notificationId) || notificationId <= 0) return data;
 
   try {
-    const res = await fetch(apiUrl(`/notifications/${notificationId}`), {
-      headers: authHeaders(authToken),
-    });
+    const res = await apiFetch(`/notifications/${notificationId}`, { token: authToken });
     if (!res.ok) return data;
     const row = (await res.json()) as NotificationNavRow;
     return {

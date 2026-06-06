@@ -22,7 +22,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { timeAgo } from "@/lib/timeAgo";
 import { LIVE_NOTIFICATIONS_POLL_MS } from "@/lib/liveSync";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import {
   navigateFromNotificationData,
   notificationOpensWebAdmin,
@@ -242,9 +242,9 @@ export default function NotificationsScreen() {
         const list = normalizeNotificationsPayload(old);
         return list.map((n) => (n.id === item.id ? { ...n, isRead: true } : n));
       });
-      fetch(apiUrl(`/notifications/${item.id}/read`), {
+      apiFetch(`/notifications/${item.id}/read`, {
         method: "POST",
-        headers: authHeaders(token),
+        token,
       })
         .then(() => queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() }))
         .catch(() => {

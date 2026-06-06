@@ -50,7 +50,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { timeAgo } from "@/lib/timeAgo";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { submitPostReport } from "@/lib/reportPost";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { buildPostSharePayload } from "@/lib/sharePost";
@@ -267,9 +267,7 @@ export default function PostDetailScreen() {
     if (!post?.id) return;
     if (!opts?.silent) setCommentsLoading(true);
     try {
-      const res = await fetch(apiUrl(`/posts/${post.id}/comments`), {
-        headers: authHeaders(token),
-      });
+      const res = await apiFetch(`/posts/${post.id}/comments`, { token });
       if (res.status === 404) {
         setPostUnavailable(true);
         setComments([]);
@@ -369,12 +367,10 @@ export default function PostDetailScreen() {
         opts?.reason && opts.reason.length >= 3
           ? JSON.stringify({ reason: opts.reason })
           : undefined;
-      const res = await fetch(apiUrl(`/posts/${post.id}`), {
+      const res = await apiFetch(`/posts/${post.id}`, {
         method: "DELETE",
-        headers: authHeaders(
-          token,
-          body ? { "Content-Type": "application/json" } : undefined,
-        ),
+        token,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
         body,
       });
       if (res.ok) {
@@ -640,9 +636,10 @@ export default function PostDetailScreen() {
     }
     setCommentSubmitting(true);
     try {
-      const res = await fetch(apiUrl(`/posts/${post.id}/comments`), {
+      const res = await apiFetch(`/posts/${post.id}/comments`, {
         method: "POST",
-        headers: authHeaders(token, { "Content-Type": "application/json" }),
+        token,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: commentDraft.trim() }),
       });
       if (res.status === 404) {

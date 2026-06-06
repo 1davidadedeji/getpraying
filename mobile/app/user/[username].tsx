@@ -31,7 +31,7 @@ import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { clamp } from "@/lib/responsiveMetrics";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
 
 interface UserProfile {
@@ -151,7 +151,7 @@ export default function UserProfileScreen() {
   );
 
   const fetchProfile = useCallback(async () => {
-    const res = await fetch(apiUrl(`/users/${username}`), { headers: authHeaders(token) });
+    const res = await apiFetch(`/users/${username}`, { token });
     if (res.ok) setProfile(await res.json());
   }, [username, token]);
 
@@ -159,9 +159,7 @@ export default function UserProfileScreen() {
     async (cursor?: number) => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("cursor", String(cursor));
-      const res = await fetch(apiUrl(`/users/${username}/posts?${params}`), {
-        headers: authHeaders(token),
-      });
+      const res = await apiFetch(`/users/${username}/posts?${params}`, { token });
       if (!res.ok) return { posts: [] as Post[], nextCursor: null };
       const data = await res.json();
       return { posts: (data.posts ?? []) as Post[], nextCursor: data.nextCursor ?? null };
@@ -170,11 +168,10 @@ export default function UserProfileScreen() {
   );
 
   const fetchInteractions = useCallback(async () => {
-    const h = authHeaders(token);
     const base = isOwnProfile && token ? "/users/me" : `/users/${username}`;
     const [likedRes, commentedRes] = await Promise.all([
-      fetch(apiUrl(`${base}/liked-posts`), { headers: h }),
-      fetch(apiUrl(`${base}/commented-posts`), { headers: h }),
+      apiFetch(`${base}/liked-posts`, { token }),
+      apiFetch(`${base}/commented-posts`, { token }),
     ]);
     const likedData = likedRes.ok ? await likedRes.json() : {};
     const commentedData = commentedRes.ok ? await commentedRes.json() : {};
@@ -193,9 +190,7 @@ export default function UserProfileScreen() {
   }, [username, token, isOwnProfile]);
 
   const fetchSaved = useCallback(async () => {
-    const res = await fetch(apiUrl(`/users/${username}/saved-posts?limit=50`), {
-      headers: authHeaders(token),
-    });
+    const res = await apiFetch(`/users/${username}/saved-posts?limit=50`, { token });
     if (!res.ok) {
       setSaved([]);
       setSavedLoaded(true);
@@ -372,9 +367,9 @@ export default function UserProfileScreen() {
                 setFollowBusy(true);
                 void (async () => {
                   try {
-                    const res = await fetch(apiUrl(`/users/${profile.username}/follow`), {
+                    const res = await apiFetch(`/users/${profile.username}/follow`, {
                       method: next ? "POST" : "DELETE",
-                      headers: authHeaders(token),
+                      token,
                     });
                     if (res.ok) {
                       setProfile((p) =>

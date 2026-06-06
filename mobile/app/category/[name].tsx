@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -19,10 +20,12 @@ import { emojiForLibraryCategory } from "@/constants/libraryFallbackPaths";
 import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached } from "@/lib/libraryFetchCache";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
+
+const LOAD_TIMEOUT_MS = 25_000;
 
 export default function CategoryOfficialScreen() {
   useStackHeaderBack("/(tabs)/library" as Href);
@@ -45,43 +48,73 @@ export default function CategoryOfficialScreen() {
     category: categorySlug,
   });
 
-  const loadGuides = useCallback(async () => {
-    if (!categorySlug) {
-      setGuides([]);
+  const loadGuides = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (!categorySlug) {
+        setGuides([]);
+        return true;
+      }
+      const params = new URLSearchParams({
+        category: categorySlug,
+        excludeScheduled: "1",
+        limit: "120",
+      });
+      const officialPath = `/library/official?${params}`;
+      const startedAt = Date.now();
+      const officialData = await fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>(
+        officialPath,
+        token,
+        { force: opts?.force, timeoutMs: LOAD_TIMEOUT_MS },
+      );
+      if (!officialData) {
+        if (__DEV__) console.warn("[library] category guides failed", { categorySlug, ms: Date.now() - startedAt });
+        return false;
+      }
+      setGuides(officialData.prayers ?? []);
+      if (__DEV__) {
+        console.info("[library] category guides ok", {
+          categorySlug,
+          count: officialData.prayers?.length ?? 0,
+          ms: Date.now() - startedAt,
+        });
+      }
+      return true;
+    },
+    [categorySlug, token],
+  );
+
+  const loadSavedIds = useCallback(async () => {
+    if (!token) {
+      setSavedIds(new Set());
       return;
     }
-    const params = new URLSearchParams({
-      category: categorySlug,
-      excludeScheduled: "1",
-      limit: "120",
-    });
-    const officialPath = `/library/official?${params}`;
-    const [officialData, savedData] = await Promise.all([
-      fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>(officialPath, token),
-      token
-        ? fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>("/library/saved-official", token)
-        : Promise.resolve(null),
-    ]);
-    if (!officialData) throw new Error("Failed to load guides");
-    setGuides(officialData.prayers ?? []);
-    if (savedData?.prayers) {
-      setSavedIds(new Set(savedData.prayers.map((p) => p.id)));
-    } else {
-      setSavedIds(new Set());
+    try {
+      const savedData = await fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>(
+        "/library/saved-official",
+        token,
+        { timeoutMs: LOAD_TIMEOUT_MS },
+      );
+      if (savedData?.prayers) {
+        setSavedIds(new Set(savedData.prayers.map((p) => p.id)));
+      }
+    } catch {
+      /* non-blocking */
     }
-  }, [categorySlug, token]);
+  }, [token]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
-      await loadGuides();
-      setError(false);
+      const ok = await loadGuides();
+      void loadSavedIds();
+      setError(!ok);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [loadGuides]);
+  }, [loadGuides, loadSavedIds]);
 
   useEffect(() => {
     void loadInitial();
@@ -90,13 +123,15 @@ export default function CategoryOfficialScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadGuides();
+      const ok = await loadGuides({ force: true });
+      void loadSavedIds();
+      if (!ok) setError(true);
     } catch {
-      /* silent */
+      setError(true);
     } finally {
       setRefreshing(false);
     }
-  }, [loadGuides]);
+  }, [loadGuides, loadSavedIds]);
 
   const toggleSave = useCallback(
     async (prayerId: number, currentlySaved: boolean) => {
@@ -108,11 +143,20 @@ export default function CategoryOfficialScreen() {
         else next.add(prayerId);
         return next;
       });
-      const res = await fetch(apiUrl(`/library/saved-official/${prayerId}`), {
-        method,
-        headers: authHeaders(token),
-      });
-      if (!res.ok) {
+      try {
+        const res = await apiFetch(`/library/saved-official/${prayerId}`, {
+          token,
+          method,
+        });
+        if (!res.ok) {
+          setSavedIds((prev) => {
+            const next = new Set(prev);
+            if (currentlySaved) next.add(prayerId);
+            else next.delete(prayerId);
+            return next;
+          });
+        }
+      } catch {
         setSavedIds((prev) => {
           const next = new Set(prev);
           if (currentlySaved) next.add(prayerId);
@@ -163,6 +207,9 @@ export default function CategoryOfficialScreen() {
             <Ionicons name="cloud-offline-outline" size={48} color={colors.muted} />
             <Text style={styles.emptyTitle}>Connection issue</Text>
             <Text style={styles.emptySubtitle}>Pull down to try again</Text>
+            <Pressable onPress={() => void loadInitial()} style={styles.retryBtn}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </Pressable>
           </View>
         ) : (
           <View style={styles.emptyState}>
@@ -237,5 +284,17 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: "center",
     paddingHorizontal: 24,
+  },
+  retryBtn: {
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+  },
+  retryBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    color: colors.surface,
   },
 });

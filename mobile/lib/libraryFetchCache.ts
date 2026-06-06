@@ -1,4 +1,4 @@
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type CacheEntry = { at: number; data: unknown };
 
@@ -32,7 +32,7 @@ export function clearLibraryCache(): void {
 export async function fetchLibraryCached<T>(
   path: string,
   token: string | null | undefined,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; timeoutMs?: number },
 ): Promise<T | null> {
   const key = cacheKey(path, token);
   const stale = store.get(key)?.data as T | undefined;
@@ -42,7 +42,7 @@ export async function fetchLibraryCached<T>(
   }
 
   try {
-    const res = await fetch(apiUrl(path), { headers: authHeaders(token) });
+    const res = await apiFetch(path, { token, timeoutMs: opts?.timeoutMs });
     if (!res.ok) return stale ?? null;
     const data = (await res.json()) as T;
     setLibraryCache(path, token, data);

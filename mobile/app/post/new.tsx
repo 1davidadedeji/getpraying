@@ -40,7 +40,7 @@ import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { CATEGORY_SLUGS } from "@/lib/categories";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { AUDIO_DOCUMENT_PICKER_TYPES } from "@/lib/audioDocumentTypes";
 import { normalizeAudioMime } from "@/lib/audioMime";
 import {
@@ -187,9 +187,10 @@ export default function NewPostScreen() {
     const t = setTimeout(async () => {
       try {
         setAiLoading(true);
-        const res = await fetch(apiUrl("/posts/suggest-category"), {
+        const res = await apiFetch("/posts/suggest-category", {
           method: "POST",
-          headers: authHeaders(token, { "Content-Type": "application/json" }),
+          token,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: trimmed }),
         });
         const data = await res.json().catch(() => null);

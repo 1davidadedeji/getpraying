@@ -17,7 +17,7 @@ import { showAppAlert } from "@/components/AppAlert";
 import { AppLogo } from "@/components/AppLogo";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import { apiUrl } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 
@@ -55,7 +55,7 @@ export default function ForgotPasswordScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/auth/forgot-password"), {
+      const res = await apiFetch("/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: e }),

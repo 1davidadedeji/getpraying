@@ -173,8 +173,8 @@ export default function PaywallScreen() {
         entitlementRedirected.current = false;
       }
       if (!rc.enabled || rc.hasMonthlyOffer) return;
-      void rc.refresh();
-    }, [rc.enabled, rc.hasMonthlyOffer, rc.isEntitled, rc.refresh]),
+      void rc.loadCatalog();
+    }, [rc.enabled, rc.hasMonthlyOffer, rc.isEntitled, rc.loadCatalog]),
   );
 
   const onPurchase = async () => {

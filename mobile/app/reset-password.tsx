@@ -17,7 +17,7 @@ import { showAppAlert } from "@/components/AppAlert";
 import { AppLogo } from "@/components/AppLogo";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import { apiUrl } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 
@@ -177,7 +177,7 @@ export default function ResetPasswordScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/auth/verify-reset-otp"), {
+      const res = await apiFetch("/auth/verify-reset-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: e, otp: code }),
@@ -210,7 +210,7 @@ export default function ResetPasswordScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/auth/reset-password"), {
+      const res = await apiFetch("/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

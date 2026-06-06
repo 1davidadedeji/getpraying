@@ -1,4 +1,4 @@
-import { apiUrl, authHeaders } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export async function submitPostReport(
   postId: number,
@@ -8,9 +8,10 @@ export async function submitPostReport(
     return { ok: false, error: "Sign in to report a prayer." };
   }
   try {
-    const res = await fetch(apiUrl(`/posts/${postId}/flag`), {
+    const res = await apiFetch(`/posts/${postId}/flag`, {
       method: "POST",
-      headers: authHeaders(token, { "Content-Type": "application/json" }),
+      token,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reason: "inappropriate" }),
     });
     const json = (await res.json().catch(() => ({}))) as { message?: string; error?: string };

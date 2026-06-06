@@ -1,9 +1,16 @@
 import * as FileSystem from "expo-file-system/legacy";
+import {
+  FetchTimeoutError,
+  logApiFetch,
+} from "@workspace/api-client-react";
 import { apiUrl, authHeaders } from "@/lib/api";
 
 export const MAX_POST_IMAGE_BYTES = 1 * 1024 * 1024;
 export const MAX_POST_VIDEO_BYTES = 50 * 1024 * 1024;
 export const MAX_POST_AUDIO_BYTES = 15 * 1024 * 1024;
+
+/** Longer deadline for native multipart uploads (large video/audio). */
+const UPLOAD_TIMEOUT_MS = 120_000;
 
 export type PostMediaUploadKind = "image" | "video" | "audio";
 
@@ -114,6 +121,28 @@ function maxBytesMessage(kind: PostMediaUploadKind, maxBytes: number): string {
   return `Choose a photo under ${mb}MB.`;
 }
 
+async function uploadAsyncWithTimeout(
+  path: string,
+  localUri: string,
+  options: FileSystem.FileSystemUploadOptions,
+): Promise<FileSystem.FileSystemUploadResult> {
+  const startedAt = Date.now();
+  const url = apiUrl(path);
+  try {
+    const result = await Promise.race([
+      FileSystem.uploadAsync(url, localUri, options),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new FetchTimeoutError(UPLOAD_TIMEOUT_MS, url)), UPLOAD_TIMEOUT_MS),
+      ),
+    ]);
+    logApiFetch(path, startedAt);
+    return result;
+  } catch (err) {
+    logApiFetch(path, startedAt, err);
+    throw err;
+  }
+}
+
 /** Stream multipart upload via native FileSystem (avoids loading bytes into JS heap). */
 export async function uploadPostMediaFile(opts: {
   localUri: string;
@@ -133,7 +162,7 @@ export async function uploadPostMediaFile(opts: {
   }
 
   const route = opts.kind === "video" ? "post-video" : "post-audio";
-  const result = await FileSystem.uploadAsync(apiUrl(`/uploads/${route}`), prepared.uri, {
+  const result = await uploadAsyncWithTimeout(`/uploads/${route}`, prepared.uri, {
     httpMethod: "POST",
     uploadType: FileSystem.FileSystemUploadType.MULTIPART,
     fieldName: "file",
@@ -157,7 +186,7 @@ export async function uploadPostImage(localUri: string, token: string): Promise<
     throw new Error(maxBytesMessage("image", MAX_POST_IMAGE_BYTES));
   }
 
-  const result = await FileSystem.uploadAsync(apiUrl("/uploads/post-image"), prepared.uri, {
+  const result = await uploadAsyncWithTimeout("/uploads/post-image", prepared.uri, {
     httpMethod: "POST",
     uploadType: FileSystem.FileSystemUploadType.MULTIPART,
     fieldName: "file",
