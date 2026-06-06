@@ -5,10 +5,10 @@ import { deepLinkToHref } from "@/lib/parseDeepLink";
 import { isStaffUser } from "@/lib/staffAccess";
 
 type RevenueCatGate = {
+  /** SDK configure + initial customer info complete (does not wait for StoreKit offerings). */
   isReady: boolean;
   enabled: boolean;
   isEntitled: boolean;
-  isCheckingSubscription?: boolean;
 };
 
 /** Next route after auth gates, honoring a deferred deep link when present. */
@@ -24,9 +24,9 @@ export function getPostAuthRoute(
     return (pendingDeepLink ? deepLinkToHref(pendingDeepLink) : "/(tabs)") as Href;
   }
 
-  // Hard paywall: must start the store trial / subscription before app access.
+  // Hard paywall: route from auth + customer info; catalog loads in background on paywall.
   if (rc.enabled) {
-    if (!rc.isReady || rc.isCheckingSubscription) return null;
+    if (!rc.isReady) return null;
     if (!rc.isEntitled) return "/(paywall)" as Href;
   }
 
@@ -44,7 +44,7 @@ function isAuthGateRoute(route: Href): boolean {
   );
 }
 
-/** Resolve post-auth route and clear any consumed deferred deep link. Returns null while RC is still resolving. */
+/** Resolve post-auth route and clear any consumed deferred deep link. Returns null while RC SDK init is in progress. */
 export function resolvePostAuthNavigation(
   user: User,
   rc: RevenueCatGate,

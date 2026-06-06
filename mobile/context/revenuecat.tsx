@@ -19,7 +19,8 @@ import {
   getMonthlyProduct,
 } from "@/lib/revenuecatCatalog";
 import { isStaffUser } from "@/lib/staffAccess";
-import { isServerBoostEligible } from "@/lib/serverSubscription";
+import { isServerBoostEligible, isServerPaidPremium } from "@/lib/serverSubscription";
+import type { SubscriptionCatalog } from "@/lib/revenuecatCatalog";
 
 export { DEFAULT_OFFERING_ID, PREMIUM_ENTITLEMENT_ID };
 
@@ -35,7 +36,7 @@ export { getMonthlyPackage };
 type RevenueCatState = {
   enabled: boolean;
   isReady: boolean;
-  /** True while SDK init or account link is still resolving — gate navigation until false. */
+  /** True while SDK configure + initial customer info is in progress (not catalog/StoreKit offerings). */
   isCheckingSubscription: boolean;
   catalogLoading: boolean;
   catalogError: string | null;
@@ -75,30 +76,25 @@ function getRevenueCatApiKey(): string {
   return Platform.OS === "ios" ? iosKey : androidKey;
 }
 
-/** Tie purchases to the signed-in account so restore works across devices. */
+/** Tie purchases to the signed-in account so restore works across devices. Non-blocking. */
 function RevenueCatUserSync({
   enabled,
   onCustomerInfo,
   onUserLinked,
-  onAccountLinkSettled,
 }: {
   enabled: boolean;
   onCustomerInfo: (info: CustomerInfo | null) => void;
-  onUserLinked: () => Promise<void>;
-  onAccountLinkSettled: () => void;
+  /** Fire-and-forget catalog refresh after account link (must not block navigation). */
+  onUserLinked?: () => void;
 }) {
   const { user } = useAuth();
   const [linkedUserId, setLinkedUserId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
-      onAccountLinkSettled();
-      return;
-    }
-    if (user?.id) return;
+    if (!enabled || user?.id) return;
 
     setLinkedUserId(null);
-    (async () => {
+    void (async () => {
       try {
         const Purchases = getPurchases();
         const isAnonymous = await Purchases.isAnonymous();
@@ -110,36 +106,25 @@ function RevenueCatUserSync({
         }
       } catch {
         onCustomerInfo(null);
-      } finally {
-        onAccountLinkSettled();
       }
     })();
-  }, [enabled, user?.id, onCustomerInfo, onAccountLinkSettled]);
+  }, [enabled, user?.id, onCustomerInfo]);
 
   useEffect(() => {
-    (async () => {
-      if (!enabled) return;
-      if (!user?.id) {
-        onAccountLinkSettled();
-        return;
-      }
-      if (linkedUserId === user.id) {
-        onAccountLinkSettled();
-        return;
-      }
+    if (!enabled || !user?.id || linkedUserId === user.id) return;
+
+    void (async () => {
       try {
         const Purchases = getPurchases();
         const { customerInfo: info } = await Purchases.logIn(String(user.id));
         onCustomerInfo(info);
         setLinkedUserId(user.id);
-        await onUserLinked();
+        onUserLinked?.();
       } catch {
         /* ignore — anonymous customer still works for new purchases */
-      } finally {
-        onAccountLinkSettled();
       }
     })();
-  }, [enabled, user?.id, linkedUserId, onCustomerInfo, onUserLinked, onAccountLinkSettled]);
+  }, [enabled, user?.id, linkedUserId, onCustomerInfo, onUserLinked]);
 
   return null;
 }
@@ -154,13 +139,8 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [monthlyStoreProduct, setMonthlyStoreProduct] = useState<PurchasesStoreProduct | null>(null);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
-  const [accountLinkSettled, setAccountLinkSettled] = useState(false);
   /** Set immediately after a successful purchase while RC receipt validation may still lag. */
   const [optimisticEntitlement, setOptimisticEntitlement] = useState(false);
-
-  const onAccountLinkSettled = useCallback(() => {
-    setAccountLinkSettled(true);
-  }, []);
 
   const applyCustomerInfo = useCallback(
     (info: CustomerInfo | null) => {
@@ -174,16 +154,31 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   );
 
   useEffect(() => {
-    setAccountLinkSettled(false);
-  }, [user?.id, enabled]);
-
-  useEffect(() => {
     if (!user?.id) {
       setOptimisticEntitlement(false);
     }
   }, [user?.id]);
 
-  const isCheckingSubscription = !isReady || (enabled && !!user?.id && !accountLinkSettled);
+  const isCheckingSubscription = !isReady;
+
+  const applyCatalog = useCallback((catalog: SubscriptionCatalog) => {
+    setOfferings(catalog.offerings);
+    setMonthlyStoreProduct(catalog.storeProduct);
+    setCatalogError(catalog.error);
+    if (__DEV__) {
+      const offeringIds = catalog.offerings
+        ? Object.keys(catalog.offerings.all ?? {})
+        : [];
+      console.info("[revenuecat] catalog", {
+        offeringIds,
+        current: catalog.offerings?.current?.identifier ?? null,
+        monthlyPackage: catalog.monthlyPackage?.identifier ?? null,
+        storeProduct: catalog.storeProduct?.identifier ?? null,
+        configuredProductId: getConfiguredStoreProductId(),
+        error: catalog.error,
+      });
+    }
+  }, []);
 
   const loadCatalog = useCallback(async () => {
     if (!enabled) return;
@@ -191,26 +186,11 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     setCatalogLoading(true);
     try {
       const catalog = await fetchSubscriptionCatalog(Purchases);
-      setOfferings(catalog.offerings);
-      setMonthlyStoreProduct(catalog.storeProduct);
-      setCatalogError(catalog.error);
-      if (__DEV__) {
-        const offeringIds = catalog.offerings
-          ? Object.keys(catalog.offerings.all ?? {})
-          : [];
-        console.info("[revenuecat] catalog", {
-          offeringIds,
-          current: catalog.offerings?.current?.identifier ?? null,
-          monthlyPackage: catalog.monthlyPackage?.identifier ?? null,
-          storeProduct: catalog.storeProduct?.identifier ?? null,
-          configuredProductId: getConfiguredStoreProductId(),
-          error: catalog.error,
-        });
-      }
+      applyCatalog(catalog);
     } finally {
       setCatalogLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, applyCatalog]);
 
   useEffect(() => {
     let removeListener: (() => void) | undefined;
@@ -238,14 +218,19 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
           /* ignore */
         }
 
-        const catalog = await fetchSubscriptionCatalog(Purchases);
-        setOfferings(catalog.offerings);
-        setMonthlyStoreProduct(catalog.storeProduct);
-        setCatalogError(catalog.error);
+        setIsReady(true);
+
+        void (async () => {
+          setCatalogLoading(true);
+          try {
+            applyCatalog(await fetchSubscriptionCatalog(Purchases));
+          } finally {
+            setCatalogLoading(false);
+          }
+        })();
       } catch (e) {
         console.warn("[revenuecat] configure failed:", e);
         setEnabled(false);
-      } finally {
         setIsReady(true);
       }
     })();
@@ -253,7 +238,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     return () => {
       removeListener?.();
     };
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, applyCatalog]);
 
   const refresh = useCallback(async (): Promise<CustomerInfo | null> => {
     if (!enabled) return null;
@@ -321,8 +306,12 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const adminBoostBypass = user?.role === "admin";
   const serverBoostEligible = isServerBoostEligible(user);
   const confirmedEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
+  const serverEntitled = isServerPaidPremium(user?.subscription);
   const isEntitled =
-    staffBypass || confirmedEntitled || (!staffBypass && enabled && optimisticEntitlement);
+    staffBypass ||
+    serverEntitled ||
+    confirmedEntitled ||
+    (!staffBypass && enabled && optimisticEntitlement);
   const isPremiumTrial =
     !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
   // Boost: RC paid entitlement + DB `subscription === premium` (webhook). Never trial or optimistic.
@@ -383,8 +372,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       <RevenueCatUserSync
         enabled={enabled}
         onCustomerInfo={applyCustomerInfo}
-        onUserLinked={loadCatalog}
-        onAccountLinkSettled={onAccountLinkSettled}
+        onUserLinked={() => void loadCatalog()}
       />
       {children}
     </RevenueCatContext.Provider>
