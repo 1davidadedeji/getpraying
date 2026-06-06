@@ -22,7 +22,7 @@ export async function ensureAudioMode(): Promise<void> {
   if (audioModeConfigured) return;
   audioModeConfigured = true;
   try {
-    await setAudioModeAsync({ playsInSilentModeIOS: true });
+    await setAudioModeAsync({ playsInSilentMode: true });
   } catch {
     /* non-fatal */
   }

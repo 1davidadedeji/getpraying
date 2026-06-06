@@ -67,7 +67,6 @@ export function CapsuleVideoPlayer({
   const [ended, setEnded] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
-  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
 
   // Keep player.muted in sync with our derived isMuted value.
   const isMuted = feedMediaFocused ? !feedAudible : muted;
@@ -79,7 +78,6 @@ export function CapsuleVideoPlayer({
   useEffect(() => {
     videoOpacity.setValue(0);
     setReady(false);
-    setNaturalSize(null);
     setPlaying(false);
     setMuted(feedMediaFocused);
     setFeedAudible(false);
@@ -94,9 +92,6 @@ export function CapsuleVideoPlayer({
     if (status !== "readyToPlay") return;
     const dur = Math.round(player.duration * 1000);
     if (dur > 0) setDurationMs(dur);
-    // player.videoSize is available once the video is ready to play.
-    const vs = player.videoSize;
-    if (vs && vs.width > 0 && vs.height > 0) setNaturalSize(vs);
     setReady(true);
     Animated.timing(videoOpacity, {
       toValue: 1,
@@ -254,18 +249,8 @@ export function CapsuleVideoPlayer({
 
   if (!uri) return null;
 
-  const rawAspect = naturalSize != null ? naturalSize.width / naturalSize.height : null;
-  const containerAspect = fixedHeight
-    ? undefined
-    : rawAspect != null
-      ? rawAspect < 1
-        ? Math.max(9 / 16, rawAspect)
-        : Math.min(16 / 9, rawAspect)
-      : VIDEO_UNKNOWN_ASPECT;
-
-  // contentFit mirrors the old ResizeMode logic: contain for portrait, cover for landscape.
-  const contentFit: "contain" | "cover" =
-    rawAspect != null && rawAspect < 1 ? "contain" : "cover";
+  const containerAspect = fixedHeight ? undefined : VIDEO_UNKNOWN_ASPECT;
+  const contentFit: "contain" | "cover" = "cover";
 
   const feedSilent = feedMediaFocused && !feedAudible;
 
