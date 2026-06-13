@@ -1,6 +1,7 @@
 "use client";
 
 import { FormField } from "@/components/dashboard/FormField";
+import { ScriptureField } from "@/components/dashboard/ScriptureField";
 import { inputCls } from "@/components/dashboard/form-styles";
 import type { LectureTrackDraft } from "@/components/dashboard/LectureTracksEditor";
 
@@ -42,15 +43,13 @@ export function LectureLessonFields({
           onChange={(e) => onChange({ subtitle: e.target.value })}
         />
       </FormField>
-      <FormField label="Scripture (optional)" className="sm:col-span-2">
-        <input
-          className={inputCls}
-          placeholder="Optional, e.g. John 15:5"
-          value={draft.scripture ?? ""}
-          disabled={disabled}
-          onChange={(e) => onChange({ scripture: e.target.value })}
-        />
-      </FormField>
+      <ScriptureField
+        className="sm:col-span-2"
+        value={draft.scripture ?? ""}
+        disabled={disabled}
+        placeholder="Optional, e.g. John 15:5"
+        onChange={(scripture) => onChange({ scripture })}
+      />
       <FormField label="Duration (min)">
         <input
           className={inputCls}

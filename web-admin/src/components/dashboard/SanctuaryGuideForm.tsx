@@ -2,6 +2,7 @@
 
 import { AdminAudioField } from "@/components/dashboard/AdminAudioField";
 import { FormField } from "@/components/dashboard/FormField";
+import { ScriptureField } from "@/components/dashboard/ScriptureField";
 import { inputCls } from "@/components/dashboard/form-styles";
 import { AdminSelect } from "@/components/ui/AdminSelect";
 import { formatDisplayDate, formatLocalYMD, isValidYMD, normalizeScheduledDate } from "@/lib/date";
@@ -102,15 +103,13 @@ export function SanctuaryGuideForm({
           onChange={(e) => set({ subtitle: e.target.value })}
         />
       </FormField>
-      <FormField label="Scripture (optional)" className="sm:col-span-2">
-        <input
-          className={inputCls}
-          placeholder="Optional, e.g. Psalm 23:1"
-          value={draft.scripture}
-          disabled={disabled}
-          onChange={(e) => set({ scripture: e.target.value })}
-        />
-      </FormField>
+      <ScriptureField
+        className="sm:col-span-2"
+        value={draft.scripture}
+        disabled={disabled}
+        placeholder="Optional, e.g. Psalm 23:1"
+        onChange={(scripture) => set({ scripture })}
+      />
       <AdminAudioField
         className="sm:col-span-2"
         token={token}

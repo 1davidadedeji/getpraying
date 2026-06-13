@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
+import { scriptureForApi } from "@/lib/officialGuidePayload";
 
 export default function EditPathGuidePage() {
   const params = useParams();
@@ -72,7 +73,7 @@ export default function EditPathGuidePage() {
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
           content: draft.content.trim() || draft.subtitle.trim() || draft.title.trim(),
-          scripture: draft.scripture.trim() || null,
+          scripture: scriptureForApi(draft.scripture),
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,
           category,

@@ -14,6 +14,7 @@ import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { formatLocalYMD, isValidYMD, normalizeScheduledDate } from "@/lib/date";
+import { scriptureForApi } from "@/lib/officialGuidePayload";
 
 export default function EditOfficialPrayerPage() {
   const params = useParams();
@@ -72,7 +73,7 @@ export default function EditOfficialPrayerPage() {
         body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
-          scripture: draft.scripture.trim() || null,
+          scripture: scriptureForApi(draft.scripture),
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,
           scheduledDate,

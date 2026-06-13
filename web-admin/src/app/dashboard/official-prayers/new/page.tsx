@@ -14,6 +14,7 @@ import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { isValidYMD, normalizeScheduledDate } from "@/lib/date";
+import { scriptureForApi } from "@/lib/officialGuidePayload";
 
 export default function NewOfficialPrayerPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function NewOfficialPrayerPage() {
         body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
-          scripture: draft.scripture.trim() || null,
+          scripture: scriptureForApi(draft.scripture),
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,
           category: "sanctuary",
