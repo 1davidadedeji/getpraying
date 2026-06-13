@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
-import { formatLocalYMD } from "@/lib/date";
+import { formatLocalYMD, isValidYMD, normalizeScheduledDate } from "@/lib/date";
 
 export default function EditOfficialPrayerPage() {
   const params = useParams();
@@ -45,7 +45,7 @@ export default function EditOfficialPrayerPage() {
         audioUrl: row.audioUrl ?? "",
         durationMinutes: row.durationMinutes ?? undefined,
         scheduleSlot: row.scheduleSlot === "evening" ? "evening" : "morning",
-        scheduledDate: row.scheduledDate ?? formatLocalYMD(),
+        scheduledDate: normalizeScheduledDate(row.scheduledDate, formatLocalYMD()),
       });
     } finally {
       setLoading(false);
@@ -58,6 +58,11 @@ export default function EditOfficialPrayerPage() {
 
   const save = async () => {
     if (!token || !draft) return;
+    const scheduledDate = normalizeScheduledDate(draft.scheduledDate);
+    if (!isValidYMD(scheduledDate)) {
+      setError("Go-live date must be YYYY-MM-DD.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -70,7 +75,7 @@ export default function EditOfficialPrayerPage() {
           scripture: draft.scripture.trim() || null,
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,
-          scheduledDate: draft.scheduledDate,
+          scheduledDate,
           label: "Official Prayer",
         }),
       });
@@ -104,7 +109,7 @@ export default function EditOfficialPrayerPage() {
         <FormActions
           primaryLabel="Save"
           primaryLoading={saving}
-          primaryDisabled={!draft.title.trim() || !draft.scheduledDate.trim()}
+          primaryDisabled={!draft.title.trim() || !isValidYMD(normalizeScheduledDate(draft.scheduledDate))}
           onPrimary={() => void save()}
           onCancel={() => router.push("/dashboard/official-prayers")}
         />

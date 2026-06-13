@@ -13,6 +13,7 @@ import { panelCls } from "@/components/dashboard/form-styles";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
+import { isValidYMD, normalizeScheduledDate } from "@/lib/date";
 
 export default function NewOfficialPrayerPage() {
   const router = useRouter();
@@ -23,6 +24,11 @@ export default function NewOfficialPrayerPage() {
 
   const save = async () => {
     if (!token || !draft.title.trim()) return;
+    const scheduledDate = normalizeScheduledDate(draft.scheduledDate);
+    if (!isValidYMD(scheduledDate)) {
+      setError("Go-live date must be YYYY-MM-DD.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -37,7 +43,7 @@ export default function NewOfficialPrayerPage() {
           durationMinutes: draft.durationMinutes,
           category: "sanctuary",
           scheduleSlot: draft.scheduleSlot,
-          scheduledDate: draft.scheduledDate,
+          scheduledDate,
           label: "Official Prayer",
         }),
       });
@@ -64,7 +70,7 @@ export default function NewOfficialPrayerPage() {
         <FormActions
           primaryLabel="Create"
           primaryLoading={saving}
-          primaryDisabled={!draft.title.trim() || !draft.scheduledDate.trim()}
+          primaryDisabled={!draft.title.trim() || !isValidYMD(normalizeScheduledDate(draft.scheduledDate))}
           onPrimary={() => void save()}
           onCancel={() => router.push("/dashboard/official-prayers")}
         />
