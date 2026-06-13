@@ -30,7 +30,7 @@ export default function NewLecturePage() {
   const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
-    if (!token || !title.trim() || !content.trim()) return;
+    if (!token || !title.trim()) return;
     const trackErr = validateTrackDrafts(tracks);
     if (trackErr) {
       setError(trackErr);
@@ -45,7 +45,7 @@ export default function NewLecturePage() {
         body: JSON.stringify({
           title: title.trim(),
           subtitle: subtitle.trim() || null,
-          content: content.trim(),
+          content: content.trim() || subtitle.trim() || title.trim(),
           scripture: scripture.trim() || null,
           durationMinutes,
           category: "lectures",
@@ -82,7 +82,7 @@ export default function NewLecturePage() {
         <FormActions
           primaryLabel="Create lesson"
           primaryLoading={saving}
-          primaryDisabled={!title.trim() || !content.trim()}
+          primaryDisabled={!title.trim()}
           onPrimary={() => void save()}
           onCancel={() => router.push("/dashboard/lectures")}
         />

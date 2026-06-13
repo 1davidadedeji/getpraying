@@ -8,6 +8,7 @@
 import "dotenv/config";
 import { db, officialPrayersTable, pool, prayerPathsTable } from "@workspace/db";
 import { asc, sql } from "drizzle-orm";
+import { formatDateYMD } from "../src/lib/sanctuarySchedule.ts";
 
 const UPLOADS_AUDIO_BASE = "/api/static/uploads";
 
@@ -105,6 +106,7 @@ async function main(): Promise<void> {
       category: "gratitude",
       pathId: paths.find((p) => p.category === "gratitude")?.id ?? first.id,
       scheduleSlot: "morning",
+      scheduledDate: formatDateYMD(new Date()),
       label: "Official Prayer",
       audioUrl: `${UPLOADS_AUDIO_BASE}/demo-morning.mp3`,
       scripture: "Lamentations 3:22–23",
@@ -117,6 +119,7 @@ async function main(): Promise<void> {
       category: "peace",
       pathId: paths.find((p) => p.category === "peace")?.id ?? first.id,
       scheduleSlot: "evening",
+      scheduledDate: formatDateYMD(new Date()),
       label: "Official Prayer",
       audioUrl: `${UPLOADS_AUDIO_BASE}/demo-evening.mp3`,
       scripture: "Psalm 4:8",

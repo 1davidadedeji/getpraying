@@ -8,12 +8,13 @@ import {
   savedPostsTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, inArray, sql, desc, isNull } from "drizzle-orm";
+import { eq, and, inArray, sql, desc, isNull, lte } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { fetchTracksForLecture, fetchTracksGroupedByLecture } from "../lib/lectureTracks";
 import { filterLibrarySituationPaths } from "../lib/libraryPathCategories";
 import { normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
+import { resolveSanctuaryCalendarDate } from "../lib/sanctuarySchedule";
 import {
   getLibraryReadCache,
   sendCachedJson,
@@ -35,6 +36,7 @@ const officialSummarySelect = {
   audioUrl: officialPrayersTable.audioUrl,
   pathId: officialPrayersTable.pathId,
   scheduleSlot: officialPrayersTable.scheduleSlot,
+  scheduledDate: officialPrayersTable.scheduledDate,
   createdAt: officialPrayersTable.createdAt,
   uploaderUsername: usersTable.username,
   uploaderDisplayName: usersTable.displayName,
@@ -52,6 +54,7 @@ type OfficialSummaryRow = {
   audioUrl: string | null;
   pathId: number | null;
   scheduleSlot: string | null;
+  scheduledDate: string | null;
   createdAt: Date;
   uploaderUsername: string | null;
   uploaderDisplayName: string | null;
@@ -157,6 +160,7 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
   const payload = {
     prayers: prayers.map((p) => ({
       ...mapOfficialSummary(p),
+      scheduledDate: p.scheduledDate,
       ...(isLectureList
         ? { tracks: tracksByLecture?.get(p.id) ?? [] }
         : {}),
@@ -166,30 +170,41 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
   sendCachedJson(res, payload);
 });
 
-/** Current featured morning & evening sanctuary guides (one row per slot, newest if duplicated). */
-router.get("/library/official/sanctuary", optionalAuth, async (_req, res): Promise<void> => {
-  const cacheKey = "sanctuary";
+/** Current featured morning & evening sanctuary guides for a calendar day (fallback to prior days). */
+router.get("/library/official/sanctuary", optionalAuth, async (req, res): Promise<void> => {
+  const calendarDate = resolveSanctuaryCalendarDate(req.query.date);
+  if (!calendarDate) {
+    res.status(400).json({ error: "Invalid date; use YYYY-MM-DD" });
+    return;
+  }
+
+  const cacheKey = `sanctuary:${calendarDate}`;
   const cached = getLibraryReadCache(cacheKey);
   if (cached) {
     sendCachedJson(res, cached);
     return;
   }
 
-  const rows = await db
-    .select(officialSummarySelect)
-    .from(officialPrayersTable)
-    .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id))
-    .where(inArray(officialPrayersTable.scheduleSlot, ["morning", "evening"]))
-    .orderBy(desc(officialPrayersTable.createdAt));
-
-  let morning: ReturnType<typeof mapOfficialSummary> | null = null;
-  let evening: ReturnType<typeof mapOfficialSummary> | null = null;
-  for (const r of rows) {
-    if (r.scheduleSlot === "morning" && !morning) morning = mapOfficialSummary(r);
-    else if (r.scheduleSlot === "evening" && !evening) evening = mapOfficialSummary(r);
-    if (morning && evening) break;
+  async function slotGuide(slot: "morning" | "evening", asOfDate: string) {
+    const [row] = await db
+      .select(officialSummarySelect)
+      .from(officialPrayersTable)
+      .leftJoin(usersTable, eq(officialPrayersTable.uploadedByUserId, usersTable.id))
+      .where(
+        and(
+          eq(officialPrayersTable.scheduleSlot, slot),
+          lte(officialPrayersTable.scheduledDate, asOfDate),
+        ),
+      )
+      .orderBy(desc(officialPrayersTable.scheduledDate))
+      .limit(1);
+    return row ? mapOfficialSummary(row) : null;
   }
 
+  const [morning, evening] = await Promise.all([
+    slotGuide("morning", calendarDate),
+    slotGuide("evening", calendarDate),
+  ]);
   const payload = { morning, evening };
   setLibraryReadCache(cacheKey, payload);
   sendCachedJson(res, payload);

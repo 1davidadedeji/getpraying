@@ -18,6 +18,7 @@ import { fileURLToPath } from "url";
 import { db, officialPrayersTable, pool, prayerPathsTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
 import { ensureLibraryLectures } from "./lib/seedLectures.ts";
+import { formatDateYMD } from "../src/lib/sanctuarySchedule.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -262,6 +263,7 @@ async function main(): Promise<void> {
       category: "gratitude",
       pathId: morningPathId,
       scheduleSlot: "morning",
+      scheduledDate: formatDateYMD(new Date()),
       label: "Official Prayer",
       audioUrl: morning,
       scripture: "Lamentations 3:22–23",
@@ -275,6 +277,7 @@ async function main(): Promise<void> {
       category: "peace",
       pathId: eveningPathId,
       scheduleSlot: "evening",
+      scheduledDate: formatDateYMD(new Date()),
       label: "Official Prayer",
       audioUrl: evening,
       scripture: "Psalm 4:8",

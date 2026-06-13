@@ -4,6 +4,7 @@ import { AdminAudioField } from "@/components/dashboard/AdminAudioField";
 import { FormField } from "@/components/dashboard/FormField";
 import { inputCls } from "@/components/dashboard/form-styles";
 import { AdminSelect } from "@/components/ui/AdminSelect";
+import { formatLocalYMD } from "@/lib/date";
 
 export type SanctuaryGuideDraft = {
   title: string;
@@ -12,6 +13,7 @@ export type SanctuaryGuideDraft = {
   audioUrl: string;
   durationMinutes?: number;
   scheduleSlot: "morning" | "evening";
+  scheduledDate: string;
 };
 
 export const EMPTY_SANCTUARY_GUIDE: SanctuaryGuideDraft = {
@@ -20,6 +22,7 @@ export const EMPTY_SANCTUARY_GUIDE: SanctuaryGuideDraft = {
   scripture: "",
   audioUrl: "",
   scheduleSlot: "morning",
+  scheduledDate: formatLocalYMD(),
 };
 
 export function SanctuaryGuideForm({
@@ -58,6 +61,19 @@ export function SanctuaryGuideForm({
           <option value="evening">Evening</option>
         </AdminSelect>
       ) : null}
+      <FormField label="Scheduled date *" className={showSlot !== false ? "" : "sm:col-span-2"}>
+        <input
+          className={inputCls}
+          type="date"
+          value={draft.scheduledDate}
+          disabled={disabled}
+          onChange={(e) => set({ scheduledDate: e.target.value })}
+        />
+        <p className="mt-1 text-[10px] text-[var(--color-muted)]">
+          Content goes live on this calendar day. You can schedule future dates — until then, the app keeps showing
+          the most recent prior schedule.
+        </p>
+      </FormField>
       <FormField label="Subtitle" className="sm:col-span-2">
         <input
           className={inputCls}
@@ -67,10 +83,10 @@ export function SanctuaryGuideForm({
           onChange={(e) => set({ subtitle: e.target.value })}
         />
       </FormField>
-      <FormField label="Scripture" className="sm:col-span-2">
+      <FormField label="Scripture (optional)" className="sm:col-span-2">
         <input
           className={inputCls}
-          placeholder="e.g. Psalm 23:1"
+          placeholder="Optional, e.g. Psalm 23:1"
           value={draft.scripture}
           disabled={disabled}
           onChange={(e) => set({ scripture: e.target.value })}

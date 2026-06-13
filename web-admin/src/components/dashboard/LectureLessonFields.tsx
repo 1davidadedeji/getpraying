@@ -42,10 +42,10 @@ export function LectureLessonFields({
           onChange={(e) => onChange({ subtitle: e.target.value })}
         />
       </FormField>
-      <FormField label="Scripture" className="sm:col-span-2">
+      <FormField label="Scripture (optional)" className="sm:col-span-2">
         <input
           className={inputCls}
-          placeholder="e.g. John 15:5"
+          placeholder="Optional, e.g. John 15:5"
           value={draft.scripture ?? ""}
           disabled={disabled}
           onChange={(e) => onChange({ scripture: e.target.value })}

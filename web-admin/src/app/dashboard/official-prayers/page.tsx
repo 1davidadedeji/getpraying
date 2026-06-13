@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { formatDisplayDate } from "@/lib/date";
 
 interface OfficialPrayer {
   id: number;
@@ -20,6 +21,7 @@ interface OfficialPrayer {
   audioUrl: string | null;
   durationMinutes: number | null;
   scheduleSlot: string | null;
+  scheduledDate: string | null;
   label: string | null;
 }
 
@@ -38,12 +40,14 @@ export default function OfficialPrayersPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/official"), { headers: authHeaders(token) });
+      const res = await fetch(apiUrl("/library/official?limit=120"), { headers: authHeaders(token) });
       if (!res.ok) return;
       const data = await res.json();
       const rows: OfficialPrayer[] = data.prayers ?? data.items ?? data ?? [];
       const sanctuaryRows = rows.filter((p) => p.scheduleSlot === "morning" || p.scheduleSlot === "evening");
       sanctuaryRows.sort((a, b) => {
+        const dateCmp = (b.scheduledDate ?? "").localeCompare(a.scheduledDate ?? "");
+        if (dateCmp !== 0) return dateCmp;
         const order: Record<string, number> = { morning: 0, evening: 1 };
         return (order[a.scheduleSlot ?? ""] ?? 99) - (order[b.scheduleSlot ?? ""] ?? 99);
       });
@@ -116,6 +120,11 @@ export default function OfficialPrayersPage() {
               <div className="min-w-0 flex-1">
                 <div className="mb-0.5 flex flex-wrap items-center gap-1.5">
                   {p.scheduleSlot ? <SlotBadge slot={p.scheduleSlot} /> : null}
+                  {p.scheduledDate ? (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                      {formatDisplayDate(p.scheduledDate)}
+                    </span>
+                  ) : null}
                   {p.audioUrl ? (
                     <span className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Audio</span>
                   ) : null}

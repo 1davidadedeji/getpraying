@@ -30,6 +30,39 @@ import {
   type LectureTrackInput,
 } from "../lib/lectureTracks";
 import { defaultOfficialGuideLabel, normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
+import {
+  formatDateYMD,
+  parseScheduledDateFromBody,
+  scheduledDateProvidedInBody,
+} from "../lib/sanctuarySchedule";
+
+async function sanctuaryScheduleConflict(
+  scheduleSlot: string,
+  scheduledDate: string,
+  excludeId?: number,
+): Promise<boolean> {
+  const conditions = [
+    eq(officialPrayersTable.scheduleSlot, scheduleSlot),
+    eq(officialPrayersTable.scheduledDate, scheduledDate),
+  ];
+  if (excludeId != null) {
+    conditions.push(ne(officialPrayersTable.id, excludeId));
+  }
+  const [row] = await db
+    .select({ id: officialPrayersTable.id })
+    .from(officialPrayersTable)
+    .where(and(...conditions))
+    .limit(1);
+  return Boolean(row);
+}
+
+function resolveSanctuaryScheduledDate(body: unknown, fallback: string | null): string | null {
+  if (scheduledDateProvidedInBody(body)) {
+    const parsed = parseScheduledDateFromBody(body);
+    return parsed;
+  }
+  return fallback ?? formatDateYMD(new Date());
+}
 
 async function notifyAuthorPostDecision(
   authorId: number | null,
@@ -657,6 +690,24 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
     res.status(400).json({ error: "Sanctuary guides require a morning or evening slot." });
     return;
   }
+  let scheduledDate: string | null = null;
+  if (scheduleSlot) {
+    if (scheduledDateProvidedInBody(req.body) && !parseScheduledDateFromBody(req.body)) {
+      res.status(400).json({ error: "Invalid scheduledDate; use YYYY-MM-DD" });
+      return;
+    }
+    scheduledDate = resolveSanctuaryScheduledDate(req.body, null);
+    if (!scheduledDate) {
+      res.status(400).json({ error: "scheduledDate is required for sanctuary guides." });
+      return;
+    }
+    if (await sanctuaryScheduleConflict(scheduleSlot, scheduledDate)) {
+      res.status(409).json({
+        error: `A ${scheduleSlot} guide is already scheduled for ${scheduledDate}. Edit that entry or pick another date.`,
+      });
+      return;
+    }
+  }
   let pathIdRaw = typeof req.body?.pathId === "number" ? req.body.pathId : null;
   if (category === "lectures") {
     pathIdRaw = null;
@@ -692,6 +743,7 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
       audioUrl: isLecture ? null : legacyAudioUrl,
       durationMinutes: durationMinutesGeneral != null && durationMinutesGeneral > 0 ? durationMinutesGeneral : null,
       scheduleSlot,
+      scheduledDate,
       label: defaultOfficialGuideLabel({
         bodyLabel: req.body?.label,
         scheduleSlot,
@@ -798,6 +850,28 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
     if (durationNext != null && durationNext <= 0) durationNext = null;
   }
 
+  const slotNext =
+    existing.scheduleSlot === "morning" || existing.scheduleSlot === "evening"
+      ? existing.scheduleSlot
+      : null;
+  let scheduledDateNext = existing.scheduledDate;
+  if (slotNext && scheduledDateProvidedInBody(req.body)) {
+    const parsed = parseScheduledDateFromBody(req.body);
+    if (!parsed) {
+      res.status(400).json({ error: "Invalid scheduledDate; use YYYY-MM-DD" });
+      return;
+    }
+    scheduledDateNext = parsed;
+  }
+  if (slotNext && scheduledDateNext) {
+    if (await sanctuaryScheduleConflict(slotNext, scheduledDateNext, prayerId)) {
+      res.status(409).json({
+        error: `A ${slotNext} guide is already scheduled for ${scheduledDateNext}. Pick another date.`,
+      });
+      return;
+    }
+  }
+
   await db
     .update(officialPrayersTable)
     .set({
@@ -810,6 +884,7 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
       pathId: pathIdNext,
       audioUrl: audioUrlNext,
       durationMinutes: durationNext,
+      scheduledDate: scheduledDateNext,
     })
     .where(eq(officialPrayersTable.id, prayerId));
 
@@ -847,8 +922,7 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
 });
 
 /**
- * Set morning/evening sanctuary slot. If a guide already occupies the slot, it is removed
- * (saved-user rows cleared for that id) — it is not moved into a path / situation category.
+ * Set morning/evening sanctuary slot for a calendar date (insert or update that date's row).
  */
 router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, async (req, res): Promise<void> => {
   const mod = (req as any).user;
@@ -865,6 +939,16 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
   if (!title) {
     res.status(400).json({ error: "title is required" });
+    return;
+  }
+
+  if (scheduledDateProvidedInBody(req.body) && !parseScheduledDateFromBody(req.body)) {
+    res.status(400).json({ error: "Invalid scheduledDate; use YYYY-MM-DD" });
+    return;
+  }
+  const scheduledDate = resolveSanctuaryScheduledDate(req.body, null);
+  if (!scheduledDate) {
+    res.status(400).json({ error: "scheduledDate is required." });
     return;
   }
 
@@ -891,17 +975,33 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
   }
 
   const result = await db.transaction(async (tx) => {
-    const [existing] = await tx
+    const [existingSameDate] = await tx
       .select({ id: officialPrayersTable.id })
       .from(officialPrayersTable)
-      .where(eq(officialPrayersTable.scheduleSlot, slot))
+      .where(
+        and(eq(officialPrayersTable.scheduleSlot, slot), eq(officialPrayersTable.scheduledDate, scheduledDate)),
+      )
       .limit(1);
 
-    if (existing) {
-      await tx
-        .delete(savedOfficialPrayersTable)
-        .where(eq(savedOfficialPrayersTable.officialPrayerId, existing.id));
-      await tx.delete(officialPrayersTable).where(eq(officialPrayersTable.id, existing.id));
+    if (existingSameDate) {
+      const [row] = await tx
+        .update(officialPrayersTable)
+        .set({
+          title,
+          content,
+          category,
+          subtitle,
+          audioUrl,
+          label,
+          scripture,
+          durationMinutes: durationMinutes != null && durationMinutes > 0 ? durationMinutes : null,
+          pathId: null,
+          scheduleSlot: slot,
+          scheduledDate,
+        })
+        .where(eq(officialPrayersTable.id, existingSameDate.id))
+        .returning();
+      return row ?? null;
     }
 
     const [row] = await tx
@@ -917,6 +1017,7 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
         durationMinutes: durationMinutes != null && durationMinutes > 0 ? durationMinutes : null,
         pathId: null,
         scheduleSlot: slot,
+        scheduledDate,
         uploadedByUserId: mod.id,
       })
       .returning();

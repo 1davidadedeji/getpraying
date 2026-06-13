@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx scripts/seed.ts",
+    "seed:feed-refresh": "tsx scripts/seed-feed-refresh.ts",
     "seed:library": "tsx scripts/seed-library-demo.ts",
     "seed:library-restore": "tsx scripts/seed-library-restore.ts",
     "seed:lib-pg": "tsx scripts/seed-lib-pg.ts",

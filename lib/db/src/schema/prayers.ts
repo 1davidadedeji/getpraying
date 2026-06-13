@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, date } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -46,6 +46,8 @@ export const officialPrayersTable = pgTable("official_prayers", {
   uploadedByUserId: integer("uploaded_by_user_id").references(() => usersTable.id),
   /** morning | evening — featured slot for daily prayers */
   scheduleSlot: text("schedule_slot"),
+  /** Calendar day this sanctuary slot goes live (YYYY-MM-DD). */
+  scheduledDate: date("scheduled_date", { mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

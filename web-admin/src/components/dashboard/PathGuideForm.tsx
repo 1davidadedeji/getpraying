@@ -63,10 +63,10 @@ export function PathGuideForm({
           onChange={(e) => set({ subtitle: e.target.value })}
         />
       </FormField>
-      <FormField label="Scripture" className="sm:col-span-2">
+      <FormField label="Scripture (optional)" className="sm:col-span-2">
         <input
           className={inputCls}
-          placeholder="e.g. Philippians 4:6–7"
+          placeholder="Optional, e.g. Philippians 4:6–7"
           value={draft.scripture}
           disabled={disabled}
           onChange={(e) => set({ scripture: e.target.value })}

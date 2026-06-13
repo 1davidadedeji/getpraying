@@ -10,6 +10,7 @@ import path from "path";
 import { db, officialPrayersTable, pool } from "@workspace/db";
 import { eq, ilike, sql } from "drizzle-orm";
 import { ensureLibraryLectures } from "./lib/seedLectures.ts";
+import { formatDateYMD } from "../src/lib/sanctuarySchedule.ts";
 
 const UPLOADS_AUDIO_BASE = "/api/static/uploads";
 
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
         "Father, mercies are new this morning. Quiet my hurried spirit and help me greet this day awake to your presence.",
       category: "gratitude",
       scheduleSlot: "morning",
+      scheduledDate: formatDateYMD(new Date()),
       label: "Official Prayer",
       scripture: "Lamentations 3:22–23",
       durationMinutes: 8,
@@ -76,6 +78,7 @@ async function main(): Promise<void> {
       content: "Father, I lay down what I cannot control. Let me rest in your care tonight.",
       category: "peace",
       scheduleSlot: "evening",
+      scheduledDate: formatDateYMD(new Date()),
       label: "Official Prayer",
       scripture: "Psalm 4:8",
       durationMinutes: 7,

@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
+import { formatLocalYMD } from "@/lib/date";
 
 export default function EditOfficialPrayerPage() {
   const params = useParams();
@@ -28,7 +29,7 @@ export default function EditOfficialPrayerPage() {
     if (!token || !Number.isFinite(id)) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/official"), { headers: authHeaders(token) });
+      const res = await fetch(apiUrl("/library/official?limit=120"), { headers: authHeaders(token) });
       if (!res.ok) return;
       const data = await res.json();
       const rows = data.prayers ?? data.items ?? [];
@@ -44,6 +45,7 @@ export default function EditOfficialPrayerPage() {
         audioUrl: row.audioUrl ?? "",
         durationMinutes: row.durationMinutes ?? undefined,
         scheduleSlot: row.scheduleSlot === "evening" ? "evening" : "morning",
+        scheduledDate: row.scheduledDate ?? formatLocalYMD(),
       });
     } finally {
       setLoading(false);
@@ -68,6 +70,7 @@ export default function EditOfficialPrayerPage() {
           scripture: draft.scripture.trim() || null,
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,
+          scheduledDate: draft.scheduledDate,
           label: "Official Prayer",
         }),
       });
@@ -96,12 +99,12 @@ export default function EditOfficialPrayerPage() {
     <>
       <PageHeader title="Edit guide" backHref="/dashboard/official-prayers" backLabel="Official guides" />
       <div className={`${panelCls} p-3 sm:p-4`}>
-        <SanctuaryGuideForm draft={draft} onChange={setDraft} token={token} disabled={saving} showSlot={false} />
+        <SanctuaryGuideForm draft={draft} onChange={setDraft} token={token} disabled={saving} />
         {error ? <p className="mt-2 text-[12px] text-[var(--color-danger)]">{error}</p> : null}
         <FormActions
           primaryLabel="Save"
           primaryLoading={saving}
-          primaryDisabled={!draft.title.trim()}
+          primaryDisabled={!draft.title.trim() || !draft.scheduledDate.trim()}
           onPrimary={() => void save()}
           onCancel={() => router.push("/dashboard/official-prayers")}
         />

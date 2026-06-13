@@ -37,6 +37,7 @@ export default function NewOfficialPrayerPage() {
           durationMinutes: draft.durationMinutes,
           category: "sanctuary",
           scheduleSlot: draft.scheduleSlot,
+          scheduledDate: draft.scheduledDate,
           label: "Official Prayer",
         }),
       });
@@ -63,7 +64,7 @@ export default function NewOfficialPrayerPage() {
         <FormActions
           primaryLabel="Create"
           primaryLoading={saving}
-          primaryDisabled={!draft.title.trim()}
+          primaryDisabled={!draft.title.trim() || !draft.scheduledDate.trim()}
           onPrimary={() => void save()}
           onCancel={() => router.push("/dashboard/official-prayers")}
         />
