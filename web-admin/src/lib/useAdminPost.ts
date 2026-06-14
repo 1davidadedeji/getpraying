@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import type { AdminPostDetail } from "@/lib/adminPostTypes";
 
 export function useAdminPost(postId: number) {
@@ -17,7 +17,7 @@ export function useAdminPost(postId: number) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl(`/admin/posts/${postId}`), { headers: authHeaders(token) });
+      const res = await adminFetch(`/admin/posts/${postId}`, token);
       if (!res.ok) {
         setPost(null);
         setError("Post not found");

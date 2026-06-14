@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 
 type DailyWordPayload = {
   date: string;
@@ -38,9 +38,7 @@ export default function DailyWordPage() {
     if (!token) return;
     setSettingsBusy(true);
     try {
-      const res = await fetch(apiUrl("/admin/daily-word/settings"), {
-        headers: authHeaders(token),
-      });
+      const res = await adminFetch("/admin/daily-word/settings", token);
       const data = (await res.json()) as { autoRotation?: boolean; error?: string };
       if (res.ok) setAutoRotation(!!data.autoRotation);
     } catch {
@@ -55,9 +53,7 @@ export default function DailyWordPage() {
     setLoadBusy(true);
     setMessage(null);
     try {
-      const res = await fetch(apiUrl(`/daily-word?date=${encodeURIComponent(dateStr.trim())}`), {
-        headers: authHeaders(token),
-      });
+      const res = await adminFetch(`/daily-word?date=${encodeURIComponent(dateStr.trim())}`, token);
       const data = (await res.json()) as DailyWordPayload & { error?: string };
       if (!res.ok) {
         setMessage({ ok: false, text: data.error ?? "Could not load daily word" });
@@ -87,10 +83,7 @@ export default function DailyWordPage() {
     setSettingsBusy(true);
     setMessage(null);
     try {
-      const res = await fetch(apiUrl("/admin/daily-word/settings"), {
-        method: "PATCH",
-        headers: authHeaders(token),
-        body: JSON.stringify({ autoRotation: next }),
+      const res = await adminFetch("/admin/daily-word/settings", token, { method: "PATCH", body: JSON.stringify({ autoRotation: next  }),
       });
       const data = (await res.json()) as { autoRotation?: boolean; error?: string };
       if (!res.ok) {
@@ -124,10 +117,7 @@ export default function DailyWordPage() {
     setSaveBusy(true);
     setMessage(null);
     try {
-      const res = await fetch(apiUrl("/admin/daily-word"), {
-        method: "PUT",
-        headers: authHeaders(token),
-        body: JSON.stringify({ effectiveDate: d, quoteText: qt, reference: ref }),
+      const res = await adminFetch("/admin/daily-word", token, { method: "PUT", body: JSON.stringify({ effectiveDate: d, quoteText: qt, reference: ref  }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -153,10 +143,7 @@ export default function DailyWordPage() {
     setClearBusy(true);
     setMessage(null);
     try {
-      const res = await fetch(apiUrl(`/admin/daily-word?date=${encodeURIComponent(d)}`), {
-        method: "DELETE",
-        headers: authHeaders(token),
-      });
+      const res = await adminFetch(`/admin/daily-word?date=${encodeURIComponent(d)}`, token, { method: "DELETE" });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setMessage({ ok: false, text: data.error ?? "Clear failed" });

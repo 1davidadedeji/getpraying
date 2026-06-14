@@ -10,7 +10,7 @@ import { isDefaultLibraryPathCategory } from "@/config/default-library-paths";
 import { Spinner } from "@/components/ui/feedback";
 import { categoryLabel } from "@/config/post-categories";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 
 type PathGuide = {
   id: number;
@@ -42,7 +42,7 @@ export default function PathDetailPage() {
     if (!token || !Number.isFinite(pathId)) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl(`/library/paths/${pathId}`), { headers: authHeaders(token) });
+      const res = await adminFetch(`/library/paths/${pathId}`, token);
       if (!res.ok) {
         setPath(null);
         return;
@@ -71,7 +71,7 @@ export default function PathDetailPage() {
 
   const deleteGuide = async (id: number) => {
     if (!token || !confirm("Delete this guide from the path?")) return;
-    await fetch(apiUrl(`/admin/official-prayers/${id}`), { method: "DELETE", headers: authHeaders(token) });
+    await adminFetch(`/admin/official-prayers/${id}`, token, { method: "DELETE" });
     setGuides((prev) => prev.filter((g) => g.id !== id));
   };
 

@@ -8,7 +8,7 @@ import { inputCls, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { useAdminPost } from "@/lib/useAdminPost";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 
 export default function ModerationPostPage() {
   const params = useParams();
@@ -26,10 +26,7 @@ export default function ModerationPostPage() {
     setActionId(postId);
     setActionError(null);
     try {
-      const res = await fetch(apiUrl(`/admin/posts/${postId}/approve`), {
-        method: "POST",
-        headers: authHeaders(token),
-      });
+      const res = await adminFetch(`/admin/posts/${postId}/approve`, token, { method: "POST" });
       if (res.ok) {
         router.push("/dashboard/moderation");
         return;
@@ -48,10 +45,7 @@ export default function ModerationPostPage() {
     setActionId(postId);
     setActionError(null);
     try {
-      const res = await fetch(apiUrl(`/admin/posts/${postId}/decline`), {
-        method: "POST",
-        headers: authHeaders(token),
-        body: JSON.stringify({ reason: declineReason.trim() }),
+      const res = await adminFetch(`/admin/posts/${postId}/decline`, token, { method: "POST", body: JSON.stringify({ reason: declineReason.trim()  }),
       });
       if (res.ok) {
         router.push("/dashboard/moderation");

@@ -12,7 +12,7 @@ import {
 import { panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
 
@@ -32,7 +32,7 @@ export default function NewPathGuidePage() {
     if (!token || !Number.isFinite(pathId)) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl(`/library/paths/${pathId}`), { headers: authHeaders(token) });
+      const res = await adminFetch(`/library/paths/${pathId}`, token);
       if (!res.ok) return;
       const data = await res.json();
       setPathName(data.name ?? "Path");
@@ -55,10 +55,7 @@ export default function NewPathGuidePage() {
     setError(null);
     try {
       const content = contentForApi(draft.content, draft.subtitle, draft.title);
-      const res = await fetch(apiUrl("/admin/official-prayers"), {
-        method: "POST",
-        headers: authHeaders(token),
-        body: JSON.stringify({
+      const res = await adminFetch("/admin/official-prayers", token, { method: "POST", body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
           content,
@@ -68,7 +65,7 @@ export default function NewPathGuidePage() {
           category,
           pathId,
           label: "Official Prayer",
-        }),
+         }),
       });
       if (res.ok) {
         router.push(`/dashboard/paths/${pathId}`);

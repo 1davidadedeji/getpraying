@@ -7,7 +7,7 @@ import { AdminPaginationBar } from "@/components/dashboard/AdminPaginationBar";
 import { Spinner } from "@/components/ui/feedback";
 import { AdminSelect } from "@/components/ui/AdminSelect";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 interface AdminUser {
@@ -66,7 +66,7 @@ export default function UsersPage() {
           page: String(effectivePage),
         });
         if (next.q) params.set("q", next.q);
-        const res = await fetch(apiUrl(`/admin/users?${params}`), { headers: authHeaders(token) });
+        const res = await adminFetch(`/admin/users?${params}`, token);
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (cancelled) return;
@@ -88,10 +88,7 @@ export default function UsersPage() {
     if (!token) return;
     setRoleUpdating(userId);
     try {
-      const res = await fetch(apiUrl(`/admin/users/${userId}/role`), {
-        method: "POST",
-        headers: authHeaders(token),
-        body: JSON.stringify({ role }),
+      const res = await adminFetch(`/admin/users/${userId}/role`, token, { method: "POST", body: JSON.stringify({ role  }),
       });
       if (res.ok) {
         setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
@@ -106,7 +103,7 @@ export default function UsersPage() {
     setBanBusy(u.id);
     try {
       const endpoint = u.isBanned ? `/admin/users/${u.id}/unban` : `/admin/users/${u.id}/ban`;
-      const res = await fetch(apiUrl(endpoint), { method: "POST", headers: authHeaders(token) });
+      const res = await adminFetch(endpoint, token, { method: "POST" });
       if (res.ok) setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isBanned: !u.isBanned } : x)));
     } finally {
       setBanBusy(null);
@@ -117,7 +114,7 @@ export default function UsersPage() {
     if (!token) return;
     setDeleteBusy(userId);
     try {
-      await fetch(apiUrl(`/admin/users/${userId}`), { method: "DELETE", headers: authHeaders(token) });
+      await adminFetch(`/admin/users/${userId}`, token, { method: "DELETE" });
       setDeleteConfirm(null);
       setRefreshTick((t) => t + 1);
     } finally {

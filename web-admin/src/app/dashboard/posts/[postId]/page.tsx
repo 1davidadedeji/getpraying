@@ -9,7 +9,7 @@ import { btnDangerOutline, btnGhost, btnPrimary, inputCls, panelCls } from "@/co
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { useAdminPost } from "@/lib/useAdminPost";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 
 export default function PostDetailPage() {
   const params = useParams();
@@ -28,10 +28,7 @@ export default function PostDetailPage() {
     setBusy(true);
     setActionError(null);
     try {
-      const res = await fetch(apiUrl(`/admin/posts/${postId}/requeue`), {
-        method: "POST",
-        headers: authHeaders(token),
-      });
+      const res = await adminFetch(`/admin/posts/${postId}/requeue`, token, { method: "POST" });
       if (res.ok) {
         router.push(`/dashboard/moderation/${postId}`);
         return;
@@ -46,10 +43,7 @@ export default function PostDetailPage() {
     if (!token) return;
     setBusy(true);
     try {
-      await fetch(apiUrl(`/admin/posts/${postId}/remove`), {
-        method: "DELETE",
-        headers: authHeaders(token),
-        body: JSON.stringify({ reason: removeReason.trim() || "Admin removal" }),
+      await adminFetch(`/admin/posts/${postId}/remove`, token, { method: "DELETE", body: JSON.stringify({ reason: removeReason.trim() || "Admin removal"  }),
       });
       router.push("/dashboard/posts");
     } finally {

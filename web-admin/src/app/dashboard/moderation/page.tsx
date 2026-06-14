@@ -9,7 +9,7 @@ import { PostStatusBadge, ReportedBadge } from "@/components/dashboard/AdminPost
 import { panelCls } from "@/components/dashboard/form-styles";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 interface Post {
@@ -51,7 +51,7 @@ export default function ModerationPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(apiUrl("/admin/pending-count"), { headers: authHeaders(token) })
+    adminFetch("/admin/pending-count", token)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d) setPendingCount(d.count);
@@ -86,7 +86,7 @@ export default function ModerationPage() {
         if (next.q) params.set("q", next.q);
         if (next.category) params.set("category", next.category);
         if (next.media !== "all") params.set("media", next.media);
-        const res = await fetch(apiUrl(`/admin/posts/pending?${params}`), { headers: authHeaders(token) });
+        const res = await adminFetch(`/admin/posts/pending?${params}`, token);
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (cancelled) return;

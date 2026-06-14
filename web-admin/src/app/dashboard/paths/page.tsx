@@ -9,7 +9,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { filterDefaultLibraryPaths } from "@/config/default-library-paths";
 import { categoryLabel } from "@/config/post-categories";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 type PathSummary = {
@@ -32,7 +32,7 @@ export default function PathsPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/paths"), { headers: authHeaders(token) });
+      const res = await adminFetch("/library/paths", token);
       if (!res.ok) return;
       const data = await res.json();
       setPaths(

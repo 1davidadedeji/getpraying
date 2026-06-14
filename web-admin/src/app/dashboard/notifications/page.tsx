@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 
 export default function NotificationsPage() {
   const { token } = useAuth();
@@ -17,10 +17,7 @@ export default function NotificationsPage() {
     setBusy(true);
     setResult(null);
     try {
-      const res = await fetch(apiUrl("/admin/notifications/broadcast"), {
-        method: "POST",
-        headers: authHeaders(token),
-        body: JSON.stringify({ title: title.trim(), body: body.trim() }),
+      const res = await adminFetch("/admin/notifications/broadcast", token, { method: "POST", body: JSON.stringify({ title: title.trim(), body: body.trim()  }),
       });
       const data = await res.json() as { error?: string; sent?: number };
       if (!res.ok) setResult({ ok: false, message: data.error ?? "Failed to send" });

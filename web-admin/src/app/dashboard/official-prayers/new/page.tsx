@@ -11,7 +11,7 @@ import {
 } from "@/components/dashboard/SanctuaryGuideForm";
 import { panelCls } from "@/components/dashboard/form-styles";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { isValidYMD, normalizeScheduledDate } from "@/lib/date";
 import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
@@ -33,10 +33,7 @@ export default function NewOfficialPrayerPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl("/admin/official-prayers"), {
-        method: "POST",
-        headers: authHeaders(token),
-        body: JSON.stringify({
+      const res = await adminFetch("/admin/official-prayers", token, { method: "POST", body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
           content: contentForApi(draft.content, draft.subtitle, draft.title),
@@ -47,7 +44,7 @@ export default function NewOfficialPrayerPage() {
           scheduleSlot: draft.scheduleSlot,
           scheduledDate,
           label: "Official Prayer",
-        }),
+         }),
       });
       if (res.ok) {
         router.push("/dashboard/official-prayers");

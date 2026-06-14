@@ -9,7 +9,7 @@ import { ScheduledDateBadge, SlotBadge } from "@/components/dashboard/SanctuaryG
 import { btnGhost, btnDangerOutline, btnPrimary, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { normalizeScheduledDate } from "@/lib/date";
 
@@ -40,7 +40,7 @@ export default function OfficialPrayersPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/official?limit=120"), { headers: authHeaders(token) });
+      const res = await adminFetch("/library/official?limit=120", token);
       if (!res.ok) return;
       const data = await res.json();
       const rows: OfficialPrayer[] = data.prayers ?? data.items ?? data ?? [];
@@ -83,7 +83,7 @@ export default function OfficialPrayersPage() {
 
   const handleDelete = async (id: number) => {
     if (!token || !confirm("Delete this guide?")) return;
-    await fetch(apiUrl(`/admin/official-prayers/${id}`), { method: "DELETE", headers: authHeaders(token) });
+    await adminFetch(`/admin/official-prayers/${id}`, token, { method: "DELETE" });
     setPrayers((prev) => prev.filter((p) => p.id !== id));
   };
 

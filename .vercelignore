@@ -1,0 +1,6 @@
+# Vercel CLI uploads from local disk — allowlist only what web-admin needs (~1–5 MB vs ~500 MB).
+/*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!web-admin

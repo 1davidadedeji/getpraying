@@ -1,4 +1,4 @@
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch } from "@/lib/api";
 
 export type OfficialGuideRecord = {
   id: number;
@@ -26,7 +26,7 @@ export async function fetchOfficialGuide(
   token: string,
   id: number,
 ): Promise<OfficialGuideRecord | null> {
-  const res = await fetch(apiUrl(`/library/official/${id}`), { headers: authHeaders(token) });
+  const res = await adminFetch(`/library/official/${id}`, token);
   if (!res.ok) return null;
   return (await res.json()) as OfficialGuideRecord;
 }

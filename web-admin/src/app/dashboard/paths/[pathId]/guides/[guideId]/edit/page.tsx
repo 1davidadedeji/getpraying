@@ -8,7 +8,7 @@ import { PathGuideForm, type PathGuideDraft } from "@/components/dashboard/PathG
 import { btnDangerOutline, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { fetchOfficialGuide } from "@/lib/fetchOfficialGuide";
 import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
@@ -32,7 +32,7 @@ export default function EditPathGuidePage() {
     setLoading(true);
     try {
       const [pathRes, guide] = await Promise.all([
-        fetch(apiUrl(`/library/paths/${pathId}`), { headers: authHeaders(token) }),
+        adminFetch(`/library/paths/${pathId}`, token),
         fetchOfficialGuide(token, guideId),
       ]);
       if (pathRes.ok) {
@@ -70,10 +70,7 @@ export default function EditPathGuidePage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl(`/admin/official-prayers/${guideId}`), {
-        method: "PUT",
-        headers: authHeaders(token),
-        body: JSON.stringify({
+      const res = await adminFetch(`/admin/official-prayers/${guideId}`, token, { method: "PUT", body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
           content: contentForApi(draft.content, draft.subtitle, draft.title),
@@ -83,7 +80,7 @@ export default function EditPathGuidePage() {
           category,
           pathId,
           label: "Official Prayer",
-        }),
+         }),
       });
       if (res.ok) {
         router.push(`/dashboard/paths/${pathId}`);
@@ -99,10 +96,7 @@ export default function EditPathGuidePage() {
     if (!token || !confirm("Delete this guide permanently?")) return;
     setDeleting(true);
     try {
-      const res = await fetch(apiUrl(`/admin/official-prayers/${guideId}`), {
-        method: "DELETE",
-        headers: authHeaders(token),
-      });
+      const res = await adminFetch(`/admin/official-prayers/${guideId}`, token, { method: "DELETE" });
       if (res.ok) router.push(`/dashboard/paths/${pathId}`);
     } finally {
       setDeleting(false);

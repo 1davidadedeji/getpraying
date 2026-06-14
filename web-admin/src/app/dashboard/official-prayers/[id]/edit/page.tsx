@@ -11,7 +11,7 @@ import {
 import { panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { formatLocalYMD, isValidYMD, normalizeScheduledDate } from "@/lib/date";
 import { fetchOfficialGuide } from "@/lib/fetchOfficialGuide";
@@ -65,10 +65,7 @@ export default function EditOfficialPrayerPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl(`/admin/official-prayers/${id}`), {
-        method: "PUT",
-        headers: authHeaders(token),
-        body: JSON.stringify({
+      const res = await adminFetch(`/admin/official-prayers/${id}`, token, { method: "PUT", body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
           content: contentForApi(draft.content, draft.subtitle, draft.title),
@@ -77,7 +74,7 @@ export default function EditOfficialPrayerPage() {
           durationMinutes: draft.durationMinutes,
           scheduledDate,
           label: "Official Prayer",
-        }),
+         }),
       });
       if (res.ok) {
         router.push("/dashboard/official-prayers");

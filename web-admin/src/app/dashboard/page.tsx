@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { panelCls } from "@/components/dashboard/form-styles";
 import { useAuth } from "@/context/auth";
 import { navForRole, primaryNavMatch } from "@/lib/dashboard-nav-utils";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 
 interface Stats {
   totalUsers?: number;
@@ -31,7 +31,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!token || !isAdmin) return;
-    fetch(apiUrl("/admin/stats"), { headers: authHeaders(token) })
+    adminFetch("/admin/stats", token)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d) setStats(d);
@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!token || isAdmin) return;
-    fetch(apiUrl("/admin/pending-count"), { headers: authHeaders(token) })
+    adminFetch("/admin/pending-count", token)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d && typeof d.count === "number") setModPending(d.count);

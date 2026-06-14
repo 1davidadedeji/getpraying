@@ -1,0 +1,11 @@
+[
+    {
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.getpraying.app",
+        "sha256_cert_fingerprints":
+          ["31:BC:7E:7D:CE:CB:D3:36:E8:BF:A8:83:AC:32:9A:9E:17:50:60:EB:44:1D:48:D1:56:17:13:BD:F8:2A:39:1C"]
+      }
+    }
+  ]

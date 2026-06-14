@@ -15,7 +15,7 @@ import {
 import { panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { fetchOfficialGuide } from "@/lib/fetchOfficialGuide";
 import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
@@ -70,10 +70,7 @@ export default function EditLecturePage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl(`/admin/official-prayers/${id}`), {
-        method: "PUT",
-        headers: authHeaders(token),
-        body: JSON.stringify({
+      const res = await adminFetch(`/admin/official-prayers/${id}`, token, { method: "PUT", body: JSON.stringify({
           title: title.trim(),
           subtitle: subtitle.trim() || null,
           content: contentForApi(content, subtitle, title),
@@ -82,7 +79,7 @@ export default function EditLecturePage() {
           category: "lectures",
           pathId: null,
           tracks: tracksToPayload(tracks),
-        }),
+         }),
       });
       if (res.ok) {
         router.push("/dashboard/lectures");

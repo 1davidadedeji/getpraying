@@ -17,7 +17,9 @@ import { normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
 import { resolveSanctuaryCalendarDate } from "../lib/sanctuarySchedule";
 import {
   getLibraryReadCache,
+  isStaffLibraryUser,
   sendCachedJson,
+  sendFreshJson,
   setLibraryReadCache,
 } from "../lib/libraryReadCache";
 
@@ -112,6 +114,28 @@ function iconForPathCategory(category: string): string {
   return map[c] ?? "star";
 }
 
+function libraryCacheHit(req: import("express").Request, res: import("express").Response, cacheKey: string): boolean {
+  if (isStaffLibraryUser((req as { user?: unknown }).user)) return false;
+  const cached = getLibraryReadCache(cacheKey);
+  if (!cached) return false;
+  sendCachedJson(res, cached);
+  return true;
+}
+
+function sendLibraryPayload(
+  req: import("express").Request,
+  res: import("express").Response,
+  cacheKey: string,
+  payload: unknown,
+): void {
+  if (isStaffLibraryUser((req as { user?: unknown }).user)) {
+    sendFreshJson(res, payload);
+    return;
+  }
+  setLibraryReadCache(cacheKey, payload);
+  sendCachedJson(res, payload);
+}
+
 router.get("/library/official", optionalAuth, async (req, res): Promise<void> => {
   const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 120);
   const excludeScheduled =
@@ -122,11 +146,7 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
       : null;
 
   const cacheKey = `official:${categoryFilter ?? "all"}:${excludeScheduled}:${limit}`;
-  const cached = getLibraryReadCache(cacheKey);
-  if (cached) {
-    sendCachedJson(res, cached);
-    return;
-  }
+  if (libraryCacheHit(req, res, cacheKey)) return;
 
   const baseOfficial = db
     .select(officialSummarySelect)
@@ -166,8 +186,7 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
         : {}),
     })),
   };
-  setLibraryReadCache(cacheKey, payload);
-  sendCachedJson(res, payload);
+  sendLibraryPayload(req, res, cacheKey, payload);
 });
 
 /** Current featured morning & evening sanctuary guides for a calendar day (fallback to prior days). */
@@ -179,11 +198,7 @@ router.get("/library/official/sanctuary", optionalAuth, async (req, res): Promis
   }
 
   const cacheKey = `sanctuary:${calendarDate}`;
-  const cached = getLibraryReadCache(cacheKey);
-  if (cached) {
-    sendCachedJson(res, cached);
-    return;
-  }
+  if (libraryCacheHit(req, res, cacheKey)) return;
 
   async function slotGuide(slot: "morning" | "evening", asOfDate: string) {
     const [row] = await db
@@ -206,8 +221,7 @@ router.get("/library/official/sanctuary", optionalAuth, async (req, res): Promis
     slotGuide("evening", calendarDate),
   ]);
   const payload = { morning, evening };
-  setLibraryReadCache(cacheKey, payload);
-  sendCachedJson(res, payload);
+  sendLibraryPayload(req, res, cacheKey, payload);
 });
 
 /** Single official prayer (saved items / deep link). Registered after /sanctuary so "sanctuary" is not parsed as an id. */
@@ -361,11 +375,7 @@ router.delete("/library/saved-official/:prayerId", requireAuth, async (req, res)
 
 router.get("/library/paths", optionalAuth, async (req, res): Promise<void> => {
   const cacheKey = "paths-list";
-  const cached = getLibraryReadCache(cacheKey);
-  if (cached) {
-    sendCachedJson(res, cached);
-    return;
-  }
+  if (libraryCacheHit(req, res, cacheKey)) return;
 
   const paths = filterLibrarySituationPaths(
     await db.select().from(prayerPathsTable),
@@ -390,8 +400,7 @@ router.get("/library/paths", optionalAuth, async (req, res): Promise<void> => {
       prayerCount: countMap.get(path.id) ?? 0,
     })),
   };
-  setLibraryReadCache(cacheKey, payload);
-  sendCachedJson(res, payload);
+  sendLibraryPayload(req, res, cacheKey, payload);
 });
 
 router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<void> => {
@@ -406,11 +415,7 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
   }
 
   const cacheKey = `path:${pathId}:${currentUser?.id ?? "anon"}`;
-  const cached = getLibraryReadCache(cacheKey);
-  if (cached) {
-    sendCachedJson(res, cached);
-    return;
-  }
+  if (libraryCacheHit(req, res, cacheKey)) return;
 
   const officialRows = await db
     .select(officialSummarySelect)
@@ -451,18 +456,13 @@ router.get("/library/paths/:pathId", optionalAuth, async (req, res): Promise<voi
     officialPrayers: officialRows.map(mapOfficialSummary),
     savedOfficialPrayers,
   };
-  setLibraryReadCache(cacheKey, payload);
-  sendCachedJson(res, payload);
+  sendLibraryPayload(req, res, cacheKey, payload);
 });
 
 /** Explore paths: admin prayer paths + official guide counts (not user post categories) */
 router.get("/library/categories", optionalAuth, async (req, res): Promise<void> => {
   const cacheKey = "categories";
-  const cached = getLibraryReadCache(cacheKey);
-  if (cached) {
-    sendCachedJson(res, cached);
-    return;
-  }
+  if (libraryCacheHit(req, res, cacheKey)) return;
 
   const paths = filterLibrarySituationPaths(await db.select().from(prayerPathsTable));
   const pathIds = paths.map((p) => p.id);
@@ -488,8 +488,7 @@ router.get("/library/categories", optionalAuth, async (req, res): Promise<void> 
     pathId: p.id,
     category: p.category,
   }));
-  setLibraryReadCache(cacheKey, payload);
-  sendCachedJson(res, payload);
+  sendLibraryPayload(req, res, cacheKey, payload);
 });
 
 export default router;

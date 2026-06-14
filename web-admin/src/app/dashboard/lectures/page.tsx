@@ -9,7 +9,7 @@ import { LectureSeriesPreview } from "@/components/dashboard/LectureSeriesPrevie
 import { btnGhost, btnDangerOutline, btnPrimary, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 interface LectureTrack {
@@ -46,9 +46,7 @@ export default function LecturesPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/official?category=lectures&limit=60"), {
-        headers: authHeaders(token),
-      });
+      const res = await adminFetch("/library/official?category=lectures&limit=60", token);
       if (!res.ok) return;
       const data = await res.json();
       setLectures(data.prayers ?? data.items ?? []);
@@ -77,7 +75,7 @@ export default function LecturesPage() {
 
   const handleDelete = async (id: number) => {
     if (!token || !confirm("Delete this lesson and all audio parts?")) return;
-    await fetch(apiUrl(`/admin/official-prayers/${id}`), { method: "DELETE", headers: authHeaders(token) });
+    await adminFetch(`/admin/official-prayers/${id}`, token, { method: "DELETE" });
     setLectures((prev) => prev.filter((x) => x.id !== id));
   };
 

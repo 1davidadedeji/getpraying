@@ -21,6 +21,7 @@ import { enrichPosts } from "../lib/postHelpers";
 import { clearModQueueNotificationsForPost, notifyModeratorsNewPending } from "../lib/modQueueNotifications";
 import { attachReportsForStaff, clearPostReportsForPost } from "../lib/postReports";
 import { officialGuideTextError } from "../lib/officialGuideTextLimits";
+import { clearLibraryReadCache } from "../lib/libraryReadCache";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { applyAutoBoostIfEligible } from "../lib/autoBoost";
 import {
@@ -756,6 +757,7 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
   if (isLecture && row && tracksToSync != null) {
     try {
       const tracks = await syncLectureTracks(row.id, tracksToSync);
+      clearLibraryReadCache();
       res.status(201).json({ ...row, audioUrl: null, tracks });
       return;
     } catch (e) {
@@ -765,6 +767,7 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
     }
   }
 
+  clearLibraryReadCache();
   res.status(201).json(row);
 });
 
@@ -898,6 +901,7 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
         .from(officialPrayersTable)
         .where(eq(officialPrayersTable.id, prayerId))
         .limit(1);
+      clearLibraryReadCache();
       res.json({ ...(row ?? { success: true }), tracks });
       return;
     } catch (e) {
@@ -914,10 +918,12 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
 
   if (isLectureRow) {
     const tracks = await fetchTracksForLecture(prayerId);
+    clearLibraryReadCache();
     res.json({ ...(row ?? { success: true }), tracks });
     return;
   }
 
+  clearLibraryReadCache();
   res.json(row ?? { success: true });
 });
 
@@ -1024,6 +1030,7 @@ router.post("/admin/official-prayers/schedule-slot", requireModeratorOrAdmin, as
     return row ?? null;
   });
 
+  clearLibraryReadCache();
   res.json(result);
 });
 
@@ -1054,11 +1061,13 @@ router.delete("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, asyn
         .where(eq(savedOfficialPrayersTable.officialPrayerId, prayerId));
       await tx.delete(officialPrayersTable).where(eq(officialPrayersTable.id, prayerId));
     });
+    clearLibraryReadCache();
     res.json({ success: true });
     return;
   }
 
   await db.delete(officialPrayersTable).where(eq(officialPrayersTable.id, prayerId));
+  clearLibraryReadCache();
   res.json({ success: true });
 });
 

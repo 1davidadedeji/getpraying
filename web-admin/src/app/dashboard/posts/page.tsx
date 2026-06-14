@@ -9,7 +9,7 @@ import { AdminPostFiltersCard } from "@/components/dashboard/AdminPostFiltersCar
 import { AdminPaginationBar } from "@/components/dashboard/AdminPaginationBar";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
-import { apiUrl, authHeaders } from "@/lib/api";
+import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 interface Post {
@@ -78,7 +78,7 @@ export default function PostsPage() {
         if (next.category) params.set("category", next.category);
         if (next.media !== "all") params.set("media", next.media);
         if (next.statusFilter !== "all") params.set("status", next.statusFilter);
-        const res = await fetch(apiUrl(`/admin/posts/moderated?${params}`), { headers: authHeaders(token) });
+        const res = await adminFetch(`/admin/posts/moderated?${params}`, token);
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (cancelled) return;
