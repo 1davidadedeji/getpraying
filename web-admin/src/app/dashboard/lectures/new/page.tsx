@@ -16,7 +16,7 @@ import { panelCls } from "@/components/dashboard/form-styles";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
-import { scriptureForApi } from "@/lib/officialGuidePayload";
+import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
 
 export default function NewLecturePage() {
   const router = useRouter();
@@ -46,7 +46,7 @@ export default function NewLecturePage() {
         body: JSON.stringify({
           title: title.trim(),
           subtitle: subtitle.trim() || null,
-          content: content.trim() || subtitle.trim() || title.trim(),
+          content: contentForApi(content, subtitle, title),
           scripture: scriptureForApi(scripture),
           durationMinutes,
           category: "lectures",

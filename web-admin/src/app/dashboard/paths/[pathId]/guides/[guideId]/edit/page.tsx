@@ -10,7 +10,8 @@ import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
-import { scriptureForApi } from "@/lib/officialGuidePayload";
+import { fetchOfficialGuide } from "@/lib/fetchOfficialGuide";
+import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
 
 export default function EditPathGuidePage() {
   const params = useParams();
@@ -30,12 +31,15 @@ export default function EditPathGuidePage() {
     if (!token || !Number.isFinite(pathId) || !Number.isFinite(guideId)) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl(`/library/paths/${pathId}`), { headers: authHeaders(token) });
-      if (!res.ok) return;
-      const data = await res.json();
-      setPathName(data.name ?? "Path");
-      setCategory(data.category ?? "general");
-      const guide = (data.officialPrayers ?? []).find((g: { id: number }) => g.id === guideId);
+      const [pathRes, guide] = await Promise.all([
+        fetch(apiUrl(`/library/paths/${pathId}`), { headers: authHeaders(token) }),
+        fetchOfficialGuide(token, guideId),
+      ]);
+      if (pathRes.ok) {
+        const data = await pathRes.json();
+        setPathName(data.name ?? "Path");
+        setCategory(data.category ?? "general");
+      }
       if (!guide) {
         setDraft(null);
         return;
@@ -43,7 +47,7 @@ export default function EditPathGuidePage() {
       setDraft({
         title: guide.title,
         subtitle: guide.subtitle ?? "",
-        content: guide.content,
+        content: guide.content ?? "",
         scripture: guide.scripture ?? "",
         audioUrl: guide.audioUrl ?? "",
         durationMinutes: guide.durationMinutes ?? undefined,
@@ -72,7 +76,7 @@ export default function EditPathGuidePage() {
         body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
-          content: draft.content.trim() || draft.subtitle.trim() || draft.title.trim(),
+          content: contentForApi(draft.content, draft.subtitle, draft.title),
           scripture: scriptureForApi(draft.scripture),
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,

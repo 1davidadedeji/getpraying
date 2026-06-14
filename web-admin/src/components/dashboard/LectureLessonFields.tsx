@@ -43,6 +43,16 @@ export function LectureLessonFields({
           onChange={(e) => onChange({ subtitle: e.target.value })}
         />
       </FormField>
+      <FormField label="Description (optional)" className="sm:col-span-2">
+        <textarea
+          className={`${inputCls} resize-none`}
+          placeholder="Optional — lesson overview shown in the app"
+          rows={4}
+          value={draft.content ?? ""}
+          disabled={disabled}
+          onChange={(e) => onChange({ content: e.target.value })}
+        />
+      </FormField>
       <ScriptureField
         className="sm:col-span-2"
         value={draft.scripture ?? ""}

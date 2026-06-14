@@ -53,3 +53,4 @@ web-admin/.next
 
 # Environment secrets
 .env
+.vercel

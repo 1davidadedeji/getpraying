@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
-import { scriptureForApi } from "@/lib/officialGuidePayload";
+import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
 
 export default function NewPathGuidePage() {
   const params = useParams();
@@ -54,7 +54,7 @@ export default function NewPathGuidePage() {
     setSaving(true);
     setError(null);
     try {
-      const content = draft.content.trim() || draft.subtitle.trim() || draft.title.trim();
+      const content = contentForApi(draft.content, draft.subtitle, draft.title);
       const res = await fetch(apiUrl("/admin/official-prayers"), {
         method: "POST",
         headers: authHeaders(token),

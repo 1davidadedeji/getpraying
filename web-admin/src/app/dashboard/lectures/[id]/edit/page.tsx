@@ -17,7 +17,8 @@ import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
-import { scriptureForApi } from "@/lib/officialGuidePayload";
+import { fetchOfficialGuide } from "@/lib/fetchOfficialGuide";
+import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
 
 export default function EditLecturePage() {
   const params = useParams();
@@ -39,13 +40,7 @@ export default function EditLecturePage() {
     if (!token || !Number.isFinite(id)) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/official?category=lectures&limit=60"), {
-        headers: authHeaders(token),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const rows = data.prayers ?? data.items ?? [];
-      const row = rows.find((l: { id: number }) => l.id === id);
+      const row = await fetchOfficialGuide(token, id);
       if (!row) {
         setNotFound(true);
         return;
@@ -81,7 +76,7 @@ export default function EditLecturePage() {
         body: JSON.stringify({
           title: title.trim(),
           subtitle: subtitle.trim() || null,
-          content: content.trim() || subtitle.trim() || title.trim(),
+          content: contentForApi(content, subtitle, title),
           scripture: scriptureForApi(scripture),
           durationMinutes,
           category: "lectures",

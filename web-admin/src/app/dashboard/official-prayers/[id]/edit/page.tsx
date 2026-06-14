@@ -14,7 +14,8 @@ import { useAuth } from "@/context/auth";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
 import { formatLocalYMD, isValidYMD, normalizeScheduledDate } from "@/lib/date";
-import { scriptureForApi } from "@/lib/officialGuidePayload";
+import { fetchOfficialGuide } from "@/lib/fetchOfficialGuide";
+import { scriptureForApi, contentForApi } from "@/lib/officialGuidePayload";
 
 export default function EditOfficialPrayerPage() {
   const params = useParams();
@@ -30,11 +31,7 @@ export default function EditOfficialPrayerPage() {
     if (!token || !Number.isFinite(id)) return;
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/library/official?limit=120"), { headers: authHeaders(token) });
-      if (!res.ok) return;
-      const data = await res.json();
-      const rows = data.prayers ?? data.items ?? [];
-      const row = rows.find((p: { id: number }) => p.id === id);
+      const row = await fetchOfficialGuide(token, id);
       if (!row) {
         setError("Guide not found");
         return;
@@ -42,6 +39,7 @@ export default function EditOfficialPrayerPage() {
       setDraft({
         title: row.title ?? "",
         subtitle: row.subtitle ?? "",
+        content: row.content ?? "",
         scripture: row.scripture ?? "",
         audioUrl: row.audioUrl ?? "",
         durationMinutes: row.durationMinutes ?? undefined,
@@ -73,6 +71,7 @@ export default function EditOfficialPrayerPage() {
         body: JSON.stringify({
           title: draft.title.trim(),
           subtitle: draft.subtitle.trim() || null,
+          content: contentForApi(draft.content, draft.subtitle, draft.title),
           scripture: scriptureForApi(draft.scripture),
           audioUrl: draft.audioUrl.trim() || null,
           durationMinutes: draft.durationMinutes,

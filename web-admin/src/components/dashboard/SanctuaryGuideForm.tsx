@@ -10,6 +10,7 @@ import { formatDisplayDate, formatLocalYMD, isValidYMD, normalizeScheduledDate }
 export type SanctuaryGuideDraft = {
   title: string;
   subtitle: string;
+  content: string;
   scripture: string;
   audioUrl: string;
   durationMinutes?: number;
@@ -20,6 +21,7 @@ export type SanctuaryGuideDraft = {
 export const EMPTY_SANCTUARY_GUIDE: SanctuaryGuideDraft = {
   title: "",
   subtitle: "",
+  content: "",
   scripture: "",
   audioUrl: "",
   scheduleSlot: "morning",
@@ -101,6 +103,16 @@ export function SanctuaryGuideForm({
           value={draft.subtitle}
           disabled={disabled}
           onChange={(e) => set({ subtitle: e.target.value })}
+        />
+      </FormField>
+      <FormField label="Description (optional)" className="sm:col-span-2">
+        <textarea
+          className={`${inputCls} resize-none`}
+          placeholder="Optional — body text shown in the app"
+          rows={4}
+          value={draft.content}
+          disabled={disabled}
+          onChange={(e) => set({ content: e.target.value })}
         />
       </FormField>
       <ScriptureField
