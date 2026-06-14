@@ -10,6 +10,12 @@
  * ANDROID_PACKAGE_NAME, and ANDROID_CERT_FINGERPRINT when ready.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
+import {
+  ANDROID_PACKAGE_NAME_DEFAULT,
+  ANDROID_STORE_URL_PLACEHOLDER,
+  buildAssetLinksPayload,
+  resolveAndroidFingerprints,
+} from "../lib/appLinkConfig";
 import { db, appSettingsTable, postsTable, usersTable, officialPrayersTable, prayerPathsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 
@@ -27,11 +33,28 @@ const MARKETING_URL = "https://getpraying.com";
 
 const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID ?? "";
 const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID ?? "com.getpraying.app";
-const ANDROID_PACKAGE_NAME = process.env.ANDROID_PACKAGE_NAME ?? "com.getpraying.app";
+const ANDROID_PACKAGE_NAME = process.env.ANDROID_PACKAGE_NAME ?? ANDROID_PACKAGE_NAME_DEFAULT;
 const ANDROID_CERT_FINGERPRINT = process.env.ANDROID_CERT_FINGERPRINT ?? "";
 
 const IOS_STORE_URL = (process.env.IOS_STORE_URL ?? "").trim();
 const ANDROID_STORE_URL = (process.env.ANDROID_STORE_URL ?? "").trim();
+
+function isIosStorePlaceholder(url: string): boolean {
+  return !url || url.includes("idXXXXXXXXX");
+}
+
+function resolveIosStoreUrl(settings: Record<string, string>): string {
+  const candidate = IOS_STORE_URL || settings.ios_app_store_url?.trim() || "";
+  return isIosStorePlaceholder(candidate) ? "" : candidate;
+}
+
+function resolveAndroidStoreUrl(settings: Record<string, string>): string {
+  return (
+    ANDROID_STORE_URL ||
+    settings.android_play_store_url?.trim() ||
+    ANDROID_STORE_URL_PLACEHOLDER
+  );
+}
 
 /** Fallback OG image — served from API static (always reachable when api host is up). */
 const DEFAULT_OG_IMAGE_URL = `${API_PUBLIC_BASE}/static/app-icon.png`;
@@ -48,8 +71,11 @@ function detectPlatform(userAgent: string): ClientPlatform {
 function storeFallbackRedirect(req: Request, res: Response): void {
   const platform = detectPlatform(String(req.headers["user-agent"] ?? ""));
   let target = MARKETING_URL;
-  if (platform === "ios" && IOS_STORE_URL) target = IOS_STORE_URL;
-  else if (platform === "android" && ANDROID_STORE_URL) target = ANDROID_STORE_URL;
+  if (platform === "ios" && IOS_STORE_URL && !isIosStorePlaceholder(IOS_STORE_URL)) {
+    target = IOS_STORE_URL;
+  } else if (platform === "android") {
+    target = ANDROID_STORE_URL || ANDROID_STORE_URL_PLACEHOLDER;
+  }
   res.redirect(302, target);
 }
 
@@ -242,8 +268,8 @@ router.get("/post/:id", async (req, res): Promise<void> => {
 
   const post = rows[0];
   const canonicalUrl = `${APP_ORIGIN}/post/${id}`;
-  const iosStore = IOS_STORE_URL || settings.ios_app_store_url || "";
-  const androidStore = ANDROID_STORE_URL || settings.android_play_store_url || "";
+  const iosStore = resolveIosStoreUrl(settings);
+  const androidStore = resolveAndroidStoreUrl(settings);
 
   if (!wantsPreviewHtml) {
     storeFallbackRedirect(req, res);
@@ -333,8 +359,8 @@ router.get("/official/:id", async (req, res): Promise<void> => {
       ogImageUrl: resolveOgImageUrl(settings),
       canonicalUrl: `${APP_ORIGIN}/official/${id}`,
       deepLink: `${APP_SCHEME}://official/${id}`,
-      iosStoreUrl: IOS_STORE_URL || settings.ios_app_store_url || "",
-      androidStoreUrl: ANDROID_STORE_URL || settings.android_play_store_url || "",
+      iosStoreUrl: resolveIosStoreUrl(settings),
+      androidStoreUrl: resolveAndroidStoreUrl(settings),
       eyebrow: guide.category ?? "Guide",
       headline: guide.title,
       body: guide.subtitle ?? `A guided prayer on ${APP_NAME}`,
@@ -382,8 +408,8 @@ router.get("/path/:id", async (req, res): Promise<void> => {
       ogImageUrl: resolveOgImageUrl(settings),
       canonicalUrl: `${APP_ORIGIN}/path/${id}`,
       deepLink: `${APP_SCHEME}://path/${id}`,
-      iosStoreUrl: IOS_STORE_URL || settings.ios_app_store_url || "",
-      androidStoreUrl: ANDROID_STORE_URL || settings.android_play_store_url || "",
+      iosStoreUrl: resolveIosStoreUrl(settings),
+      androidStoreUrl: resolveAndroidStoreUrl(settings),
       eyebrow: path.category ?? "Prayer Path",
       headline: path.name,
       body:
@@ -441,8 +467,8 @@ router.get("/user/:username", async (req, res): Promise<void> => {
       ogImageUrl,
       canonicalUrl: `${APP_ORIGIN}/user/${encodeURIComponent(profile.username)}`,
       deepLink: `${APP_SCHEME}://user/${profile.username}`,
-      iosStoreUrl: IOS_STORE_URL || settings.ios_app_store_url || "",
-      androidStoreUrl: ANDROID_STORE_URL || settings.android_play_store_url || "",
+      iosStoreUrl: resolveIosStoreUrl(settings),
+      androidStoreUrl: resolveAndroidStoreUrl(settings),
       eyebrow: "Profile",
       headline: displayName,
       body: `${profile.prayersShared} ${profile.prayersShared === 1 ? "prayer" : "prayers"} shared · @${profile.username}`,
@@ -482,23 +508,14 @@ router.get("/.well-known/apple-app-site-association", (_req, res): void => {
 // ---------------------------------------------------------------------------
 router.get("/.well-known/assetlinks.json", (_req, res): void => {
   res.setHeader("Content-Type", "application/json");
-  const fingerprints = ANDROID_CERT_FINGERPRINT.split(/[,;\s]+/)
-    .map((f) => f.trim())
-    .filter(Boolean);
-  if (fingerprints.length === 0 || !ANDROID_PACKAGE_NAME) {
-    res.json([]);
-    return;
-  }
-  res.json([
-    {
-      relation: ["delegate_permission/common.handle_all_urls"],
-      target: {
-        namespace: "android_app",
-        package_name: ANDROID_PACKAGE_NAME,
-        sha256_cert_fingerprints: fingerprints,
-      },
-    },
-  ]);
+  res.setHeader("Cache-Control", "public, max-age=300");
+  const fingerprints = resolveAndroidFingerprints(ANDROID_CERT_FINGERPRINT);
+  res.json(
+    buildAssetLinksPayload({
+      packageName: ANDROID_PACKAGE_NAME,
+      fingerprints,
+    }),
+  );
 });
 
 export default router;
