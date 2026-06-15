@@ -27,6 +27,7 @@ import { Text, TextInput } from "react-native";
 import { AppAlertHost } from "@/components/AppAlert";
 import { EntitlementGate } from "@/components/EntitlementGate";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
+import { SanctuaryScheduleCoordinator } from "@/components/SanctuaryScheduleCoordinator";
 import { ensureAppBackgroundMediaPause } from "@/lib/mediaPlaybackCoordinator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/auth";
@@ -204,6 +205,7 @@ export default function RootLayout() {
             <AuthProvider>
               <PendingDeepLinkProvider>
               <PushNotificationCoordinator />
+              <SanctuaryScheduleCoordinator />
               <FeedNoticeProvider>
                 <ModerationBadgeProvider>
                   <RevenueCatProvider>

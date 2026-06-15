@@ -28,6 +28,7 @@ import {
 } from "@/lib/notificationPayload";
 import { scheduleOnAppActive } from "@/lib/appResume";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
+import { requestSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 
 /**
  * Registers push tokens and routes notification taps (foreground, background, cold start).
@@ -125,8 +126,13 @@ export function PushNotificationCoordinator() {
       void registerAndSyncPushToken(jwt);
     });
 
-    const subIncoming = Notifications.addNotificationReceivedListener(() => {
+    const subIncoming = Notifications.addNotificationReceivedListener((notification) => {
       queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
+      const rawType = notification.request.content.data?.type;
+      const type = rawType != null ? String(rawType) : "";
+      if (type === "morning_prayer" || type === "evening_prayer") {
+        requestSanctuaryRefresh();
+      }
     });
 
     const onAppState = (state: AppStateStatus) => {

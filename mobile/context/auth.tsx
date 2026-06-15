@@ -65,7 +65,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || !token) return;
     void syncDeviceTimezone(token);
-    // TEMP(ios-boot-test): gated by BYPASS_PUSH_TOKEN_SYNC in syncExpoPushToken.ts
     void registerAndSyncPushToken(token);
   }, [loading, token]);
 

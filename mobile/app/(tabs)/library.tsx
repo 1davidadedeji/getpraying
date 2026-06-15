@@ -30,6 +30,8 @@ import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
+import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
+import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
@@ -241,7 +243,7 @@ export default function LibraryScreen() {
       morning?: OfficialPrayerRow | null;
       evening?: OfficialPrayerRow | null;
     };
-    const path = "/library/official/sanctuary";
+    const path = sanctuaryLibraryPath();
     const cached = peekLibraryCache<SanctuaryPayload>(path, token);
     if (cached) {
       setSanctuary({
@@ -351,6 +353,10 @@ export default function LibraryScreen() {
       void loadSaved();
     }
   }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures]);
+
+  useEffect(() => {
+    return subscribeSanctuaryRefresh(() => void loadSanctuary({ force: true }));
+  }, [loadSanctuary]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const SITUATION_COLS = useMemo(

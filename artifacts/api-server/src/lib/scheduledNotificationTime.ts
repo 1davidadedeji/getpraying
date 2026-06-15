@@ -14,18 +14,19 @@ export function notSentTodayLocal(sentAt: Date | null, timezone: string): boolea
   return localDateString(sentAt, timezone) !== today;
 }
 
-export function localHourMinute(timezone: string): { hour: number; minute: number } | null {
+export function localHourMinute(timezone: string, at = new Date()): { hour: number; minute: number } | null {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
       hour: "numeric",
       minute: "numeric",
       hour12: false,
-    }).formatToParts(new Date());
+    }).formatToParts(at);
     const h = parts.find((p) => p.type === "hour")?.value;
     const m = parts.find((p) => p.type === "minute")?.value;
     if (h === undefined || m === undefined) return null;
-    return { hour: parseInt(h, 10), minute: parseInt(m, 10) };
+    const hour = parseInt(h, 10);
+    return { hour: hour === 24 ? 0 : hour, minute: parseInt(m, 10) };
   } catch {
     return null;
   }

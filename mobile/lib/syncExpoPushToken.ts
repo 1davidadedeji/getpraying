@@ -9,10 +9,9 @@ const PUSH_BUILD_KEY = "@getpraying/push-build-fingerprint";
 const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
 
 /**
- * TEMP(ios-boot-test): when true, skips permission prompts, APNs, and getExpoPushTokenAsync
- * on cold start / resume. Set to false (or delete) after validating boot performance on device.
+ * Registers the device Expo push token with the API (permission + getExpoPushTokenAsync).
  */
-export const BYPASS_PUSH_TOKEN_SYNC = true;
+export const BYPASS_PUSH_TOKEN_SYNC = false;
 
 export function isExpoPushToken(token: string): boolean {
   const t = token.trim();

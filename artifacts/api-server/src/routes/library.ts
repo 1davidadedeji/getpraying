@@ -14,7 +14,7 @@ import { enrichPosts } from "../lib/postHelpers";
 import { fetchTracksForLecture, fetchTracksGroupedByLecture } from "../lib/lectureTracks";
 import { filterLibrarySituationPaths } from "../lib/libraryPathCategories";
 import { normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
-import { resolveSanctuaryCalendarDate } from "../lib/sanctuarySchedule";
+import { resolveSanctuaryCalendarDate, resolveSanctuarySlotDates, isValidIanaTimezone } from "../lib/sanctuarySchedule";
 import {
   getLibraryReadCache,
   isStaffLibraryUser,
@@ -191,13 +191,29 @@ router.get("/library/official", optionalAuth, async (req, res): Promise<void> =>
 
 /** Current featured morning & evening sanctuary guides for a calendar day (fallback to prior days). */
 router.get("/library/official/sanctuary", optionalAuth, async (req, res): Promise<void> => {
-  const calendarDate = resolveSanctuaryCalendarDate(req.query.date);
-  if (!calendarDate) {
-    res.status(400).json({ error: "Invalid date; use YYYY-MM-DD" });
+  const tzRaw = typeof req.query.timezone === "string" ? req.query.timezone.trim() : "";
+
+  let morningDate: string | null;
+  let eveningDate: string | null;
+
+  if (tzRaw && isValidIanaTimezone(tzRaw)) {
+    const dates = resolveSanctuarySlotDates(tzRaw);
+    morningDate = dates.morningDate;
+    eveningDate = dates.eveningDate;
+  } else if (tzRaw) {
+    res.status(400).json({ error: "Invalid timezone; use an IANA name (e.g. America/New_York)" });
     return;
+  } else {
+    const asOfDate = resolveSanctuaryCalendarDate(req.query.date);
+    if (!asOfDate) {
+      res.status(400).json({ error: "Invalid date; use YYYY-MM-DD" });
+      return;
+    }
+    morningDate = asOfDate;
+    eveningDate = asOfDate;
   }
 
-  const cacheKey = `sanctuary:${calendarDate}`;
+  const cacheKey = `sanctuary:${morningDate}:${eveningDate}`;
   if (libraryCacheHit(req, res, cacheKey)) return;
 
   async function slotGuide(slot: "morning" | "evening", asOfDate: string) {
@@ -217,8 +233,8 @@ router.get("/library/official/sanctuary", optionalAuth, async (req, res): Promis
   }
 
   const [morning, evening] = await Promise.all([
-    slotGuide("morning", calendarDate),
-    slotGuide("evening", calendarDate),
+    slotGuide("morning", morningDate!),
+    slotGuide("evening", eveningDate!),
   ]);
   const payload = { morning, evening };
   sendLibraryPayload(req, res, cacheKey, payload);

@@ -33,6 +33,8 @@ import { useFeedNotice } from "@/context/feedNotice";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
+import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
+import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
@@ -216,8 +218,8 @@ export default function FeedScreen() {
     [clearCommittedSearchState, runCommittedSearch],
   );
 
-  const loadSanctuary = useCallback(async () => {
-    const path = "/library/official/sanctuary";
+  const loadSanctuary = useCallback(async (opts?: { force?: boolean }) => {
+    const path = sanctuaryLibraryPath();
     type SanctuaryPayload = {
       morning?: OfficialPrayerRow | null;
       evening?: OfficialPrayerRow | null;
@@ -230,7 +232,7 @@ export default function FeedScreen() {
       });
     }
     try {
-      const data = await fetchLibraryCached<SanctuaryPayload>(path, token);
+      const data = await fetchLibraryCached<SanctuaryPayload>(path, token, opts);
       if (data) {
         setSanctuary({
           morning: data.morning ?? null,
@@ -315,6 +317,10 @@ export default function FeedScreen() {
     loadFresh();
     void loadSanctuary();
   }, [loadFresh, loadSanctuary]);
+
+  useEffect(() => {
+    return subscribeSanctuaryRefresh(() => void loadSanctuary({ force: true }));
+  }, [loadSanctuary]);
 
   useEffect(() => {
     if (!categoryFetchInitialized.current) {

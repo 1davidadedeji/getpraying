@@ -2,6 +2,10 @@ import { db, usersTable } from "@workspace/db";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { sendDirectPush } from "./pushForNotification";
 import {
+  EVENING_SLOT_HOUR,
+  MORNING_SLOT_HOUR,
+} from "./sanctuarySchedule";
+import {
   inDeliveryWindow,
   localHourMinute,
   notSentTodayLocal,
@@ -10,9 +14,9 @@ import {
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 /**
  * Within each scheduled hour, keep trying until success or this minute bound.
- * At 5-minute polls that is up to six attempts (minutes 0, 5, …, 25).
+ * At 5-minute polls that is up to twelve attempts (minutes 0, 5, …, 55).
  */
-const DELIVERY_WINDOW_MINUTE_MAX = 29;
+const DELIVERY_WINDOW_MINUTE_MAX = 55;
 /** Postgres advisory lock — only one API process runs the scheduler at a time. */
 const SCHEDULER_ADVISORY_LOCK_KEY = 0x475054520001;
 let schedulerRunInFlight = false;
@@ -76,14 +80,14 @@ const SLOT_CONFIG: Record<
   }
 > = {
   morning: {
-    targetHour: 4,
+    targetHour: MORNING_SLOT_HOUR,
     body: "The morning prayer is ready.",
     dataType: "morning_prayer",
     sentAtColumn: usersTable.morningNotifSentAt,
     markSent: (now) => ({ morningNotifSentAt: now }),
   },
   evening: {
-    targetHour: 17,
+    targetHour: EVENING_SLOT_HOUR,
     body: "The evening prayer is ready.",
     dataType: "evening_prayer",
     sentAtColumn: usersTable.eveningNotifSentAt,
