@@ -1,5 +1,4 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { DiagnosticBridge } from "@/components/DiagnosticBridge";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1011,7 +1010,6 @@ export default function PostDetailScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? kbOffset : 0}
     >
-      <DiagnosticBridge />
       <FlatList
         ref={listRef}
         style={styles.flex}
