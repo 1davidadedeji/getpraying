@@ -48,6 +48,12 @@ import {
   emojiForLibraryCategory,
   type LibraryPathCard,
 } from "@/constants/libraryFallbackPaths";
+import {
+  applyEngagementPatch,
+  filterRemovedPost,
+  subscribePostEngagement,
+  updateSavedPostsList,
+} from "@/lib/postEngagementSync";
 
 type Tab = "categories" | "saved";
 type CategoryItem = LibraryPathCard | ApiLibraryCategory;
@@ -374,6 +380,35 @@ export default function LibraryScreen() {
   useEffect(() => {
     if (activeTab === "saved") void loadSaved();
   }, [activeTab, loadSaved]);
+
+  const handleSavedPostUpdated = useCallback(
+    (updated: Post) => {
+      setSavedPosts((prev) => updateSavedPostsList(prev, updated));
+      queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const raw = old as { posts?: Post[] };
+        if (!Array.isArray(raw.posts)) return old;
+        return { ...raw, posts: updateSavedPostsList(raw.posts, updated) };
+      });
+    },
+    [queryClient],
+  );
+
+  useEffect(() => {
+    return subscribePostEngagement((patch) => {
+      if (patch.isSaved === false) {
+        setSavedPosts((prev) => filterRemovedPost(prev, patch.postId));
+        queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+          if (!old || typeof old !== "object") return old;
+          const raw = old as { posts?: Post[] };
+          if (!Array.isArray(raw.posts)) return old;
+          return { ...raw, posts: filterRemovedPost(raw.posts, patch.postId) };
+        });
+        return;
+      }
+      setSavedPosts((prev) => prev.map((p) => applyEngagementPatch(p, patch)));
+    });
+  }, [queryClient]);
 
   useEffect(() => {
     return subscribeSanctuaryRefresh(() => void loadSanctuary({ force: true }));
@@ -853,7 +888,7 @@ export default function LibraryScreen() {
             return (
               <PostCard
                 post={p}
-                onUpdated={(updated) => setSavedPosts((prev) => prev.map((x) => x.id === updated.id ? updated : x))}
+                onUpdated={handleSavedPostUpdated}
               />
             );
           }}

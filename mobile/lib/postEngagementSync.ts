@@ -81,3 +81,10 @@ export function subscribePostRemoved(listener: RemoveListener): () => void {
 export function filterRemovedPost<T extends { id: number }>(list: T[], postId: number): T[] {
   return list.filter((p) => p.id !== postId);
 }
+
+/** Saved-library lists: drop unsaved rows; otherwise merge engagement fields. */
+export function updateSavedPostsList<T extends Post>(posts: T[], updated: T): T[] {
+  if (!updated.isSaved) return filterRemovedPost(posts, updated.id);
+  if (!posts.some((p) => p.id === updated.id)) return posts;
+  return posts.map((p) => (p.id === updated.id ? updated : p));
+}

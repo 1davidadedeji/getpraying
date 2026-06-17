@@ -8,6 +8,7 @@ import {
   pauseAllMediaExcept,
   registerMediaController,
 } from "@/lib/mediaPlaybackCoordinator";
+import { resolveCachedAudioUri } from "@/lib/audioMediaCache";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 type Props = {
@@ -32,19 +33,33 @@ export function CapsuleAudioPlayer({
   onPlaybackFinished,
   autoPlay = false,
 }: Props) {
-  const uri = resolveMediaUrl(audioUrl ?? null);
+  const remoteUri = resolveMediaUrl(audioUrl ?? null);
+  // Optimistic: mount the player with the remote URL immediately (no await on cache).
+  const [playUri, setPlayUri] = useState<string | null>(remoteUri);
+  const [playPending, setPlayPending] = useState(false);
 
-  // expo-audio: creates an AudioPlayer whose lifecycle is tied to this component.
-  // Passing null keeps the player idle. 250 ms = position scrubber update rate.
-  const player = useAudioPlayer(uri ? { uri } : null, 250);
-  // Reactive status — replaces the expo-av setOnPlaybackStatusUpdate callback.
+  useEffect(() => {
+    if (!remoteUri) {
+      setPlayUri(null);
+      return;
+    }
+    setPlayUri(remoteUri);
+    let cancelled = false;
+    void resolveCachedAudioUri(audioUrl).then((resolved) => {
+      if (cancelled || !resolved || resolved === remoteUri) return;
+      setPlayUri(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [remoteUri, audioUrl]);
+
+  const player = useAudioPlayer(playUri ? { uri: playUri } : null, 250);
   const status = useAudioPlayerStatus(player);
 
-  // UI state that needs to trigger re-renders.
   const [muted, setMuted] = useState(false);
   const [feedAudible, setFeedAudible] = useState(false);
 
-  // Behavioural refs that don't need to cause re-renders.
   const endedRef = useRef(false);
   const controllerIdRef = useRef<symbol | null>(null);
   const prevPlayingRef = useRef<boolean | null>(null);
@@ -54,42 +69,43 @@ export function CapsuleAudioPlayer({
   const onPlaybackFinishedRef = useRef(onPlaybackFinished);
   onPlaybackFinishedRef.current = onPlaybackFinished;
 
-  // Derived values from status (expo-audio uses seconds; UI expects milliseconds).
   const playing = status.playing;
   const positionMs = Math.round(status.currentTime * 1000);
   const durationMs = Math.round(status.duration * 1000);
-  // Consider loaded once the duration is known (expo-audio resolves this async).
-  const loading = !!uri && status.duration === 0 && !status.didJustFinish;
+  const showBufferingSpinner = playPending && status.isBuffering;
 
-  // Notify parent of playing state changes without firing on mount.
+  useEffect(() => {
+    if (playing) setPlayPending(false);
+  }, [playing]);
+
   useEffect(() => {
     if (prevPlayingRef.current === playing) return;
     prevPlayingRef.current = playing;
     onPlayingChangeRef.current?.(playing);
   }, [playing]);
 
-  // Reset all local state when the audio source changes.
   useEffect(() => {
     setMuted(false);
     setFeedAudible(false);
+    setPlayPending(false);
     endedRef.current = false;
     prevPlayingRef.current = null;
-  }, [uri]);
+  }, [playUri]);
 
-  // Seek back to the beginning and fire the finished callback when playback ends.
   useEffect(() => {
     if (!status.didJustFinish) return;
     endedRef.current = true;
+    setPlayPending(false);
     onPlayingChangeRef.current?.(false);
     onPlaybackFinishedRef.current?.();
     player.seekTo(0);
   }, [status.didJustFinish, player]);
 
-  // Register with the coordinator so other media can pause this player.
   useEffect(() => {
     const { id, unregister } = registerMediaController(async () => {
       player.pause();
       setFeedAudible(false);
+      setPlayPending(false);
     });
     controllerIdRef.current = id;
     return () => {
@@ -98,20 +114,19 @@ export function CapsuleAudioPlayer({
     };
   }, [player]);
 
-  // Pause when the app moves to the background.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") {
         player.pause();
         setFeedAudible(false);
+        setPlayPending(false);
       }
     });
     return () => sub.remove();
   }, [player]);
 
-  // Auto-play: trigger once the source has loaded.
   useEffect(() => {
-    if (!autoPlay || loading || !uri) return;
+    if (!autoPlay || !playUri) return;
     const cid = controllerIdRef.current;
     if (cid == null) return;
     void (async () => {
@@ -119,22 +134,22 @@ export function CapsuleAudioPlayer({
       await ensureAudioMode();
       player.volume = 1;
       player.seekTo(0);
+      setPlayPending(true);
       player.play();
       setMuted(false);
       endedRef.current = false;
     })();
-    // Only fire once when loading resolves — exhaustive deps would re-trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, uri]);
+  }, [autoPlay, playUri]);
 
-  // Feed auto-play: muted playback when the feed cell scrolls into view.
   useEffect(() => {
     if (!feedMediaFocused) {
       setFeedAudible(false);
+      setPlayPending(false);
       player.pause();
       return;
     }
-    if (loading || !uri) return;
+    if (!playUri) return;
     const cid = controllerIdRef.current;
     if (cid == null) return;
     void (async () => {
@@ -142,19 +157,19 @@ export function CapsuleAudioPlayer({
       await ensureAudioMode();
       player.volume = 0;
       player.seekTo(0);
+      setPlayPending(true);
       player.play();
       setMuted(true);
       setFeedAudible(false);
       endedRef.current = false;
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedMediaFocused, loading, uri]);
+  }, [feedMediaFocused, playUri]);
 
   const togglePlay = useCallback(async () => {
     const cid = controllerIdRef.current;
-    if (cid == null) return;
+    if (cid == null || !playUri) return;
 
-    // Feed cell: first tap unmutes rather than pausing.
     if (feedMediaFocused && !feedAudible) {
       await pauseAllMediaExcept(cid);
       await ensureAudioMode();
@@ -163,6 +178,7 @@ export function CapsuleAudioPlayer({
         player.seekTo(0);
         endedRef.current = false;
       }
+      setPlayPending(true);
       player.play();
       setMuted(false);
       setFeedAudible(true);
@@ -171,6 +187,7 @@ export function CapsuleAudioPlayer({
 
     if (playing) {
       player.pause();
+      setPlayPending(false);
     } else {
       await pauseAllMediaExcept(cid);
       await ensureAudioMode();
@@ -179,12 +196,12 @@ export function CapsuleAudioPlayer({
         endedRef.current = false;
       }
       if (!muted) player.volume = 1;
+      setPlayPending(true);
       player.play();
     }
-  }, [feedMediaFocused, feedAudible, playing, muted, player]);
+  }, [feedMediaFocused, feedAudible, playing, muted, player, playUri]);
 
   const toggleMute = useCallback(async () => {
-    // Feed cell: mute button becomes "unmute / play audibly".
     if (feedMediaFocused) {
       if (!feedAudible) {
         void togglePlay();
@@ -210,13 +227,13 @@ export function CapsuleAudioPlayer({
     [durationMs, player],
   );
 
-  if (!uri) return null;
+  if (!remoteUri) return null;
 
   const feedSilent = feedMediaFocused && !feedAudible;
 
   return (
     <CapsuleMediaControls
-      loading={loading}
+      loading={showBufferingSpinner}
       playing={playing}
       feedSilent={feedSilent}
       positionMs={positionMs}
@@ -227,7 +244,7 @@ export function CapsuleAudioPlayer({
       onTogglePlay={() => void togglePlay()}
       onToggleMute={() => void toggleMute()}
       onSeek={seekProgress}
-      disabled={loading}
+      disabled={false}
     />
   );
 }

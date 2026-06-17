@@ -35,7 +35,7 @@ import { useModerationBadge } from "@/context/moderationBadge";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { apiFetch } from "@/lib/api";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
-import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
+import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved, updateSavedPostsList } from "@/lib/postEngagementSync";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
 import { usePauseMediaOnBlur } from "@/hooks/usePauseMediaOnBlur";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -140,13 +140,21 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     return subscribePostEngagement((patch) => {
-      const patchList = (list: Post[]) =>
-        list.map((p) => applyEngagementPatch(p, patch));
+      const patchList = (list: Post[]) => list.map((p) => applyEngagementPatch(p, patch));
       setMyPosts(patchList);
       setLikedPosts(patchList);
       setCommentedPosts(patchList);
+      queryClient.setQueryData(getGetSavedPrayersQueryKey(), (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const raw = old as { posts?: Post[] };
+        if (!Array.isArray(raw.posts)) return old;
+        if (patch.isSaved === false) {
+          return { ...raw, posts: filterRemovedPost(raw.posts, patch.postId) };
+        }
+        return { ...raw, posts: raw.posts.map((p) => applyEngagementPatch(p, patch)) };
+      });
     });
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     return subscribePostRemoved((removedId) => {
@@ -173,7 +181,7 @@ export default function ProfileScreen() {
         if (!old || typeof old !== "object") return old;
         const raw = old as { posts?: Post[] };
         if (!Array.isArray(raw.posts)) return old;
-        return { ...raw, posts: patchList(raw.posts) };
+        return { ...raw, posts: updateSavedPostsList(raw.posts, updated) };
       });
     },
     [queryClient],

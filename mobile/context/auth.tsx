@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setAuthTokenGetter, getMe } from "@workspace/api-client-react";
 import { login as apiLogin, register as apiRegister, logout as apiLogout } from "@workspace/api-client-react";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@workspace/api-client-react";
 import { clearPushTokenOnServer, registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const syncedPushTokenJwtRef = useRef<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -63,8 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   useEffect(() => {
-    if (loading || !token) return;
+    if (!token) {
+      syncedPushTokenJwtRef.current = null;
+      return;
+    }
+    if (loading) return;
     void syncDeviceTimezone(token);
+    if (syncedPushTokenJwtRef.current === token) return;
+    syncedPushTokenJwtRef.current = token;
     void registerAndSyncPushToken(token);
   }, [loading, token]);
 

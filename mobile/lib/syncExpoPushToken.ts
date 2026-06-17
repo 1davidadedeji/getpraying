@@ -44,10 +44,36 @@ function projectIdForExpoPush(): string | undefined {
   return typeof id === "string" && id.length > 0 ? id : undefined;
 }
 
-function currentBuildFingerprint(): string {
+export function currentBuildFingerprint(): string {
   const cfg = Constants.expoConfig;
   const buildNumber = cfg?.ios?.buildNumber ?? cfg?.android?.versionCode ?? "0";
   return [Platform.OS, buildNumber, Constants.executionEnvironment ?? "unknown"].join(":");
+}
+
+type PostedPushSnapshot = {
+  jwt: string;
+  token: string | null;
+  buildFingerprint: string;
+};
+
+let inflightSync: Promise<void> | null = null;
+let inflightSyncJwt: string | null = null;
+let lastPosted: PostedPushSnapshot | null = null;
+
+function matchesLastPosted(jwt: string, token: string | null, buildFingerprint: string): boolean {
+  if (!lastPosted) return false;
+  return (
+    lastPosted.jwt === jwt &&
+    lastPosted.token === token &&
+    lastPosted.buildFingerprint === buildFingerprint
+  );
+}
+
+/** Clear in-memory sync dedupe state (e.g. after logout). */
+export function resetPushTokenSyncState(): void {
+  inflightSync = null;
+  inflightSyncJwt = null;
+  lastPosted = null;
 }
 
 async function postPushTokenToServer(
@@ -59,6 +85,11 @@ async function postPushTokenToServer(
     buildFingerprint?: string;
   },
 ): Promise<boolean> {
+  const buildFingerprint = payload.buildFingerprint ?? "";
+  if (matchesLastPosted(apiJwt, payload.token, buildFingerprint)) {
+    return true;
+  }
+
   const body: Record<string, string | null> = { token: payload.token };
   if (payload.token != null) {
     const tz =
@@ -79,6 +110,7 @@ async function postPushTokenToServer(
     console.warn("[push] server rejected token sync:", res.status, await res.text().catch(() => ""));
     return false;
   }
+  lastPosted = { jwt: apiJwt, token: payload.token, buildFingerprint };
   return true;
 }
 
@@ -88,7 +120,7 @@ async function postPushTokenToServer(
 export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: string): Promise<void> {
   if (!apiJwt || !Device.isDevice || !expoToken.trim()) return;
   if (!isExpoPushToken(expoToken)) {
-    // Native FCM/APNs rotation events are not Expo tokens — fetch the real Expo token.
+    // Native APNs/FCM rotation events are not Expo tokens — fetch once via guarded register.
     await registerAndSyncPushToken(apiJwt);
     return;
   }
@@ -108,55 +140,75 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
     return;
   }
 
-  await ensureAndroidNotificationChannel();
-
-  // Check / request permission first. Only send null when the user has explicitly
-  // denied permission — not on transient FCM/APNs failures.
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let final = existing;
-  if (existing !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync({
-      ios: { allowAlert: true, allowBadge: true, allowSound: true },
-      android: {},
-    });
-    final = status;
+  if (inflightSync && inflightSyncJwt === apiJwt) {
+    return inflightSync;
   }
 
-  if (final !== "granted") {
-    console.warn("[push] notification permission not granted:", final);
-    await postPushTokenToServer(apiJwt, { token: null });
-    return;
-  }
+  const run = async (): Promise<void> => {
+    await ensureAndroidNotificationChannel();
 
-  // Resolve the Expo push token. On failure keep the existing server token intact so
-  // the user doesn't lose notifications just because FCM/APNs was briefly unavailable.
-  const buildFingerprint = currentBuildFingerprint();
-  try {
-    const projectId = projectIdForExpoPush();
-    const tokenRes = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
-    const expoToken = tokenRes.data?.trim() ?? "";
-    if (!isExpoPushToken(expoToken)) {
-      // Unexpected format — log and bail without clearing the old server token.
-      console.warn("[push] unexpected token format from getExpoPushTokenAsync:", expoToken.slice(0, 40));
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let final = existing;
+    if (existing !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: { allowAlert: true, allowBadge: true, allowSound: true },
+        android: {},
+      });
+      final = status;
+    }
+
+    if (final !== "granted") {
+      console.warn("[push] notification permission not granted:", final);
+      if (!matchesLastPosted(apiJwt, null, "")) {
+        await postPushTokenToServer(apiJwt, { token: null });
+      }
       return;
     }
-    const ok = await postPushTokenToServer(apiJwt, {
-      token: expoToken,
-      platform: Platform.OS,
-      buildFingerprint,
-    });
-    if (ok) await AsyncStorage.setItem(PUSH_BUILD_KEY, buildFingerprint);
-  } catch (err) {
-    // Transient failure (FCM/APNs unavailable, no network, etc.).
-    // Do NOT clear the server token — the existing one may still be valid.
-    // The token will be re-registered on the next foreground or login event.
-    console.warn("[push] getExpoPushTokenAsync failed:", err);
-  }
+
+    const buildFingerprint = currentBuildFingerprint();
+    try {
+      const projectId = projectIdForExpoPush();
+      const tokenRes = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined,
+      );
+      const expoToken = tokenRes.data?.trim() ?? "";
+      if (!isExpoPushToken(expoToken)) {
+        console.warn("[push] unexpected token format from getExpoPushTokenAsync:", expoToken.slice(0, 40));
+        return;
+      }
+      if (matchesLastPosted(apiJwt, expoToken, buildFingerprint)) {
+        return;
+      }
+      const ok = await postPushTokenToServer(apiJwt, {
+        token: expoToken,
+        platform: Platform.OS,
+        buildFingerprint,
+      });
+      if (ok) await AsyncStorage.setItem(PUSH_BUILD_KEY, buildFingerprint);
+    } catch (err) {
+      console.warn("[push] getExpoPushTokenAsync failed:", err);
+    }
+  };
+
+  inflightSyncJwt = apiJwt;
+  inflightSync = run().finally(() => {
+    if (inflightSyncJwt === apiJwt) {
+      inflightSync = null;
+      inflightSyncJwt = null;
+    }
+  });
+  return inflightSync;
+}
+
+/** Whether the app build changed since the last successful push-token sync. */
+export async function pushTokenNeedsBuildResync(): Promise<boolean> {
+  const stored = await AsyncStorage.getItem(PUSH_BUILD_KEY);
+  return stored !== currentBuildFingerprint();
 }
 
 export async function clearPushTokenOnServer(apiJwt: string | null): Promise<void> {
   if (!apiJwt) return;
+  resetPushTokenSyncState();
   await postPushTokenToServer(apiJwt, { token: null });
+  await AsyncStorage.removeItem(PUSH_BUILD_KEY).catch(() => {});
 }

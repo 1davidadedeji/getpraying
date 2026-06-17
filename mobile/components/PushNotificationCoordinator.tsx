@@ -27,8 +27,13 @@ import {
   normalizeNotificationPayload,
 } from "@/lib/notificationPayload";
 import { scheduleOnAppActive } from "@/lib/appResume";
-import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
+import {
+  pushTokenNeedsBuildResync,
+  registerAndSyncPushToken,
+} from "@/lib/syncExpoPushToken";
 import { requestSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
+
+const PUSH_TOKEN_LISTENER_DEBOUNCE_MS = 1_500;
 
 /**
  * Registers push tokens and routes notification taps (foreground, background, cold start).
@@ -48,6 +53,7 @@ export function PushNotificationCoordinator() {
   pathnameRef.current = pathname;
 
   const coldStartCheckedRef = useRef(false);
+  const pushTokenListenerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canNavigateNow = useMemo(() => {
     if (!user?.isEmailVerified) return false;
@@ -108,6 +114,9 @@ export function PushNotificationCoordinator() {
     [dispatchNotification],
   );
 
+  const handleNotificationResponseRef = useRef(handleNotificationResponse);
+  handleNotificationResponseRef.current = handleNotificationResponse;
+
   useEffect(() => {
     if (canNavigateNow && !prevCanNavigateNowRef.current) {
       flushPendingNotification();
@@ -123,7 +132,13 @@ export function PushNotificationCoordinator() {
     const subToken = Notifications.addPushTokenListener(() => {
       const jwt = tokenRef.current;
       if (!jwt) return;
-      void registerAndSyncPushToken(jwt);
+      if (pushTokenListenerDebounceRef.current) {
+        clearTimeout(pushTokenListenerDebounceRef.current);
+      }
+      pushTokenListenerDebounceRef.current = setTimeout(() => {
+        pushTokenListenerDebounceRef.current = null;
+        void registerAndSyncPushToken(jwt);
+      }, PUSH_TOKEN_LISTENER_DEBOUNCE_MS);
     });
 
     const subIncoming = Notifications.addNotificationReceivedListener((notification) => {
@@ -139,7 +154,10 @@ export function PushNotificationCoordinator() {
       if (state !== "active") return;
       const jwt = tokenRef.current;
       if (!jwt) return;
-      scheduleOnAppActive(() => void registerAndSyncPushToken(jwt), 600);
+      scheduleOnAppActive(async () => {
+        if (!(await pushTokenNeedsBuildResync())) return;
+        void registerAndSyncPushToken(jwt);
+      }, 600);
     };
     const subApp = AppState.addEventListener("change", onAppState);
 
@@ -148,25 +166,27 @@ export function PushNotificationCoordinator() {
       subToken.remove();
       subIncoming.remove();
       subApp.remove();
+      if (pushTokenListenerDebounceRef.current) {
+        clearTimeout(pushTokenListenerDebounceRef.current);
+        pushTokenListenerDebounceRef.current = null;
+      }
     };
   }, [handleNotificationResponse, queryClient]);
 
   useEffect(() => {
     if (!token || coldStartCheckedRef.current) return;
+    coldStartCheckedRef.current = true;
 
     void (async () => {
-      coldStartCheckedRef.current = true;
-      void registerAndSyncPushToken(token);
-
       const initialUrl = await Linking.getInitialURL();
       if (parseDeepLinkUrl(initialUrl)) {
         return;
       }
 
       const last = await Notifications.getLastNotificationResponseAsync();
-      await handleNotificationResponse(last, { coldStart: true });
+      await handleNotificationResponseRef.current(last, { coldStart: true });
     })();
-  }, [token, handleNotificationResponse]);
+  }, [token]);
 
   return null;
 }

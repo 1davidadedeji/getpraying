@@ -78,7 +78,8 @@ export function CapsuleMediaControls({
       : `${formatTimeMs(positionMs)} / 0:00`;
   const showMuted = feedSilent || muted;
   const trackRad = Math.max(1, trackH / 2);
-  const controlsDisabled = disabled || loading;
+  const controlsDisabled = disabled;
+  const seekDisabled = disabled || durationMs <= 0;
 
   return (
     <View
@@ -118,7 +119,7 @@ export function CapsuleMediaControls({
         onPress={onTrackPress}
         onLayout={onTrackLayout}
         style={styles.trackPressable}
-        disabled={controlsDisabled || durationMs <= 0}
+        disabled={seekDisabled}
         accessibilityRole="adjustable"
         accessibilityLabel="Seek position"
       >

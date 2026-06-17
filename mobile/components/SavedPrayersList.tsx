@@ -8,7 +8,7 @@ import type { Post } from "@workspace/api-client-react";
 import PostCard from "@/components/PostCard";
 import colors from "@/constants/colors";
 import { SAVED_POSTS_EMPTY } from "@/constants/savedList";
-import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
+import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved, updateSavedPostsList } from "@/lib/postEngagementSync";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -64,6 +64,9 @@ export function SavedPrayersList({
         if (!old || typeof old !== "object") return old;
         const raw = old as { posts?: Post[] };
         if (!Array.isArray(raw.posts)) return old;
+        if (patch.isSaved === false) {
+          return { ...raw, posts: filterRemovedPost(raw.posts, patch.postId) };
+        }
         return { ...raw, posts: raw.posts.map((p) => applyEngagementPatch(p, patch)) };
       });
     });
@@ -88,7 +91,7 @@ export function SavedPrayersList({
         if (!Array.isArray(raw.posts)) return old;
         return {
           ...raw,
-          posts: raw.posts.map((p) => (p.id === updated.id ? updated : p)),
+          posts: updateSavedPostsList(raw.posts, updated),
         };
       });
     },

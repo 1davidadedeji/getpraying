@@ -190,6 +190,21 @@ function PostCardInner({
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
     };
     if (localPost.isSaved) {
+      const prevSaved = localPost.isSaved;
+      const prevSaveCount = localPost.saveCount ?? 0;
+      const optimisticNext = {
+        ...localPost,
+        isSaved: false,
+        saveCount: Math.max(0, prevSaveCount - 1),
+      } as PostWithCounts;
+      setLocalPost(optimisticNext);
+      onUpdated?.(optimisticNext);
+      publishPostEngagement({
+        postId: localPost.id,
+        isSaved: false,
+        saveCount: optimisticNext.saveCount,
+      });
+
       unsave(
         { postId: localPost.id },
         {
@@ -208,7 +223,21 @@ function PostCardInner({
             });
             invalidateSaved();
           },
-          onError: (err) => handleMutationError(err, "unsave this prayer"),
+          onError: (err) => {
+            const reverted = {
+              ...localPost,
+              isSaved: prevSaved,
+              saveCount: prevSaveCount,
+            } as PostWithCounts;
+            setLocalPost(reverted);
+            onUpdated?.(reverted);
+            publishPostEngagement({
+              postId: localPost.id,
+              isSaved: true,
+              saveCount: prevSaveCount,
+            });
+            handleMutationError(err, "unsave this prayer");
+          },
           onSettled: () => {
             engageMutationPendingRef.current = Math.max(0, engageMutationPendingRef.current - 1);
           },

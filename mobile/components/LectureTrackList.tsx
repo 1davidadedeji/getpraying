@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import { FormattedBodyText } from "@/components/FormattedBodyText";
 import colors from "@/constants/colors";
+import { prefetchCachedAudio } from "@/lib/audioMediaCache";
 import type { LectureTrackRow } from "@/lib/officialPrayer";
 
 type Props = {
@@ -24,6 +25,12 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
   useEffect(() => {
     setActiveTrackId(sorted[0]?.id ?? null);
     setAutoPlayActive(false);
+  }, [sorted]);
+
+  useEffect(() => {
+    for (const track of sorted) {
+      prefetchCachedAudio(track.audioUrl);
+    }
   }, [sorted]);
 
   const activeIndex = sorted.findIndex((t) => t.id === activeTrackId);
@@ -102,9 +109,7 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
                   <View style={styles.playFab}>
                     <Ionicons name="play" size={18} color={accentColor} />
                   </View>
-                ) : (
-                  <Ionicons name="volume-high" size={22} color={accentColor} />
-                )}
+                ) : null}
               </View>
 
               {isActive ? (
