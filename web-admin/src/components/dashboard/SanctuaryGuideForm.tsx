@@ -48,8 +48,8 @@ export function SanctuaryGuideForm({
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div className="sm:col-span-2 rounded-md border border-[var(--color-border)] bg-[var(--color-cream)]/40 p-3">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+      <div className="sm:col-span-2 rounded-md border border-(--color-border) bg-(--color-cream)/40 p-3">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-(--color-muted)">
           Schedule
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -74,15 +74,15 @@ export function SanctuaryGuideForm({
               onChange={(e) => set({ scheduledDate: e.target.value })}
             />
             {dateValid ? (
-              <p className="mt-1 text-[11px] font-medium text-[var(--color-primary)]">
+              <p className="mt-1 text-[11px] font-medium text-(--color-primary)">
                 {formatDisplayDate(scheduledDate)}
               </p>
             ) : (
-              <p className="mt-1 text-[11px] text-[var(--color-danger)]">Use format YYYY-MM-DD.</p>
+              <p className="mt-1 text-[11px] text-(--color-danger)">Use format YYYY-MM-DD.</p>
             )}
           </FormField>
         </div>
-        <p className="mt-2 text-[10px] leading-relaxed text-[var(--color-muted)]">
+        <p className="mt-2 text-[10px] leading-relaxed text-(--color-muted)">
           Pick the calendar day this guide should appear in the app. Future dates are allowed — until then, users still
           see the most recent prior schedule for that slot.
         </p>
