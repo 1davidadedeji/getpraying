@@ -12,6 +12,7 @@ import {
 import { eq, and, desc, sql, inArray, ne } from "drizzle-orm";
 import { optionalAuth, requireAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
+import { findUserByUsername } from "../lib/userLookup";
 import { pushForNotificationById } from "../lib/pushForNotification";
 
 const router: IRouter = Router();
@@ -182,10 +183,15 @@ router.get("/users/me/commented-posts", requireAuth, async (req, res): Promise<v
 
 router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
-  const username = raw;
+  const username = typeof raw === "string" ? raw.trim() : "";
   const viewer = (req as any).user as { id: number } | undefined;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username));
+  if (!username) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const user = await findUserByUsername(username);
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -231,7 +237,7 @@ router.post("/users/:username/follow", requireAuth, async (req, res): Promise<vo
   const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
   const viewer = (req as any).user as { id: number };
 
-  const [target] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  const target = await findUserByUsername(typeof raw === "string" ? raw : "");
   if (!target) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -269,7 +275,7 @@ router.delete("/users/:username/follow", requireAuth, async (req, res): Promise<
   const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
   const viewer = (req as any).user as { id: number };
 
-  const [target] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  const target = await findUserByUsername(typeof raw === "string" ? raw : "");
   if (!target) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -284,13 +290,18 @@ router.delete("/users/:username/follow", requireAuth, async (req, res): Promise<
 
 router.get("/users/:username/posts", optionalAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
-  const username = raw;
+  const username = typeof raw === "string" ? raw.trim() : "";
   const currentUser = (req as any).user;
 
   const limit = parseInt((req.query.limit as string) || "20", 10);
   const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username));
+  if (!username) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const user = await findUserByUsername(username);
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -328,7 +339,7 @@ router.get("/users/:username/liked-posts", optionalAuth, async (req, res): Promi
   const limit = parseInt((req.query.limit as string) || "50", 10);
   const viewer = (req as any).user as { id: number } | undefined;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  const user = await findUserByUsername(typeof raw === "string" ? raw : "");
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -343,7 +354,7 @@ router.get("/users/:username/commented-posts", optionalAuth, async (req, res): P
   const limit = parseInt((req.query.limit as string) || "50", 10);
   const viewer = (req as any).user as { id: number } | undefined;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  const user = await findUserByUsername(typeof raw === "string" ? raw : "");
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -359,7 +370,7 @@ router.get("/users/:username/saved-posts", optionalAuth, async (req, res): Promi
   const limit = parseInt((req.query.limit as string) || "50", 10);
   const viewer = (req as any).user as { id: number } | undefined;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, raw));
+  const user = await findUserByUsername(typeof raw === "string" ? raw : "");
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;

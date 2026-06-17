@@ -3,6 +3,7 @@ import { apiFetch } from "@/lib/api";
 type CacheEntry = { at: number; data: unknown };
 
 const store = new Map<string, CacheEntry>();
+const inflight = new Map<string, Promise<unknown>>();
 
 /** Client-side cache for library reads (stale-while-revalidate). */
 export const LIBRARY_FETCH_CACHE_MS = 120_000;
@@ -28,6 +29,7 @@ export function clearLibraryCache(): void {
 
 /**
  * GET JSON with in-memory cache. Returns stale data on network failure when available.
+ * In-flight identical requests share one network call.
  */
 export async function fetchLibraryCached<T>(
   path: string,
@@ -36,18 +38,32 @@ export async function fetchLibraryCached<T>(
 ): Promise<T | null> {
   const key = cacheKey(path, token);
   const stale = store.get(key)?.data as T | undefined;
+
   if (!opts?.force) {
     const fresh = peekLibraryCache<T>(path, token);
     if (fresh != null) return fresh;
+
+    const pending = inflight.get(key);
+    if (pending) return pending as Promise<T | null>;
   }
 
+  const fetchPromise = (async (): Promise<T | null> => {
+    try {
+      const res = await apiFetch(path, { token, timeoutMs: opts?.timeoutMs });
+      if (!res.ok) return stale ?? null;
+      const data = (await res.json()) as T;
+      setLibraryCache(path, token, data);
+      return data;
+    } catch {
+      return stale ?? null;
+    }
+  })();
+
+  if (!opts?.force) inflight.set(key, fetchPromise);
+
   try {
-    const res = await apiFetch(path, { token, timeoutMs: opts?.timeoutMs });
-    if (!res.ok) return stale ?? null;
-    const data = (await res.json()) as T;
-    setLibraryCache(path, token, data);
-    return data;
-  } catch {
-    return stale ?? null;
+    return await fetchPromise;
+  } finally {
+    inflight.delete(key);
   }
 }

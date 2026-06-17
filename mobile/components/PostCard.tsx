@@ -282,7 +282,7 @@ function PostCardInner({
     ) {
       return;
     }
-    navigate(`/user/${localPost.authorUsername}` as any);
+    navigate(`/user/${encodeURIComponent(localPost.authorUsername)}` as any);
   }, [activeProfileUsername, localPost.authorUsername, localPost.isAnonymous, navigate]);
 
   const postHref = useMemo(() => {

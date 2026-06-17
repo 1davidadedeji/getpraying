@@ -181,12 +181,18 @@ function normalizeNotificationsPayload(data: unknown): NotifRow[] {
 
 function useNotificationsUnreadCount() {
   const { token } = useAuth();
+  const pathname = usePathname();
+  const onAlertsTab =
+    pathname === "/(tabs)/notifications" ||
+    pathname === "/notifications" ||
+    pathname.endsWith("/notifications");
   const { data } = useGetNotifications({
     query: {
       queryKey: getGetNotificationsQueryKey(),
       enabled: !!token,
       staleTime: 20_000,
-      refetchInterval: LIVE_NOTIFICATIONS_POLL_MS,
+      refetchIntervalInBackground: false,
+      refetchInterval: token ? (onAlertsTab ? LIVE_NOTIFICATIONS_POLL_MS : 60_000) : false,
     },
   });
   return useMemo(() => {

@@ -30,6 +30,11 @@ import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
+import {
+  DEFAULT_FOCUS_FETCH_THROTTLE_MS,
+  runLibraryFocusFetch,
+  shouldRunThrottledFocusFetch,
+} from "@/lib/focusFetchThrottle";
 import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
 import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
@@ -199,14 +204,15 @@ export default function LibraryScreen() {
     }
     setLoadingSaved(true);
     try {
-      const [officialRes, postsRes] = await Promise.all([
-        apiFetch("/library/saved-official", { token }),
-        apiFetch("/library/saved", { token }),
-      ]);
-      if (officialRes.ok) {
-        const data = await officialRes.json();
-        setSavedOfficialList((data as { prayers?: OfficialPrayerRow[] }).prayers ?? []);
+      const officialData = await fetchLibraryCached<{ prayers?: OfficialPrayerRow[] }>(
+        "/library/saved-official",
+        token,
+      );
+      if (officialData?.prayers) {
+        setSavedOfficialList(officialData.prayers);
       }
+
+      const postsRes = await apiFetch("/library/saved", { token });
       if (postsRes.ok) {
         const data = await postsRes.json();
         setSavedPosts((data as { posts?: Post[] }).posts ?? []);
@@ -325,34 +331,49 @@ export default function LibraryScreen() {
     [token, savedOfficialIds, activeTab, loadSaved],
   );
 
+  const lastLibraryFocusFetchRef = useRef(0);
+
   useFocusEffect(
     useCallback(() => {
-      void loadCategories();
-      void loadSanctuary();
-      void loadSavedOfficialIds();
-      void loadSaved();
-      void loadLectures();
-      if (focusSection && categoriesScrollRef.current) {
-        requestAnimationFrame(() => {
-          categoriesScrollRef.current?.scrollTo({
-            y: Math.max(0, sanctuarySectionY.current - 12),
-            animated: true,
-          });
-        });
+      const now = Date.now();
+      if (!shouldRunThrottledFocusFetch(lastLibraryFocusFetchRef.current, now, DEFAULT_FOCUS_FETCH_THROTTLE_MS)) {
+        return;
       }
-    }, [loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures, focusSection]),
+      lastLibraryFocusFetchRef.current = now;
+
+      runLibraryFocusFetch(activeTab, {
+        loadCategories,
+        loadSanctuary,
+        loadSavedOfficialIds,
+        loadLectures,
+        loadSaved,
+      }, {
+        focusSection,
+        scrollToSanctuary: focusSection && categoriesScrollRef.current
+          ? () => {
+              requestAnimationFrame(() => {
+                categoriesScrollRef.current?.scrollTo({
+                  y: Math.max(0, sanctuarySectionY.current - 12),
+                  animated: true,
+                });
+              });
+            }
+          : undefined,
+      });
+    }, [
+      activeTab,
+      loadCategories,
+      loadSanctuary,
+      loadSavedOfficialIds,
+      loadLectures,
+      loadSaved,
+      focusSection,
+    ]),
   );
 
   useEffect(() => {
-    if (activeTab === "categories") {
-      void loadCategories();
-      void loadSanctuary();
-      void loadSavedOfficialIds();
-      void loadLectures();
-    } else if (activeTab === "saved") {
-      void loadSaved();
-    }
-  }, [activeTab, loadCategories, loadSanctuary, loadSavedOfficialIds, loadSaved, loadLectures]);
+    if (activeTab === "saved") void loadSaved();
+  }, [activeTab, loadSaved]);
 
   useEffect(() => {
     return subscribeSanctuaryRefresh(() => void loadSanctuary({ force: true }));

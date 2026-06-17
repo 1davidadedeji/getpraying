@@ -104,7 +104,12 @@ export default function ProfileScreen() {
   usePauseMediaOnBlur(clearFeedMediaFocus);
 
   const { data: freshUser, refetch: refetchMe } = useGetMe({
-    query: { queryKey: getGetMeQueryKey(), enabled: !!token, staleTime: 0 },
+    query: {
+      queryKey: getGetMeQueryKey(),
+      enabled: !!token,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
   });
 
   const me = useMemo(() => {
@@ -113,8 +118,19 @@ export default function ProfileScreen() {
   }, [user, freshUser]);
 
   useEffect(() => {
-    if (freshUser) refreshUser(freshUser as User);
-  }, [freshUser, refreshUser]);
+    if (!freshUser || !user) return;
+    const fu = freshUser as User;
+    if (
+      fu.subscription === user.subscription &&
+      fu.displayName === user.displayName &&
+      fu.avatarUrl === user.avatarUrl &&
+      fu.scheduledNotificationsEnabled === user.scheduledNotificationsEnabled &&
+      (fu as { location?: string | null }).location === (user as { location?: string | null }).location
+    ) {
+      return;
+    }
+    refreshUser(fu);
+  }, [freshUser, user, refreshUser]);
 
   useEffect(() => {
     if (me && !editingLocation) {

@@ -32,6 +32,12 @@ import { useAuth } from "@/context/auth";
 import { useFeedNotice } from "@/context/feedNotice";
 import { useTabBarVisibility } from "@/context/tabBarVisibility";
 import { apiFetch } from "@/lib/api";
+import { apiFetchGetOnce } from "@/lib/inFlightGet";
+import {
+  DEFAULT_FOCUS_FETCH_THROTTLE_MS,
+  runFeedSanctuaryFocusFetch,
+  shouldRunThrottledFocusFetch,
+} from "@/lib/focusFetchThrottle";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
 import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
@@ -46,7 +52,6 @@ import { clamp } from "@/lib/responsiveMetrics";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
 import { subscribeAppActive } from "@/lib/appResume";
 import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
-import { LIVE_FEED_ENGAGEMENT_POLL_MS } from "@/lib/liveSync";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_SINCE_LIMIT = 50;
@@ -273,7 +278,7 @@ export default function FeedScreen() {
       if (cursor) params.set("cursor", cursor);
       if (category) params.set("category", category);
 
-      const res = await apiFetch(`/posts?${params}`, { token });
+      const res = await apiFetchGetOnce(`/posts?${params}`, { token });
       if (!res.ok) throw new Error(`GET /posts failed: ${res.status}`);
       const data = await res.json();
       const rawNext = data.nextCursor;
@@ -312,11 +317,33 @@ export default function FeedScreen() {
   loadFreshRef.current = loadFresh;
 
   const categoryFetchInitialized = useRef(false);
+  const initialLoadDoneRef = useRef(false);
+  const loadSanctuaryRef = useRef(loadSanctuary);
+  loadSanctuaryRef.current = loadSanctuary;
+  const lastFeedSanctuaryFocusRef = useRef(0);
 
   useEffect(() => {
-    loadFresh();
+    initialLoadDoneRef.current = false;
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (initialLoadDoneRef.current) return;
+    initialLoadDoneRef.current = true;
+    void loadFresh();
     void loadSanctuary();
-  }, [loadFresh, loadSanctuary]);
+  }, [token, loadFresh, loadSanctuary]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      if (!shouldRunThrottledFocusFetch(lastFeedSanctuaryFocusRef.current, now, DEFAULT_FOCUS_FETCH_THROTTLE_MS)) {
+        return;
+      }
+      lastFeedSanctuaryFocusRef.current = now;
+      runFeedSanctuaryFocusFetch(() => loadSanctuaryRef.current());
+    }, []),
+  );
 
   useEffect(() => {
     return subscribeSanctuaryRefresh(() => void loadSanctuary({ force: true }));
@@ -344,8 +371,6 @@ export default function FeedScreen() {
     void loadSanctuary();
   }, [feedJumpToTopNonce, loadSanctuary]);
 
-  const focusRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
     return subscribePostEngagement((patch) => {
       setPosts((prev) => prev.map((p) => applyEngagementPatch(p, patch)));
@@ -360,42 +385,6 @@ export default function FeedScreen() {
     });
   }, []);
 
-  const mergeFeedEngagement = useCallback(async () => {
-    if (loading || refreshing || loadingMoreRef.current || feedCategory != null || posts.length === 0) {
-      return;
-    }
-    try {
-      const result = await fetchPage(undefined, null);
-      const freshById = new Map(result.posts.map((p) => [p.id, p]));
-      setPosts((prev) =>
-        prev.map((p) => {
-          const fresh = freshById.get(p.id);
-          if (!fresh) return p;
-          return applyEngagementPatch(p, {
-            postId: p.id,
-            prayCount: fresh.prayCount,
-            hasPrayed: fresh.hasPrayed,
-            isSaved: fresh.isSaved,
-            commentCount: (fresh as Post & { commentCount?: number }).commentCount,
-            hasCommented: (fresh as Post & { hasCommented?: boolean }).hasCommented,
-            saveCount: (fresh as Post & { saveCount?: number }).saveCount,
-          });
-        }),
-      );
-    } catch {
-      /* silent */
-    }
-  }, [loading, refreshing, feedCategory, posts.length, fetchPage]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const interval = setInterval(() => {
-        void mergeFeedEngagement();
-      }, LIVE_FEED_ENGAGEMENT_POLL_MS);
-      return () => clearInterval(interval);
-    }, [mergeFeedEngagement]),
-  );
-
   useEffect(() => {
     return subscribeAppActive(() => {
       if (loading || refreshing) return;
@@ -408,64 +397,45 @@ export default function FeedScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadSanctuary();
-      if (focusRefreshTimerRef.current) clearTimeout(focusRefreshTimerRef.current);
-      focusRefreshTimerRef.current = setTimeout(() => {
-        focusRefreshTimerRef.current = null;
-        if (posts.length === 0 && !loading) {
-          // Feed is empty (first launch or after error) — fill it.
-          void loadFresh({ silent: true });
-        }
-        // Don't silently reset a populated feed on every tab focus — it discards
-        // the user's scroll position. The 45s new-posts poll surfaces fresh content.
-      }, 280);
-      return () => {
-        if (focusRefreshTimerRef.current) {
-          clearTimeout(focusRefreshTimerRef.current);
-          focusRefreshTimerRef.current = null;
+      const pollNewPosts = async () => {
+        if (feedCategoryRef.current != null) return;
+        const maxKnown = maxKnownCreatedAtRef.current;
+        if (!maxKnown) return;
+        try {
+          const res = await apiFetch(
+            `/posts/new-count?maxKnownCreatedAt=${encodeURIComponent(maxKnown)}`,
+            { token },
+          );
+          if (!res.ok) return;
+          const data = (await res.json()) as {
+            count?: number;
+            globalNewestCreatedAt?: string | null;
+          };
+          const count = typeof data.count === "number" ? data.count : 0;
+          const safe = Math.max(0, count);
+          if (safe === 0 && data.globalNewestCreatedAt) {
+            applyFeedWatermark(data.globalNewestCreatedAt);
+          }
+          if (newPostsCountDebounceRef.current) clearTimeout(newPostsCountDebounceRef.current);
+          newPostsCountDebounceRef.current = setTimeout(() => {
+            newPostsCountDebounceRef.current = null;
+            setNewPostCount(safe);
+          }, NEW_POSTS_COUNT_DEBOUNCE_MS);
+        } catch {
+          /* silent */
         }
       };
-    }, [posts.length, loading, loadFresh, loadSanctuary]),
-  );
 
-  useEffect(() => {
-    if (loading) return;
-    if (feedCategory != null) return;
-    const interval = setInterval(async () => {
-      const maxKnown = maxKnownCreatedAtRef.current;
-      if (!maxKnown) return;
-      try {
-        const res = await apiFetch(
-          `/posts/new-count?maxKnownCreatedAt=${encodeURIComponent(maxKnown)}`,
-          { token },
-        );
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          count?: number;
-          globalNewestCreatedAt?: string | null;
-        };
-        const count = typeof data.count === "number" ? data.count : 0;
-        const safe = Math.max(0, count);
-        if (safe === 0 && data.globalNewestCreatedAt) {
-          applyFeedWatermark(data.globalNewestCreatedAt);
-        }
-        if (newPostsCountDebounceRef.current) clearTimeout(newPostsCountDebounceRef.current);
-        newPostsCountDebounceRef.current = setTimeout(() => {
+      const interval = setInterval(() => void pollNewPosts(), NEW_POSTS_POLL_MS);
+      return () => {
+        clearInterval(interval);
+        if (newPostsCountDebounceRef.current) {
+          clearTimeout(newPostsCountDebounceRef.current);
           newPostsCountDebounceRef.current = null;
-          setNewPostCount(safe);
-        }, NEW_POSTS_COUNT_DEBOUNCE_MS);
-      } catch {
-        /* silent */
-      }
-    }, NEW_POSTS_POLL_MS);
-    return () => {
-      clearInterval(interval);
-      if (newPostsCountDebounceRef.current) {
-        clearTimeout(newPostsCountDebounceRef.current);
-        newPostsCountDebounceRef.current = null;
-      }
-    };
-  }, [loading, feedCategory, token, applyFeedWatermark]);
+        }
+      };
+    }, [token, applyFeedWatermark]),
+  );
 
   useEffect(() => {
     const showPill = newPostCount > 0 && newPostsScrollGate && !feedCategory;

@@ -32,6 +32,8 @@ import { clamp } from "@/lib/responsiveMetrics";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/lib/api";
+import { apiFetchGetOnce } from "@/lib/inFlightGet";
+import { normalizeRouteStringParam } from "@/lib/routeParams";
 import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
 
 interface UserProfile {
@@ -62,12 +64,13 @@ const PAGE_SIZE = 20;
 
 export default function UserProfileScreen() {
   useStackHeaderBack("/(tabs)" as Href);
-  const { username } = useLocalSearchParams<{ username: string }>();
+  const { username: usernameParam } = useLocalSearchParams<{ username: string }>();
+  const routeUsername = useMemo(() => normalizeRouteStringParam(usernameParam), [usernameParam]);
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, tabLabelSize } = useResponsiveLayout();
   const listBotPad = Math.round(clamp(100 * uiScale, 88, 112));
   const { token, user: me } = useAuth();
-  const isOwnProfile = !!me && me.username === username;
+  const isOwnProfile = !!me && routeUsername != null && me.username === routeUsername;
 
   useEffect(() => {
     if (!isOwnProfile) return;
@@ -151,24 +154,31 @@ export default function UserProfileScreen() {
   );
 
   const fetchProfile = useCallback(async () => {
-    const res = await apiFetch(`/users/${username}`, { token });
+    if (!routeUsername) return;
+    const res = await apiFetchGetOnce(`/users/${encodeURIComponent(routeUsername)}`, { token });
     if (res.ok) setProfile(await res.json());
-  }, [username, token]);
+    else setProfile(null);
+  }, [routeUsername, token]);
 
   const fetchPosts = useCallback(
     async (cursor?: number) => {
+      if (!routeUsername) return { posts: [] as Post[], nextCursor: null };
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("cursor", String(cursor));
-      const res = await apiFetch(`/users/${username}/posts?${params}`, { token });
+      const res = await apiFetchGetOnce(
+        `/users/${encodeURIComponent(routeUsername)}/posts?${params}`,
+        { token },
+      );
       if (!res.ok) return { posts: [] as Post[], nextCursor: null };
       const data = await res.json();
       return { posts: (data.posts ?? []) as Post[], nextCursor: data.nextCursor ?? null };
     },
-    [username, token],
+    [routeUsername, token],
   );
 
   const fetchInteractions = useCallback(async () => {
-    const base = isOwnProfile && token ? "/users/me" : `/users/${username}`;
+    if (!routeUsername) return;
+    const base = isOwnProfile && token ? "/users/me" : `/users/${encodeURIComponent(routeUsername)}`;
     const [likedRes, commentedRes] = await Promise.all([
       apiFetch(`${base}/liked-posts`, { token }),
       apiFetch(`${base}/commented-posts`, { token }),
@@ -187,10 +197,11 @@ export default function UserProfileScreen() {
     }
     setInteractions(merged);
     setInteractionsLoaded(true);
-  }, [username, token, isOwnProfile]);
+  }, [routeUsername, token, isOwnProfile]);
 
   const fetchSaved = useCallback(async () => {
-    const res = await apiFetch(`/users/${username}/saved-posts?limit=50`, { token });
+    if (!routeUsername) return;
+    const res = await apiFetch(`/users/${encodeURIComponent(routeUsername)}/saved-posts?limit=50`, { token });
     if (!res.ok) {
       setSaved([]);
       setSavedLoaded(true);
@@ -199,13 +210,24 @@ export default function UserProfileScreen() {
     const data = await res.json();
     setSaved((data.posts ?? []) as Post[]);
     setSavedLoaded(true);
-  }, [username, token]);
+  }, [routeUsername, token]);
+
+  const loadProfileAndPosts = useCallback(async () => {
+    await fetchProfile();
+    return fetchPosts();
+  }, [fetchProfile, fetchPosts]);
 
   const loadInitial = useCallback(async () => {
+    if (!routeUsername) return;
     setLoading(true);
     try {
-      await fetchProfile();
-      const result = await fetchPosts();
+      let result;
+      try {
+        result = await loadProfileAndPosts();
+      } catch {
+        // iOS may cancel duplicate GETs (-999); retry once before showing empty state.
+        result = await loadProfileAndPosts();
+      }
       seenPostIds.current = new Set(result.posts.map((p) => p.id));
       setPosts(result.posts);
       setPostsNextCursor(result.nextCursor);
@@ -214,11 +236,18 @@ export default function UserProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [fetchProfile, fetchPosts]);
+  }, [routeUsername, loadProfileAndPosts]);
 
   useEffect(() => {
+    if (!routeUsername) return;
+    setProfile(null);
+    setPosts([]);
+    setPostsNextCursor(null);
+    seenPostIds.current = new Set();
+    setInteractionsLoaded(false);
+    setSavedLoaded(false);
     void loadInitial();
-  }, [loadInitial]);
+  }, [routeUsername, loadInitial]);
 
   useEffect(() => {
     if (activeTab === "interactions" && !interactionsLoaded) void fetchInteractions();
@@ -318,7 +347,7 @@ export default function UserProfileScreen() {
     [tabLabelSize, tabIndicatorH, uiScale],
   );
 
-  const displayName = profile?.displayName ?? profile?.username ?? username;
+  const displayName = profile?.displayName ?? profile?.username ?? routeUsername ?? "";
   const initials = (displayName ?? "?").slice(0, 2).toUpperCase();
   const joinYear = profile ? new Date(profile.createdAt).getFullYear() : "";
 
@@ -338,7 +367,7 @@ export default function UserProfileScreen() {
           {displayName}
         </Text>
         <Text style={styles.username} numberOfLines={1} ellipsizeMode="middle">
-          @{profile?.username ?? username}
+          @{profile?.username ?? routeUsername}
         </Text>
         {joinYear ? <Text style={styles.joinDate}>Member since {joinYear}</Text> : null}
         {profile?.location ? (
@@ -408,7 +437,7 @@ export default function UserProfileScreen() {
         )}
       </View>
     ),
-    [profile, username, displayName, initials, joinYear, gutter, me, token, followBusy],
+    [profile, routeUsername, displayName, initials, joinYear, gutter, me, token, followBusy],
   );
 
   const renderCollapsibleHeader = useCallback(() => {
@@ -499,7 +528,7 @@ export default function UserProfileScreen() {
             post={item}
             onUpdated={handleUpdated}
             replaceNav
-            activeProfileUsername={username}
+            activeProfileUsername={routeUsername}
             feedMediaFocusPostId={activeTab === "prayers" ? feedMediaFocusPostId : null}
           />
         </View>
@@ -533,7 +562,7 @@ export default function UserProfileScreen() {
             post={item}
             onUpdated={handleUpdated}
             replaceNav
-            activeProfileUsername={username}
+            activeProfileUsername={routeUsername}
             feedMediaFocusPostId={activeTab === "interactions" ? feedMediaFocusPostId : null}
           />
         </View>
@@ -570,7 +599,7 @@ export default function UserProfileScreen() {
             post={item}
             onUpdated={handleUpdated}
             replaceNav
-            activeProfileUsername={username}
+            activeProfileUsername={routeUsername}
             feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
           />
         </View>
@@ -643,7 +672,7 @@ export default function UserProfileScreen() {
                   post={item}
                   onUpdated={handleUpdated}
                   replaceNav
-                  activeProfileUsername={username}
+                  activeProfileUsername={routeUsername}
                   feedMediaFocusPostId={activeTab === "prayers" ? feedMediaFocusPostId : null}
                 />
               </View>
@@ -680,7 +709,7 @@ export default function UserProfileScreen() {
                   post={item}
                   onUpdated={handleUpdated}
                   replaceNav
-                  activeProfileUsername={username}
+                  activeProfileUsername={routeUsername}
                   feedMediaFocusPostId={activeTab === "interactions" ? feedMediaFocusPostId : null}
                 />
               </View>
@@ -716,7 +745,7 @@ export default function UserProfileScreen() {
                   post={item}
                   onUpdated={handleUpdated}
                   replaceNav
-                  activeProfileUsername={username}
+                  activeProfileUsername={routeUsername}
                   feedMediaFocusPostId={activeTab === "saved" ? feedMediaFocusPostId : null}
                 />
               </View>

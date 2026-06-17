@@ -48,9 +48,14 @@ export function ModerationBadgeProvider({ children }: { children: React.ReactNod
   }, [token, isMod, queryClient]);
 
   useEffect(() => {
-    if (!isMod) { setPendingCount(0); return; }
+    if (!isMod) {
+      setPendingCount(0);
+      return;
+    }
     fetchCount();
-    const interval = setInterval(fetchCount, POLL_INTERVAL_MS);
+    const interval = setInterval(() => {
+      if (AppState.currentState === "active") fetchCount();
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [isMod, fetchCount]);
 

@@ -29,6 +29,7 @@ import {
   notificationRowToPushData,
 } from "@/lib/notificationNavigation";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
+import { useScreenFocused } from "@/hooks/useScreenFocused";
 
 type NotifType = string;
 type NotifRow = Omit<Notification, "type"> & { type: string };
@@ -196,13 +197,16 @@ function NotificationItem({
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const screenFocused = useScreenFocused();
   const { gutter } = useResponsiveLayout();
   const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
   const { data, isLoading, refetch, isFetching } = useGetNotifications({
     query: {
       queryKey: getGetNotificationsQueryKey(),
-      refetchInterval: LIVE_NOTIFICATIONS_POLL_MS,
+      staleTime: 20_000,
+      refetchIntervalInBackground: false,
+      refetchInterval: screenFocused ? LIVE_NOTIFICATIONS_POLL_MS : false,
     },
   });
   const { mutate: markAll } = useMarkAllNotificationsRead({
