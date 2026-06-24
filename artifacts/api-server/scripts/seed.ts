@@ -1,6 +1,6 @@
 /**
  * Production-safe seed: ~200 users with avatars, 4-12 posts each (~1000-2400 total),
- * real post_prayers + comments, and staggered timestamps spanning the last 90 days.
+ * real post_prayers + comments + saved_posts, and staggered timestamps spanning the last 90 days.
  *
  * Usage (from repo root or artifacts/api-server, with DATABASE_URL set):
  *   pnpm --filter @workspace/api-server run seed
@@ -8,7 +8,7 @@
  *   pnpm --filter @workspace/api-server run seed -- --refresh-engagement
  *
  * Emails use @seed.getpraying.app — re-run skips unless --force or --refresh-engagement.
- * Only touches users/posts/comments/post_prayers for @seed.getpraying.app accounts.
+ * Only touches users/posts/comments/post_prayers/saved_posts for @seed.getpraying.app accounts.
  */
 import "dotenv/config";
 import bcrypt from "bcryptjs";
@@ -48,8 +48,8 @@ async function wipeSeedData(userIds: number[]): Promise<void> {
   const postIds = postRows.map((p) => p.id);
   if (postIds.length > 0) {
     await wipeEngagementForSeedPosts(postIds);
-    await db.delete(savedPostsTable).where(inArray(savedPostsTable.postId, postIds));
   }
+  await db.delete(savedPostsTable).where(inArray(savedPostsTable.userId, userIds));
   await db.delete(postsTable).where(inArray(postsTable.authorId, userIds));
   await db.delete(commentsTable).where(inArray(commentsTable.authorId, userIds));
   await db.delete(postPrayersTable).where(inArray(postPrayersTable.userId, userIds));
@@ -71,10 +71,12 @@ async function refreshSeedEngagementOnly(seedUserIds: number[]): Promise<void> {
   console.log(
     `[seed] Refreshing engagement on ${posts.length} seed posts (${seedUsers.length} seed users)…`,
   );
-  const { commentCount, prayCount } = await seedEngagementForPosts(posts, seedUsers);
+  const { commentCount, prayCount, saveCount } = await seedEngagementForPosts(posts, seedUsers);
   await syncSeedUserEngagementStats(seedUserIds);
-  console.log(`[seed] Created ${commentCount} comments and ${prayCount} post prayers (from real rows).`);
-  console.log("[seed] Updated prayersShared / prayedFor from actual data.");
+  console.log(
+    `[seed] Created ${commentCount} comments, ${prayCount} post prayers, and ${saveCount} saved posts (from real rows).`,
+  );
+  console.log("[seed] Updated prayersShared / prayedFor / savedScrolls from actual data.");
 }
 
 async function main(): Promise<void> {
@@ -106,7 +108,7 @@ async function main(): Promise<void> {
       `[seed] Seed data already exists (${existingIds.length} @seed.getpraying.app users).`,
     );
     console.log("[seed]   --force            replace all seed users/posts");
-    console.log("[seed]   --refresh-engagement rebuild comments/prays on existing seed posts");
+    console.log("[seed]   --refresh-engagement rebuild comments/prays/saves on existing seed posts");
     await pool.end();
     process.exit(0);
   }
@@ -192,8 +194,8 @@ async function main(): Promise<void> {
 
   const seedUserIds = insertedUsers.map((u) => u.id);
   const posts = await loadSeedPostsForUsers(seedUserIds);
-  const { commentCount, prayCount } = await seedEngagementForPosts(posts, insertedUsers);
-  console.log(`[seed] Inserted ${commentCount} comments and ${prayCount} post prayers.`);
+  const { commentCount, prayCount, saveCount } = await seedEngagementForPosts(posts, insertedUsers);
+  console.log(`[seed] Inserted ${commentCount} comments, ${prayCount} post prayers, and ${saveCount} saves.`);
 
   await syncSeedUserEngagementStats(seedUserIds);
 
@@ -202,6 +204,7 @@ async function main(): Promise<void> {
   console.log(`[seed]   ${insertedPostIds.length} posts (4-12 per user, spread over 90 days)`);
   console.log(`[seed]   ${commentCount} comments (real rows in comments table)`);
   console.log(`[seed]   ${prayCount} post prayers (real rows in post_prayers table)`);
+  console.log(`[seed]   ${saveCount} saved posts (real rows in saved_posts table)`);
   console.log(`[seed] All seed accounts use password: ${SEED_PASSWORD}`);
   console.log("[seed] Remove these users before public launch if using shared credentials.");
 

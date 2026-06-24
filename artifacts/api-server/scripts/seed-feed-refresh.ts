@@ -207,9 +207,9 @@ async function main(): Promise<void> {
   if (insertedPostIds.length > 0) {
     const newPosts = await loadSeedPostsForUsers(insertedUsers.map((u) => u.id));
     const postsToSeed = newPosts.filter((p) => insertedPostIds.includes(p.id));
-    const { commentCount, prayCount } = await seedEngagementForPosts(postsToSeed, insertedUsers);
+    const { commentCount, prayCount, saveCount } = await seedEngagementForPosts(postsToSeed, insertedUsers);
     console.log(
-      `[feed-refresh] Seeded ${commentCount} comments and ${prayCount} post prayers on new posts.`,
+      `[feed-refresh] Seeded ${commentCount} comments, ${prayCount} post prayers, and ${saveCount} saves on new posts.`,
     );
   }
 

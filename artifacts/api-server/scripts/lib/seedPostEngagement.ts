@@ -1,4 +1,4 @@
-import { db, commentsTable, postPrayersTable, postsTable, usersTable } from "@workspace/db";
+import { db, commentsTable, postPrayersTable, postsTable, savedPostsTable, usersTable } from "@workspace/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { BATCH_SIZE, COMMENT_TEMPLATES, pick, pickN, randInt } from "./seedSocialShared.ts";
 
@@ -13,11 +13,12 @@ export type SeedUserRow = {
   username: string;
 };
 
-/** Remove synthetic engagement on seed-authored posts (comments + prays). Does not delete posts or users. */
+/** Remove synthetic engagement on seed-authored posts (comments + prays + saves). Does not delete posts or users. */
 export async function wipeEngagementForSeedPosts(postIds: number[]): Promise<void> {
   if (postIds.length === 0) return;
   await db.delete(commentsTable).where(inArray(commentsTable.postId, postIds));
   await db.delete(postPrayersTable).where(inArray(postPrayersTable.postId, postIds));
+  await db.delete(savedPostsTable).where(inArray(savedPostsTable.postId, postIds));
   await db.update(postsTable).set({ prayCount: 0 }).where(inArray(postsTable.id, postIds));
 }
 
@@ -26,6 +27,10 @@ function eligibleCommenters(post: SeedPostRow, seedUsers: SeedUserRow[]): SeedUs
 }
 
 function eligiblePrayers(post: SeedPostRow, seedUsers: SeedUserRow[]): SeedUserRow[] {
+  return seedUsers.filter((u) => u.id !== post.authorId);
+}
+
+function eligibleSavers(post: SeedPostRow, seedUsers: SeedUserRow[]): SeedUserRow[] {
   return seedUsers.filter((u) => u.id !== post.authorId);
 }
 
@@ -39,6 +44,11 @@ function commentCreatedAt(postCreatedAt: Date, index: number, total: number): Da
 function prayCreatedAt(postCreatedAt: Date): Date {
   const postMs = postCreatedAt.getTime();
   return new Date(postMs + randInt(5, 120) * 60_000);
+}
+
+function saveCreatedAt(postCreatedAt: Date): Date {
+  const postMs = postCreatedAt.getTime();
+  return new Date(postMs + randInt(10, 180) * 60_000);
 }
 
 export function buildCommentRows(posts: SeedPostRow[], seedUsers: SeedUserRow[]) {
@@ -83,12 +93,34 @@ export function buildPrayRows(posts: SeedPostRow[], seedUsers: SeedUserRow[]) {
   return rows;
 }
 
+export function buildSaveRows(posts: SeedPostRow[], seedUsers: SeedUserRow[]) {
+  const rows: { postId: number; userId: number; createdAt: Date }[] = [];
+  const seen = new Set<string>();
+  for (const post of posts) {
+    const pool = eligibleSavers(post, seedUsers);
+    if (pool.length === 0) continue;
+    const numSaves = randInt(1, Math.min(18, pool.length));
+    const savers = pickN(pool, numSaves);
+    for (const saver of savers) {
+      const key = `${post.id}:${saver.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({
+        postId: post.id,
+        userId: saver.id,
+        createdAt: saveCreatedAt(post.createdAt),
+      });
+    }
+  }
+  return rows;
+}
+
 export async function seedEngagementForPosts(
   posts: SeedPostRow[],
   seedUsers: SeedUserRow[],
-): Promise<{ commentCount: number; prayCount: number }> {
+): Promise<{ commentCount: number; prayCount: number; saveCount: number }> {
   if (posts.length === 0 || seedUsers.length === 0) {
-    return { commentCount: 0, prayCount: 0 };
+    return { commentCount: 0, prayCount: 0, saveCount: 0 };
   }
 
   const postIds = posts.map((p) => p.id);
@@ -110,6 +142,14 @@ export async function seedEngagementForPosts(
     prayCount += batch.length;
   }
 
+  const saveRows = buildSaveRows(posts, seedUsers);
+  let saveCount = 0;
+  for (let i = 0; i < saveRows.length; i += BATCH_SIZE) {
+    const batch = saveRows.slice(i, i + BATCH_SIZE);
+    await db.insert(savedPostsTable).values(batch);
+    saveCount += batch.length;
+  }
+
   await db
     .update(postsTable)
     .set({
@@ -117,10 +157,10 @@ export async function seedEngagementForPosts(
     })
     .where(inArray(postsTable.id, postIds));
 
-  return { commentCount, prayCount };
+  return { commentCount, prayCount, saveCount };
 }
 
-/** Align `prayers_shared` / `prayed_for` with actual post + pray rows for seed users. */
+/** Align `prayers_shared` / `prayed_for` / `saved_scrolls` with actual rows for seed users. */
 export async function syncSeedUserEngagementStats(seedUserIds: number[]): Promise<void> {
   if (seedUserIds.length === 0) return;
 
@@ -133,12 +173,17 @@ export async function syncSeedUserEngagementStats(seedUserIds: number[]): Promis
       .select({ count: sql<number>`count(*)::int` })
       .from(postPrayersTable)
       .where(eq(postPrayersTable.userId, userId));
+    const [savedRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(savedPostsTable)
+      .where(eq(savedPostsTable.userId, userId));
 
     await db
       .update(usersTable)
       .set({
         prayersShared: Number(sharedRow?.count ?? 0),
         prayedFor: Number(prayedRow?.count ?? 0),
+        savedScrolls: Number(savedRow?.count ?? 0),
       })
       .where(eq(usersTable.id, userId));
   }
