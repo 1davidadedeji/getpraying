@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -387,8 +387,10 @@ export default function FeedScreen() {
 
   useEffect(() => {
     return subscribeUserBlocked((username) => {
-      setPosts((prev) => filterPostsByAuthorUsername(prev, username));
-      setSearchPosts((prev) => filterPostsByAuthorUsername(prev, username));
+      startTransition(() => {
+        setPosts((prev) => filterPostsByAuthorUsername(prev, username));
+        setSearchPosts((prev) => filterPostsByAuthorUsername(prev, username));
+      });
     });
   }, []);
 

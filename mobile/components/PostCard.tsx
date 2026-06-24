@@ -533,12 +533,11 @@ function PostCardInner({
                   token,
                 });
               }}
-              style={styles.reportBtn}
+              style={styles.actionBtn}
               accessibilityRole="button"
-              accessibilityLabel="Report prayer"
+              accessibilityLabel="Report or block"
             >
               <Ionicons name="flag-outline" size={iconMicro} color={colors.muted} />
-              <Text style={styles.reportBtnText}>Report</Text>
             </Pressable>
           ) : null}
         </View>
@@ -720,20 +719,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     minHeight: 44,
     justifyContent: "center",
-  },
-  reportBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  reportBtnText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 12,
-    color: colors.muted,
   },
   actionCount: {
     fontFamily: "PlusJakartaSans_600SemiBold",

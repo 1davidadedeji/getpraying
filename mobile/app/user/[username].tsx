@@ -2,11 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 
 import type { Href } from "expo-router";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  InteractionManager,
   Platform,
   Pressable,
   RefreshControl,
@@ -34,7 +35,7 @@ import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/lib/api";
 import { apiFetchGetOnce } from "@/lib/inFlightGet";
 import { normalizeRouteStringParam } from "@/lib/routeParams";
-import { applyEngagementPatch, filterRemovedPost, filterPostsByAuthorUsername, subscribePostEngagement, subscribePostRemoved, subscribeUserBlocked } from "@/lib/postEngagementSync";
+import { applyEngagementPatch, filterRemovedPost, filterPostsByAuthorUsername, publishUserBlocked, subscribePostEngagement, subscribePostRemoved, subscribeUserBlocked } from "@/lib/postEngagementSync";
 import { blockUser, unblockUser } from "@/lib/blockUser";
 
 interface UserProfile {
@@ -136,10 +137,12 @@ export default function UserProfileScreen() {
 
   useEffect(() => {
     return subscribeUserBlocked((username) => {
-      const drop = (list: Post[]) => filterPostsByAuthorUsername(list, username);
-      setPosts(drop);
-      setInteractions(drop);
-      setSaved(drop);
+      startTransition(() => {
+        const drop = (list: Post[]) => filterPostsByAuthorUsername(list, username);
+        setPosts(drop);
+        setInteractions(drop);
+        setSaved(drop);
+      });
     });
   }, []);
 
@@ -478,9 +481,9 @@ export default function UserProfileScreen() {
                         setPosts([]);
                         setInteractions([]);
                         setSaved([]);
-                        if ("message" in result && typeof result.message === "string") {
-                          showAppAlert({ title: "User blocked", message: result.message });
-                        }
+                        InteractionManager.runAfterInteractions(() => {
+                          publishUserBlocked(profile.username);
+                        });
                       } else {
                         void loadInitial();
                       }
@@ -498,7 +501,15 @@ export default function UserProfileScreen() {
                   message: `You will no longer see prayers from @${profile.username} in your feed.`,
                   buttons: [
                     { text: "Cancel", style: "cancel" },
-                    { text: "Block", style: "destructive", onPress: runBlock },
+                    {
+                      text: "Block",
+                      style: "destructive",
+                      onPress: () => {
+                        InteractionManager.runAfterInteractions(() => {
+                          setTimeout(runBlock, 400);
+                        });
+                      },
+                    },
                   ],
                 });
                 return;

@@ -77,7 +77,7 @@ export default function RegisterScreen() {
     if (!acceptedTerms) {
       showAppAlert({
         title: "Terms required",
-        message: "Please read and accept the Terms of Service to create an account.",
+        message: "Please accept the Terms of Service and Privacy Policy to create an account.",
       });
       return;
     }

@@ -804,7 +804,7 @@ export default function PostDetailScreen() {
                 style={styles.flagBtn}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Report prayer"
+                accessibilityLabel="Report or block"
               >
                 <Ionicons name="flag-outline" size={flagIcn} color={colors.muted} />
               </Pressable>
