@@ -29,6 +29,7 @@
       }
     },
     "production": {
+      "channel": "production",
       "node": "22.13.1",
       "autoIncrement": true,
       "env": {

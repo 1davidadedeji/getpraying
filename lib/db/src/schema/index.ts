@@ -7,3 +7,4 @@ export * from "./comments";
 export * from "./dailyWord";
 export * from "./appSettings";
 export * from "./follows";
+export * from "./blocks";

@@ -51,7 +51,7 @@ import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
 import { subscribeAppActive } from "@/lib/appResume";
-import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
+import { applyEngagementPatch, filterRemovedPost, filterPostsByAuthorUsername, subscribePostEngagement, subscribePostRemoved, subscribeUserBlocked } from "@/lib/postEngagementSync";
 
 const PAGE_SIZE = 20;
 const NEW_POSTS_SINCE_LIMIT = 50;
@@ -382,6 +382,13 @@ export default function FeedScreen() {
     return subscribePostRemoved((removedId) => {
       setPosts((prev) => filterRemovedPost(prev, removedId));
       setSearchPosts((prev) => filterRemovedPost(prev, removedId));
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeUserBlocked((username) => {
+      setPosts((prev) => filterPostsByAuthorUsername(prev, username));
+      setSearchPosts((prev) => filterPostsByAuthorUsername(prev, username));
     });
   }, []);
 

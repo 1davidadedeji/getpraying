@@ -131,9 +131,13 @@ async function sendPasswordResetEmail(args: {
 }
 
 router.post("/auth/register", async (req, res): Promise<void> => {
-  const { email, username, password, displayName } = req.body;
+  const { email, username, password, displayName, acceptedTerms } = req.body;
   if (!email || !username || !password) {
     res.status(400).json({ error: "Email, username, and password are required" });
+    return;
+  }
+  if (acceptedTerms !== true) {
+    res.status(400).json({ error: "You must accept the Terms of Service to create an account." });
     return;
   }
 
@@ -174,6 +178,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       isEmailVerified: false,
       verificationToken: otp,
       verificationExpiresAt: expiresAt,
+      termsAcceptedAt: new Date(),
     })
     .returning();
 

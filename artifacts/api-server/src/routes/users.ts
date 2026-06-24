@@ -14,8 +14,25 @@ import { optionalAuth, requireAuth } from "../lib/auth";
 import { enrichPosts } from "../lib/postHelpers";
 import { findUserByUsername } from "../lib/userLookup";
 import { pushForNotificationById } from "../lib/pushForNotification";
+import {
+  blockUser,
+  unblockUser,
+  viewerBlockedTarget,
+  isBlockedBetween,
+  getFeedExcludedAuthorIds,
+} from "../lib/userBlocks";
 
 const router: IRouter = Router();
+
+async function filterEnrichedForViewer<T extends { authorId?: number | null }>(
+  posts: T[],
+  viewerId: number | undefined,
+): Promise<T[]> {
+  if (!viewerId) return posts;
+  const excluded = await getFeedExcludedAuthorIds(viewerId);
+  if (excluded.length === 0) return posts;
+  return posts.filter((p) => !p.authorId || !excluded.includes(p.authorId));
+}
 
 async function fetchLikedPostsForUser(
   userId: number,
@@ -40,7 +57,7 @@ async function fetchLikedPostsForUser(
   const enriched = await enrichPosts(posts, viewerId);
   const idOrder = new Map(postIds.map((id, i) => [id, i]));
   enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-  return enriched;
+  return await filterEnrichedForViewer(enriched, viewerId);
 }
 
 async function fetchSavedPostsForUser(
@@ -66,7 +83,7 @@ async function fetchSavedPostsForUser(
   const enriched = await enrichPosts(posts, viewerId);
   const idOrder = new Map(postIds.map((id, i) => [id, i]));
   enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-  return enriched;
+  return await filterEnrichedForViewer(enriched, viewerId);
 }
 
 async function fetchCommentedPostsForUser(
@@ -100,7 +117,7 @@ async function fetchCommentedPostsForUser(
   const enriched = await enrichPosts(posts, viewerId);
   const idOrder = new Map(postIds.map((id, i) => [id, i]));
   enriched.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
-  return enriched;
+  return await filterEnrichedForViewer(enriched, viewerId);
 }
 
 router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
@@ -207,6 +224,7 @@ router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => 
     .where(eq(userFollowsTable.followerId, user.id));
 
   let isFollowing: boolean | undefined;
+  let isBlockedByViewer: boolean | undefined;
   if (viewer && viewer.id !== user.id) {
     const [row] = await db
       .select({ id: userFollowsTable.id })
@@ -214,6 +232,7 @@ router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => 
       .where(and(eq(userFollowsTable.followerId, viewer.id), eq(userFollowsTable.followingId, user.id)))
       .limit(1);
     isFollowing = !!row;
+    isBlockedByViewer = await viewerBlockedTarget(viewer.id, user.id);
   }
 
   res.json({
@@ -230,6 +249,7 @@ router.get("/users/:username", optionalAuth, async (req, res): Promise<void> => 
     followerCount: Number(followersRow?.c ?? 0),
     followingCount: Number(followingRow?.c ?? 0),
     ...(isFollowing !== undefined ? { isFollowing } : {}),
+    ...(isBlockedByViewer !== undefined ? { isBlockedByViewer } : {}),
   });
 });
 
@@ -288,6 +308,44 @@ router.delete("/users/:username/follow", requireAuth, async (req, res): Promise<
   res.json({ success: true, following: false });
 });
 
+router.post("/users/:username/block", requireAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
+  const viewer = (req as any).user as { id: number };
+
+  const target = await findUserByUsername(typeof raw === "string" ? raw : "");
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (target.id === viewer.id) {
+    res.status(400).json({ error: "You cannot block yourself" });
+    return;
+  }
+
+  await blockUser(viewer.id, target.id);
+
+  res.json({
+    success: true,
+    blocked: true,
+    message: `${target.displayName ?? target.username} has been blocked. You will no longer see their prayers.`,
+  });
+});
+
+router.delete("/users/:username/block", requireAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
+  const viewer = (req as any).user as { id: number };
+
+  const target = await findUserByUsername(typeof raw === "string" ? raw : "");
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  await unblockUser(viewer.id, target.id);
+
+  res.json({ success: true, blocked: false });
+});
+
 router.get("/users/:username/posts", optionalAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.username) ? req.params.username[0] : req.params.username;
   const username = typeof raw === "string" ? raw.trim() : "";
@@ -304,6 +362,11 @@ router.get("/users/:username/posts", optionalAuth, async (req, res): Promise<voi
   const user = await findUserByUsername(username);
   if (!user) {
     res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (currentUser && (await isBlockedBetween(currentUser.id, user.id))) {
+    res.json({ posts: [], nextCursor: null, total: 0 });
     return;
   }
 

@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setAuthTokenGetter, getMe } from "@workspace/api-client-react";
-import { login as apiLogin, register as apiRegister, logout as apiLogout } from "@workspace/api-client-react";
+import { login as apiLogin, logout as apiLogout } from "@workspace/api-client-react";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@workspace/api-client-react";
 import { clearPushTokenOnServer, registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
+import { apiFetch } from "@/lib/api";
 
 const TOKEN_KEY = "@getpraying/token";
 const USER_KEY = "@getpraying/user";
@@ -86,9 +87,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (email: string, username: string, password: string, displayName?: string): Promise<User> => {
-    const res = await apiRegister({ email, username, password, displayName } as any);
-    const tok = res.token;
-    const u = res.user;
+    const res = await apiFetch("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        username,
+        password,
+        displayName,
+        acceptedTerms: true,
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      token?: string;
+      user?: User;
+      error?: string;
+    };
+    if (!res.ok || !data.token || !data.user) {
+      throw Object.assign(new Error(data.error ?? "Registration failed"), { error: data.error });
+    }
+    const tok = data.token;
+    const u = data.user;
     await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);
     setToken(tok);
     setUser(u);

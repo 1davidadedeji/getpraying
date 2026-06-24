@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
 import { AppLogo } from "@/components/AppLogo";
+import { TermsOfServiceAgreement } from "@/components/TermsOfServiceAgreement";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
@@ -54,6 +55,7 @@ export default function RegisterScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -70,6 +72,13 @@ export default function RegisterScreen() {
     }
     if (password.length < 6) {
       showAppAlert({ title: "Weak password", message: "Password must be at least 6 characters." });
+      return;
+    }
+    if (!acceptedTerms) {
+      showAppAlert({
+        title: "Terms required",
+        message: "Please read and accept the Terms of Service to create an account.",
+      });
       return;
     }
     setLoading(true);
@@ -201,14 +210,20 @@ export default function RegisterScreen() {
             </View>
           </View>
 
+          <TermsOfServiceAgreement
+            checked={acceptedTerms}
+            onCheckedChange={setAcceptedTerms}
+            fontSize={fsLabel}
+          />
+
           <Pressable
             style={[
               styles.submitBtn,
               { paddingVertical: submitPadV, borderRadius: rSubmit, marginTop: Math.round(8 * uiScale) },
-              loading && styles.submitBtnDisabled,
+              (loading || !acceptedTerms) && styles.submitBtnDisabled,
             ]}
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || !acceptedTerms}
             testID="register-btn"
           >
             {loading ? (

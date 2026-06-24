@@ -33,7 +33,7 @@ import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { PostMediaBlock } from "@/components/PostMedia";
 import { timeAgo } from "@/lib/timeAgo";
 import { CATEGORY_LABELS } from "@/lib/categories";
-import { submitPostReport } from "@/lib/reportPost";
+import { showPostSafetyMenu } from "@/lib/postSafetyMenu";
 import { buildPostSharePayload } from "@/lib/sharePost";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -523,44 +523,23 @@ function PostCardInner({
           </Pressable>
 
           {!isOwnPost && token ? (
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              Haptics.selectionAsync();
-              showAppAlert({
-                title: "Report this prayer?",
-                message: "Our team will review this content.",
-                buttons: [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Report",
-                    style: "destructive",
-                    onPress: async () => {
-                      const result = await submitPostReport(localPost.id, token);
-                      InteractionManager.runAfterInteractions(() => {
-                        if (result.ok) {
-                          showAppAlert({
-                            title: "Report submitted",
-                            message: result.message,
-                          });
-                        } else {
-                          showAppAlert({
-                            title: "Could not submit report",
-                            message: result.error,
-                          });
-                        }
-                      });
-                    },
-                  },
-                ],
-              });
-            }}
-            style={styles.actionBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Report prayer"
-          >
-            <Ionicons name="flag-outline" size={iconMicro} color={colors.muted} />
-          </Pressable>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                Haptics.selectionAsync();
+                showPostSafetyMenu({
+                  postId: localPost.id,
+                  authorUsername: localPost.authorUsername,
+                  token,
+                });
+              }}
+              style={styles.reportBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Report prayer"
+            >
+              <Ionicons name="flag-outline" size={iconMicro} color={colors.muted} />
+              <Text style={styles.reportBtnText}>Report</Text>
+            </Pressable>
           ) : null}
         </View>
       </View>
@@ -741,6 +720,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     minHeight: 44,
     justifyContent: "center",
+  },
+  reportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  reportBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: colors.muted,
   },
   actionCount: {
     fontFamily: "PlusJakartaSans_600SemiBold",

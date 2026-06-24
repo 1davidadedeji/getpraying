@@ -34,7 +34,8 @@ import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/lib/api";
 import { apiFetchGetOnce } from "@/lib/inFlightGet";
 import { normalizeRouteStringParam } from "@/lib/routeParams";
-import { applyEngagementPatch, filterRemovedPost, subscribePostEngagement, subscribePostRemoved } from "@/lib/postEngagementSync";
+import { applyEngagementPatch, filterRemovedPost, filterPostsByAuthorUsername, subscribePostEngagement, subscribePostRemoved, subscribeUserBlocked } from "@/lib/postEngagementSync";
+import { blockUser, unblockUser } from "@/lib/blockUser";
 
 interface UserProfile {
   id: number;
@@ -48,6 +49,7 @@ interface UserProfile {
   followerCount?: number;
   followingCount?: number;
   isFollowing?: boolean;
+  isBlockedByViewer?: boolean;
   createdAt: string;
 }
 
@@ -78,6 +80,7 @@ export default function UserProfileScreen() {
   }, [isOwnProfile]);
 
   const [followBusy, setFollowBusy] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<UserProfileTabKey>("prayers");
   const activeTabRef = useRef(activeTab);
@@ -125,6 +128,15 @@ export default function UserProfileScreen() {
   useEffect(() => {
     return subscribePostRemoved((removedId) => {
       const drop = (list: Post[]) => filterRemovedPost(list, removedId);
+      setPosts(drop);
+      setInteractions(drop);
+      setSaved(drop);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeUserBlocked((username) => {
+      const drop = (list: Post[]) => filterPostsByAuthorUsername(list, username);
       setPosts(drop);
       setInteractions(drop);
       setSaved(drop);
@@ -386,10 +398,11 @@ export default function UserProfileScreen() {
         </View>
 
         {profile && me && me.username !== profile.username && token && profile.isFollowing !== undefined && (
-          <Pressable
-            style={[styles.followBtn, profile.isFollowing && styles.followBtnOutline]}
-            disabled={followBusy}
-            onPress={() => {
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.followBtn, profile.isFollowing && styles.followBtnOutline, styles.actionBtnFlex]}
+              disabled={followBusy || profile.isBlockedByViewer}
+              onPress={() => {
               if (!profile || !token) return;
               const next = !profile.isFollowing;
               const runToggle = () => {
@@ -434,10 +447,77 @@ export default function UserProfileScreen() {
               {profile.isFollowing ? "Following" : "Follow"}
             </Text>
           </Pressable>
+          <Pressable
+            style={[
+              styles.blockBtn,
+              profile.isBlockedByViewer && styles.blockBtnActive,
+              styles.actionBtnFlex,
+            ]}
+            disabled={blockBusy}
+            onPress={() => {
+              if (!profile || !token) return;
+              const wasBlocked = profile.isBlockedByViewer;
+              const runBlock = () => {
+                setBlockBusy(true);
+                void (async () => {
+                  try {
+                    const result = wasBlocked
+                      ? await unblockUser(profile.username, token)
+                      : await blockUser(profile.username, token);
+                    if (result.ok) {
+                      setProfile((p) =>
+                        p
+                          ? {
+                              ...p,
+                              isBlockedByViewer: !wasBlocked,
+                              isFollowing: wasBlocked ? p.isFollowing : false,
+                            }
+                          : p,
+                      );
+                      if (!wasBlocked) {
+                        setPosts([]);
+                        setInteractions([]);
+                        setSaved([]);
+                        if ("message" in result && typeof result.message === "string") {
+                          showAppAlert({ title: "User blocked", message: result.message });
+                        }
+                      } else {
+                        void loadInitial();
+                      }
+                    } else if (!result.ok) {
+                      showAppAlert({ title: "Could not update block", message: result.error });
+                    }
+                  } finally {
+                    setBlockBusy(false);
+                  }
+                })();
+              };
+              if (!wasBlocked) {
+                showAppAlert({
+                  title: "Block this user?",
+                  message: `You will no longer see prayers from @${profile.username} in your feed.`,
+                  buttons: [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Block", style: "destructive", onPress: runBlock },
+                  ],
+                });
+                return;
+              }
+              runBlock();
+            }}
+          >
+            <Text style={[styles.blockBtnText, profile.isBlockedByViewer && styles.blockBtnTextActive]}>
+              {profile.isBlockedByViewer ? "Unblock" : "Block"}
+            </Text>
+          </Pressable>
+          </View>
         )}
+        {profile?.isBlockedByViewer ? (
+          <Text style={styles.blockedHint}>You blocked this user. Their prayers are hidden from your feed.</Text>
+        ) : null}
       </View>
     ),
-    [profile, routeUsername, displayName, initials, joinYear, gutter, me, token, followBusy],
+    [profile, routeUsername, displayName, initials, joinYear, gutter, me, token, followBusy, blockBusy, loadInitial],
   );
 
   const renderCollapsibleHeader = useCallback(() => {
@@ -852,13 +932,13 @@ const styles = StyleSheet.create({
     height: 2,
   },
   followBtn: {
-    marginTop: 14,
     backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 28,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.primary,
+    alignItems: "center",
   },
   followBtnOutline: {
     backgroundColor: colors.surface,
@@ -871,6 +951,43 @@ const styles = StyleSheet.create({
   },
   followBtnTextOutline: {
     color: colors.primary,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+    width: "100%",
+  },
+  actionBtnFlex: {
+    flex: 1,
+  },
+  blockBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+  },
+  blockBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.cream,
+  },
+  blockBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 15,
+    color: colors.textSecondary,
+  },
+  blockBtnTextActive: {
+    color: colors.primary,
+  },
+  blockedHint: {
+    marginTop: 10,
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: "center",
   },
   emptyState: { alignItems: "center", paddingVertical: 40, gap: 8 },
   emptyText: { fontFamily: "PlusJakartaSans_400Regular", fontSize: 14, color: colors.muted },

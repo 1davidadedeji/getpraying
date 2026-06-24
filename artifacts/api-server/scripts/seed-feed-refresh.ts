@@ -21,6 +21,11 @@ import {
   generateFixedPostsForUser,
   randomTimestampDaysAgo,
 } from "./lib/seedSocialShared.ts";
+import {
+  loadSeedPostsForUsers,
+  seedEngagementForPosts,
+  syncSeedUserEngagementStats,
+} from "./lib/seedPostEngagement.ts";
 
 const TARGET_TOTAL_POSTS = 2000;
 const POSTS_PER_NEW_USER = 4;
@@ -172,6 +177,7 @@ async function main(): Promise<void> {
   console.log(`[feed-refresh] Inserting ${mockPosts.length} approved posts…`);
 
   let insertedPostCount = 0;
+  const insertedPostIds: number[] = [];
   for (let i = 0; i < mockPosts.length; i += BATCH_SIZE) {
     const batch = mockPosts.slice(i, i + BATCH_SIZE);
     const validBatch = batch
@@ -184,7 +190,7 @@ async function main(): Promise<void> {
           isAnonymous: p.isAnonymous,
           status: "approved" as const,
           authorId,
-          prayCount: p.prayCount,
+          prayCount: 0,
           createdAt: p.createdAt,
           updatedAt: p.createdAt,
         };
@@ -195,18 +201,20 @@ async function main(): Promise<void> {
 
     const rows = await db.insert(postsTable).values(validBatch).returning({ id: postsTable.id });
     insertedPostCount += rows.length;
+    insertedPostIds.push(...rows.map((r) => r.id));
   }
 
-  console.log("[feed-refresh] Updating prayersShared / prayedFor on new users…");
-  for (const u of insertedUsers) {
-    await db
-      .update(usersTable)
-      .set({
-        prayersShared: POSTS_PER_NEW_USER,
-        prayedFor: Math.floor(Math.random() * 176) + 5,
-      })
-      .where(eq(usersTable.id, u.id));
+  if (insertedPostIds.length > 0) {
+    const newPosts = await loadSeedPostsForUsers(insertedUsers.map((u) => u.id));
+    const postsToSeed = newPosts.filter((p) => insertedPostIds.includes(p.id));
+    const { commentCount, prayCount } = await seedEngagementForPosts(postsToSeed, insertedUsers);
+    console.log(
+      `[feed-refresh] Seeded ${commentCount} comments and ${prayCount} post prayers on new posts.`,
+    );
   }
+
+  const allSeedIds = await getSeedUserIds();
+  await syncSeedUserEngagementStats(allSeedIds);
 
   const approvedFinal = await countApprovedPosts();
   console.log("[feed-refresh] Done.");

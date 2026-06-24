@@ -82,6 +82,31 @@ export function filterRemovedPost<T extends { id: number }>(list: T[], postId: n
   return list.filter((p) => p.id !== postId);
 }
 
+export function filterPostsByAuthorUsername<T extends { authorUsername?: string | null }>(
+  posts: T[],
+  username: string,
+): T[] {
+  const needle = username.trim().toLowerCase();
+  if (!needle) return posts;
+  return posts.filter((p) => (p.authorUsername ?? "").toLowerCase() !== needle);
+}
+
+type BlockListener = (username: string) => void;
+const blockListeners = new Set<BlockListener>();
+
+export function publishUserBlocked(username: string): void {
+  const handle = username.trim();
+  if (!handle) return;
+  blockListeners.forEach((fn) => fn(handle));
+}
+
+export function subscribeUserBlocked(listener: BlockListener): () => void {
+  blockListeners.add(listener);
+  return () => {
+    blockListeners.delete(listener);
+  };
+}
+
 /** Saved-library lists: drop unsaved rows; otherwise merge engagement fields. */
 export function updateSavedPostsList<T extends Post>(posts: T[], updated: T): T[] {
   if (!updated.isSaved) return filterRemovedPost(posts, updated.id);

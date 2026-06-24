@@ -34,7 +34,6 @@
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250117",
     "expo": "~54.0.34",
     "expo-audio": "~0.4.0",
-    "expo-video": "~2.0.6",
     "expo-blur": "~15.0.8",
     "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.11",
@@ -53,6 +52,7 @@
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
+    "expo-video": "~2.0.6",
     "expo-web-browser": "~15.0.11",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -75,16 +75,17 @@
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@tanstack/query-core": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "expo": "~54.0.34",
     "expo-device": "~8.0.10",
     "expo-file-system": "~19.0.22",
     "expo-media-library": "~18.2.1",
     "expo-notifications": "~0.32.17",
     "expo-sharing": "~14.0.8",
+    "expo-updates": "~29.0.18",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-collapsible-tab-view": "^8.0.1",
     "react-native-pager-view": "6.9.1",
-    "react-native-purchases": "^9.15.0",
-    "expo": "~54.0.34"
+    "react-native-purchases": "^9.15.0"
   }
 }

@@ -9,7 +9,7 @@ import {
   commentsTable,
   staffPostDeletionsTable,
 } from "@workspace/db";
-import { eq, and, or, desc, sql, asc } from "drizzle-orm";
+import { eq, and, or, desc, sql, asc, notInArray, isNull } from "drizzle-orm";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { applyAutoBoostIfEligible } from "../lib/autoBoost";
@@ -19,6 +19,7 @@ import { moderatePost, aiRewrite } from "../lib/aiModeration";
 import { notifyModeratorsNewPending } from "../lib/modQueueNotifications";
 import { insertPostReport, userAlreadyReportedPost } from "../lib/postReports";
 import { pushForNotificationById } from "../lib/pushForNotification";
+import { getFeedExcludedAuthorIds, isBlockedBetween } from "../lib/userBlocks";
 import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
 
@@ -56,6 +57,15 @@ function feedTimelineSortTsExpr(viewerId: number | undefined) {
 }
 
 const router: IRouter = Router();
+
+type PostWhere = ReturnType<typeof eq> | ReturnType<typeof and>;
+
+async function applyBlockedAuthorFilter(conditions: PostWhere, viewerId: number | undefined): Promise<PostWhere> {
+  if (!viewerId) return conditions;
+  const excluded = await getFeedExcludedAuthorIds(viewerId);
+  if (excluded.length === 0) return conditions;
+  return and(conditions, or(isNull(postsTable.authorId), notInArray(postsTable.authorId, excluded))!)!;
+}
 
 async function getPostSaveState(
   postId: number,
@@ -157,10 +167,12 @@ router.get("/posts/trending", optionalAuth, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "10", 10);
   const currentUser = (req as any).user;
 
+  let conditions = await applyBlockedAuthorFilter(eq(postsTable.status, "approved"), currentUser?.id);
+
   const posts = await db
     .select()
     .from(postsTable)
-    .where(eq(postsTable.status, "approved"))
+    .where(conditions)
     .orderBy(desc(postsTable.prayCount))
     .limit(limit);
 
@@ -239,9 +251,12 @@ router.get("/posts/since", optionalAuth, async (req, res): Promise<void> => {
       .select()
       .from(postsTable)
       .where(
-        and(
-          eq(postsTable.status, "approved"),
-          sql`date_trunc('millisecond', ${postsTable.createdAt}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
+        await applyBlockedAuthorFilter(
+          and(
+            eq(postsTable.status, "approved"),
+            sql`date_trunc('millisecond', ${postsTable.createdAt}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
+          )!,
+          currentUser?.id,
         ),
       )
       .orderBy(desc(postsTable.createdAt), desc(postsTable.id))
@@ -267,7 +282,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const currentUser = (req as any).user as { id: number } | undefined;
   const sortTs = feedTimelineSortTsExpr(currentUser?.id);
 
-  let conditions: ReturnType<typeof eq> | ReturnType<typeof and> = eq(postsTable.status, "approved");
+  let conditions: PostWhere = eq(postsTable.status, "approved");
   if (category && String(category).trim()) {
     const c = String(category).trim();
     conditions = and(
@@ -285,6 +300,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
       or(sql`${sortTs} < ${kDate}`, sql`(${sortTs} = ${kDate} AND ${postsTable.id} < ${cursorDecoded.i})`)!,
     )!;
   }
+  conditions = await applyBlockedAuthorFilter(conditions, currentUser?.id);
 
   const [posts, newestRow] = await Promise.all([
     db
@@ -455,13 +471,27 @@ router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  if (
+    currentUser &&
+    post.authorId &&
+    !isAuthor &&
+    !isStaff &&
+    (await isBlockedBetween(currentUser.id, post.authorId))
+  ) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+
   const enriched = await enrichPost(post, currentUser?.id);
   res.json(enriched);
 });
 
 const FLAG_THRESHOLD = 1;
 
-router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> => {
+async function handlePostReport(
+  req: import("express").Request,
+  res: import("express").Response,
+): Promise<void> {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
   const postId = parseInt(rawId, 10);
   if (Number.isNaN(postId)) {
@@ -470,11 +500,8 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
   }
 
   const rawReason = (req.body ?? {}).reason;
-  if (typeof rawReason !== "string" || !rawReason.trim()) {
-    res.status(400).json({ error: "Reason is required" });
-    return;
-  }
-  const reason = rawReason.trim();
+  const reason =
+    typeof rawReason === "string" && rawReason.trim() ? rawReason.trim() : "inappropriate";
 
   const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
   if (!post) {
@@ -484,7 +511,7 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
 
   const currentUser = (req as any).user;
   if (post.authorId === currentUser.id) {
-    res.status(400).json({ error: "You cannot flag your own post" });
+    res.status(400).json({ error: "You cannot report your own post" });
     return;
   }
 
@@ -557,7 +584,10 @@ router.post("/posts/:postId/flag", requireAuth, async (req, res): Promise<void> 
       ? "Post reported and queued for moderator review."
       : "Report submitted. Thank you for helping keep the community safe.",
   });
-});
+}
+
+router.post("/posts/:postId/flag", requireAuth, handlePostReport);
+router.post("/posts/:postId/report", requireAuth, handlePostReport);
 
 router.get("/posts/:postId/comments", optionalAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
@@ -617,6 +647,11 @@ router.post("/posts/:postId/comments", requireAuth, async (req, res): Promise<vo
   }
   if (content.length > 2000) {
     res.status(400).json({ error: "Comment must be under 2000 characters." });
+    return;
+  }
+
+  if (post.authorId && (await isBlockedBetween(user.id, post.authorId))) {
+    res.status(403).json({ error: "You cannot interact with this prayer." });
     return;
   }
 

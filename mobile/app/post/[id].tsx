@@ -50,7 +50,7 @@ import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { timeAgo } from "@/lib/timeAgo";
 import { apiFetch } from "@/lib/api";
-import { submitPostReport } from "@/lib/reportPost";
+import { showPostSafetyMenu } from "@/lib/postSafetyMenu";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { buildPostSharePayload } from "@/lib/sharePost";
 import { getApiErrorMessage } from "@/lib/apiErrors";
@@ -588,32 +588,13 @@ export default function PostDetailScreen() {
   const handleReportFlag = () => {
     if (!post) return;
     Haptics.selectionAsync();
-    showAppAlert({
-      title: "Report this prayer?",
-      message: "Our team will review this content.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Report",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              const result = await submitPostReport(post.id, token);
-              if (result.ok) {
-                showAppAlert({
-                  title: "Report submitted",
-                  message: result.message,
-                });
-              } else {
-                showAppAlert({
-                  title: "Could not submit report",
-                  message: result.error,
-                });
-              }
-            })();
-          },
-        },
-      ],
+    showPostSafetyMenu({
+      postId: post.id,
+      authorUsername: post.authorUsername,
+      token,
+      onBlocked: () => {
+        router.replace("/(tabs)" as Href);
+      },
     });
   };
 
@@ -817,15 +798,17 @@ export default function PostDetailScreen() {
                 <Feather name="more-horizontal" size={moreIcn} color={colors.muted} />
               </Pressable>
             )}
-            <Pressable
-              onPress={handleReportFlag}
-              style={styles.flagBtn}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Report prayer"
-            >
-              <Ionicons name="flag-outline" size={flagIcn} color={colors.muted} />
-            </Pressable>
+            {!isOwner && token ? (
+              <Pressable
+                onPress={handleReportFlag}
+                style={styles.flagBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Report prayer"
+              >
+                <Ionicons name="flag-outline" size={flagIcn} color={colors.muted} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 

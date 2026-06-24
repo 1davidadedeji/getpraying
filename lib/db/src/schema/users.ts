@@ -40,6 +40,8 @@ export const usersTable = pgTable("users", {
   prayersShared: integer("prayers_shared").notNull().default(0),
   prayedFor: integer("prayed_for").notNull().default(0),
   savedScrolls: integer("saved_scrolls").notNull().default(0),
+  /** When the user accepted Terms of Service / EULA at registration. */
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

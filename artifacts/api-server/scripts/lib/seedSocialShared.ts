@@ -319,7 +319,6 @@ export interface MockPost {
   content: string;
   category: string;
   isAnonymous: boolean;
-  prayCount: number;
   createdAt: Date;
 }
 
@@ -349,7 +348,6 @@ export function generatePostsForUser(username: string, preferredCategories: stri
       content: fillTemplate(tpl.template),
       category: tpl.category,
       isAnonymous: Math.random() < 0.08,
-      prayCount: randInt(0, 60),
       createdAt,
     });
   }
@@ -388,7 +386,6 @@ export function generateFixedPostsForUser(
       content: fillTemplate(tpl.template),
       category: tpl.category,
       isAnonymous: Math.random() < 0.08,
-      prayCount: randInt(0, 60),
       createdAt: randomTimestampDaysAgo(minDaysAgo, maxDaysAgo),
     });
   }

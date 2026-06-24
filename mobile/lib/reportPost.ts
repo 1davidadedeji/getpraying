@@ -8,7 +8,7 @@ export async function submitPostReport(
     return { ok: false, error: "Sign in to report a prayer." };
   }
   try {
-    const res = await apiFetch(`/posts/${postId}/flag`, {
+    const res = await apiFetch(`/posts/${postId}/report`, {
       method: "POST",
       token,
       headers: { "Content-Type": "application/json" },

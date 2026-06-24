@@ -1,31 +1,34 @@
 /**
  * Production-safe seed: ~200 users with avatars, 4-12 posts each (~1000-2400 total),
- * comments, and staggered timestamps spanning the last 90 days.
+ * real post_prayers + comments, and staggered timestamps spanning the last 90 days.
  *
  * Usage (from repo root or artifacts/api-server, with DATABASE_URL set):
  *   pnpm --filter @workspace/api-server run seed
  *   pnpm --filter @workspace/api-server run seed -- --force
+ *   pnpm --filter @workspace/api-server run seed -- --refresh-engagement
  *
- * Emails use @seed.getpraying.app — re-run skips unless --force (wipes seed data first).
+ * Emails use @seed.getpraying.app — re-run skips unless --force or --refresh-engagement.
+ * Only touches users/posts/comments/post_prayers for @seed.getpraying.app accounts.
  */
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { db, usersTable, postsTable, commentsTable, pool } from "@workspace/db";
+import { db, usersTable, postsTable, commentsTable, postPrayersTable, savedPostsTable, pool } from "@workspace/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import {
   BATCH_SIZE,
-  COMMENT_TEMPLATES,
   SEED_EMAIL_SUFFIX,
   SEED_PASSWORD,
   generatePostsForUser,
   generateUsers,
-  pick,
-  pickN,
-  randInt,
   type MockPost,
 } from "./lib/seedSocialShared.ts";
-
-// ─── DB operations ────────────────────────────────────────────────────────
+import {
+  loadSeedPostsForUsers,
+  loadSeedUsers,
+  seedEngagementForPosts,
+  syncSeedUserEngagementStats,
+  wipeEngagementForSeedPosts,
+} from "./lib/seedPostEngagement.ts";
 
 async function getSeedUserIds(): Promise<number[]> {
   const pattern = `%${SEED_EMAIL_SUFFIX}`;
@@ -44,20 +47,39 @@ async function wipeSeedData(userIds: number[]): Promise<void> {
     .where(inArray(postsTable.authorId, userIds));
   const postIds = postRows.map((p) => p.id);
   if (postIds.length > 0) {
-    await db.delete(commentsTable).where(inArray(commentsTable.postId, postIds));
+    await wipeEngagementForSeedPosts(postIds);
+    await db.delete(savedPostsTable).where(inArray(savedPostsTable.postId, postIds));
   }
   await db.delete(postsTable).where(inArray(postsTable.authorId, userIds));
   await db.delete(commentsTable).where(inArray(commentsTable.authorId, userIds));
+  await db.delete(postPrayersTable).where(inArray(postPrayersTable.userId, userIds));
   await db.delete(usersTable).where(inArray(usersTable.id, userIds));
-  console.log(`[seed] Removed ${userIds.length} seed users and related posts/comments.`);
+  console.log(`[seed] Removed ${userIds.length} seed users and related posts/engagement.`);
 }
 
 function parseForce(): boolean {
   return process.argv.includes("--force");
 }
 
+function parseRefreshEngagement(): boolean {
+  return process.argv.includes("--refresh-engagement");
+}
+
+async function refreshSeedEngagementOnly(seedUserIds: number[]): Promise<void> {
+  const posts = await loadSeedPostsForUsers(seedUserIds);
+  const seedUsers = await loadSeedUsers(seedUserIds);
+  console.log(
+    `[seed] Refreshing engagement on ${posts.length} seed posts (${seedUsers.length} seed users)…`,
+  );
+  const { commentCount, prayCount } = await seedEngagementForPosts(posts, seedUsers);
+  await syncSeedUserEngagementStats(seedUserIds);
+  console.log(`[seed] Created ${commentCount} comments and ${prayCount} post prayers (from real rows).`);
+  console.log("[seed] Updated prayersShared / prayedFor from actual data.");
+}
+
 async function main(): Promise<void> {
   const force = parseForce();
+  const refreshEngagement = parseRefreshEngagement();
   console.log("[seed] Starting GetPraying database seed…");
 
   if (!process.env.DATABASE_URL) {
@@ -66,10 +88,25 @@ async function main(): Promise<void> {
   }
 
   const existingIds = await getSeedUserIds();
+
+  if (refreshEngagement && !force) {
+    if (existingIds.length === 0) {
+      console.log("[seed] No @seed.getpraying.app users found. Run full seed first.");
+      await pool.end();
+      process.exit(0);
+    }
+    await refreshSeedEngagementOnly(existingIds);
+    console.log("[seed] Done (engagement refresh only).");
+    await pool.end();
+    return;
+  }
+
   if (existingIds.length > 0 && !force) {
     console.log(
-      `[seed] Seed data already exists (${existingIds.length} @seed.getpraying.app users). Use --force to replace.`,
+      `[seed] Seed data already exists (${existingIds.length} @seed.getpraying.app users).`,
     );
+    console.log("[seed]   --force            replace all seed users/posts");
+    console.log("[seed]   --refresh-engagement rebuild comments/prays on existing seed posts");
     await pool.end();
     process.exit(0);
   }
@@ -78,7 +115,6 @@ async function main(): Promise<void> {
     await wipeSeedData(existingIds);
   }
 
-  // ── Generate data ──────────────────────────────────────────────────────
   const TARGET_USERS = 200;
 
   const mockUsers = generateUsers(TARGET_USERS);
@@ -87,7 +123,6 @@ async function main(): Promise<void> {
   );
   mockPosts.sort(() => Math.random() - 0.5);
 
-  // ── Insert users ───────────────────────────────────────────────────────
   console.log(`[seed] Hashing shared password (bcrypt cost 10)…`);
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
 
@@ -123,8 +158,7 @@ async function main(): Promise<void> {
   const userIdByUsername = new Map(insertedUsers.map((r) => [r.username, r.id]));
   console.log(`[seed] Created ${insertedUsers.length} users.`);
 
-  // ── Insert posts ───────────────────────────────────────────────────────
-  console.log(`[seed] Inserting ${mockPosts.length} posts (approved)…`);
+  console.log(`[seed] Inserting ${mockPosts.length} posts (approved, pray_count starts at 0)…`);
   const insertedPostIds: number[] = [];
 
   for (let i = 0; i < mockPosts.length; i += BATCH_SIZE) {
@@ -139,7 +173,7 @@ async function main(): Promise<void> {
           isAnonymous: p.isAnonymous,
           status: "approved" as const,
           authorId,
-          prayCount: p.prayCount,
+          prayCount: 0,
           createdAt: p.createdAt,
         };
       })
@@ -156,55 +190,18 @@ async function main(): Promise<void> {
 
   console.log(`[seed] Created ${insertedPostIds.length} posts.`);
 
-  // ── Insert comments (roughly 1-3 per post, ~60% of posts get comments)
-  console.log("[seed] Inserting comments…");
-  let commentCount = 0;
-  const commentValues: { postId: number; authorId: number; content: string }[] = [];
+  const seedUserIds = insertedUsers.map((u) => u.id);
+  const posts = await loadSeedPostsForUsers(seedUserIds);
+  const { commentCount, prayCount } = await seedEngagementForPosts(posts, insertedUsers);
+  console.log(`[seed] Inserted ${commentCount} comments and ${prayCount} post prayers.`);
 
-  for (const postId of insertedPostIds) {
-    if (Math.random() > 0.6) continue;
-    const numComments = randInt(1, 3);
-    const commenters = pickN(insertedUsers, numComments);
-    for (const commenter of commenters) {
-      commentValues.push({
-        postId,
-        authorId: commenter.id,
-        content: pick(COMMENT_TEMPLATES),
-      });
-    }
-  }
-
-  for (let i = 0; i < commentValues.length; i += BATCH_SIZE) {
-    const batch = commentValues.slice(i, i + BATCH_SIZE);
-    await db.insert(commentsTable).values(batch);
-    commentCount += batch.length;
-  }
-
-  console.log(`[seed] Created ${commentCount} comments.`);
-
-  // ── Update user prayer counts ──────────────────────────────────────────
-  console.log("[seed] Updating prayer counts on users…");
-  const postCountByUser = new Map<string, number>();
-  for (const p of mockPosts) {
-    postCountByUser.set(p.authorUsername, (postCountByUser.get(p.authorUsername) ?? 0) + 1);
-  }
-  for (const [username, count] of postCountByUser) {
-    const uid = userIdByUsername.get(username);
-    if (uid == null) continue;
-    await db.update(usersTable).set({ prayersShared: count }).where(eq(usersTable.id, uid));
-  }
-
-  // Update prayedFor counts randomly
-  console.log("[seed] Updating prayedFor counts on users…");
-  for (const u of insertedUsers) {
-    const prayedFor = randInt(5, 180);
-    await db.update(usersTable).set({ prayedFor }).where(eq(usersTable.id, u.id));
-  }
+  await syncSeedUserEngagementStats(seedUserIds);
 
   console.log("[seed] Done.");
   console.log(`[seed]   ${insertedUsers.length} users (each with avatar)`);
   console.log(`[seed]   ${insertedPostIds.length} posts (4-12 per user, spread over 90 days)`);
-  console.log(`[seed]   ${commentCount} comments`);
+  console.log(`[seed]   ${commentCount} comments (real rows in comments table)`);
+  console.log(`[seed]   ${prayCount} post prayers (real rows in post_prayers table)`);
   console.log(`[seed] All seed accounts use password: ${SEED_PASSWORD}`);
   console.log("[seed] Remove these users before public launch if using shared credentials.");
 
