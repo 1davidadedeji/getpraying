@@ -6,13 +6,14 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVerifyEmail, useResendVerification } from "@workspace/api-client-react";
 import { showAppAlert } from "@/components/AppAlert";
 import { AppLogo } from "@/components/AppLogo";
+import { DismissKeyboardView } from "@/components/DismissKeyboardView";
+import { OtpBoxInput, OTP_LENGTH } from "@/components/OtpBoxInput";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
@@ -22,110 +23,11 @@ import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const COOLDOWN_STEPS = [60, 120, 300, 600];
-const OTP_LENGTH = 6;
 
 function formatCooldown(secs: number): string {
   if (secs >= 60) return `${Math.ceil(secs / 60)}m`;
   return `${secs}s`;
 }
-
-function OtpBoxInput({
-  value,
-  onChange,
-  onComplete,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onComplete?: () => void;
-}) {
-  const { uiScale } = useResponsiveLayout();
-  const boxW = Math.round(clamp(48 * uiScale, 40, 54));
-  const boxH = Math.round(clamp(56 * uiScale, 48, 62));
-  const boxRad = Math.round(clamp(16 * uiScale, 14, 18));
-  const boxFs = Math.round(clamp(22 * uiScale, 20, 26));
-  const rowGap = Math.round(clamp(8 * uiScale, 6, 10));
-  const borderW = Math.max(1, Math.round(2 * uiScale));
-  const refs = useRef<(TextInput | null)[]>([]);
-  const digits = value.padEnd(OTP_LENGTH, "").split("").slice(0, OTP_LENGTH);
-
-  const handleChange = (text: string, index: number) => {
-    const cleaned = text.replace(/\D/g, "");
-    if (cleaned.length > 1) {
-      const pasted = cleaned.slice(0, OTP_LENGTH);
-      onChange(pasted);
-      const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
-      refs.current[focusIdx]?.focus();
-      if (pasted.length === OTP_LENGTH) onComplete?.();
-      return;
-    }
-    const arr = digits.slice();
-    arr[index] = cleaned;
-    const newVal = arr.join("").replace(/\s/g, "");
-    onChange(newVal);
-    if (cleaned && index < OTP_LENGTH - 1) {
-      refs.current[index + 1]?.focus();
-    }
-    if (newVal.length === OTP_LENGTH) onComplete?.();
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === "Backspace" && !digits[index]?.trim() && index > 0) {
-      refs.current[index - 1]?.focus();
-      const arr = digits.slice();
-      arr[index - 1] = "";
-      onChange(arr.join("").replace(/\s/g, ""));
-    }
-  };
-
-  return (
-    <View style={[otpStyles.row, { gap: rowGap }]}>
-      {Array.from({ length: OTP_LENGTH }).map((_, i) => (
-        <TextInput
-          key={i}
-          ref={(r) => { refs.current[i] = r; }}
-          style={[
-            otpStyles.box,
-            {
-              width: boxW,
-              height: boxH,
-              borderRadius: boxRad,
-              fontSize: boxFs,
-              borderWidth: borderW,
-            },
-            digits[i]?.trim() ? otpStyles.boxFilled : null,
-          ]}
-          value={digits[i]?.trim() ?? ""}
-          onChangeText={(t) => handleChange(t, i)}
-          onKeyPress={(e) => handleKeyPress(e, i)}
-          keyboardType="number-pad"
-          maxLength={OTP_LENGTH}
-          textContentType="oneTimeCode"
-          autoComplete="one-time-code"
-          selectTextOnFocus
-          testID={`otp-box-${i}`}
-        />
-      ))}
-    </View>
-  );
-}
-
-const otpStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  box: {
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    textAlign: "center",
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.text,
-  },
-  boxFilled: {
-    borderColor: colors.primary,
-    backgroundColor: colors.cream,
-  },
-});
 
 export default function VerifyScreen() {
   const insets = useSafeAreaInsets();
@@ -188,10 +90,10 @@ export default function VerifyScreen() {
 
   const onVerify = () => {
     const code = otp.replace(/\D/g, "").slice(0, 6);
-    if (code.length !== 6) {
+    if (code.length !== OTP_LENGTH) {
       showAppAlert({
         title: "Invalid code",
-        message: "Please enter the 6-digit code from your email.",
+        message: `Please enter the ${OTP_LENGTH}-digit code from your email.`,
       });
       return;
     }
@@ -261,7 +163,7 @@ export default function VerifyScreen() {
   const resendDisabled = resend.isPending || cooldown > 0;
 
   return (
-    <View style={[styles.flex, { paddingTop: topPad + 16, paddingBottom: botPad + 24 }]}>
+    <DismissKeyboardView style={[styles.flex, { paddingTop: topPad + 16, paddingBottom: botPad + 24 }]}>
       <View style={[styles.container, { paddingHorizontal: padH, gap: containerGap }]}>
         <View style={[styles.header, { gap: headerGap, paddingHorizontal: headerPadH }]}>
           <AppLogo />
@@ -286,11 +188,7 @@ export default function VerifyScreen() {
         >
           <Text style={[styles.label, { fontSize: fsLabel }]}>Verification code</Text>
 
-          <OtpBoxInput
-            value={otp}
-            onChange={setOtp}
-            onComplete={() => {}}
-          />
+          <OtpBoxInput value={otp} onChange={setOtp} autoFocus />
 
           <Pressable
             style={[
@@ -300,10 +198,10 @@ export default function VerifyScreen() {
                 borderRadius: rBtn,
                 marginTop: btnMt,
               },
-              (verify.isPending || otp.length !== 6) && styles.btnDisabled,
+              (verify.isPending || otp.length !== OTP_LENGTH) && styles.btnDisabled,
             ]}
             onPress={onVerify}
-            disabled={verify.isPending || otp.length !== 6}
+            disabled={verify.isPending || otp.length !== OTP_LENGTH}
             testID="verify-btn"
           >
             {verify.isPending ? (
@@ -330,7 +228,7 @@ export default function VerifyScreen() {
           </Pressable>
         </View>
       </View>
-    </View>
+    </DismissKeyboardView>
   );
 }
 

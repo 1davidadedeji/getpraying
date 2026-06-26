@@ -15,111 +15,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAppAlert } from "@/components/AppAlert";
 import { AppLogo } from "@/components/AppLogo";
+import { DismissKeyboardView } from "@/components/DismissKeyboardView";
+import { OtpBoxInput, OTP_LENGTH } from "@/components/OtpBoxInput";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { apiFetch } from "@/lib/api";
 import { clamp } from "@/lib/responsiveMetrics";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
-
-const OTP_LENGTH = 6;
-
-function OtpBoxInput({
-  value,
-  onChange,
-  onComplete,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onComplete?: () => void;
-}) {
-  const { uiScale } = useResponsiveLayout();
-  const boxW = Math.round(clamp(48 * uiScale, 40, 54));
-  const boxH = Math.round(clamp(56 * uiScale, 48, 62));
-  const boxRad = Math.round(clamp(16 * uiScale, 14, 18));
-  const boxFs = Math.round(clamp(22 * uiScale, 20, 26));
-  const rowGap = Math.round(clamp(8 * uiScale, 6, 10));
-  const borderW = Math.max(1, Math.round(2 * uiScale));
-  const refs = useRef<(TextInput | null)[]>([]);
-  const digits = value.padEnd(OTP_LENGTH, "").split("").slice(0, OTP_LENGTH);
-
-  const handleChange = (text: string, index: number) => {
-    const cleaned = text.replace(/\D/g, "");
-    if (cleaned.length > 1) {
-      const pasted = cleaned.slice(0, OTP_LENGTH);
-      onChange(pasted);
-      const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
-      refs.current[focusIdx]?.focus();
-      if (pasted.length === OTP_LENGTH) onComplete?.();
-      return;
-    }
-    const arr = digits.slice();
-    arr[index] = cleaned;
-    const newVal = arr.join("").replace(/\s/g, "");
-    onChange(newVal);
-    if (cleaned && index < OTP_LENGTH - 1) {
-      refs.current[index + 1]?.focus();
-    }
-    if (newVal.length === OTP_LENGTH) onComplete?.();
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === "Backspace" && !digits[index]?.trim() && index > 0) {
-      refs.current[index - 1]?.focus();
-      const arr = digits.slice();
-      arr[index - 1] = "";
-      onChange(arr.join("").replace(/\s/g, ""));
-    }
-  };
-
-  return (
-    <View style={[otpStyles.row, { gap: rowGap }]}>
-      {Array.from({ length: OTP_LENGTH }).map((_, i) => (
-        <TextInput
-          key={i}
-          ref={(r) => { refs.current[i] = r; }}
-          style={[
-            otpStyles.box,
-            {
-              width: boxW,
-              height: boxH,
-              borderRadius: boxRad,
-              fontSize: boxFs,
-              borderWidth: borderW,
-            },
-            digits[i]?.trim() ? otpStyles.boxFilled : null,
-          ]}
-          value={digits[i]?.trim() ?? ""}
-          onChangeText={(t) => handleChange(t, i)}
-          onKeyPress={(e) => handleKeyPress(e, i)}
-          keyboardType="number-pad"
-          maxLength={OTP_LENGTH}
-          textContentType="oneTimeCode"
-          autoComplete="one-time-code"
-          selectTextOnFocus
-          testID={`otp-box-${i}`}
-        />
-      ))}
-    </View>
-  );
-}
-
-const otpStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  box: {
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    textAlign: "center",
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.text,
-  },
-  boxFilled: {
-    borderColor: colors.primary,
-    backgroundColor: colors.cream,
-  },
-});
 
 export default function ResetPasswordScreen() {
   const insets = useSafeAreaInsets();
@@ -168,10 +70,10 @@ export default function ResetPasswordScreen() {
   const onVerifyOtp = async () => {
     const e = email.trim().toLowerCase();
     const code = otp.replace(/\D/g, "");
-    if (!e || code.length !== 6) {
+    if (!e || code.length !== OTP_LENGTH) {
       showAppAlert({
         title: "Check fields",
-        message: "Enter your email and the 6-digit code from your email.",
+        message: `Enter your email and the ${OTP_LENGTH}-digit code from your email.`,
       });
       return;
     }
@@ -248,14 +150,16 @@ export default function ResetPasswordScreen() {
         contentContainerStyle={[
           styles.container,
           {
+            flexGrow: 1,
             paddingTop: topPad + 16,
             paddingBottom: botPad + 24,
             paddingHorizontal: padH,
-            gap,
           },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
+        <DismissKeyboardView style={{ flexGrow: 1, gap }}>
         <Pressable onPress={() => goBackOrFallback("/login" as Href)} style={[styles.backBtn, { marginBottom: backMb }]}>
           <Feather name="arrow-left" size={backIcn} color={colors.primary} />
         </Pressable>
@@ -294,20 +198,16 @@ export default function ResetPasswordScreen() {
               />
             )}
 
-            <OtpBoxInput
-              value={otp}
-              onChange={setOtp}
-              onComplete={() => {}}
-            />
+            <OtpBoxInput value={otp} onChange={setOtp} autoFocus />
 
             <Pressable
               style={[
                 styles.primaryBtn,
                 { paddingVertical: btnPadV, borderRadius: rBtn, marginTop: btnMt },
-                (loading || otp.length !== 6) && styles.btnDisabled,
+                (loading || otp.length !== OTP_LENGTH) && styles.btnDisabled,
               ]}
               onPress={onVerifyOtp}
-              disabled={loading || otp.length !== 6}
+              disabled={loading || otp.length !== OTP_LENGTH}
             >
               {loading ? (
                 <ActivityIndicator color={colors.surface} />
@@ -389,6 +289,7 @@ export default function ResetPasswordScreen() {
             </Pressable>
           </>
         )}
+        </DismissKeyboardView>
       </ScrollView>
     </KeyboardAvoidingView>
   );
