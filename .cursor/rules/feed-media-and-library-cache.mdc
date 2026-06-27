@@ -1,0 +1,33 @@
+---
+description: Feed video mounting and library stale-while-revalidate caching rules (prevents blank tiles and "rolling" loaders)
+globs: mobile/components/PostMedia.tsx,mobile/components/PostCard.tsx,mobile/components/CapsuleVideoPlayer.tsx,mobile/app/category/[name].tsx,mobile/app/(tabs)/library.tsx,mobile/lib/libraryFetchCache.ts
+alwaysApply: false
+---
+
+# Feed media
+
+Only the in-view ("focused") feed cell mounts a real `expo-video` player. Every other
+video cell renders the lightweight `FeedVideoPoster` (play button), or feeds show
+blank/black tiles while many off-screen players initialize.
+
+- In `PostMediaBlock`, `feedMediaFocused === false` means "feed cell, not focused" →
+  render the poster, not `CapsuleVideoPlayer`. `undefined` means detail screen → real
+  player. Don't collapse these three states.
+
+# Library caching (no "rolling" loader)
+
+Navigating into a category must NOT show a full-screen spinner when data is pre-warmed.
+
+- Read the cache first with `peekLibraryCache` and render immediately
+  (stale-while-revalidate); only `setLoading(true)` when there is no cached data.
+- When pre-warming from the library grid, call `fetchLibraryCached(url, token)` WITHOUT
+  `{ force: true }` so the in-flight request is shared (de-duped) with the category
+  screen's fetch instead of firing a duplicate.
+
+```ts
+// ❌ BAD — duplicate network request, defeats de-dupe
+void fetchLibraryCached(url, token, { force: true });
+
+// ✅ GOOD
+void fetchLibraryCached(url, token);
+```

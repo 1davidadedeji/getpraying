@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { db, usersTable, sessionsTable } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
+import { userIsBoostEligible } from "./boostEligibility";
 
 export async function hashPassword(password: string): Promise<string> {
   return bcryptjs.hash(password, 10);
@@ -142,24 +143,24 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
 }
 
 /**
- * Paying subscriber — used for automatic post boosts.
- * Only explicit paid tier (`premium`) or admins qualify; trial/free never boost.
+ * Boost eligibility — used for automatic post boosts. Active subscribers qualify,
+ * including those in a store free trial (see `boostEligibility.ts`). Admins always.
+ * @deprecated Prefer importing `userIsBoostEligible` from `./boostEligibility`.
  */
 export function userIsPayingSubscriber(user: {
   role?: string;
   trialStartsAt?: Date | string | null;
   subscription?: string | null;
 }): boolean {
-  if (user.role === "admin") return true;
-  return String(user.subscription ?? "").toLowerCase() === "premium";
+  return userIsBoostEligible(user);
 }
 
-/** @deprecated Use userIsPayingSubscriber — trial no longer grants boost. */
+/** @deprecated Prefer `userIsBoostEligible` from `./boostEligibility`. */
 export function userCanUsePremiumBoost(user: {
   role: string;
   trialStartsAt: Date | string | null;
   subscription?: string | null;
 }): boolean {
-  return userIsPayingSubscriber(user);
+  return userIsBoostEligible(user);
 }
 

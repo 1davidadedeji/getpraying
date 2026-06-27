@@ -35,6 +35,17 @@ export function getPostAuthRoute(
   return (pendingDeepLink ? deepLinkToHref(pendingDeepLink) : "/(tabs)") as Href;
 }
 
+export const HARD_PAYWALL_ROUTE = "/(paywall)";
+
+/**
+ * Whether a resolved post-auth route is the hard subscription paywall.
+ * The welcome screen uses this to render a signed-in "gated" state instead of
+ * passively shoving the user onto the paywall (which would make Back ping-pong).
+ */
+export function isHardPaywallRoute(route: Href | null | undefined): boolean {
+  return route != null && String(route) === HARD_PAYWALL_ROUTE;
+}
+
 function isAuthGateRoute(route: Href): boolean {
   const path = String(route);
   return (

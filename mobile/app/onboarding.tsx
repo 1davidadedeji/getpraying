@@ -21,6 +21,7 @@ import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
+import { navigatePostAuth } from "@/lib/postAuthNavigator";
 import { clamp } from "@/lib/responsiveMetrics";
 
 const ALL_CATEGORIES = [
@@ -115,7 +116,7 @@ export default function OnboardingScreen() {
           const updated = { ...user, onboardingComplete: true, preferredCategories: selected };
           refreshUser(updated);
           const route = resolvePostAuthNavigation(updated, rc, pendingDeepLink, consumePendingHref);
-          if (route) router.replace(route);
+          if (route) navigatePostAuth(route);
         },
         onError: () => {
           showAppAlert({

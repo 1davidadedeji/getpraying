@@ -25,6 +25,7 @@ import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
+import { navigatePostAuth } from "@/lib/postAuthNavigator";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -72,7 +73,7 @@ export default function LoginScreen() {
     try {
       const u = await login(email.trim(), password);
       const route = resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref);
-      if (route) router.replace(route);
+      if (route) navigatePostAuth(route);
     } catch (err: unknown) {
       showAppAlert({ title: "Login failed", message: getApiErrorMessage(err, "Login failed") });
     } finally {

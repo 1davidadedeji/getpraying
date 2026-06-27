@@ -22,6 +22,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { goBackOrFallback } from "@/lib/goBackOrFallback";
+import { navigatePostAuth } from "@/lib/postAuthNavigator";
 import { clamp } from "@/lib/responsiveMetrics";
 
 export default function RegisterScreen() {
@@ -84,7 +85,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(email.trim(), username.trim(), password);
-      router.replace("/(auth)/verify" as Href);
+      navigatePostAuth("/(auth)/verify" as Href);
     } catch (err: unknown) {
       showAppAlert({ title: "Sign up failed", message: getApiErrorMessage(err, "Registration failed") });
     } finally {

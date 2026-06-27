@@ -1,5 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { router, type Href } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -19,10 +21,16 @@ import { useAuth } from "@/context/auth";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { navigatePostAuth } from "@/lib/postAuthNavigator";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
+import {
+  loadResendCooldown,
+  remainingCooldownSecs,
+  resendCooldownSecsForCount,
+  saveResendCooldown,
+} from "@/lib/resendCooldown";
+import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 import { clamp } from "@/lib/responsiveMetrics";
-
-const COOLDOWN_STEPS = [60, 120, 300, 600];
 
 function formatCooldown(secs: number): string {
   if (secs >= 60) return `${Math.ceil(secs / 60)}m`;
@@ -51,14 +59,17 @@ export default function VerifyScreen() {
   const btnMt = Math.round(clamp(2 * uiScale, 2, 4));
   const fsLink = Math.round(clamp(14 * uiScale, 13, 16));
   const linkPadV = Math.round(clamp(8 * uiScale, 6, 10));
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
   const rc = useRevenueCat();
+  const queryClient = useQueryClient();
   const [otp, setOtp] = useState("");
   const verify = useVerifyEmail();
   const resend = useResendVerification();
   const [cooldown, setCooldown] = useState(0);
   const [resendCount, setResendCount] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -66,17 +77,13 @@ export default function VerifyScreen() {
 
   const email = user?.email ?? "";
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  const startCooldown = (count: number) => {
-    const idx = Math.min(count, COOLDOWN_STEPS.length - 1);
-    const secs = COOLDOWN_STEPS[idx] ?? 600;
-    setCooldown(secs);
+  const startCountdown = useCallback((secs: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
+    if (secs <= 0) {
+      setCooldown(0);
+      return;
+    }
+    setCooldown(secs);
     timerRef.current = setInterval(() => {
       setCooldown((prev) => {
         if (prev <= 1) {
@@ -86,7 +93,30 @@ export default function VerifyScreen() {
         return prev - 1;
       });
     }, 1000);
-  };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Resume any persisted cooldown for this email so leaving/returning (or
+  // relaunching) the app can't reset the limit. The server is authoritative;
+  // the device only reflects the deadline it already enforced.
+  useEffect(() => {
+    if (!email) return;
+    let active = true;
+    void loadResendCooldown(email).then((st) => {
+      if (!active || !st) return;
+      setResendCount(st.count);
+      const remaining = remainingCooldownSecs(st.nextAllowedAt, Date.now());
+      if (remaining > 0) startCountdown(remaining);
+    });
+    return () => {
+      active = false;
+    };
+  }, [email, startCountdown]);
 
   const onVerify = () => {
     const code = otp.replace(/\D/g, "").slice(0, 6);
@@ -114,7 +144,7 @@ export default function VerifyScreen() {
           if (next) refreshUser(next);
           if (next) {
             const route = resolvePostAuthNavigation(next, rc, pendingDeepLink, consumePendingHref);
-            if (route) router.replace(route);
+            if (route) navigatePostAuth(route);
           } else {
             router.replace("/login" as Href);
           }
@@ -145,25 +175,83 @@ export default function VerifyScreen() {
         onSuccess: () => {
           const newCount = resendCount + 1;
           setResendCount(newCount);
-          startCooldown(newCount);
+          const secs = resendCooldownSecsForCount(newCount);
+          startCountdown(secs);
+          void saveResendCooldown(email, {
+            count: newCount,
+            nextAllowedAt: Date.now() + secs * 1000,
+          });
           showAppAlert({
             title: "Code sent",
             message: "Check your inbox for a new verification code.",
           });
         },
-        onError: (err: any) =>
+        onError: (err: any) => {
+          // Server is authoritative: if it reports a wait, reflect/persist it so
+          // the countdown stays in sync even after navigating away.
+          const waitSecs = typeof err?.data?.waitSecs === "number" ? err.data.waitSecs : 0;
+          if (waitSecs > 0) {
+            startCountdown(waitSecs);
+            void saveResendCooldown(email, {
+              count: resendCount,
+              nextAllowedAt: Date.now() + waitSecs * 1000,
+            });
+          }
           showAppAlert({
             title: "Could not resend",
             message: err?.data?.error ?? err?.message ?? "Please try again in a moment.",
-          }),
+          });
+        },
       },
     );
   };
 
   const resendDisabled = resend.isPending || cooldown > 0;
 
+  // Escape hatch: signing in routes an unverified user straight back here, with
+  // no other way off the screen. Without this, a typo in the email traps the
+  // account until the app is deleted. Sign out + clear caches, then go to the
+  // welcome screen so the user can sign in or register with the right email.
+  const handleStartOver = useCallback(() => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    const proceed = async () => {
+      await logoutThenClearQueryCache(logout, queryClient);
+      router.replace("/" as Href);
+    };
+    void proceed();
+  }, [logout, queryClient]);
+
+  const confirmStartOver = useCallback(() => {
+    showAppAlert({
+      title: "Use a different email?",
+      message:
+        "We'll sign you out so you can sign in or create an account with the correct email.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign out", style: "destructive", onPress: handleStartOver },
+      ],
+    });
+  }, [handleStartOver]);
+
   return (
     <DismissKeyboardView style={[styles.flex, { paddingTop: topPad + 16, paddingBottom: botPad + 24 }]}>
+      <View style={[styles.backRow, { top: topPad + 4, left: padH }]}>
+        <Pressable
+          onPress={confirmStartOver}
+          disabled={leaving}
+          style={styles.backBtn}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back and use a different email"
+          testID="verify-back"
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.primary} />
+          <Text style={[styles.backText, { fontSize: fsLink }]}>Back</Text>
+        </Pressable>
+      </View>
+
       <View style={[styles.container, { paddingHorizontal: padH, gap: containerGap }]}>
         <View style={[styles.header, { gap: headerGap, paddingHorizontal: headerPadH }]}>
           <AppLogo />
@@ -291,5 +379,20 @@ const styles = StyleSheet.create({
   },
   linkTextDisabled: {
     color: colors.muted,
+  },
+  backRow: {
+    position: "absolute",
+    zIndex: 10,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 6,
+    paddingRight: 8,
+  },
+  backText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.primary,
   },
 });

@@ -11,6 +11,23 @@ export function hasPremiumEntitlement(info: CustomerInfo | null | undefined): bo
   return Boolean(getPremiumEntitlement(info));
 }
 
+/**
+ * The store detected a billing problem (e.g. insufficient funds) on the active
+ * premium entitlement. During this grace/retry window the user KEEPS access —
+ * the store retries the charge and only revokes (via an EXPIRATION webhook) if it
+ * ultimately fails. Use this to nudge the user to fix their payment method.
+ */
+export function hasBillingIssue(info: CustomerInfo | null | undefined): boolean {
+  const ent = getPremiumEntitlement(info);
+  return Boolean(ent?.billingIssueDetectedAt);
+}
+
+/** The store detection timestamp (string) — stable key for de-duping nudges. */
+export function billingIssueDetectedAt(info: CustomerInfo | null | undefined): string | null {
+  const ent = getPremiumEntitlement(info);
+  return ent?.billingIssueDetectedAt ?? null;
+}
+
 /** Active premium entitlement currently in a store free trial or intro period. */
 export function isPremiumTrialPeriod(info: CustomerInfo | null | undefined): boolean {
   const ent = getPremiumEntitlement(info);

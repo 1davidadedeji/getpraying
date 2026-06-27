@@ -136,12 +136,24 @@ describe("POST /webhooks/revenuecat", () => {
     expect(setArg).toEqual({ subscription: "premium" });
   });
 
-  it('writes "free" for CANCELLATION and EXPIRATION', async () => {
+  it('writes "free" only for EXPIRATION', async () => {
     mockDbUpdateReturning([{ id: 5 }]);
 
-    for (const type of ["CANCELLATION", "EXPIRATION"] as const) {
-      dbUpdateMock.mockClear();
-      mockDbUpdateReturning([{ id: 5 }]);
+    const res = await request(app)
+      .post("/webhooks/revenuecat")
+      .set(authHeader())
+      .send({ event: { type: "EXPIRATION", app_user_id: "5" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, userId: 5, subscription: "free" });
+    const setArg = dbUpdateMock.mock.results[0]?.value.set.mock.calls[0]?.[0];
+    expect(setArg).toEqual({ subscription: "free" });
+  });
+
+  it("ignores CANCELLATION and BILLING_ISSUE without touching the database", async () => {
+    // Access must continue until EXPIRATION — these events never downgrade the tier.
+    for (const type of ["CANCELLATION", "BILLING_ISSUE"] as const) {
+      dbUpdateMock.mockReset();
 
       const res = await request(app)
         .post("/webhooks/revenuecat")
@@ -149,9 +161,8 @@ describe("POST /webhooks/revenuecat", () => {
         .send({ event: { type, app_user_id: "5" } });
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ ok: true, userId: 5, subscription: "free" });
-      const setArg = dbUpdateMock.mock.results[0]?.value.set.mock.calls[0]?.[0];
-      expect(setArg).toEqual({ subscription: "free" });
+      expect(res.body).toEqual({ ok: true, ignored: type });
+      expect(dbUpdateMock).not.toHaveBeenCalled();
     }
   });
 

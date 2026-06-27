@@ -21,6 +21,7 @@ import {
   requireAuth,
 } from "../lib/auth";
 import { FailureWindowLimiter, HitWindowLimiter, clientIp } from "../lib/authRateLimit";
+import { checkResend, recordResend, type ResendEntry } from "../lib/resendCooldown";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
 
 const router: IRouter = Router();
@@ -35,27 +36,14 @@ const verifyResetOtpFailByKey = new FailureWindowLimiter(20);
 const resetPasswordFailByKey = new FailureWindowLimiter(20);
 const verifyEmailHitByIp = new HitWindowLimiter(120);
 const verifyEmailWrongByIp = new FailureWindowLimiter(40);
+// Per-IP/device abuse caps (email cooldown is enforced separately, per email).
+// These stop one network from email-bombing arbitrary addresses via repeated
+// sign-ups or resends, independent of whether they change the target email.
+const registerHitByIp = new HitWindowLimiter(10, 60 * 60 * 1000);
+const resendHitByIp = new HitWindowLimiter(15, 60 * 60 * 1000);
 
-const resendRateLimit = new Map<string, { count: number; nextAllowedAt: number }>();
-const RESEND_COOLDOWNS_MS = [60_000, 120_000, 300_000, 600_000];
-
-function checkResendRateLimit(email: string): { allowed: boolean; waitSecs: number } {
-  const now = Date.now();
-  const entry = resendRateLimit.get(email);
-  if (!entry) return { allowed: true, waitSecs: 0 };
-  if (now < entry.nextAllowedAt) {
-    return { allowed: false, waitSecs: Math.ceil((entry.nextAllowedAt - now) / 1000) };
-  }
-  return { allowed: true, waitSecs: 0 };
-}
-
-function recordResend(email: string): void {
-  const now = Date.now();
-  const entry = resendRateLimit.get(email);
-  const count = entry ? entry.count + 1 : 1;
-  const cooldownMs = RESEND_COOLDOWNS_MS[Math.min(count - 1, RESEND_COOLDOWNS_MS.length - 1)] ?? 600_000;
-  resendRateLimit.set(email, { count, nextAllowedAt: now + cooldownMs });
-}
+/** Per-email escalating cooldown for resend-verification. */
+const resendRateLimit = new Map<string, ResendEntry>();
 
 function createOtp(): string {
   const n = crypto.randomInt(0, 1_000_000);
@@ -138,6 +126,14 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
   if (acceptedTerms !== true) {
     res.status(400).json({ error: "You must accept the Terms of Service to create an account." });
+    return;
+  }
+
+  const ip = clientIp(req as Request);
+  if (!registerHitByIp.recordHit(`register:${ip}`)) {
+    res.status(429).json({
+      error: "Too many sign-up attempts from this network. Please try again later.",
+    });
     return;
   }
 
@@ -301,7 +297,18 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  const rl = checkResendRateLimit(normalizedEmail);
+  // Network-level cap first (no waitSecs so the client doesn't start a long
+  // device countdown for what may be a shared-IP false positive).
+  const ip = clientIp(req as Request);
+  if (!resendHitByIp.recordHit(`resend:${ip}`)) {
+    res.status(429).json({
+      error: "Too many requests from this network. Please try again later.",
+    });
+    return;
+  }
+
+  const now = Date.now();
+  const rl = checkResend(resendRateLimit.get(normalizedEmail), now);
   if (!rl.allowed) {
     res.status(429).json({
       error: `Please wait ${rl.waitSecs} seconds before requesting another code.`,
@@ -312,7 +319,7 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
   if (!user) {
-    recordResend(normalizedEmail);
+    resendRateLimit.set(normalizedEmail, recordResend(resendRateLimit.get(normalizedEmail), now));
     res.json({ success: true, message: "If your account exists, a code was sent." });
     return;
   }
@@ -322,7 +329,7 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
     return;
   }
 
-  recordResend(normalizedEmail);
+  resendRateLimit.set(normalizedEmail, recordResend(resendRateLimit.get(normalizedEmail), now));
 
   const otp = createOtp();
   const expiresAt = otpExpiresAt(15);

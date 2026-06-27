@@ -1,12 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Linking } from "react-native";
 import type {
   CustomerInfo,
   PurchasesOfferings,
   PurchasesPackage,
   PurchasesStoreProduct,
 } from "react-native-purchases";
+import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
 import {
+  billingIssueDetectedAt,
+  hasBillingIssue,
   hasPremiumEntitlement,
   isPremiumTrialPeriod,
   PREMIUM_ENTITLEMENT_ID,
@@ -48,6 +52,8 @@ type RevenueCatState = {
   customerInfo: CustomerInfo | null;
   isEntitled: boolean;
   isPremiumTrial: boolean;
+  /** Store flagged a payment problem (grace period). Access continues; nudge to fix. */
+  billingIssue: boolean;
   canUseBoost: boolean;
   refresh: () => Promise<CustomerInfo | null>;
   /** Load StoreKit offerings — call from paywall only (slow on physical iOS). */
@@ -161,6 +167,37 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       setOptimisticEntitlement(false);
     }
   }, [user?.id]);
+
+  // Insufficient-funds / billing-failure workflow: the store keeps the user
+  // entitled during its retry/grace window (we never revoke here — only the
+  // EXPIRATION webhook does). Nudge them once per detection to fix payment, and
+  // deep-link to the store's manage-subscription screen. The store also shows
+  // its own native prompt; this is a friendly in-app reminder.
+  const billingNudgeShownFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const detectedAt = billingIssueDetectedAt(customerInfo);
+    if (!detectedAt) {
+      billingNudgeShownFor.current = null;
+      return;
+    }
+    if (billingNudgeShownFor.current === detectedAt) return;
+    billingNudgeShownFor.current = detectedAt;
+
+    const manageUrl = customerInfo?.managementURL;
+    showAppAlert({
+      title: "Payment problem",
+      message:
+        "There's an issue with your payment method, so your last charge didn't go through. " +
+        "Update your payment details to keep your subscription active.",
+      buttons: manageUrl
+        ? [
+            { text: "Not now", style: "cancel" },
+            { text: "Update payment", onPress: () => void Linking.openURL(manageUrl) },
+          ]
+        : [{ text: "OK" }],
+    });
+  }, [enabled, customerInfo]);
 
   const isCheckingSubscription = !isReady;
 
@@ -310,14 +347,15 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     (!staffBypass && enabled && optimisticEntitlement);
   const isPremiumTrial =
     !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
-  // Boost: RC paid entitlement + DB `subscription === premium` (webhook). Never trial or optimistic.
+  const billingIssue = enabled ? hasBillingIssue(customerInfo) : false;
+  // Boost is available to active subscribers INCLUDING those in a store free
+  // trial (a trial is a committed subscription). Requires a confirmed store
+  // entitlement (not just the optimistic post-purchase flag) AND the DB tier
+  // (`premium` or `trial`) the webhook writes — so it lights up once the
+  // subscription has synced server-side.
   const canUseBoost =
     adminBoostBypass ||
-    (enabled &&
-      confirmedEntitled &&
-      !isPremiumTrialPeriod(customerInfo) &&
-      !optimisticEntitlement &&
-      serverBoostEligible);
+    (enabled && confirmedEntitled && !optimisticEntitlement && serverBoostEligible);
 
   const value: RevenueCatState = useMemo(
     () => ({
@@ -334,6 +372,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       customerInfo,
       isEntitled,
       isPremiumTrial,
+      billingIssue,
       canUseBoost,
       refresh,
       loadCatalog,
@@ -355,6 +394,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       customerInfo,
       isEntitled,
       isPremiumTrial,
+      billingIssue,
       canUseBoost,
       serverBoostEligible,
       refresh,
@@ -393,6 +433,7 @@ export function useRevenueCat(): RevenueCatState {
       customerInfo: null,
       isEntitled: false,
       isPremiumTrial: false,
+      billingIssue: false,
       canUseBoost: false,
       refresh: async () => null,
       loadCatalog: async () => {},

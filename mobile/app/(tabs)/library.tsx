@@ -577,7 +577,9 @@ export default function LibraryScreen() {
         excludeScheduled: "1",
         limit: "120",
       });
-      void fetchLibraryCached(`/library/official?${params}`, token, { force: true });
+      // No `force`: this registers the request as in-flight so the category
+      // screen shares it instead of firing a second, duplicate fetch.
+      void fetchLibraryCached(`/library/official?${params}`, token);
       router.push(`/category/${encodeURIComponent(slug)}` as never);
     }
   };

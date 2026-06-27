@@ -21,7 +21,7 @@ import { useAuth } from "@/context/auth";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { apiFetch } from "@/lib/api";
-import { fetchLibraryCached } from "@/lib/libraryFetchCache";
+import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -103,18 +103,38 @@ export default function CategoryOfficialScreen() {
   }, [token]);
 
   const loadInitial = useCallback(async () => {
-    setLoading(true);
     setError(false);
+    // Stale-while-revalidate: render the pre-warmed cache instantly (no
+    // full-screen spinner) and revalidate in the background. Eliminates the
+    // "rolling loader" when navigating in from the Library grid.
+    let hasCached = false;
+    if (categorySlug) {
+      const params = new URLSearchParams({
+        category: categorySlug,
+        excludeScheduled: "1",
+        limit: "120",
+      });
+      const cached = peekLibraryCache<{ prayers?: OfficialPrayerRow[] }>(
+        `/library/official?${params}`,
+        token,
+      );
+      if (cached?.prayers) {
+        setGuides(cached.prayers);
+        setLoading(false);
+        hasCached = true;
+      }
+    }
+    if (!hasCached) setLoading(true);
     try {
       const ok = await loadGuides();
       void loadSavedIds();
-      setError(!ok);
+      if (!hasCached) setError(!ok);
     } catch {
-      setError(true);
+      if (!hasCached) setError(true);
     } finally {
       setLoading(false);
     }
-  }, [loadGuides, loadSavedIds]);
+  }, [categorySlug, token, loadGuides, loadSavedIds]);
 
   useEffect(() => {
     void loadInitial();

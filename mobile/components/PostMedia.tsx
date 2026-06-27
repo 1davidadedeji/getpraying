@@ -157,6 +157,44 @@ function ZoomableImageViewer({
   );
 }
 
+/** Lightweight stand-in for a feed video that isn't the in-view cell. Tapping
+ *  opens the post detail, where the real player mounts and autoplays. */
+function FeedVideoPoster({
+  aspectRatio,
+  borderRadius,
+  style,
+  uiScale,
+  onPress,
+}: {
+  aspectRatio: number;
+  borderRadius: number;
+  style?: StyleProp<ViewStyle>;
+  uiScale: number;
+  onPress?: () => void;
+}) {
+  const playSz = Math.round(clamp(56 * uiScale, 46, 66));
+  return (
+    <View style={[styles.posterWrap, style]}>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        style={[styles.posterShell, { borderRadius, aspectRatio, maxHeight: 520 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Play video"
+      >
+        <View
+          style={[
+            styles.posterPlay,
+            { width: playSz, height: playSz, borderRadius: playSz / 2 },
+          ]}
+        >
+          <Ionicons name="play" size={Math.round(playSz * 0.5)} color={colors.surface} />
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
 export function PostMediaBlock({
   postId,
   mediaUrl,
@@ -201,6 +239,22 @@ export function PostMediaBlock({
   const feed = !!feedMediaFocused;
 
   if (mediaType === "video") {
+    // Feed performance + reliability: only the in-view ("focused") cell mounts a
+    // real expo-video player. Every other video cell shows a lightweight,
+    // tappable poster — otherwise the feed renders blank/black tiles while many
+    // players initialize off-screen. `feedMediaFocused === false` means "this is
+    // a feed cell that is not currently focused" (it is `undefined` on detail).
+    if (feedMediaFocused === false && !thumbnail) {
+      return (
+        <FeedVideoPoster
+          aspectRatio={9 / 16}
+          borderRadius={mediaRad}
+          style={style}
+          uiScale={uiScale}
+          onPress={onOpenPostDetail}
+        />
+      );
+    }
     return (
       <CapsuleVideoPlayer
         videoUrl={uri}
@@ -291,6 +345,23 @@ export function PostMediaBlock({
 }
 
 const styles = StyleSheet.create({
+  posterWrap: {
+    width: "100%",
+  },
+  posterShell: {
+    width: "100%",
+    overflow: "hidden",
+    backgroundColor: "#0E2A3A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  posterPlay: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.7)",
+  },
   imageWrap: {
     width: "100%",
     alignSelf: "stretch",

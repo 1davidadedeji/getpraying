@@ -23,6 +23,7 @@ import { goBackOrFallback } from "@/lib/goBackOrFallback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
 import { openLegalDocument } from "@/lib/openLegalDocument";
 import { resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
+import { navigatePostAuth } from "@/lib/postAuthNavigator";
 import {
   consumePendingNotificationHref,
   applyNotificationHref,
@@ -96,7 +97,7 @@ export default function PaywallScreen() {
       () => null,
     );
     if (!route) return;
-    router.replace(route);
+    navigatePostAuth(route);
   }, []);
 
   const leavePaywall = useCallback(async () => {
@@ -105,14 +106,16 @@ export default function PaywallScreen() {
     await logoutThenClearQueryCache(logout, queryClient);
   }, [logout, queryClient]);
 
-  /** Back: mandatory gate signs out; soft / entitled users return to the previous screen. */
+  /**
+   * Back NEVER forces a logout (that surprised users). A soft upsell returns to
+   * the caller; the hard gate returns to the welcome screen — an
+   * entitlement-exempt route where the user stays signed in and can subscribe
+   * later or sign out explicitly via the footer. The welcome screen does not
+   * bounce gated users back here (see app/index.tsx), so this can't ping-pong.
+   */
   const dismissPaywall = useCallback(() => {
-    if (isMandatoryGate) {
-      void leavePaywall();
-      return;
-    }
-    goBackOrFallback("/(tabs)" as Href);
-  }, [isMandatoryGate, leavePaywall]);
+    goBackOrFallback((isSoftPaywall ? "/(tabs)" : "/") as Href);
+  }, [isSoftPaywall]);
 
   const finishAfterEntitlement = useCallback(
     (opts?: { haptic?: boolean }) => {
@@ -187,17 +190,15 @@ export default function PaywallScreen() {
           await Linking.openURL(manageUrl);
         } catch {
           showAppAlert({
-            title: "Free trial active",
-            message:
-              "Your subscription is already active on a free trial. Boost unlocks once your trial converts to a paid plan.",
+            title: "Subscription active",
+            message: "You're on a free trial — Boost and all premium features are already included.",
           });
         }
         return;
       }
       showAppAlert({
-        title: "Free trial active",
-        message:
-          "Your subscription is already active on a free trial. Boost unlocks automatically once your trial converts to a paid plan.",
+        title: "Subscription active",
+        message: "You're on a free trial — Boost and all premium features are already included.",
       });
       return;
     }
@@ -220,8 +221,7 @@ export default function PaywallScreen() {
         if (isTrial) {
           showAppAlert({
             title: "Subscription already active",
-            message:
-              "You're on a free trial. Boost unlocks once your trial converts to a paid subscription.",
+            message: "You're on a free trial — Boost and all premium features are already included.",
           });
           return;
         }
@@ -274,23 +274,35 @@ export default function PaywallScreen() {
 
   const headline = isSoftPaywall
     ? rc.isPremiumTrial
-      ? "Upgrade to unlock Boost"
+      ? "You're subscribed"
       : "Subscribe to unlock"
     : "Start your free trial";
 
   const subtitle = isSoftPaywall
-    ? "Boost and other premium perks unlock with a fully paid subscription."
+    ? "Unlock Boost and other premium perks with a subscription."
     : "Subscribe to unlock the prayer feed, Library, reminders, and community features.";
 
   if (isCheckingSubscription) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-        <View style={[styles.flex, styles.subscriptionGate, { paddingTop: topPad + edgePad }]}>
+        <View style={[styles.flex, styles.subscriptionGate, { paddingTop: topPad + edgePad, paddingBottom: botPad + edgePad }]}>
           <ActivityIndicator color="#21638D" size="large" />
           <Text style={[styles.loadingText, { fontSize: fsLoading, marginTop: centerGap }]}>
             Checking subscription…
           </Text>
+          {/* Escape hatch: never trap the user on this screen if the store check
+              stalls (slow network / misconfigured RevenueCat). */}
+          <Pressable
+            onPress={() => void leavePaywall()}
+            style={[styles.footerBtn, { paddingVertical: linkPadV, marginTop: containerGap }]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+            testID="paywall-checking-sign-out"
+          >
+            <Text style={[styles.footerMuted, { fontSize: fsFooter }]}>Sign Out</Text>
+          </Pressable>
         </View>
       </>
     );
@@ -313,7 +325,7 @@ export default function PaywallScreen() {
             testID="paywall-close"
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel={isMandatoryGate ? "Sign out" : "Go back"}
+            accessibilityLabel="Go back"
           >
             <Text style={[styles.closeText, { fontSize: fsLink }]}>← Back</Text>
           </Pressable>
@@ -396,7 +408,7 @@ export default function PaywallScreen() {
                       </Text>
                       <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>
                         {rc.isPremiumTrial
-                          ? "Free trial active · Boost unlocks after paid conversion"
+                          ? "Free trial active · Boost included"
                           : trialOffer.includes("Free")
                             ? trialOffer
                             : `${trialOffer} · cancel anytime`}

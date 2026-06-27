@@ -53,7 +53,6 @@ import {
 } from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { clamp } from "@/lib/responsiveMetrics";
-import { showBoostUpgradePrompt } from "@/lib/boostUpgrade";
 import {
   normalizeVideoMime,
   videoFileNameForMime,
@@ -379,18 +378,25 @@ export default function NewPostScreen() {
     if (rc.canUseBoost) {
       showAppAlert({
         title: "Boost included",
-        message: "Fully paid subscribers get prayers prioritized in the feed when posted.",
+        message: "Your prayers are prioritized in the feed when you post.",
       });
       return;
     }
-    if (rc.isPremiumTrial) {
-      showBoostUpgradePrompt();
+    // Entitled (incl. an active free trial) but the subscription tier hasn't
+    // finished syncing server-side yet — Boost activates momentarily.
+    if (rc.isEntitled || rc.isPremiumTrial) {
+      showAppAlert({
+        title: "Boost is activating",
+        message:
+          "Your subscription is finishing setup. Boost will be ready in a moment — try posting again shortly.",
+      });
       return;
     }
     showAppAlert({
       title: "Subscribe to Boost",
-      message: "Boosting prayers is only available to fully paid subscribers.",
+      message: "Subscribe to prioritize your prayers in the feed.",
       buttons: [
+        { text: "Not now", style: "cancel" },
         {
           text: "View plans",
           onPress: () => router.push("/(paywall)?soft=1" as Href),
@@ -610,10 +616,10 @@ export default function NewPostScreen() {
           <Text style={[styles.boostTitle, { fontSize: fsBoost }]}>Boost this prayer</Text>
           <Text style={[styles.boostHint, { fontSize: fsChar }]}>
             {rc.canUseBoost
-              ? "Included with your paid plan"
-              : rc.isPremiumTrial
-                ? "Upgrade to unlock Boost during trial"
-                : "Available to paid subscribers"}
+              ? "Included with your subscription"
+              : rc.isEntitled || rc.isPremiumTrial
+                ? "Activating with your subscription…"
+                : "Subscribe to prioritize your prayer"}
           </Text>
         </View>
       </Pressable>

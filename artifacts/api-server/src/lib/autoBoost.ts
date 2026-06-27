@@ -1,11 +1,11 @@
 import { db, postsTable, usersTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
-import { userIsPayingSubscriber } from "./auth";
+import { userIsBoostEligible } from "./boostEligibility";
 import { broadcastPushToRegisteredDevices } from "./broadcastPush";
 
 type PostRow = typeof postsTable.$inferSelect;
 
-/** Paying subscribers (not trial) get posts auto-boosted when approved. */
+/** Active subscribers (paid or in a store free trial) get posts auto-boosted when approved. */
 export async function applyAutoBoostIfEligible(post: PostRow): Promise<PostRow> {
   if (post.status !== "approved" || post.boostedAt != null || post.authorId == null) {
     return post;
@@ -17,7 +17,7 @@ export async function applyAutoBoostIfEligible(post: PostRow): Promise<PostRow> 
     .where(eq(usersTable.id, post.authorId))
     .limit(1);
 
-  if (!author || !userIsPayingSubscriber(author)) {
+  if (!author || !userIsBoostEligible(author)) {
     return post;
   }
 

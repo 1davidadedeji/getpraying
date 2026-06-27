@@ -87,19 +87,23 @@ describe("subscriptionFromEvent", () => {
     });
   });
 
-  describe("cancellations and expirations", () => {
-    it('maps CANCELLATION to "free"', () => {
-      expect(subscriptionFromEvent("CANCELLATION", undefined)).toBe("free");
-      expect(subscriptionFromEvent("CANCELLATION", "NORMAL")).toBe("free");
+  describe("cancellations, billing issues, and expirations", () => {
+    it('ignores CANCELLATION (auto-renew off; access continues until EXPIRATION)', () => {
+      // Must NOT downgrade — the user keeps paid/trial access until the period ends.
+      expect(subscriptionFromEvent("CANCELLATION", undefined)).toBeNull();
+      expect(subscriptionFromEvent("CANCELLATION", "NORMAL")).toBeNull();
+      expect(subscriptionFromEvent("CANCELLATION", "TRIAL")).toBeNull();
     });
 
-    it('maps EXPIRATION to "free"', () => {
+    it('ignores BILLING_ISSUE (grace/retry period; access continues)', () => {
+      expect(subscriptionFromEvent("BILLING_ISSUE", undefined)).toBeNull();
+      expect(subscriptionFromEvent("BILLING_ISSUE", "NORMAL")).toBeNull();
+    });
+
+    it('maps EXPIRATION to "free" (access has actually lapsed)', () => {
       expect(subscriptionFromEvent("EXPIRATION", undefined)).toBe("free");
       expect(subscriptionFromEvent("EXPIRATION", "TRIAL")).toBe("free");
-    });
-
-    it('maps BILLING_ISSUE to "free"', () => {
-      expect(subscriptionFromEvent("BILLING_ISSUE", undefined)).toBe("free");
+      expect(subscriptionFromEvent("EXPIRATION", "NORMAL")).toBe("free");
     });
   });
 
