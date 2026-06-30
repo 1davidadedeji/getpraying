@@ -50,12 +50,16 @@ export function OtpBoxInput({
 
   const handleChange = (text: string, index: number) => {
     const cleaned = text.replace(/\D/g, "");
+    // Was the code already complete *before* this keystroke? If so, the user is
+    // editing a filled code — we must NOT auto-dismiss again, or the keyboard
+    // closes on every single edit and re-tapping to fix a digit feels broken.
+    const wasComplete = value.replace(/\D/g, "").length >= length;
     if (cleaned.length > 1) {
       const pasted = cleaned.slice(0, length);
       onChange(pasted);
-      if (pasted.length === length) {
+      if (pasted.length === length && !wasComplete) {
         finishEntry();
-      } else {
+      } else if (pasted.length < length) {
         const focusIdx = Math.min(pasted.length, length - 1);
         refs.current[focusIdx]?.focus();
       }
@@ -68,7 +72,7 @@ export function OtpBoxInput({
     if (cleaned && index < length - 1) {
       refs.current[index + 1]?.focus();
     }
-    if (newVal.length === length) {
+    if (newVal.length === length && !wasComplete) {
       finishEntry();
     }
   };

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Modal,
   Platform,
@@ -227,11 +227,19 @@ export function PostMediaBlock({
   const [imgNaturalAspect, setImgNaturalAspect] = useState<number | null>(null);
   const [imgLightboxOpen, setImgLightboxOpen] = useState(false);
   const [wrapWidth, setWrapWidth] = useState(0);
+  // When a feed image's load is cancelled (fast scroll / cell recycle) or fails
+  // transiently, expo-image leaves the tile blank until the view is remounted.
+  // Bumping reloadKey remounts the <Image/> to force a fresh fetch — capped so a
+  // genuinely-broken URL can't loop forever.
+  const [imgReloadKey, setImgReloadKey] = useState(0);
+  const imgFailsRef = useRef(0);
 
   useEffect(() => {
     setImgNaturalAspect(null);
     setImgLightboxOpen(false);
     setWrapWidth(0);
+    setImgReloadKey(0);
+    imgFailsRef.current = 0;
   }, [uri]);
 
   if (!uri) return null;
@@ -311,6 +319,7 @@ export function PostMediaBlock({
         }}
       >
         <Image
+          key={imgReloadKey}
           source={{ uri }}
           recyclingKey={imageRecyclingKey}
           style={[styles.image, { width: "100%", height: imgHeight }] as StyleProp<ImageStyle>[]}
@@ -319,8 +328,14 @@ export function PostMediaBlock({
           priority={mediaLayout === "feed" ? "high" : "normal"}
           transition={200}
           onLoad={(e) => {
+            imgFailsRef.current = 0;
             const { width, height } = e.source;
             if (width > 0 && height > 0) setImgNaturalAspect(width / height);
+          }}
+          onError={() => {
+            if (imgFailsRef.current >= 2) return;
+            imgFailsRef.current += 1;
+            setImgReloadKey((k) => k + 1);
           }}
         />
         <Pressable

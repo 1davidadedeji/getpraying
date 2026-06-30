@@ -581,9 +581,11 @@ export default function FeedScreen() {
         newPostsScrollGateRef.current = passed;
         setNewPostsScrollGate(passed);
       }
-      // Physical iOS devices often miss onEndReached with variable-height PostCards
-      // and removeClippedSubviews; proximity scroll is the reliable trigger there.
-      if (Platform.OS === "ios" && nextCursorRef.current) {
+      // onEndReached is unreliable with variable-height PostCards (and now that
+      // clipping is off, scroll measurement for it is weaker on both platforms),
+      // so proximity scroll is the dependable load-more trigger everywhere.
+      // handleLoadMore is guarded by loadingMoreRef, so this can't double-fetch.
+      if (nextCursorRef.current) {
         const nearBottom =
           layoutMeasurement.height + y >= contentSize.height - LOAD_MORE_SCROLL_PADDING_PX;
         if (nearBottom) void handleLoadMoreRef.current();
@@ -887,9 +889,12 @@ export default function FeedScreen() {
         onEndReachedThreshold={0.4}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        // Clipping on iOS breaks scroll measurement for onEndReached with variable-height
-        // media cards; Android defaults to clipping for memory. windowSize caps memory.
-        removeClippedSubviews={Platform.OS === "android"}
+        // Never clip: removeClippedSubviews detaches cells the list *thinks* are
+        // off-screen and frequently fails to re-attach their media — that is the
+        // "some images don't show until you tap the post" bug. windowSize keeps
+        // memory bounded instead. (Load-more stays reliable via the proximity
+        // scroll fallback in handleScroll, since clipping also broke onEndReached.)
+        removeClippedSubviews={false}
         windowSize={9}
         maxToRenderPerBatch={8}
         initialNumToRender={10}
