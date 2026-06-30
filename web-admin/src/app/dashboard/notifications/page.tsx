@@ -17,11 +17,16 @@ export default function NotificationsPage() {
     setBusy(true);
     setResult(null);
     try {
-      const res = await adminFetch("/admin/notifications/broadcast", token, { method: "POST", body: JSON.stringify({ title: title.trim(), body: body.trim()  }),
+      const res = await adminFetch("/admin/notifications/broadcast", token, {
+        method: "POST",
+        body: JSON.stringify({ title: title.trim(), body: body.trim() }),
       });
-      const data = await res.json() as { error?: string; sent?: number };
-      if (!res.ok) setResult({ ok: false, message: data.error ?? "Failed to send" });
-      else setResult({ ok: true, message: `Broadcast sent to ${data.sent ?? "all"} users.` });
+      const data = (await res.json().catch(() => null)) as { error?: string; sent?: number } | null;
+      if (!res.ok) {
+        setResult({ ok: false, message: data?.error ?? `Failed to send (${res.status}).` });
+      } else {
+        setResult({ ok: true, message: `Broadcast sent to ${data?.sent ?? 0} device(s).` });
+      }
     } catch {
       setResult({ ok: false, message: "Network error. Try again." });
     } finally {

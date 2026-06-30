@@ -23,6 +23,7 @@ import { attachReportsForStaff, clearPostReportsForPost } from "../lib/postRepor
 import { officialGuideTextError } from "../lib/officialGuideTextLimits";
 import { clearLibraryReadCache } from "../lib/libraryReadCache";
 import { pushForNotificationById } from "../lib/pushForNotification";
+import { broadcastPushToRegisteredDevices } from "../lib/broadcastPush";
 import { applyAutoBoostIfEligible } from "../lib/autoBoost";
 import {
   parseTracksFromBody,
@@ -1114,6 +1115,36 @@ router.put("/admin/app-settings/store", requireAdmin, async (req, res): Promise<
       .onConflictDoUpdate({ target: appSettingsTable.key, set: { value, updatedAt: new Date() } });
   }
   res.json({ updated: updates.map((u) => u.key) });
+});
+
+// ---------------------------------------------------------------------------
+// Push broadcast (web admin CMS → all registered devices)
+// ---------------------------------------------------------------------------
+router.post("/admin/notifications/broadcast", requireAdmin, async (req, res): Promise<void> => {
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+  if (!title || !body) {
+    res.status(400).json({ error: "Both title and body are required." });
+    return;
+  }
+  if (title.length > 80 || body.length > 256) {
+    res.status(400).json({ error: "Title must be ≤ 80 and message ≤ 256 characters." });
+    return;
+  }
+
+  try {
+    const sent = await broadcastPushToRegisteredDevices({
+      title,
+      body,
+      // No postId → mobile routes a tap to the notifications tab (see
+      // resolveNotificationTarget). Keep this type stable for analytics.
+      data: { type: "broadcast" },
+    });
+    res.json({ sent });
+  } catch (err) {
+    console.error("[admin] broadcast push failed", err);
+    res.status(502).json({ error: "Failed to send broadcast. Please try again." });
+  }
 });
 
 export default router;
