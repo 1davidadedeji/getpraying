@@ -38,7 +38,7 @@ export default function NotificationsPage() {
     <div className="mx-auto max-w-lg">
       <PageHeader title="Push notifications" description="Broadcast an immediate push to all users" />
 
-      <div className="flex flex-col gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+      <div className="flex flex-col gap-4 rounded-xl border border-(--color-border) bg-(--color-surface) p-5">
         <div>
           <label className="text-[11px] font-semibold text-[#8A8FA8] uppercase tracking-wide block mb-1.5">Title</label>
           <input
