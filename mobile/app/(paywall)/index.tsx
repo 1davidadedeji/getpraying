@@ -280,7 +280,7 @@ export default function PaywallScreen() {
 
   const subtitle = isSoftPaywall
     ? "Unlock Boost and other premium perks with a subscription."
-    : "Subscribe to unlock the prayer feed, Library, reminders, and community features.";
+    : "Try us for 7 days free. If you like the app subscribe to unlock additional features such as a prayer boost.";
 
   if (isCheckingSubscription) {
     return (
