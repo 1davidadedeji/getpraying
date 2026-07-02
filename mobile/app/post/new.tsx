@@ -28,6 +28,7 @@ import {
   getGetUserPostsQueryKey,
   useCreatePost,
   type Post,
+  ApiError,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AudioLibraryPickerModal } from "@/components/AudioLibraryPickerModal";
@@ -52,6 +53,8 @@ import {
   uploadPostMediaFile,
 } from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
+import { TRIAL_BOOST_EXHAUSTED_MESSAGE } from "@/lib/boostTrial";
+import { userCanUseBoostNow } from "@/lib/serverSubscription";
 import { clamp } from "@/lib/responsiveMetrics";
 import {
   normalizeVideoMime,
@@ -102,7 +105,7 @@ export default function NewPostScreen() {
   useStackHeaderBack("/(tabs)" as Href);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { token, user } = useAuth();
+  const { token, user, refreshUserFromServer } = useAuth();
   const rc = useRevenueCat();
   const { showNotice, requestFeedJumpToTop } = useFeedNotice();
   const [content, setContent] = useState("");
@@ -375,20 +378,22 @@ export default function NewPostScreen() {
   const busy = isPending || uploadBusy;
 
   const handleBoostPress = () => {
-    if (rc.canUseBoost) {
+    if (user?.subscription === "trial" && !userCanUseBoostNow(user)) {
       showAppAlert({
-        title: "Boost included",
-        message: "Your prayers are prioritized in the feed when you post.",
+        title: "Trial boost used",
+        message: TRIAL_BOOST_EXHAUSTED_MESSAGE,
       });
       return;
     }
-    // Entitled (incl. an active free trial) but the subscription tier hasn't
-    // finished syncing server-side yet — Boost activates momentarily.
+    if (rc.canUseBoost) {
+      void handleSubmit({ applyBoost: true });
+      return;
+    }
     if (rc.isEntitled || rc.isPremiumTrial) {
       showAppAlert({
         title: "Boost is activating",
         message:
-          "Your subscription is finishing setup. Boost will be ready in a moment — try posting again shortly.",
+          "Your subscription is finishing setup. Boost will be ready in a moment — try again shortly.",
       });
       return;
     }
@@ -405,7 +410,8 @@ export default function NewPostScreen() {
     });
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (opts?: { applyBoost?: boolean }) => {
+    const applyBoost = opts?.applyBoost === true;
     if (!canSubmit) {
       showAppAlert({
         title: "Add something",
@@ -486,6 +492,7 @@ export default function NewPostScreen() {
           category,
           ...(categories ? { categories } : {}),
           ...(mediaUrl && postMediaType ? { mediaUrl, mediaType: postMediaType } : {}),
+          ...(applyBoost ? { applyBoost: true } : {}),
         },
       },
       {
@@ -509,18 +516,26 @@ export default function NewPostScreen() {
             }
 
             const isApproved = res?.status === "approved";
-            const boostedNow = Boolean(res?.boostedAt);
+            const boostedNow = applyBoost && Boolean(res?.boostedAt);
             let message: string;
-            if (isApproved) {
-              message = boostedNow
-                ? "Posted and boosted — it’s prioritized in the feed."
-                : "Posted — you’ll see it at the top of the feed.";
+            if (applyBoost) {
+              if (isApproved) {
+                message = boostedNow
+                  ? "Posted and boosted — it's prioritized in the feed."
+                  : "Posted — Boost is activating.";
+              } else {
+                message = "Sent for review — it will be boosted after approval.";
+              }
+            } else if (isApproved) {
+              message = "Posted";
             } else {
-              message = boostedNow
-                ? "Sent for review — it will be boosted after approval."
-                : "Sent for review — it will appear after approval.";
+              message = "Sent for review";
             }
             showNotice(message, "success");
+
+            if (applyBoost) {
+              void refreshUserFromServer();
+            }
 
             // Composer is already unmounting, but clearing state here is
             // harmless and prevents stale data if the screen is kept alive.
@@ -539,6 +554,13 @@ export default function NewPostScreen() {
           });
         },
         onError: (err: unknown) => {
+          if (applyBoost && err instanceof ApiError && err.status === 402) {
+            showAppAlert({
+              title: "Boost unavailable",
+              message: getApiErrorMessage(err),
+            });
+            return;
+          }
           showAppAlert({
             title: "Could not submit",
             message: getApiErrorMessage(err, "Please check your connection and try again."),
@@ -616,10 +638,14 @@ export default function NewPostScreen() {
           <Text style={[styles.boostTitle, { fontSize: fsBoost }]}>Boost this prayer</Text>
           <Text style={[styles.boostHint, { fontSize: fsChar }]}>
             {rc.canUseBoost
-              ? "Included with your subscription"
-              : rc.isEntitled || rc.isPremiumTrial
-                ? "Activating with your subscription…"
-                : "Subscribe to prioritize your prayer"}
+              ? rc.isPremiumTrial
+                ? "One boost included during your trial"
+                : "Included with your subscription"
+              : user?.subscription === "trial" && !userCanUseBoostNow(user)
+                ? "Trial boost used"
+                : rc.isEntitled || rc.isPremiumTrial
+                  ? "Activating with your subscription…"
+                  : "Subscribe to prioritize your prayer"}
           </Text>
         </View>
       </Pressable>

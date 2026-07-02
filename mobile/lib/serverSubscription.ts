@@ -5,10 +5,13 @@ export function isServerPaidPremium(subscription: string | null | undefined): bo
   return String(subscription ?? "").toLowerCase() === "premium";
 }
 
+export function isServerTrialSubscription(subscription: string | null | undefined): boolean {
+  return String(subscription ?? "").toLowerCase() === "trial";
+}
+
 /**
- * Subscription tiers that grant Boost. Trial counts: a store free trial is an
- * active, committed subscription. Mirrors the server's
- * `artifacts/api-server/src/lib/boostEligibility.ts` — keep them in sync.
+ * Subscription tiers that may Boost at all (paid unlimited; trial once).
+ * Mirrors `artifacts/api-server/src/lib/boostEligibility.ts`.
  */
 const BOOST_TIERS = new Set(["premium", "trial"]);
 
@@ -16,9 +19,19 @@ export function subscriptionTierGrantsBoost(subscription: string | null | undefi
   return BOOST_TIERS.has(String(subscription ?? "").toLowerCase());
 }
 
-/** Whether the API will auto-boost / honor Boost on post create. */
+/** Whether the user's tier allows Boost in principle (not whether they still have quota). */
 export function isServerBoostEligible(user: Pick<User, "role" | "subscription"> | null | undefined): boolean {
   if (!user) return false;
   if (user.role === "admin") return true;
   return subscriptionTierGrantsBoost(user.subscription);
+}
+
+/** Client-side Boost availability after server sync (/auth/me `trialBoostUsed`). */
+export function userCanUseBoostNow(
+  user: (Pick<User, "role" | "subscription"> & { trialBoostUsed?: boolean }) | null | undefined,
+): boolean {
+  if (!isServerBoostEligible(user)) return false;
+  if (user?.role === "admin") return true;
+  if (isServerTrialSubscription(user?.subscription) && user?.trialBoostUsed) return false;
+  return true;
 }

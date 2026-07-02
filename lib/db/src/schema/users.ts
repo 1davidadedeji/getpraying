@@ -18,6 +18,8 @@ export const usersTable = pgTable("users", {
   subscription: text("subscription").notNull().default("free"),
   platform: text("platform").notNull().default("unknown"),
   trialStartsAt: timestamp("trial_starts_at", { withTimezone: true }),
+  /** Set when a trial subscriber uses their one-time Boost. */
+  trialBoostUsedAt: timestamp("trial_boost_used_at", { withTimezone: true }),
   isEmailVerified: boolean("is_email_verified").notNull().default(false),
   verificationToken: text("verification_token"),
   verificationExpiresAt: timestamp("verification_expires_at", { withTimezone: true }),

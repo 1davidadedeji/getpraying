@@ -12,7 +12,9 @@ import {
 import { eq, and, or, desc, sql, asc, notInArray, isNull } from "drizzle-orm";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
 import { requireAuth, optionalAuth } from "../lib/auth";
-import { applyAutoBoostIfEligible } from "../lib/autoBoost";
+import { applyBoostToPost } from "../lib/autoBoost";
+import { boostAvailabilityError, isTrialSubscription } from "../lib/boostEligibility";
+import { trialUserHasBoostPendingOrUsed } from "../lib/trialBoostQuota";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
@@ -339,7 +341,9 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
 
 router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
-  const { content, mediaUrl, mediaType, category, isAnonymous, categories: categoriesBody } = req.body;
+  const { content, mediaUrl, mediaType, category, isAnonymous, categories: categoriesBody, applyBoost: applyBoostRaw } =
+    req.body;
+  const applyBoostRequested = applyBoostRaw === true;
 
   const contentTrimmed = typeof content === "string" ? content.trim() : "";
   if (contentTrimmed.length > 5000) {
@@ -420,6 +424,19 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  if (applyBoostRequested) {
+    const trialHasPendingOrUsed = isTrialSubscription(user.subscription)
+      ? await trialUserHasBoostPendingOrUsed(user.id)
+      : false;
+    const boostErr = await boostAvailabilityError(user, { trialHasPendingOrUsed });
+    if (boostErr) {
+      res.status(402).json({ error: boostErr, code: "boost_unavailable" });
+      return;
+    }
+  }
+
+  const boostRequested = applyBoostRequested && postStatus === "pending";
+
   const [post] = await db
     .insert(postsTable)
     .values({
@@ -432,6 +449,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
       status: postStatus,
       moderationReason,
       authorId: user.id,
+      boostRequested,
     })
     .returning();
 
@@ -445,8 +463,8 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   }
 
   let postForResponse = post;
-  if (postStatus === "approved") {
-    postForResponse = await applyAutoBoostIfEligible(post);
+  if (postStatus === "approved" && applyBoostRequested) {
+    postForResponse = await applyBoostToPost(post, user);
   }
 
   const enriched = await enrichPost(postForResponse, user.id);

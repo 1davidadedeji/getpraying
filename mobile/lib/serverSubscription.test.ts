@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   isServerBoostEligible,
   isServerPaidPremium,
+  isServerTrialSubscription,
   subscriptionTierGrantsBoost,
+  userCanUseBoostNow,
 } from "./serverSubscription";
 
 describe("isServerPaidPremium", () => {
@@ -32,5 +34,28 @@ describe("isServerBoostEligible", () => {
   it("denies free members and missing users", () => {
     expect(isServerBoostEligible({ role: "user", subscription: "free" } as never)).toBe(false);
     expect(isServerBoostEligible(null)).toBe(false);
+  });
+});
+
+describe("userCanUseBoostNow", () => {
+  it("allows paid users and admins", () => {
+    expect(userCanUseBoostNow({ role: "admin", subscription: "free" } as never)).toBe(true);
+    expect(userCanUseBoostNow({ role: "user", subscription: "premium" } as never)).toBe(true);
+  });
+
+  it("allows trial users until their one boost is used", () => {
+    expect(
+      userCanUseBoostNow({ role: "user", subscription: "trial", trialBoostUsed: false } as never),
+    ).toBe(true);
+    expect(
+      userCanUseBoostNow({ role: "user", subscription: "trial", trialBoostUsed: true } as never),
+    ).toBe(false);
+  });
+});
+
+describe("isServerTrialSubscription", () => {
+  it("detects trial tier", () => {
+    expect(isServerTrialSubscription("trial")).toBe(true);
+    expect(isServerTrialSubscription("premium")).toBe(false);
   });
 });

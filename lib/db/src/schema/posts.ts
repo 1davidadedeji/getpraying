@@ -24,6 +24,8 @@ export const postsTable = pgTable("posts", {
   boostedAt: timestamp("boosted_at", { withTimezone: true }),
   /** Last premium member who applied the active boost (for toggle / unboost). */
   boostedByUserId: integer("boosted_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  /** Author requested Boost on create; applied when the post is approved. */
+  boostRequested: boolean("boost_requested").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -23,7 +23,7 @@ import {
   getMonthlyProduct,
 } from "@/lib/revenuecatCatalog";
 import { isStaffUser } from "@/lib/staffAccess";
-import { isServerBoostEligible, isServerPaidPremium } from "@/lib/serverSubscription";
+import { isServerPaidPremium, userCanUseBoostNow } from "@/lib/serverSubscription";
 import type { SubscriptionCatalog } from "@/lib/revenuecatCatalog";
 
 export { DEFAULT_OFFERING_ID, PREMIUM_ENTITLEMENT_ID };
@@ -337,7 +337,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const hasMonthlyOffer = !!(monthlyPackage || monthlyStoreProduct);
 
   const adminBoostBypass = user?.role === "admin";
-  const serverBoostEligible = isServerBoostEligible(user);
+  const serverBoostEligible = userCanUseBoostNow(user);
   const confirmedEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
   const serverEntitled = isServerPaidPremium(user?.subscription);
   const isEntitled =

@@ -86,6 +86,8 @@ export interface User {
   subscription?: string | null;
   /** Opt-in for scheduled morning/evening push reminders (from /auth/me) */
   scheduledNotificationsEnabled?: boolean | null;
+  /** Trial subscriber already used (or has pending) their one-time Boost */
+  trialBoostUsed?: boolean;
   createdAt: string;
 }
 
