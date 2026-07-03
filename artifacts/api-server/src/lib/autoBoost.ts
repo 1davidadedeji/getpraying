@@ -69,8 +69,8 @@ export async function applyBoostToPost(
   }
 
   void broadcastPushToRegisteredDevices({
-    title: "Boosted prayer",
-    body: "Tap to see who needs your support.",
+    title: "Get Praying",
+    body: `Someone needs help. See who.`,
     data: {
       type: "boost_alert",
       postId: String(boosted.id),
