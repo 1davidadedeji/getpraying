@@ -12,7 +12,7 @@ import {
   validateTrackDrafts,
   type LectureTrackDraft,
 } from "@/components/dashboard/LectureTracksEditor";
-import { panelCls } from "@/components/dashboard/form-styles";
+import { panelCls, formErrorCls } from "@/components/dashboard/form-styles";
 import { useAuth } from "@/context/auth";
 import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
 import { readApiError } from "@/lib/readApiError";
@@ -79,7 +79,7 @@ export default function NewLecturePage() {
           disabled={saving}
         />
         <LectureTracksEditor token={token} disabled={saving} tracks={tracks} onChange={setTracks} />
-        {error ? <p className="text-[12px] text-(--color-danger)">{error}</p> : null}
+        {error ? <p className={formErrorCls}>{error}</p> : null}
         <FormActions
           primaryLabel="Create lesson"
           primaryLoading={saving}

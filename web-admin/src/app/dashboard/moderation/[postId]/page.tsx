@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { AdminPostBody } from "@/components/dashboard/AdminPostBody";
 import { PremiumToggle } from "@/components/dashboard/PremiumToggle";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { inputCls, panelCls } from "@/components/dashboard/form-styles";
+import { inputCls, panelCls, helpMutedSmCls, formErrorSmCls, btnModerationApproveCls, btnModerationDeclineConfirmCls, btnModerationDeclineOutlineCls, btnModerationCancelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { useAdminPost } from "@/lib/useAdminPost";
@@ -95,7 +95,7 @@ export default function ModerationPostPage() {
     return (
       <>
         <PageHeader title="Not found" backHref="/dashboard/moderation" backLabel="Moderation" />
-        <p className="text-[11px] text-(--color-muted)">{error ?? "Post unavailable."}</p>
+        <p className={helpMutedSmCls}>{error ?? "Post unavailable."}</p>
       </>
     );
   }
@@ -124,13 +124,13 @@ export default function ModerationPostPage() {
               value={declineReason}
               onChange={(e) => setDeclineReason(e.target.value)}
             />
-            {actionError ? <p className="mt-1.5 text-[11px] text-(--color-danger)">{actionError}</p> : null}
+            {actionError ? <p className={`mt-1.5 ${formErrorSmCls}`}>{actionError}</p> : null}
             <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 disabled={actionId === postId || declineReason.trim().length < 3}
                 onClick={() => void decline()}
-                className="rounded-md bg-(--color-danger) px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
+                className={btnModerationDeclineConfirmCls}
               >
                 Confirm decline
               </button>
@@ -141,7 +141,7 @@ export default function ModerationPostPage() {
                   setDeclineReason("");
                   setActionError(null);
                 }}
-                className="rounded-md border border-(--color-border) px-2.5 py-1 text-[11px]"
+                className={btnModerationCancelCls}
               >
                 Cancel
               </button>
@@ -149,20 +149,20 @@ export default function ModerationPostPage() {
           </div>
         ) : (
           <>
-            {actionError ? <p className="mt-2 text-[11px] text-(--color-danger)">{actionError}</p> : null}
+            {actionError ? <p className={`mt-2 ${formErrorSmCls}`}>{actionError}</p> : null}
             <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 disabled={actionId === postId}
                 onClick={() => void approve()}
-                className="rounded-md bg-(--color-success) px-2.5 py-1 text-[11px] font-medium text-white disabled:opacity-40"
+                className={btnModerationApproveCls}
               >
                 Approve
               </button>
               <button
                 type="button"
                 onClick={() => setDeclining(true)}
-                className="rounded-md border border-(--color-danger) px-2.5 py-1 text-[11px] text-(--color-danger)"
+                className={btnModerationDeclineOutlineCls}
               >
                 Decline
               </button>
@@ -170,7 +170,7 @@ export default function ModerationPostPage() {
           </>
         )
       ) : (
-        <p className="mt-2 text-[11px] text-(--color-muted)">This post is not pending review.</p>
+        <p className={`mt-2 ${helpMutedSmCls}`}>This post is not pending review.</p>
       )}
     </>
   );

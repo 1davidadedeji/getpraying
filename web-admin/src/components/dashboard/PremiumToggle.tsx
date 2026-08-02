@@ -1,6 +1,11 @@
 "use client";
 
-import { panelCls } from "@/components/dashboard/form-styles";
+import {
+  panelCls,
+  premiumCheckboxCls,
+  premiumToggleHintCls,
+  premiumToggleTitleCls,
+} from "@/components/dashboard/form-styles";
 
 export function PremiumToggle({
   checked,
@@ -18,14 +23,14 @@ export function PremiumToggle({
       <label className="flex cursor-pointer items-start gap-2.5">
         <input
           type="checkbox"
-          className="mt-0.5 h-4 w-4 shrink-0 accent-(--color-primary)"
+          className={premiumCheckboxCls}
           checked={checked}
           disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-[12px] font-semibold text-(--color-text)">Premium content</span>
-          <span className="mt-0.5 block text-[11px] leading-snug text-(--color-muted)">
+          <span className={premiumToggleTitleCls}>Premium content</span>
+          <span className={premiumToggleHintCls}>
             Free users see a short preview; audio and video require a subscription.
           </span>
         </span>

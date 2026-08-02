@@ -19,3 +19,31 @@ export const btnDangerOutline =
 
 export const btnGhost =
   "rounded-md border border-[var(--color-border)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-primary)] transition-colors hover:border-[var(--color-flame)]";
+
+/** Muted helper / empty-state copy under form panels */
+export const helpMutedCls = "text-[12px] text-muted";
+
+/** Inline validation or save error under forms */
+export const formErrorCls = "text-[12px] text-danger";
+
+export const helpMutedSmCls = "text-[11px] text-muted";
+
+export const formErrorSmCls = "text-[11px] text-danger";
+
+export const premiumCheckboxCls = "mt-0.5 h-4 w-4 shrink-0 accent-primary";
+
+export const premiumToggleTitleCls = "block text-[12px] font-semibold text-primary";
+
+export const premiumToggleHintCls = "mt-0.5 block text-[11px] leading-snug text-muted";
+
+export const btnModerationApproveCls =
+  "rounded-md bg-success px-2.5 py-1 text-[11px] font-medium text-white disabled:opacity-40";
+
+export const btnModerationDeclineConfirmCls =
+  "rounded-md bg-danger px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40";
+
+export const btnModerationDeclineOutlineCls =
+  "rounded-md border border-danger px-2.5 py-1 text-[11px] text-danger";
+
+export const btnModerationCancelCls =
+  "rounded-md border border-border px-2.5 py-1 text-[11px]";

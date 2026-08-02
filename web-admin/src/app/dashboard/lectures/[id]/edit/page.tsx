@@ -12,7 +12,7 @@ import {
   validateTrackDrafts,
   type LectureTrackDraft,
 } from "@/components/dashboard/LectureTracksEditor";
-import { panelCls } from "@/components/dashboard/form-styles";
+import { panelCls, helpMutedCls, formErrorCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
@@ -100,7 +100,7 @@ export default function EditLecturePage() {
     return (
       <>
         <PageHeader title="Lesson not found" backHref="/dashboard/lectures" backLabel="Lectures" />
-        <p className="text-[12px] text-(--color-muted)">This lesson may have been removed.</p>
+        <p className={helpMutedCls}>This lesson may have been removed.</p>
       </>
     );
   }
@@ -122,7 +122,7 @@ export default function EditLecturePage() {
           disabled={saving}
         />
         <LectureTracksEditor token={token} disabled={saving} tracks={tracks} onChange={setTracks} />
-        {error ? <p className="text-[12px] text-(--color-danger)">{error}</p> : null}
+        {error ? <p className={formErrorCls}>{error}</p> : null}
         <FormActions
           primaryLabel="Save lesson"
           primaryLoading={saving}

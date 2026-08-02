@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FormActions } from "@/components/dashboard/FormActions";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { PathGuideForm, type PathGuideDraft } from "@/components/dashboard/PathGuideForm";
-import { btnDangerOutline, panelCls } from "@/components/dashboard/form-styles";
+import { btnDangerOutline, panelCls, helpMutedCls, formErrorCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
@@ -111,7 +111,7 @@ export default function EditPathGuidePage() {
     return (
       <>
         <PageHeader title="Guide not found" backHref={`/dashboard/paths/${pathId}`} backLabel="Path" />
-        <p className="text-[12px] text-(--color-muted)">This guide may have been removed.</p>
+        <p className={helpMutedCls}>This guide may have been removed.</p>
       </>
     );
   }
@@ -121,7 +121,7 @@ export default function EditPathGuidePage() {
       <PageHeader title="Edit guide" backHref={`/dashboard/paths/${pathId}`} backLabel={pathName} />
       <div className={`${panelCls} p-3 sm:p-4`}>
         <PathGuideForm draft={draft} onChange={setDraft} token={token} disabled={saving} />
-        {error ? <p className="mt-2 text-[12px] text-(--color-danger)">{error}</p> : null}
+        {error ? <p className={`mt-2 ${formErrorCls}`}>{error}</p> : null}
         <FormActions
           primaryLabel="Save"
           primaryLoading={saving}
