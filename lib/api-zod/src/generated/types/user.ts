@@ -27,7 +27,7 @@ export interface User {
   subscription?: string | null;
   /** Opt-in for scheduled morning/evening push reminders (from /auth/me) */
   scheduledNotificationsEnabled?: boolean | null;
-  /** Trial subscriber has used or reserved their one-time Boost */
-  trialBoostUsed?: boolean;
+  /** Free-tier user has used or reserved their one lifetime Boost (from /auth/me) */
+  freeBoostUsed?: boolean;
   createdAt: Date;
 }

@@ -1230,9 +1230,9 @@ components:
           type: boolean
           nullable: true
           description: Opt-in for scheduled morning/evening push reminders (from /auth/me)
-        trialBoostUsed:
+        freeBoostUsed:
           type: boolean
-          description: Trial subscriber has used or reserved their one-time Boost (from /auth/me)
+          description: Free-tier user has used or reserved their one lifetime Boost (from /auth/me)
         createdAt:
           type: string
           format: date-time

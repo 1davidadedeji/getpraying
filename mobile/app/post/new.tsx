@@ -53,8 +53,8 @@ import {
   uploadPostMediaFile,
 } from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
-import { TRIAL_BOOST_EXHAUSTED_MESSAGE } from "@/lib/boostTrial";
-import { userCanUseBoostNow } from "@/lib/serverSubscription";
+import { FREE_BOOST_EXHAUSTED_MESSAGE } from "@/lib/freeBoost";
+import { userCanUseBoostNow, userNeedsStoreEntitlementForBoost } from "@/lib/serverSubscription";
 import { clamp } from "@/lib/responsiveMetrics";
 import {
   normalizeVideoMime,
@@ -378,36 +378,51 @@ export default function NewPostScreen() {
   const busy = isPending || uploadBusy;
 
   const handleBoostPress = () => {
-    if (user?.subscription === "trial" && !userCanUseBoostNow(user)) {
+    const unlimitedBoost = userNeedsStoreEntitlementForBoost(user);
+
+    if (!userCanUseBoostNow(user)) {
       showAppAlert({
-        title: "Trial boost used",
-        message: TRIAL_BOOST_EXHAUSTED_MESSAGE,
+        title: "You've Used Your Free Prayer Boost",
+        message: FREE_BOOST_EXHAUSTED_MESSAGE,
+        buttons: [
+          { text: "Not Now", style: "cancel" },
+          {
+            text: "Subscribe Now — $6.99/month",
+            onPress: () => router.push("/(paywall)?soft=1" as Href),
+          },
+        ],
       });
       return;
     }
-    if (rc.canUseBoost) {
-      void handleSubmit({ applyBoost: true });
-      return;
-    }
-    if (rc.isEntitled || rc.isPremiumTrial) {
+
+    if (unlimitedBoost) {
+      if (rc.canUseBoost) {
+        void handleSubmit({ applyBoost: true });
+        return;
+      }
+      if (rc.isEntitled || rc.isPremiumTrial) {
+        showAppAlert({
+          title: "Boost is activating",
+          message:
+            "Your subscription is finishing setup. Boost will be ready in a moment — try again shortly.",
+        });
+        return;
+      }
       showAppAlert({
-        title: "Boost is activating",
-        message:
-          "Your subscription is finishing setup. Boost will be ready in a moment — try again shortly.",
+        title: "Subscribe to Boost",
+        message: "Subscribe for unlimited Prayer Boosts.",
+        buttons: [
+          { text: "Not Now", style: "cancel" },
+          {
+            text: "Subscribe Now — $6.99/month",
+            onPress: () => router.push("/(paywall)?soft=1" as Href),
+          },
+        ],
       });
       return;
     }
-    showAppAlert({
-      title: "Subscribe to Boost",
-      message: "Subscribe to prioritize your prayers in the feed.",
-      buttons: [
-        { text: "Not now", style: "cancel" },
-        {
-          text: "View plans",
-          onPress: () => router.push("/(paywall)?soft=1" as Href),
-        },
-      ],
-    });
+
+    void handleSubmit({ applyBoost: true });
   };
 
   const handleSubmit = async (opts?: { applyBoost?: boolean }) => {

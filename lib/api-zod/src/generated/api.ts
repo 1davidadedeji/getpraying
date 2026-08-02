@@ -69,6 +69,12 @@ export const LoginResponse = zod.object({
       .describe(
         "Opt-in for scheduled morning\/evening push reminders (from \/auth\/me)",
       ),
+    freeBoostUsed: zod
+      .boolean()
+      .optional()
+      .describe(
+        "Free-tier user has used or reserved their one lifetime Boost (from \/auth\/me)",
+      ),
     createdAt: zod.coerce.date(),
   }),
   message: zod.string().nullish(),
@@ -112,6 +118,12 @@ export const GetMeResponse = zod.object({
     .nullish()
     .describe(
       "Opt-in for scheduled morning\/evening push reminders (from \/auth\/me)",
+    ),
+  freeBoostUsed: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Free-tier user has used or reserved their one lifetime Boost (from \/auth\/me)",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -1366,6 +1378,12 @@ export const GetAdminUsersResponse = zod.object({
         .nullish()
         .describe(
           "Opt-in for scheduled morning\/evening push reminders (from \/auth\/me)",
+        ),
+      freeBoostUsed: zod
+        .boolean()
+        .optional()
+        .describe(
+          "Free-tier user has used or reserved their one lifetime Boost (from \/auth\/me)",
         ),
       createdAt: zod.coerce.date(),
     }),

@@ -1,10 +1,11 @@
 import { db, postsTable, usersTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import {
-  isTrialSubscription,
+  isFreeSubscription,
+  subscriptionTierGrantsUnlimitedBoost,
   userCanApplyBoost,
 } from "./boostEligibility";
-import { trialUserHasBoostPendingOrUsed } from "./trialBoostQuota";
+import { freeUserHasBoostPendingOrUsed } from "./freeBoostQuota";
 import { broadcastPushToRegisteredDevices } from "./broadcastPush";
 
 type PostRow = typeof postsTable.$inferSelect;
@@ -30,8 +31,8 @@ export async function applyBoostToPost(
     )[0];
 
   if (!authorRow || !(await userCanApplyBoost(authorRow, {
-    trialHasPendingOrUsed: isTrialSubscription(authorRow.subscription)
-      ? await trialUserHasBoostPendingOrUsed(authorRow.id, post.id)
+    freeHasPendingOrUsed: isFreeSubscription(authorRow.subscription)
+      ? await freeUserHasBoostPendingOrUsed(authorRow.id, post.id)
       : false,
   }))) {
     return post;
@@ -51,10 +52,14 @@ export async function applyBoostToPost(
 
   if (!boosted) return post;
 
-  if (isTrialSubscription(authorRow.subscription) && authorRow.trialBoostUsedAt == null) {
+  if (
+    isFreeSubscription(authorRow.subscription) &&
+    !subscriptionTierGrantsUnlimitedBoost(authorRow.subscription) &&
+    authorRow.freeBoostUsedAt == null
+  ) {
     await db
       .update(usersTable)
-      .set({ trialBoostUsedAt: now, updatedAt: now })
+      .set({ freeBoostUsedAt: now, updatedAt: now })
       .where(eq(usersTable.id, authorRow.id));
   }
 

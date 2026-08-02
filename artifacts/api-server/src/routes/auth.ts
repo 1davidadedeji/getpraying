@@ -23,8 +23,12 @@ import {
 import { FailureWindowLimiter, HitWindowLimiter, clientIp } from "../lib/authRateLimit";
 import { checkResend, recordResend, type ResendEntry } from "../lib/resendCooldown";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
-import { isTrialSubscription, userCanApplyBoost } from "../lib/boostEligibility";
-import { trialUserHasBoostPendingOrUsed } from "../lib/trialBoostQuota";
+import {
+  isFreeSubscription,
+  subscriptionTierGrantsUnlimitedBoost,
+  userCanApplyBoost,
+} from "../lib/boostEligibility";
+import { freeUserHasBoostPendingOrUsed } from "../lib/freeBoostQuota";
 
 const router: IRouter = Router();
 
@@ -431,10 +435,10 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
 
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
-  const trialBoostUsed =
-    isTrialSubscription(user.subscription) &&
+  const freeBoostUsed =
+    isFreeSubscription(user.subscription) &&
     !(await userCanApplyBoost(user, {
-      trialHasPendingOrUsed: await trialUserHasBoostPendingOrUsed(user.id),
+      freeHasPendingOrUsed: await freeUserHasBoostPendingOrUsed(user.id),
     }));
   res.json({
     id: user.id,
@@ -448,7 +452,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     isBanned: user.isBanned,
     subscription: user.subscription,
     trialStartsAt: user.trialStartsAt,
-    trialBoostUsed,
+    freeBoostUsed,
     isEmailVerified: user.isEmailVerified,
     preferredCategories: user.preferredCategories,
     onboardingComplete: user.onboardingComplete,

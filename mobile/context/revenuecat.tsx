@@ -23,7 +23,7 @@ import {
   getMonthlyProduct,
 } from "@/lib/revenuecatCatalog";
 import { isStaffUser } from "@/lib/staffAccess";
-import { isServerPaidPremium, userCanUseBoostNow } from "@/lib/serverSubscription";
+import { userCanUseBoostNow, userNeedsStoreEntitlementForBoost } from "@/lib/serverSubscription";
 import type { SubscriptionCatalog } from "@/lib/revenuecatCatalog";
 
 export { DEFAULT_OFFERING_ID, PREMIUM_ENTITLEMENT_ID };
@@ -337,7 +337,6 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const hasMonthlyOffer = !!(monthlyPackage || monthlyStoreProduct);
 
   const adminBoostBypass = user?.role === "admin";
-  const serverBoostEligible = userCanUseBoostNow(user);
   const confirmedEntitled = enabled ? hasPremiumEntitlement(customerInfo) : false;
   const serverEntitled = isServerPaidPremium(user?.subscription);
   const isEntitled =
@@ -348,14 +347,14 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
   const isPremiumTrial =
     !staffBypass && enabled ? isPremiumTrialPeriod(customerInfo) : false;
   const billingIssue = enabled ? hasBillingIssue(customerInfo) : false;
-  // Boost is available to active subscribers INCLUDING those in a store free
-  // trial (a trial is a committed subscription). Requires a confirmed store
-  // entitlement (not just the optimistic post-purchase flag) AND the DB tier
-  // (`premium` or `trial`) the webhook writes — so it lights up once the
-  // subscription has synced server-side.
+  const needsStoreForBoost = userNeedsStoreEntitlementForBoost(user);
+  // Free tier: one lifetime boost without RevenueCat. Subscribers: unlimited after store + webhook sync.
   const canUseBoost =
     adminBoostBypass ||
-    (enabled && confirmedEntitled && !optimisticEntitlement && serverBoostEligible);
+    (userCanUseBoostNow(user) &&
+      (needsStoreForBoost
+        ? enabled && confirmedEntitled && !optimisticEntitlement
+        : true));
 
   const value: RevenueCatState = useMemo(
     () => ({
@@ -396,7 +395,6 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       isPremiumTrial,
       billingIssue,
       canUseBoost,
-      serverBoostEligible,
       refresh,
       loadCatalog,
       purchaseMonthly,

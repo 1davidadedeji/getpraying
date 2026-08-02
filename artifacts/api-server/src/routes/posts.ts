@@ -13,8 +13,8 @@ import { eq, and, or, desc, sql, asc, notInArray, isNull } from "drizzle-orm";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { applyBoostToPost } from "../lib/autoBoost";
-import { boostAvailabilityError, isTrialSubscription } from "../lib/boostEligibility";
-import { trialUserHasBoostPendingOrUsed } from "../lib/trialBoostQuota";
+import { boostAvailabilityError, isFreeSubscription } from "../lib/boostEligibility";
+import { freeUserHasBoostPendingOrUsed } from "../lib/freeBoostQuota";
 import { enrichPost, enrichPosts } from "../lib/postHelpers";
 import { suggestCategory, suggestCategories } from "../lib/aiCategory";
 import { moderatePost, aiRewrite } from "../lib/aiModeration";
@@ -425,10 +425,10 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   }
 
   if (applyBoostRequested) {
-    const trialHasPendingOrUsed = isTrialSubscription(user.subscription)
-      ? await trialUserHasBoostPendingOrUsed(user.id)
+    const freeHasPendingOrUsed = isFreeSubscription(user.subscription)
+      ? await freeUserHasBoostPendingOrUsed(user.id)
       : false;
-    const boostErr = await boostAvailabilityError(user, { trialHasPendingOrUsed });
+    const boostErr = await boostAvailabilityError(user, { freeHasPendingOrUsed });
     if (boostErr) {
       res.status(402).json({ error: boostErr, code: "boost_unavailable" });
       return;

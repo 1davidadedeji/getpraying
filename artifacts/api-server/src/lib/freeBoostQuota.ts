@@ -1,8 +1,8 @@
 import { db, postsTable } from "@workspace/db";
 import { and, eq, isNotNull, ne, or } from "drizzle-orm";
 
-/** Trial user already boosted or has another pending boost request in flight. */
-export async function trialUserHasBoostPendingOrUsed(
+/** Free-tier user already boosted or has another pending boost request in flight. */
+export async function freeUserHasBoostPendingOrUsed(
   userId: number,
   excludePostId?: number,
 ): Promise<boolean> {

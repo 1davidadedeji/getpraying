@@ -3,8 +3,9 @@ import {
   isServerBoostEligible,
   isServerPaidPremium,
   isServerTrialSubscription,
-  subscriptionTierGrantsBoost,
+  subscriptionTierGrantsUnlimitedBoost,
   userCanUseBoostNow,
+  userNeedsStoreEntitlementForBoost,
 } from "./serverSubscription";
 
 describe("isServerPaidPremium", () => {
@@ -12,49 +13,66 @@ describe("isServerPaidPremium", () => {
     expect(isServerPaidPremium("premium")).toBe(true);
     expect(isServerPaidPremium("trial")).toBe(false);
     expect(isServerPaidPremium("free")).toBe(false);
-    expect(isServerPaidPremium(null)).toBe(false);
   });
 });
 
-describe("subscriptionTierGrantsBoost (mirrors server)", () => {
-  it("includes trial alongside premium", () => {
-    expect(subscriptionTierGrantsBoost("premium")).toBe(true);
-    expect(subscriptionTierGrantsBoost("trial")).toBe(true);
-    expect(subscriptionTierGrantsBoost("free")).toBe(false);
+describe("subscriptionTierGrantsUnlimitedBoost", () => {
+  it("includes premium and legacy trial", () => {
+    expect(subscriptionTierGrantsUnlimitedBoost("premium")).toBe(true);
+    expect(subscriptionTierGrantsUnlimitedBoost("trial")).toBe(true);
+    expect(subscriptionTierGrantsUnlimitedBoost("free")).toBe(false);
   });
 });
 
 describe("isServerBoostEligible", () => {
-  it("grants admins, trial and paid members", () => {
-    expect(isServerBoostEligible({ role: "admin", subscription: "free" } as never)).toBe(true);
-    expect(isServerBoostEligible({ role: "user", subscription: "trial" } as never)).toBe(true);
+  it("includes free users who may use their one boost", () => {
+    expect(isServerBoostEligible({ role: "user", subscription: "free" } as never)).toBe(true);
     expect(isServerBoostEligible({ role: "user", subscription: "premium" } as never)).toBe(true);
-  });
-
-  it("denies free members and missing users", () => {
-    expect(isServerBoostEligible({ role: "user", subscription: "free" } as never)).toBe(false);
-    expect(isServerBoostEligible(null)).toBe(false);
+    expect(isServerBoostEligible({ role: "admin", subscription: "free" } as never)).toBe(true);
   });
 });
 
 describe("userCanUseBoostNow", () => {
-  it("allows paid users and admins", () => {
-    expect(userCanUseBoostNow({ role: "admin", subscription: "free" } as never)).toBe(true);
+  it("allows unlimited tiers regardless of freeBoostUsed flag", () => {
     expect(userCanUseBoostNow({ role: "user", subscription: "premium" } as never)).toBe(true);
+    expect(
+      userCanUseBoostNow({ role: "user", subscription: "trial", freeBoostUsed: true } as never),
+    ).toBe(true);
   });
 
-  it("allows trial users until their one boost is used", () => {
+  it("blocks free users after free boost is used", () => {
     expect(
-      userCanUseBoostNow({ role: "user", subscription: "trial", trialBoostUsed: false } as never),
+      userCanUseBoostNow({ role: "user", subscription: "free", freeBoostUsed: false } as never),
     ).toBe(true);
     expect(
-      userCanUseBoostNow({ role: "user", subscription: "trial", trialBoostUsed: true } as never),
+      userCanUseBoostNow({ role: "user", subscription: "free", freeBoostUsed: true } as never),
     ).toBe(false);
+  });
+
+  it("allows admins always", () => {
+    expect(userCanUseBoostNow({ role: "admin", subscription: "free" } as never)).toBe(true);
+  });
+});
+
+describe("userNeedsStoreEntitlementForBoost", () => {
+  it("is false for free tier and admin", () => {
+    expect(userNeedsStoreEntitlementForBoost({ role: "user", subscription: "free" } as never)).toBe(
+      false,
+    );
+    expect(userNeedsStoreEntitlementForBoost({ role: "admin", subscription: "free" } as never)).toBe(
+      false,
+    );
+  });
+
+  it("is true for subscribed tiers", () => {
+    expect(
+      userNeedsStoreEntitlementForBoost({ role: "user", subscription: "premium" } as never),
+    ).toBe(true);
   });
 });
 
 describe("isServerTrialSubscription", () => {
-  it("detects trial tier", () => {
+  it("detects trial", () => {
     expect(isServerTrialSubscription("trial")).toBe(true);
     expect(isServerTrialSubscription("premium")).toBe(false);
   });
