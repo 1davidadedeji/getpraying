@@ -29,6 +29,7 @@ import {
   userCanApplyBoost,
 } from "../lib/boostEligibility";
 import { freeUserHasBoostPendingOrUsed } from "../lib/freeBoostQuota";
+import { recurringPromptStatus } from "../lib/subscriptionPromptSchedule";
 
 const router: IRouter = Router();
 
@@ -440,6 +441,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     !(await userCanApplyBoost(user, {
       freeHasPendingOrUsed: await freeUserHasBoostPendingOrUsed(user.id),
     }));
+  const prompt = recurringPromptStatus(user);
   res.json({
     id: user.id,
     email: user.email,
@@ -453,6 +455,8 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     subscription: user.subscription,
     trialStartsAt: user.trialStartsAt,
     freeBoostUsed,
+    daysSinceJoined: prompt.daysSinceJoined,
+    recurringPromptDue: prompt.recurringPromptDue,
     isEmailVerified: user.isEmailVerified,
     preferredCategories: user.preferredCategories,
     onboardingComplete: user.onboardingComplete,
@@ -462,6 +466,16 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     createdAt: user.createdAt,
     scheduledNotificationsEnabled: user.scheduledNotificationsEnabled ?? true,
   });
+});
+
+router.post("/auth/subscription-prompt-dismissed", requireAuth, async (req, res): Promise<void> => {
+  const user = (req as any).user as { id: number };
+  const now = new Date();
+  await db
+    .update(usersTable)
+    .set({ subscriptionPromptLastShownAt: now, updatedAt: now })
+    .where(eq(usersTable.id, user.id));
+  res.json({ success: true, message: "Subscription prompt dismissed" });
 });
 
 router.delete("/auth/account", requireAuth, async (req, res): Promise<void> => {

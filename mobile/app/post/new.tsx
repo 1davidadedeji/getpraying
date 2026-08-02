@@ -53,7 +53,7 @@ import {
   uploadPostMediaFile,
 } from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
-import { FREE_BOOST_EXHAUSTED_MESSAGE } from "@/lib/freeBoost";
+import { showSubscriptionPrompt } from "@/context/subscriptionPrompt";
 import { userCanUseBoostNow, userNeedsStoreEntitlementForBoost } from "@/lib/serverSubscription";
 import { clamp } from "@/lib/responsiveMetrics";
 import {
@@ -381,17 +381,7 @@ export default function NewPostScreen() {
     const unlimitedBoost = userNeedsStoreEntitlementForBoost(user);
 
     if (!userCanUseBoostNow(user)) {
-      showAppAlert({
-        title: "You've Used Your Free Prayer Boost",
-        message: FREE_BOOST_EXHAUSTED_MESSAGE,
-        buttons: [
-          { text: "Not Now", style: "cancel" },
-          {
-            text: "Subscribe Now — $6.99/month",
-            onPress: () => router.push("/(paywall)?soft=1" as Href),
-          },
-        ],
-      });
+      showSubscriptionPrompt("freeBoostExhausted");
       return;
     }
 
@@ -408,17 +398,7 @@ export default function NewPostScreen() {
         });
         return;
       }
-      showAppAlert({
-        title: "Subscribe to Boost",
-        message: "Subscribe for unlimited Prayer Boosts.",
-        buttons: [
-          { text: "Not Now", style: "cancel" },
-          {
-            text: "Subscribe Now — $6.99/month",
-            onPress: () => router.push("/(paywall)?soft=1" as Href),
-          },
-        ],
-      });
+      router.push("/(paywall)?soft=1" as Href);
       return;
     }
 

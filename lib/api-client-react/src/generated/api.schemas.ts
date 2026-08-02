@@ -88,6 +88,10 @@ export interface User {
   scheduledNotificationsEnabled?: boolean | null;
   /** Free-tier user has used or reserved their one lifetime Boost (from /auth/me) */
   freeBoostUsed?: boolean;
+  /** Whole days since the user created their account (from /auth/me) */
+  daysSinceJoined?: number;
+  /** Whether the recurring subscription upsell should be shown (from /auth/me) */
+  recurringPromptDue?: boolean;
   createdAt: string;
 }
 

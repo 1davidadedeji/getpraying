@@ -34,8 +34,8 @@ import { AuthProvider, useAuth } from "@/context/auth";
 import { FeedNoticeProvider } from "@/context/feedNotice";
 import { ModerationBadgeProvider } from "@/context/moderationBadge";
 import { PendingDeepLinkProvider } from "@/context/pendingDeepLink";
+import { SubscriptionPromptProvider } from "@/context/subscriptionPrompt";
 import { RevenueCatProvider, useRevenueCat } from "@/context/revenuecat";
-import colors from "@/constants/colors";
 
 setBaseUrl(getApiBaseUrl());
 
@@ -209,12 +209,14 @@ export default function RootLayout() {
               <FeedNoticeProvider>
                 <ModerationBadgeProvider>
                   <RevenueCatProvider>
+                    <SubscriptionPromptProvider>
                     <SplashHideGate fontsReady={fontsReady} />
                     <KeyboardProvider>
                       <EntitlementGate>
                         <RootLayoutNav />
                       </EntitlementGate>
                     </KeyboardProvider>
+                    </SubscriptionPromptProvider>
                   </RevenueCatProvider>
                 </ModerationBadgeProvider>
               </FeedNoticeProvider>

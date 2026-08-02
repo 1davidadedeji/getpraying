@@ -28,7 +28,7 @@ import {
   consumePendingNotificationHref,
   applyNotificationHref,
 } from "@/lib/notificationNavigation";
-import { formatMonthlyTrialOffer, hasPremiumEntitlement } from "@/lib/revenuecatEntitlements";
+import { hasPremiumEntitlement } from "@/lib/revenuecatEntitlements";
 import {
   describeEntitlementAfterPurchase,
   isPurchaseAlreadyOwnedError,
@@ -257,10 +257,8 @@ export default function PaywallScreen() {
   const fsLink = Math.round(clamp(14 * uiScale, 13, 16));
   const fsFooter = Math.round(clamp(13 * uiScale, 12, 15));
 
-  const monthlyProduct = rc.monthlyProduct;
-  const trialOffer = formatMonthlyTrialOffer(monthlyProduct);
   const legalText =
-    "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community.";
+    "Experience prayer, guidance, and support from faith leaders. Your membership helps support and grow the Get Praying community.";
 
   const headline = rc.isPremiumTrial
     ? "You're subscribed"
@@ -398,10 +396,8 @@ export default function PaywallScreen() {
                       </Text>
                       <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>
                         {rc.isPremiumTrial
-                          ? "Free trial active · Boost included"
-                          : trialOffer.includes("Free")
-                            ? trialOffer
-                            : `${trialOffer} · cancel anytime`}
+                          ? "Subscription active · unlimited Boost included"
+                          : "$6.99/month · cancel anytime"}
                       </Text>
                     </View>
                   )}

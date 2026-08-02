@@ -75,6 +75,18 @@ export const LoginResponse = zod.object({
       .describe(
         "Free-tier user has used or reserved their one lifetime Boost (from \/auth\/me)",
       ),
+    daysSinceJoined: zod
+      .number()
+      .optional()
+      .describe(
+        "Whole days since the user created their account (from \/auth\/me)",
+      ),
+    recurringPromptDue: zod
+      .boolean()
+      .optional()
+      .describe(
+        "Whether the recurring subscription upsell should be shown (from \/auth\/me)",
+      ),
     createdAt: zod.coerce.date(),
   }),
   message: zod.string().nullish(),
@@ -125,7 +137,27 @@ export const GetMeResponse = zod.object({
     .describe(
       "Free-tier user has used or reserved their one lifetime Boost (from \/auth\/me)",
     ),
+  daysSinceJoined: zod
+    .number()
+    .optional()
+    .describe(
+      "Whole days since the user created their account (from \/auth\/me)",
+    ),
+  recurringPromptDue: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the recurring subscription upsell should be shown (from \/auth\/me)",
+    ),
   createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Record that the user dismissed the recurring subscription upsell
+ */
+export const DismissSubscriptionPromptResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
 });
 
 /**
@@ -1384,6 +1416,18 @@ export const GetAdminUsersResponse = zod.object({
         .optional()
         .describe(
           "Free-tier user has used or reserved their one lifetime Boost (from \/auth\/me)",
+        ),
+      daysSinceJoined: zod
+        .number()
+        .optional()
+        .describe(
+          "Whole days since the user created their account (from \/auth\/me)",
+        ),
+      recurringPromptDue: zod
+        .boolean()
+        .optional()
+        .describe(
+          "Whether the recurring subscription upsell should be shown (from \/auth\/me)",
         ),
       createdAt: zod.coerce.date(),
     }),

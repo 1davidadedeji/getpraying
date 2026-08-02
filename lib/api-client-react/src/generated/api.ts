@@ -470,6 +470,87 @@ export function useGetMe<
 }
 
 /**
+ * @summary Record that the user dismissed the recurring subscription upsell
+ */
+export const getDismissSubscriptionPromptUrl = () => {
+  return `/api/auth/subscription-prompt-dismissed`;
+};
+
+export const dismissSubscriptionPrompt = async (
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDismissSubscriptionPromptUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDismissSubscriptionPromptMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissSubscriptionPrompt>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dismissSubscriptionPrompt>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["dismissSubscriptionPrompt"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dismissSubscriptionPrompt>>,
+    void
+  > = () => {
+    return dismissSubscriptionPrompt(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DismissSubscriptionPromptMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dismissSubscriptionPrompt>>
+>;
+
+export type DismissSubscriptionPromptMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Record that the user dismissed the recurring subscription upsell
+ */
+export const useDismissSubscriptionPrompt = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissSubscriptionPrompt>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dismissSubscriptionPrompt>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getDismissSubscriptionPromptMutationOptions(options));
+};
+
+/**
  * @summary Save onboarding prayer category preferences
  */
 export const getSavePreferencesUrl = () => {
