@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { expoPushAccessTokenConfigured } from "./lib/expoPushHttp";
 import { startScheduledNotifications } from "./lib/scheduledNotifications";
+import { startSimulatedActivityScheduler } from "./lib/simulatedActivityScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -32,4 +33,5 @@ app.listen(port, (err) => {
     );
   }
   startScheduledNotifications();
+  startSimulatedActivityScheduler();
 });

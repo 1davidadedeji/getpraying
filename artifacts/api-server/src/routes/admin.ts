@@ -25,6 +25,7 @@ import { clearLibraryReadCache } from "../lib/libraryReadCache";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { broadcastPushToRegisteredDevices } from "../lib/broadcastPush";
 import { applyAutoBoostIfEligible } from "../lib/autoBoost";
+import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
 import { parseIsPremiumFromBody } from "../lib/premiumContentAccess";
 import {
   parseTracksFromBody,
@@ -324,6 +325,9 @@ router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req,
   await notifyAuthorPostDecision(post.authorId ?? null, post.id, "approved");
 
   const boostedPost = await applyAutoBoostIfEligible(post);
+  if (boostedPost.status === "approved") {
+    void maybeScheduleRealUserPostEngagement(boostedPost.id, boostedPost.authorId);
+  }
   const [enriched] = await enrichPosts([boostedPost]);
   res.json(enriched);
 });

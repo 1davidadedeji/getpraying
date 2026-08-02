@@ -9,7 +9,7 @@ import {
   commentsTable,
   staffPostDeletionsTable,
 } from "@workspace/db";
-import { eq, and, or, desc, sql, asc, notInArray, isNull } from "drizzle-orm";
+import { eq, and, or, desc, sql, asc, notInArray, isNull, getTableColumns } from "drizzle-orm";
 import { filterAllowedCategories } from "../lib/categoriesAllowlist";
 import { requireAuth, optionalAuth } from "../lib/auth";
 import { applyBoostToPost } from "../lib/autoBoost";
@@ -24,6 +24,8 @@ import { pushForNotificationById } from "../lib/pushForNotification";
 import { getFeedExcludedAuthorIds, isBlockedBetween } from "../lib/userBlocks";
 import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
+import { feedCursorWhereClause, feedEngagementPriorityExpr } from "../lib/feedEngagementPriority";
+import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
@@ -283,6 +285,10 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const category = req.query.category as string | undefined;
   const currentUser = (req as any).user as { id: number } | undefined;
   const sortTs = feedTimelineSortTsExpr(currentUser?.id);
+  const usePersonalizedFeed = currentUser != null;
+  const priorityExpr = usePersonalizedFeed
+    ? feedEngagementPriorityExpr(currentUser.id)
+    : sql<number>`1`;
 
   let conditions: PostWhere = eq(postsTable.status, "approved");
   if (category && String(category).trim()) {
@@ -296,20 +302,33 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     )!;
   }
   if (cursorDecoded) {
-    const kDate = new Date(cursorDecoded.k);
     conditions = and(
       conditions,
-      or(sql`${sortTs} < ${kDate}`, sql`(${sortTs} = ${kDate} AND ${postsTable.id} < ${cursorDecoded.i})`)!,
+      usePersonalizedFeed
+        ? feedCursorWhereClause(priorityExpr, sortTs, cursorDecoded)
+        : or(
+            sql`${sortTs} < ${new Date(cursorDecoded.k)}`,
+            sql`(${sortTs} = ${new Date(cursorDecoded.k)} AND ${postsTable.id} < ${cursorDecoded.i})`,
+          )!,
     )!;
   }
   conditions = await applyBlockedAuthorFilter(conditions, currentUser?.id);
 
+  const postColumns = getTableColumns(postsTable);
+
   const [posts, newestRow] = await Promise.all([
     db
-      .select()
+      .select({
+        ...postColumns,
+        feedPriority: priorityExpr,
+      })
       .from(postsTable)
       .where(conditions)
-      .orderBy(desc(sortTs), desc(postsTable.id))
+      .orderBy(
+        ...(usePersonalizedFeed ? [asc(priorityExpr)] : []),
+        desc(sortTs),
+        desc(postsTable.id),
+      )
       .limit(limit + 1),
     db
       .select({ newest: sql<Date | null>`max(${postsTable.createdAt})` })
@@ -319,12 +338,16 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
 
   const hasMore = posts.length > limit;
   const page = posts.slice(0, limit);
-  const enriched = await enrichPosts(page, currentUser?.id);
+  const feedPriorities = new Map(page.map((row) => [row.id, Number(row.feedPriority ?? 1)]));
+  const enriched = await enrichPosts(
+    page.map(({ feedPriority: _fp, ...post }) => post),
+    currentUser?.id,
+  );
 
   let nextCursor: string | null = null;
   if (hasMore && enriched.length > 0) {
     const last = enriched[enriched.length - 1]!;
-    nextCursor = encodeFeedCursor(last);
+    nextCursor = encodeFeedCursor(last, feedPriorities.get(last.id));
   }
 
   const globalNewestCreatedAt = newestRow[0]?.newest
@@ -465,6 +488,10 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   let postForResponse = post;
   if (postStatus === "approved" && applyBoostRequested) {
     postForResponse = await applyBoostToPost(post, user);
+  }
+
+  if (postStatus === "approved") {
+    void maybeScheduleRealUserPostEngagement(postForResponse.id, user.id);
   }
 
   const enriched = await enrichPost(postForResponse, user.id);
