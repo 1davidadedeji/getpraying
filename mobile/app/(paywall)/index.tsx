@@ -64,9 +64,8 @@ export default function PaywallScreen() {
   pathnameRef.current = pathname;
 
   const isCheckingSubscription = rc.isCheckingSubscription;
-  /** Hard gate: user cannot use the app without starting the store subscription. */
-  const isMandatoryGate =
-    !isCheckingSubscription && rc.enabled && !rc.isEntitled && !isSoftPaywall;
+  /** Freemium: paywall is always soft — user opened it voluntarily or via an upsell prompt. */
+  const isMandatoryGate = false;
 
   const enterApp = useCallback(() => {
     if (entitlementRedirected.current) return;
@@ -114,8 +113,8 @@ export default function PaywallScreen() {
    * bounce gated users back here (see app/index.tsx), so this can't ping-pong.
    */
   const dismissPaywall = useCallback(() => {
-    goBackOrFallback((isSoftPaywall ? "/(tabs)" : "/") as Href);
-  }, [isSoftPaywall]);
+    goBackOrFallback((userRef.current ? "/(tabs)" : "/") as Href);
+  }, []);
 
   const finishAfterEntitlement = useCallback(
     (opts?: { haptic?: boolean }) => {
@@ -155,20 +154,11 @@ export default function PaywallScreen() {
   }, [dismissPaywall]);
 
   useEffect(() => {
-    if (isSoftPaywall) return;
     if (isCheckingSubscription || entitlementRedirected.current) return;
     if (!user) return;
     if (rc.enabled && !rc.isEntitled) return;
     enterApp();
-  }, [
-    isSoftPaywall,
-    isCheckingSubscription,
-    user,
-    rc.enabled,
-    rc.isEntitled,
-    rc.isReady,
-    enterApp,
-  ]);
+  }, [isCheckingSubscription, user, rc.enabled, rc.isEntitled, rc.isReady, enterApp]);
 
   useFocusEffect(
     useCallback(() => {
@@ -272,15 +262,15 @@ export default function PaywallScreen() {
   const legalText =
     "Experience prayer, guidance, and support from faith leaders. Then continue with a membership that gives back to the community.";
 
-  const headline = isSoftPaywall
-    ? rc.isPremiumTrial
-      ? "You're subscribed"
-      : "Subscribe to unlock"
-    : "Start your free trial";
+  const headline = rc.isPremiumTrial
+    ? "You're subscribed"
+    : isSoftPaywall
+      ? "Subscribe to unlock"
+      : "Subscribe to Get Praying";
 
-  const subtitle = isSoftPaywall
-    ? "Unlock Boost and other premium perks with a subscription."
-    : "Try us for 7 days free. If you like the app subscribe to unlock additional features such as a prayer boost.";
+  const subtitle = rc.isPremiumTrial
+    ? "Manage your subscription in the App Store or Google Play."
+    : "Unlimited Prayer Boosts, exclusive content, and premium community features — $6.99/month.";
 
   if (isCheckingSubscription) {
     return (

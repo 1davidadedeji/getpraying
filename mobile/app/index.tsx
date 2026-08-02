@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { router, useFocusEffect, type Href } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { getGetDailyWordQueryKey, useGetDailyWord } from "@workspace/api-client-react";
 import {
@@ -21,9 +21,8 @@ import { usePendingDeepLink } from "@/context/pendingDeepLink";
 import { useRevenueCat } from "@/context/revenuecat";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { formatLocalYMD } from "@/lib/date";
-import { getPostAuthRoute, isHardPaywallRoute, resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
+import { getPostAuthRoute, resolvePostAuthNavigation } from "@/lib/navigateAfterAuth";
 import { navigatePostAuth } from "@/lib/postAuthNavigator";
-import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 import {
   DEFAULT_DAILY_QUOTE,
   DEFAULT_DAILY_REFERENCE,
@@ -38,8 +37,7 @@ const WELCOME_PAD_H = 24;
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { uiScale } = useResponsiveLayout();
-  const { user, token, loading, logout } = useAuth();
-  const queryClient = useQueryClient();
+  const { user, token, loading } = useAuth();
   const fsTitle = Math.round(clamp(34 * uiScale, 30, 40));
   const fsTagline = Math.round(clamp(12 * uiScale, 11, 13));
   const rc = useRevenueCat();
@@ -56,13 +54,7 @@ export default function WelcomeScreen() {
     if (loading || !user || !token) return null;
     const route = getPostAuthRoute(user, rc, pendingDeepLink);
     return route ? String(route) : null;
-  }, [loading, user, token, rc.isReady, rc.isCheckingSubscription, rc.enabled, rc.isEntitled, pendingDeepLink]);
-
-  // A signed-in user whose only remaining gate is the hard paywall. We render a
-  // "gated" welcome state for them (Subscribe / Sign out) instead of auto-
-  // redirecting to the paywall — otherwise pressing Back on the paywall would
-  // bounce straight back here and re-redirect (a ping-pong trap).
-  const isGatedAtPaywall = isHardPaywallRoute(postAuthRoute as Href | null);
+  }, [loading, user, token, rc, pendingDeepLink]);
 
   const todayYmd = useMemo(() => formatLocalYMD(new Date()), []);
   const { data: dailyWord } = useGetDailyWord(
@@ -78,18 +70,9 @@ export default function WelcomeScreen() {
 
   const redirectIfNeeded = useCallback(() => {
     const frame = requestAnimationFrame(() => {
-      // Only navigate when this screen is focused.  Auth screens (login, register,
-      // verify, onboarding) push/replace on top of index and drive their own
-      // post-auth navigation.  Without this guard, index fires a competing
-      // router.replace() from its useEffect, producing a double-navigation flicker.
       if (!isFocusedRef.current) return;
       const { user: u, token: t, loading: l } = authRef.current;
       if (l || !t || !u) return;
-      const route = getPostAuthRoute(u, rc, pendingDeepLink);
-      if (!route) return;
-      // Don't passively shove gated users onto the hard paywall — render the
-      // gated welcome state instead so Back from the paywall lands here cleanly.
-      if (isHardPaywallRoute(route)) return;
       const resolved = resolvePostAuthNavigation(u, rc, pendingDeepLink, consumePendingHref);
       if (!resolved) return;
       navigatePostAuth(resolved);
@@ -97,23 +80,11 @@ export default function WelcomeScreen() {
     return () => cancelAnimationFrame(frame);
   }, [rc, pendingDeepLink, consumePendingHref]);
 
-  const signingOutRef = useRef(false);
-  const handleSignOut = useCallback(() => {
-    if (signingOutRef.current) return;
-    signingOutRef.current = true;
-    void logoutThenClearQueryCache(logout, queryClient).finally(() => {
-      signingOutRef.current = false;
-    });
-  }, [logout, queryClient]);
-
   useEffect(() => {
     if (!postAuthRoute) return;
     return redirectIfNeeded();
   }, [postAuthRoute, redirectIfNeeded]);
 
-  // Track focus so the useEffect above is gated when auth screens are on top.
-  // useFocusEffect also drives the redirect when index regains focus (e.g.
-  // the user presses Back from a screen that didn't navigate away).
   useFocusEffect(
     useCallback(() => {
       isFocusedRef.current = true;
@@ -124,10 +95,7 @@ export default function WelcomeScreen() {
     }, [postAuthRoute, redirectIfNeeded]),
   );
 
-  // Signed-in users are mid-redirect (splash) EXCEPT gated-at-paywall users, who
-  // get the welcome screen's "gated" variant below so Back from the paywall rests
-  // here instead of bouncing.
-  if (loading || (user && !isGatedAtPaywall)) {
+  if (loading || user) {
     return <SplashBrandedFill />;
   }
 
@@ -180,41 +148,20 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.actions}>
-          {isGatedAtPaywall ? (
-            <>
-              <Pressable
-                style={styles.primaryBtn}
-                onPress={() => router.push("/(paywall)" as Href)}
-                testID="continue-subscribe-btn"
-              >
-                <Text style={styles.primaryBtnText}>Continue</Text>
-              </Pressable>
-              <Pressable
-                style={styles.secondaryBtn}
-                onPress={handleSignOut}
-                testID="welcome-sign-out-btn"
-              >
-                <Text style={styles.secondaryBtnText}>Sign Out</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Pressable
-                style={styles.primaryBtn}
-                onPress={() => router.push("/register")}
-                testID="start-journey-btn"
-              >
-                <Text style={styles.primaryBtnText}>Start Your Journey</Text>
-              </Pressable>
-              <Pressable
-                style={styles.secondaryBtn}
-                onPress={() => router.push("/login")}
-                testID="sign-in-btn"
-              >
-                <Text style={styles.secondaryBtnText}>Sign In</Text>
-              </Pressable>
-            </>
-          )}
+          <Pressable
+            style={styles.primaryBtn}
+            onPress={() => router.push("/register")}
+            testID="start-journey-btn"
+          >
+            <Text style={styles.primaryBtnText}>Start Your Journey</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryBtn}
+            onPress={() => router.push("/login")}
+            testID="sign-in-btn"
+          >
+            <Text style={styles.secondaryBtnText}>Sign In</Text>
+          </Pressable>
           <View style={styles.legalRow}>
             <Pressable onPress={() => void Linking.openURL(TERMS_URL)}>
               <Text style={styles.legalLink}>Terms of Service</Text>

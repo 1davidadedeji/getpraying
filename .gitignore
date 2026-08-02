@@ -20,6 +20,10 @@ node_modules
 .settings/
 *.sublime-workspace
 
+# Cursor / Claude local config (not shared via git)
+.claude/
+.cursor/
+
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json
@@ -41,7 +45,6 @@ testem.log
 .DS_Store
 Thumbs.db
 
-.cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
 # Replit
