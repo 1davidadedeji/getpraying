@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./adminSetPostPremiumBody";
 export * from "./adminStats";
 export * from "./authResponse";
 export * from "./boostPostResponse";

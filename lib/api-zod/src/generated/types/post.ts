@@ -36,4 +36,10 @@ export interface Post {
   boostedAt?: Date | null;
   /** User id of the member whose boost is currently active (for unboost toggle) */
   boostedByUserId?: number | null;
+  /** When true, free users see a preview only; video/audio require subscription */
+  isPremium?: boolean;
+  /** Teaser text when content is locked for the viewer */
+  contentPreview?: string | null;
+  /** True when the viewer cannot access full text or premium media */
+  contentLocked?: boolean | null;
 }

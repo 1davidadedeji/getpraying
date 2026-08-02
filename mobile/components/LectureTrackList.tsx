@@ -6,14 +6,17 @@ import { FormattedBodyText } from "@/components/FormattedBodyText";
 import colors from "@/constants/colors";
 import { prefetchCachedAudio } from "@/lib/audioMediaCache";
 import type { LectureTrackRow } from "@/lib/officialPrayer";
+import { showSubscriptionPrompt } from "@/context/subscriptionPrompt";
+import { PremiumContentLock } from "@/components/PremiumContentLock";
 
 type Props = {
   tracks: LectureTrackRow[];
   accentColor?: string;
+  isPremiumLocked?: boolean;
 };
 
 /** Each track in a lecture series is its own card with inline playback when selected. */
-export function LectureTrackList({ tracks, accentColor = colors.primary }: Props) {
+export function LectureTrackList({ tracks, accentColor = colors.primary, isPremiumLocked = false }: Props) {
   const sorted = useMemo(
     () => [...tracks].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
     [tracks],
@@ -28,10 +31,14 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
   }, [sorted]);
 
   useEffect(() => {
+    if (isPremiumLocked) return;
     for (const track of sorted) {
       prefetchCachedAudio(track.audioUrl);
     }
-  }, [sorted]);
+  }, [sorted, isPremiumLocked]);
+
+  const trackPlayable = (track: LectureTrackRow) =>
+    !isPremiumLocked && Boolean(track.audioUrl?.trim());
 
   const activeIndex = sorted.findIndex((t) => t.id === activeTrackId);
 
@@ -75,6 +82,10 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
             <Pressable
               key={track.id}
               onPress={() => {
+                if (!trackPlayable(track)) {
+                  showSubscriptionPrompt("premiumContent");
+                  return;
+                }
                 if (isActive) return;
                 setAutoPlayActive(true);
                 setActiveTrackId(track.id);
@@ -114,12 +125,16 @@ export function LectureTrackList({ tracks, accentColor = colors.primary }: Props
 
               {isActive ? (
                 <View style={styles.playerWrap}>
-                  <CapsuleAudioPlayer
-                    audioUrl={track.audioUrl}
-                    accentColor={accentColor}
-                    onPlaybackFinished={playNext}
-                    autoPlay={autoPlayActive}
-                  />
+                  {trackPlayable(track) ? (
+                    <CapsuleAudioPlayer
+                      audioUrl={track.audioUrl}
+                      accentColor={accentColor}
+                      onPlaybackFinished={playNext}
+                      autoPlay={autoPlayActive}
+                    />
+                  ) : (
+                    <PremiumContentLock mode="media" />
+                  )}
                 </View>
               ) : null}
             </Pressable>

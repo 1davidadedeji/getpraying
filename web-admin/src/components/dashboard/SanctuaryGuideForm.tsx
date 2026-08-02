@@ -5,6 +5,7 @@ import { FormField } from "@/components/dashboard/FormField";
 import { ScriptureField } from "@/components/dashboard/ScriptureField";
 import { inputCls } from "@/components/dashboard/form-styles";
 import { AdminSelect } from "@/components/ui/AdminSelect";
+import { PremiumToggle } from "@/components/dashboard/PremiumToggle";
 import { formatDisplayDate, formatLocalYMD, isValidYMD, normalizeScheduledDate } from "@/lib/date";
 
 export type SanctuaryGuideDraft = {
@@ -16,6 +17,7 @@ export type SanctuaryGuideDraft = {
   durationMinutes?: number;
   scheduleSlot: "morning" | "evening";
   scheduledDate: string;
+  isPremium: boolean;
 };
 
 export const EMPTY_SANCTUARY_GUIDE: SanctuaryGuideDraft = {
@@ -26,6 +28,7 @@ export const EMPTY_SANCTUARY_GUIDE: SanctuaryGuideDraft = {
   audioUrl: "",
   scheduleSlot: "morning",
   scheduledDate: formatLocalYMD(),
+  isPremium: false,
 };
 
 export function SanctuaryGuideForm({
@@ -138,6 +141,12 @@ export function SanctuaryGuideForm({
           onChange={(e) => set({ durationMinutes: Number(e.target.value) || undefined })}
         />
       </FormField>
+      <PremiumToggle
+        className="sm:col-span-2"
+        checked={draft.isPremium}
+        disabled={disabled}
+        onChange={(isPremium) => set({ isPremium })}
+      />
     </div>
   );
 }

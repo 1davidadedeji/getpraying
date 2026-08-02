@@ -51,6 +51,7 @@ export default function EditPathGuidePage() {
         scripture: guide.scripture ?? "",
         audioUrl: guide.audioUrl ?? "",
         durationMinutes: guide.durationMinutes ?? undefined,
+        isPremium: guide.isPremium ?? false,
       });
     } finally {
       setLoading(false);
@@ -80,6 +81,7 @@ export default function EditPathGuidePage() {
           category,
           pathId,
           label: "Official Prayer",
+          isPremium: draft.isPremium,
          }),
       });
       if (res.ok) {

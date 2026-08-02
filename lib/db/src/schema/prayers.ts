@@ -48,6 +48,8 @@ export const officialPrayersTable = pgTable("official_prayers", {
   scheduleSlot: text("schedule_slot"),
   /** Calendar day this sanctuary slot goes live (YYYY-MM-DD). */
   scheduledDate: date("scheduled_date", { mode: "string" }),
+  /** Admin/CMS: visible to all; playback and full text require subscription. */
+  isPremium: boolean("is_premium").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

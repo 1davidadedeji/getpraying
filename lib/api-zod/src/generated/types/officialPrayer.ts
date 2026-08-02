@@ -17,4 +17,7 @@ export interface OfficialPrayer {
   label?: string | null;
   audioVoice?: string | null;
   createdAt: Date;
+  isPremium?: boolean;
+  contentPreview?: string | null;
+  contentLocked?: boolean | null;
 }

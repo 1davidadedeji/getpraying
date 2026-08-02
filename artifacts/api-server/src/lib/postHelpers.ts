@@ -1,6 +1,7 @@
 import { db, postsTable, usersTable, postPrayersTable, savedPostsTable, commentsTable } from "@workspace/db";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { parseCategoryTagsFromRow } from "./categoryTags";
+import { applyPremiumPostForViewer, type PremiumViewer } from "./premiumContentAccess";
 
 export type PostWithMeta = {
   id: number;
@@ -27,6 +28,9 @@ export type PostWithMeta = {
   createdAt: Date;
   boostedAt: Date | null;
   boostedByUserId: number | null;
+  isPremium: boolean;
+  contentPreview?: string;
+  contentLocked?: boolean;
 };
 
 export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: number): Promise<PostWithMeta> {
@@ -76,50 +80,56 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
   const saveCount = Number(saveRow?.count ?? 0);
 
   let viewerIsStaff = false;
+  let viewer: PremiumViewer = null;
   if (userId) {
-    const [viewer] = await db
-      .select({ role: usersTable.role })
+    const [viewerRow] = await db
+      .select({ role: usersTable.role, subscription: usersTable.subscription })
       .from(usersTable)
       .where(eq(usersTable.id, userId))
       .limit(1);
-    viewerIsStaff = viewer?.role === "admin" || viewer?.role === "moderator";
+    viewerIsStaff = viewerRow?.role === "admin" || viewerRow?.role === "moderator";
+    viewer = viewerRow ?? null;
   }
 
   const categories = parseCategoryTagsFromRow({
     category: post.category,
     categoryTags: post.categoryTags,
   });
-  return {
-    id: post.id,
-    content: post.content,
-    mediaUrl: post.mediaUrl ?? null,
-    mediaType: post.mediaType ?? null,
-    category: post.category ?? null,
-    categories,
-    isAnonymous: post.isAnonymous,
-    status: post.status,
-    flagReason: viewerIsStaff ? (post.flagReason ?? null) : null,
-    moderationReason: viewerIsStaff ? (post.moderationReason ?? null) : null,
-    prayCount: post.prayCount,
-    commentCount,
-    saveCount,
-    hasPrayed,
-    hasCommented,
-    isSaved,
-    /** Present for the author even when the post is anonymous (for delete/owner flows); hidden for everyone else. */
-    authorId:
-      userId && post.authorId != null && post.authorId === userId
-        ? post.authorId
-        : post.isAnonymous
-          ? null
-          : (post.authorId ?? null),
-    authorUsername: post.isAnonymous ? null : (author?.username ?? null),
-    authorDisplayName: post.isAnonymous ? null : (author?.displayName ?? null),
-    authorAvatarUrl: post.isAnonymous ? null : (author?.avatarUrl ?? null),
-    createdAt: post.createdAt,
-    boostedAt: post.boostedAt ?? null,
-    boostedByUserId: post.boostedByUserId ?? null,
-  };
+  return applyPremiumPostForViewer(
+    {
+      id: post.id,
+      content: post.content,
+      mediaUrl: post.mediaUrl ?? null,
+      mediaType: post.mediaType ?? null,
+      category: post.category ?? null,
+      categories,
+      isAnonymous: post.isAnonymous,
+      status: post.status,
+      flagReason: viewerIsStaff ? (post.flagReason ?? null) : null,
+      moderationReason: viewerIsStaff ? (post.moderationReason ?? null) : null,
+      prayCount: post.prayCount,
+      commentCount,
+      saveCount,
+      hasPrayed,
+      hasCommented,
+      isSaved,
+      /** Present for the author even when the post is anonymous (for delete/owner flows); hidden for everyone else. */
+      authorId:
+        userId && post.authorId != null && post.authorId === userId
+          ? post.authorId
+          : post.isAnonymous
+            ? null
+            : (post.authorId ?? null),
+      authorUsername: post.isAnonymous ? null : (author?.username ?? null),
+      authorDisplayName: post.isAnonymous ? null : (author?.displayName ?? null),
+      authorAvatarUrl: post.isAnonymous ? null : (author?.avatarUrl ?? null),
+      createdAt: post.createdAt,
+      boostedAt: post.boostedAt ?? null,
+      boostedByUserId: post.boostedByUserId ?? null,
+      isPremium: post.isPremium ?? false,
+    },
+    viewer,
+  );
 }
 
 export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userId?: number): Promise<PostWithMeta[]> {
@@ -141,8 +151,12 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       ? db.select().from(usersTable).where(inArray(usersTable.id, authorIds))
       : ([] as (typeof usersTable.$inferSelect)[]),
     userId
-      ? db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1)
-      : ([] as { role: string }[]),
+      ? db
+          .select({ role: usersTable.role, subscription: usersTable.subscription })
+          .from(usersTable)
+          .where(eq(usersTable.id, userId))
+          .limit(1)
+      : ([] as { role: string; subscription: string }[]),
     userId && postIds.length > 0
       ? db.select({ postId: postPrayersTable.postId }).from(postPrayersTable)
           .where(and(inArray(postPrayersTable.postId, postIds), eq(postPrayersTable.userId, userId)))
@@ -170,6 +184,7 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
 
   const viewerIsStaff =
     viewerRow[0]?.role === "admin" || viewerRow[0]?.role === "moderator";
+  const viewer: PremiumViewer = viewerRow[0] ?? null;
 
   const prayedSet = new Set<number>();
   for (const r of prayedRows) prayedSet.add(r.postId);
@@ -189,35 +204,39 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
       category: post.category,
       categoryTags: post.categoryTags,
     });
-    return {
-      id: post.id,
-      content: post.content,
-      mediaUrl: post.mediaUrl ?? null,
-      mediaType: post.mediaType ?? null,
-      category: post.category ?? null,
-      categories,
-      isAnonymous: post.isAnonymous,
-      status: post.status,
-      flagReason: viewerIsStaff ? (post.flagReason ?? null) : null,
-      moderationReason: viewerIsStaff ? (post.moderationReason ?? null) : null,
-      prayCount: post.prayCount,
-      commentCount: commentCountMap.get(post.id) ?? 0,
-      saveCount: saveCountMap.get(post.id) ?? 0,
-      hasPrayed: prayedSet.has(post.id),
-      hasCommented: commentedSet.has(post.id),
-      isSaved: savedSet.has(post.id),
-      authorId:
-        userId && post.authorId != null && post.authorId === userId
-          ? post.authorId
-          : post.isAnonymous
-            ? null
-            : (post.authorId ?? null),
-      authorUsername: author?.username ?? null,
-      authorDisplayName: author?.displayName ?? null,
-      authorAvatarUrl: author?.avatarUrl ?? null,
-      createdAt: post.createdAt,
-      boostedAt: post.boostedAt ?? null,
-      boostedByUserId: post.boostedByUserId ?? null,
-    };
+    return applyPremiumPostForViewer(
+      {
+        id: post.id,
+        content: post.content,
+        mediaUrl: post.mediaUrl ?? null,
+        mediaType: post.mediaType ?? null,
+        category: post.category ?? null,
+        categories,
+        isAnonymous: post.isAnonymous,
+        status: post.status,
+        flagReason: viewerIsStaff ? (post.flagReason ?? null) : null,
+        moderationReason: viewerIsStaff ? (post.moderationReason ?? null) : null,
+        prayCount: post.prayCount,
+        commentCount: commentCountMap.get(post.id) ?? 0,
+        saveCount: saveCountMap.get(post.id) ?? 0,
+        hasPrayed: prayedSet.has(post.id),
+        hasCommented: commentedSet.has(post.id),
+        isSaved: savedSet.has(post.id),
+        authorId:
+          userId && post.authorId != null && post.authorId === userId
+            ? post.authorId
+            : post.isAnonymous
+              ? null
+              : (post.authorId ?? null),
+        authorUsername: author?.username ?? null,
+        authorDisplayName: author?.displayName ?? null,
+        authorAvatarUrl: author?.avatarUrl ?? null,
+        createdAt: post.createdAt,
+        boostedAt: post.boostedAt ?? null,
+        boostedByUserId: post.boostedByUserId ?? null,
+        isPremium: post.isPremium ?? false,
+      },
+      viewer,
+    );
   });
 }

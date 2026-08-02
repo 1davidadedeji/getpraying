@@ -22,6 +22,7 @@ export type AdminPostDetail = {
   flagReason?: string | null;
   flagCount?: number;
   moderationReason?: string | null;
+  isPremium?: boolean;
   isReported?: boolean;
   reports?: StaffPostReport[];
 };

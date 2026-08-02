@@ -165,6 +165,12 @@ export interface Post {
   boostedAt?: string | null;
   /** User id of the member whose boost is currently active (for unboost toggle) */
   boostedByUserId?: number | null;
+  /** When true, free users see a preview only; video/audio require subscription */
+  isPremium?: boolean;
+  /** Teaser text when content is locked for the viewer */
+  contentPreview?: string | null;
+  /** True when the viewer cannot access full text or premium media */
+  contentLocked?: boolean | null;
 }
 
 export interface Comment {
@@ -297,6 +303,9 @@ export interface OfficialPrayer {
   label?: string | null;
   audioVoice?: string | null;
   createdAt: string;
+  isPremium?: boolean;
+  contentPreview?: string | null;
+  contentLocked?: boolean | null;
 }
 
 export interface LectureTrack {
@@ -328,6 +337,9 @@ export interface OfficialPrayerDetail {
   updatedAt: string;
   /** Playlist audio files (lectures only) */
   tracks?: LectureTrack[];
+  isPremium?: boolean;
+  contentPreview?: string | null;
+  contentLocked?: boolean | null;
 }
 
 export interface PrayerPath {
@@ -499,6 +511,10 @@ export type GetPendingPostsParams = {
 export type GetModeratedPostsParams = {
   cursor?: number;
   limit?: number;
+};
+
+export type AdminSetPostPremiumBody = {
+  isPremium: boolean;
 };
 
 export type GetAdminUsersParams = {

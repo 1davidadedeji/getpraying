@@ -7,6 +7,7 @@ import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/Morn
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
+import { PremiumBadge } from "@/components/PremiumBadge";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type Props = {
@@ -70,6 +71,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
           {officialGuideBadgeLabel(op.label)}
           {op.scheduleSlot ? ` · ${op.scheduleSlot}` : ""}
         </Text>
+        {op.isPremium ? <PremiumBadge fontSize={fsBadge - 1} /> : null}
         {showSave && onToggleSave ? (
           <Pressable
             onPress={(e) => { e.stopPropagation?.(); onToggleSave(); }}

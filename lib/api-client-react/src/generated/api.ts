@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AdminSetPostPremiumBody,
   AdminStats,
   AuthResponse,
   BoostPostResponse,
@@ -3503,6 +3504,93 @@ export const useDeclinePost = <
   TContext
 > => {
   return useMutation(getDeclinePostMutationOptions(options));
+};
+
+/**
+ * @summary Mark a community post as premium or free
+ */
+export const getAdminSetPostPremiumUrl = (postId: number) => {
+  return `/api/admin/posts/${postId}/premium`;
+};
+
+export const adminSetPostPremium = async (
+  postId: number,
+  adminSetPostPremiumBody: AdminSetPostPremiumBody,
+  options?: RequestInit,
+): Promise<Post> => {
+  return customFetch<Post>(getAdminSetPostPremiumUrl(postId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminSetPostPremiumBody),
+  });
+};
+
+export const getAdminSetPostPremiumMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSetPostPremium>>,
+    TError,
+    { postId: number; data: BodyType<AdminSetPostPremiumBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminSetPostPremium>>,
+  TError,
+  { postId: number; data: BodyType<AdminSetPostPremiumBody> },
+  TContext
+> => {
+  const mutationKey = ["adminSetPostPremium"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminSetPostPremium>>,
+    { postId: number; data: BodyType<AdminSetPostPremiumBody> }
+  > = (props) => {
+    const { postId, data } = props ?? {};
+
+    return adminSetPostPremium(postId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminSetPostPremiumMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminSetPostPremium>>
+>;
+export type AdminSetPostPremiumMutationBody = BodyType<AdminSetPostPremiumBody>;
+export type AdminSetPostPremiumMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark a community post as premium or free
+ */
+export const useAdminSetPostPremium = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSetPostPremium>>,
+    TError,
+    { postId: number; data: BodyType<AdminSetPostPremiumBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminSetPostPremium>>,
+  TError,
+  { postId: number; data: BodyType<AdminSetPostPremiumBody> },
+  TContext
+> => {
+  return useMutation(getAdminSetPostPremiumMutationOptions(options));
 };
 
 /**

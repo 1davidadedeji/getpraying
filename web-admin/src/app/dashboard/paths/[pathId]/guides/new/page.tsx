@@ -65,6 +65,7 @@ export default function NewPathGuidePage() {
           category,
           pathId,
           label: "Official Prayer",
+          isPremium: draft.isPremium,
          }),
       });
       if (res.ok) {

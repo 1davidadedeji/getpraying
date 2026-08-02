@@ -905,6 +905,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/Post"
 
+  /admin/posts/{postId}/premium:
+    patch:
+      operationId: adminSetPostPremium
+      tags: [admin]
+      summary: Mark a community post as premium or free
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isPremium]
+              properties:
+                isPremium:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
   /admin/posts/{postId}/remove:
     delete:
       operationId: adminRemovePost
@@ -1391,6 +1420,17 @@ components:
           type: integer
           nullable: true
           description: User id of the member whose boost is currently active (for unboost toggle)
+        isPremium:
+          type: boolean
+          description: When true, free users see a preview only; video/audio require subscription
+        contentPreview:
+          type: string
+          nullable: true
+          description: Teaser text when content is locked for the viewer
+        contentLocked:
+          type: boolean
+          nullable: true
+          description: True when the viewer cannot access full text or premium media
       required:
         - id
         - content
@@ -1658,6 +1698,14 @@ components:
         createdAt:
           type: string
           format: date-time
+        isPremium:
+          type: boolean
+        contentPreview:
+          type: string
+          nullable: true
+        contentLocked:
+          type: boolean
+          nullable: true
       required:
         - id
         - title
@@ -1742,6 +1790,14 @@ components:
           items:
             $ref: "#/components/schemas/LectureTrack"
           description: Playlist audio files (lectures only)
+        isPremium:
+          type: boolean
+        contentPreview:
+          type: string
+          nullable: true
+        contentLocked:
+          type: boolean
+          nullable: true
       required:
         - id
         - title

@@ -26,4 +26,7 @@ export interface OfficialPrayerDetail {
   updatedAt: Date;
   /** Playlist audio files (lectures only) */
   tracks?: LectureTrack[];
+  isPremium?: boolean;
+  contentPreview?: string | null;
+  contentLocked?: boolean | null;
 }

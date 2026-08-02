@@ -41,4 +41,7 @@ export type OfficialPrayerRow = {
   createdAt?: string | Date | null;
   /** Present on lecture rows (`category === "lectures"`). */
   tracks?: LectureTrackRow[];
+  isPremium?: boolean;
+  contentPreview?: string | null;
+  contentLocked?: boolean;
 };

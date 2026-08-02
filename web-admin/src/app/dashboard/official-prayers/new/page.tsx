@@ -44,6 +44,7 @@ export default function NewOfficialPrayerPage() {
           scheduleSlot: draft.scheduleSlot,
           scheduledDate,
           label: "Official Prayer",
+          isPremium: draft.isPremium,
          }),
       });
       if (res.ok) {

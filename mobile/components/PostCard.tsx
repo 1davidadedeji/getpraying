@@ -40,8 +40,17 @@ import { clamp } from "@/lib/responsiveMetrics";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
 import { publishPostEngagement } from "@/lib/postEngagementSync";
+import { isPremiumContentLocked } from "@/lib/premiumContent";
+import { PremiumBadge } from "@/components/PremiumBadge";
+import { PremiumContentLock } from "@/components/PremiumContentLock";
 
-type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCommented?: boolean };
+type PostWithCounts = Post & {
+  commentCount?: number;
+  saveCount?: number;
+  hasCommented?: boolean;
+  isPremium?: boolean;
+  contentLocked?: boolean;
+};
 
 interface PostCardProps {
   post: Post;
@@ -378,6 +387,7 @@ function PostCardInner({
               </View>
             </View>
             <View style={styles.headerRight}>
+              {(localPost as PostWithCounts).isPremium ? <PremiumBadge /> : null}
               {categoryChips.length > 0 && (
                 <View style={styles.headerCats}>
                   {categoryChips.map((c) => (
@@ -397,6 +407,7 @@ function PostCardInner({
           postId={localPost.id}
           mediaUrl={localPost.mediaUrl}
           mediaType={localPost.mediaType}
+          isPremium={(localPost as PostWithCounts).isPremium}
           style={styles.media}
           compact={localPost.mediaType === "audio"}
           feedMediaFocused={
@@ -427,6 +438,9 @@ function PostCardInner({
                 style={styles.content}
                 numberOfLines={4}
               />
+            ) : null}
+            {isPremiumContentLocked(localPost as PostWithCounts) ? (
+              <PremiumContentLock mode="text" style={styles.contentLock} />
             ) : null}
 
             {og.showLinkPreview ? (
@@ -572,6 +586,8 @@ function postCardPropsEqual(prev: PostCardProps, next: PostCardProps): boolean {
     p.authorUsername === n.authorUsername &&
     p.mediaUrl === n.mediaUrl &&
     p.mediaType === n.mediaType &&
+    (p as PostWithCounts).isPremium === (n as PostWithCounts).isPremium &&
+    (p as PostWithCounts).contentLocked === (n as PostWithCounts).contentLocked &&
     (p as PostWithCounts).commentCount === (n as PostWithCounts).commentCount &&
     (p as PostWithCounts).saveCount === (n as PostWithCounts).saveCount &&
     (p as PostWithCounts).hasCommented === (n as PostWithCounts).hasCommented
@@ -688,6 +704,10 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 15,
     color: colors.text,
+  },
+  contentLock: {
+    marginTop: 8,
+    marginHorizontal: 16,
   },
   actions: {
     flexDirection: "row",

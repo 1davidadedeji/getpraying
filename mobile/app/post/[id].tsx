@@ -39,6 +39,8 @@ import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import { ApiError } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
+import { PremiumBadge } from "@/components/PremiumBadge";
+import { PremiumContentLock } from "@/components/PremiumContentLock";
 import { CommentRichBodyWithOgLink } from "@/components/CommentLinkPreview";
 import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
@@ -59,6 +61,7 @@ import { publishPostEngagement, publishPostRemoved } from "@/lib/postEngagementS
 import { subscribePostDetailRefresh } from "@/lib/postDetailRefresh";
 import { isNotFoundError, LIVE_COMMENTS_POLL_MS, LIVE_POST_POLL_MS } from "@/lib/liveSync";
 import { useScreenFocused } from "@/hooks/useScreenFocused";
+import { isPremiumContentLocked } from "@/lib/premiumContent";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -721,6 +724,8 @@ export default function PostDetailScreen() {
     : post.authorDisplayName ?? post.authorUsername ?? "Unknown";
 
   const prayerTextForUi = ogPrayer.showLinkPreview ? ogPrayer.displayTextWithoutUrl : postOgSource;
+  const postPremium = post as Post & { isPremium?: boolean; contentLocked?: boolean };
+  const contentLocked = isPremiumContentLocked(postPremium);
   const longBody =
     prayerTextForUi.length > 260 || (prayerTextForUi.match(/\n/g)?.length ?? 0) > 4;
 
@@ -780,6 +785,7 @@ export default function PostDetailScreen() {
             </View>
           </View>
           <View style={[styles.authorRowRight, { gap: rightGap }]}>
+            {postPremium.isPremium ? <PremiumBadge /> : null}
             {post.category && (
               <View style={[styles.categoryBadge, { paddingHorizontal: catPadH, paddingVertical: catPadV, borderRadius: catRad }]}>
                 <Text style={[styles.categoryText, { fontSize: fsCat }]}>
@@ -815,6 +821,7 @@ export default function PostDetailScreen() {
         <PostMediaBlock
           mediaUrl={post.mediaUrl}
           mediaType={post.mediaType}
+          isPremium={postPremium.isPremium}
           style={[styles.postImage, { marginBottom: postImgMb }]}
           mediaLayout="detail"
         />
@@ -830,7 +837,7 @@ export default function PostDetailScreen() {
                 numberOfLines={bodyExpanded || !longBody ? undefined : 5}
               />
             ) : null}
-            {longBody ? (
+            {longBody && !contentLocked ? (
               <Pressable
                 onPress={() => setBodyExpanded((prev) => !prev)}
                 style={styles.moreToggle}
@@ -840,6 +847,7 @@ export default function PostDetailScreen() {
                 <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>{bodyExpanded ? "Less" : "More"}</Text>
               </Pressable>
             ) : null}
+            {contentLocked ? <PremiumContentLock mode="text" /> : null}
             {ogPrayer.showLinkPreview ? (
               <OutboundOgLinkCard
                 variant="detail"

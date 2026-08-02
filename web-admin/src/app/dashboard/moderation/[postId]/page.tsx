@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminPostBody } from "@/components/dashboard/AdminPostBody";
+import { PremiumToggle } from "@/components/dashboard/PremiumToggle";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { inputCls, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
@@ -15,11 +16,17 @@ export default function ModerationPostPage() {
   const router = useRouter();
   const postId = Number(params.postId);
   const { token } = useAuth();
-  const { post, loading, error } = useAdminPost(postId);
+  const { post, loading, error, reload } = useAdminPost(postId);
   const [actionId, setActionId] = useState<number | null>(null);
   const [declining, setDeclining] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [premiumSaving, setPremiumSaving] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+
+  useEffect(() => {
+    if (post) setIsPremium(post.isPremium ?? false);
+  }, [post]);
 
   const approve = async () => {
     if (!token) return;
@@ -34,6 +41,31 @@ export default function ModerationPostPage() {
       setActionError("Could not approve");
     } finally {
       setActionId(null);
+    }
+  };
+
+  const savePremium = async (next: boolean) => {
+    if (!token) return;
+    setPremiumSaving(true);
+    setActionError(null);
+    const prev = isPremium;
+    setIsPremium(next);
+    try {
+      const res = await adminFetch(`/admin/posts/${postId}/premium`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ isPremium: next }),
+      });
+      if (!res.ok) {
+        setIsPremium(prev);
+        setActionError("Could not update premium flag");
+        return;
+      }
+      await reload();
+    } catch {
+      setIsPremium(prev);
+      setActionError("Could not update premium flag");
+    } finally {
+      setPremiumSaving(false);
     }
   };
 
@@ -74,6 +106,13 @@ export default function ModerationPostPage() {
     <>
       <PageHeader title="Review" backHref="/dashboard/moderation" backLabel="Moderation" />
       <AdminPostBody post={post} />
+
+      <PremiumToggle
+        className="mt-2"
+        checked={isPremium}
+        disabled={premiumSaving}
+        onChange={(next) => void savePremium(next)}
+      />
 
       {canModerate ? (
         declining ? (

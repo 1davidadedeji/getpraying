@@ -45,6 +45,7 @@ export default function EditOfficialPrayerPage() {
         durationMinutes: row.durationMinutes ?? undefined,
         scheduleSlot: row.scheduleSlot === "evening" ? "evening" : "morning",
         scheduledDate: normalizeScheduledDate(row.scheduledDate, formatLocalYMD()),
+        isPremium: row.isPremium ?? false,
       });
     } finally {
       setLoading(false);
@@ -74,6 +75,7 @@ export default function EditOfficialPrayerPage() {
           durationMinutes: draft.durationMinutes,
           scheduledDate,
           label: "Official Prayer",
+          isPremium: draft.isPremium,
          }),
       });
       if (res.ok) {

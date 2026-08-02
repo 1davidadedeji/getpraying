@@ -26,6 +26,7 @@ export default function NewLecturePage() {
   const [content, setContent] = useState("");
   const [scripture, setScripture] = useState("");
   const [durationMinutes, setDurationMinutes] = useState<number | undefined>();
+  const [isPremium, setIsPremium] = useState(false);
   const [tracks, setTracks] = useState<LectureTrackDraft[]>([emptyTrackDraft("Part 1")]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export default function NewLecturePage() {
           durationMinutes,
           category: "lectures",
           tracks: tracksToPayload(tracks),
+          isPremium,
          }),
       });
       if (res.ok) {
@@ -65,13 +67,14 @@ export default function NewLecturePage() {
       <PageHeader title="New lesson" backHref="/dashboard/lectures" backLabel="Lectures" />
       <div className={`${panelCls} space-y-3 p-3 sm:p-4`}>
         <LectureLessonFields
-          draft={{ title, subtitle, content, scripture, durationMinutes }}
+          draft={{ title, subtitle, content, scripture, durationMinutes, isPremium }}
           onChange={(p) => {
             if (p.title !== undefined) setTitle(p.title);
             if (p.subtitle !== undefined) setSubtitle(p.subtitle);
             if (p.content !== undefined) setContent(p.content);
             if (p.scripture !== undefined) setScripture(p.scripture);
             if (p.durationMinutes !== undefined) setDurationMinutes(p.durationMinutes);
+            if (p.isPremium !== undefined) setIsPremium(p.isPremium);
           }}
           disabled={saving}
         />

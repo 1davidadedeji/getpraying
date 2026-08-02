@@ -26,6 +26,9 @@ import {
   type LectureTrackRow,
   type OfficialPrayerRow,
 } from "@/lib/officialPrayer";
+import { isPremiumContentLocked } from "@/lib/premiumContent";
+import { PremiumBadge } from "@/components/PremiumBadge";
+import { PremiumContentLock } from "@/components/PremiumContentLock";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 
 const DETAIL_TIMEOUT_MS = 25_000;
@@ -225,6 +228,8 @@ export default function OfficialPrayerScreen() {
   const showSeeAlsoRowCategory = Boolean(d.category && !isLecture);
   const showSanctuaryHint = Boolean(!d.pathId && d.scheduleSlot);
   const showSeeAlso = showSeeAlsoRowPath || showSeeAlsoRowCategory || showSanctuaryHint;
+  const contentLocked = isPremiumContentLocked(d);
+  const showAudioLock = contentLocked && !isLecture && !d.audioUrl;
 
   return (
     <ScrollView
@@ -261,6 +266,7 @@ export default function OfficialPrayerScreen() {
               Updated {updated.toLocaleDateString()}
             </Text>
           ) : null}
+          {d.isPremium ? <PremiumBadge fontSize={fsBadge} /> : null}
         </View>
         <Pressable
           onPress={() => void toggleSave()}
@@ -285,17 +291,20 @@ export default function OfficialPrayerScreen() {
       {isLecture && bodyText ? (
         <View style={{ marginBottom: scrMb }}>
           <FormattedBodyText text={bodyText} style={styles.body} fontSize={fsBody} lineHeight={lhBody} />
+          {contentLocked ? <PremiumContentLock mode="text" /> : null}
         </View>
       ) : null}
 
       {isLecture ? (
         <View style={{ marginBottom: scrMb }}>
-          <LectureTrackList tracks={lectureTracks} accentColor={colors.primary} />
+          <LectureTrackList tracks={lectureTracks} accentColor={colors.primary} isPremiumLocked={contentLocked} />
         </View>
       ) : d.audioUrl ? (
         <View style={{ marginBottom: scrMb }}>
           <CapsuleAudioPlayer audioUrl={d.audioUrl} accentColor={colors.primary} />
         </View>
+      ) : showAudioLock ? (
+        <PremiumContentLock mode="media" style={{ marginBottom: scrMb }} />
       ) : null}
 
       {!isLecture && bodyText ? (
@@ -307,7 +316,7 @@ export default function OfficialPrayerScreen() {
             lineHeight={lhBody}
             numberOfLines={bodyExpanded || !longBody ? undefined : 6}
           />
-          {longBody ? (
+          {longBody && !contentLocked ? (
             <Pressable
               onPress={() => setBodyExpanded((prev) => !prev)}
               style={styles.moreToggle}
@@ -317,6 +326,7 @@ export default function OfficialPrayerScreen() {
               <Text style={[styles.moreToggleText, { fontSize: fsHint }]}>{bodyExpanded ? "Less" : "More"}</Text>
             </Pressable>
           ) : null}
+          {contentLocked ? <PremiumContentLock mode="text" /> : null}
         </View>
       ) : null}
 

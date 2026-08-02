@@ -313,6 +313,22 @@ export const GetUserPostsResponse = zod.object({
         .describe(
           "User id of the member whose boost is currently active (for unboost toggle)",
         ),
+      isPremium: zod
+        .boolean()
+        .optional()
+        .describe(
+          "When true, free users see a preview only; video\/audio require subscription",
+        ),
+      contentPreview: zod
+        .string()
+        .nullish()
+        .describe("Teaser text when content is locked for the viewer"),
+      contentLocked: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "True when the viewer cannot access full text or premium media",
+        ),
     }),
   ),
   nextCursor: zod
@@ -387,6 +403,22 @@ export const GetUserSavedPostsResponse = zod.object({
         .describe(
           "User id of the member whose boost is currently active (for unboost toggle)",
         ),
+      isPremium: zod
+        .boolean()
+        .optional()
+        .describe(
+          "When true, free users see a preview only; video\/audio require subscription",
+        ),
+      contentPreview: zod
+        .string()
+        .nullish()
+        .describe("Teaser text when content is locked for the viewer"),
+      contentLocked: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "True when the viewer cannot access full text or premium media",
+        ),
     }),
   ),
 });
@@ -452,6 +484,22 @@ export const GetPostsResponse = zod.object({
         .nullish()
         .describe(
           "User id of the member whose boost is currently active (for unboost toggle)",
+        ),
+      isPremium: zod
+        .boolean()
+        .optional()
+        .describe(
+          "When true, free users see a preview only; video\/audio require subscription",
+        ),
+      contentPreview: zod
+        .string()
+        .nullish()
+        .describe("Teaser text when content is locked for the viewer"),
+      contentLocked: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "True when the viewer cannot access full text or premium media",
         ),
     }),
   ),
@@ -552,6 +600,20 @@ export const GetTrendingPostsResponseItem = zod.object({
     .describe(
       "User id of the member whose boost is currently active (for unboost toggle)",
     ),
+  isPremium: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, free users see a preview only; video\/audio require subscription",
+    ),
+  contentPreview: zod
+    .string()
+    .nullish()
+    .describe("Teaser text when content is locked for the viewer"),
+  contentLocked: zod
+    .boolean()
+    .nullish()
+    .describe("True when the viewer cannot access full text or premium media"),
 });
 export const GetTrendingPostsResponse = zod.array(GetTrendingPostsResponseItem);
 
@@ -629,6 +691,22 @@ export const GlobalSearchResponse = zod.object({
         .describe(
           "User id of the member whose boost is currently active (for unboost toggle)",
         ),
+      isPremium: zod
+        .boolean()
+        .optional()
+        .describe(
+          "When true, free users see a preview only; video\/audio require subscription",
+        ),
+      contentPreview: zod
+        .string()
+        .nullish()
+        .describe("Teaser text when content is locked for the viewer"),
+      contentLocked: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "True when the viewer cannot access full text or premium media",
+        ),
     }),
   ),
 });
@@ -683,6 +761,22 @@ export const BoostPostResponse = zod.object({
       .describe(
         "User id of the member whose boost is currently active (for unboost toggle)",
       ),
+    isPremium: zod
+      .boolean()
+      .optional()
+      .describe(
+        "When true, free users see a preview only; video\/audio require subscription",
+      ),
+    contentPreview: zod
+      .string()
+      .nullish()
+      .describe("Teaser text when content is locked for the viewer"),
+    contentLocked: zod
+      .boolean()
+      .nullish()
+      .describe(
+        "True when the viewer cannot access full text or premium media",
+      ),
   }),
 });
 
@@ -731,6 +825,20 @@ export const GetPostResponse = zod.object({
     .describe(
       "User id of the member whose boost is currently active (for unboost toggle)",
     ),
+  isPremium: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, free users see a preview only; video\/audio require subscription",
+    ),
+  contentPreview: zod
+    .string()
+    .nullish()
+    .describe("Teaser text when content is locked for the viewer"),
+  contentLocked: zod
+    .boolean()
+    .nullish()
+    .describe("True when the viewer cannot access full text or premium media"),
 });
 
 /**
@@ -855,6 +963,9 @@ export const GetOfficialPrayersResponseItem = zod.object({
   label: zod.string().nullish(),
   audioVoice: zod.string().nullish(),
   createdAt: zod.coerce.date(),
+  isPremium: zod.boolean().optional(),
+  contentPreview: zod.string().nullish(),
+  contentLocked: zod.boolean().nullish(),
 });
 export const GetOfficialPrayersResponse = zod.array(
   GetOfficialPrayersResponseItem,
@@ -898,6 +1009,9 @@ export const GetOfficialPrayerByIdResponse = zod.object({
     )
     .optional()
     .describe("Playlist audio files (lectures only)"),
+  isPremium: zod.boolean().optional(),
+  contentPreview: zod.string().nullish(),
+  contentLocked: zod.boolean().nullish(),
 });
 
 /**
@@ -941,6 +1055,20 @@ export const GetSavedPrayersResponseItem = zod.object({
     .describe(
       "User id of the member whose boost is currently active (for unboost toggle)",
     ),
+  isPremium: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, free users see a preview only; video\/audio require subscription",
+    ),
+  contentPreview: zod
+    .string()
+    .nullish()
+    .describe("Teaser text when content is locked for the viewer"),
+  contentLocked: zod
+    .boolean()
+    .nullish()
+    .describe("True when the viewer cannot access full text or premium media"),
 });
 export const GetSavedPrayersResponse = zod.array(GetSavedPrayersResponseItem);
 
@@ -982,6 +1110,9 @@ export const GetPathResponse = zod.object({
       label: zod.string().nullish(),
       audioVoice: zod.string().nullish(),
       createdAt: zod.coerce.date(),
+      isPremium: zod.boolean().optional(),
+      contentPreview: zod.string().nullish(),
+      contentLocked: zod.boolean().nullish(),
     }),
   ),
   savedOfficialPrayers: zod
@@ -997,6 +1128,9 @@ export const GetPathResponse = zod.object({
         label: zod.string().nullish(),
         audioVoice: zod.string().nullish(),
         createdAt: zod.coerce.date(),
+        isPremium: zod.boolean().optional(),
+        contentPreview: zod.string().nullish(),
+        contentLocked: zod.boolean().nullish(),
       }),
     )
     .describe(
@@ -1042,6 +1176,22 @@ export const GetPathResponse = zod.object({
         .nullish()
         .describe(
           "User id of the member whose boost is currently active (for unboost toggle)",
+        ),
+      isPremium: zod
+        .boolean()
+        .optional()
+        .describe(
+          "When true, free users see a preview only; video\/audio require subscription",
+        ),
+      contentPreview: zod
+        .string()
+        .nullish()
+        .describe("Teaser text when content is locked for the viewer"),
+      contentLocked: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "True when the viewer cannot access full text or premium media",
         ),
     }),
   ),
@@ -1172,6 +1322,22 @@ export const GetPendingPostsResponse = zod.object({
         .describe(
           "User id of the member whose boost is currently active (for unboost toggle)",
         ),
+      isPremium: zod
+        .boolean()
+        .optional()
+        .describe(
+          "When true, free users see a preview only; video\/audio require subscription",
+        ),
+      contentPreview: zod
+        .string()
+        .nullish()
+        .describe("Teaser text when content is locked for the viewer"),
+      contentLocked: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "True when the viewer cannot access full text or premium media",
+        ),
     }),
   ),
   nextCursor: zod
@@ -1239,6 +1405,22 @@ export const GetModeratedPostsResponse = zod.object({
         .describe(
           "User id of the member whose boost is currently active (for unboost toggle)",
         ),
+      isPremium: zod
+        .boolean()
+        .optional()
+        .describe(
+          "When true, free users see a preview only; video\/audio require subscription",
+        ),
+      contentPreview: zod
+        .string()
+        .nullish()
+        .describe("Teaser text when content is locked for the viewer"),
+      contentLocked: zod
+        .boolean()
+        .nullish()
+        .describe(
+          "True when the viewer cannot access full text or premium media",
+        ),
     }),
   ),
   nextCursor: zod
@@ -1299,6 +1481,20 @@ export const ApprovePostResponse = zod.object({
     .describe(
       "User id of the member whose boost is currently active (for unboost toggle)",
     ),
+  isPremium: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, free users see a preview only; video\/audio require subscription",
+    ),
+  contentPreview: zod
+    .string()
+    .nullish()
+    .describe("Teaser text when content is locked for the viewer"),
+  contentLocked: zod
+    .boolean()
+    .nullish()
+    .describe("True when the viewer cannot access full text or premium media"),
 });
 
 /**
@@ -1357,6 +1553,85 @@ export const DeclinePostResponse = zod.object({
     .describe(
       "User id of the member whose boost is currently active (for unboost toggle)",
     ),
+  isPremium: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, free users see a preview only; video\/audio require subscription",
+    ),
+  contentPreview: zod
+    .string()
+    .nullish()
+    .describe("Teaser text when content is locked for the viewer"),
+  contentLocked: zod
+    .boolean()
+    .nullish()
+    .describe("True when the viewer cannot access full text or premium media"),
+});
+
+/**
+ * @summary Mark a community post as premium or free
+ */
+export const AdminSetPostPremiumParams = zod.object({
+  postId: zod.coerce.number(),
+});
+
+export const AdminSetPostPremiumBody = zod.object({
+  isPremium: zod.boolean(),
+});
+
+export const AdminSetPostPremiumResponse = zod.object({
+  id: zod.number(),
+  content: zod.string(),
+  mediaUrl: zod.string().nullish(),
+  mediaType: zod.enum(["image", "video", "audio"]).nullish(),
+  category: zod.string().nullish(),
+  categories: zod
+    .array(zod.string())
+    .optional()
+    .describe("All tag slugs for this post (primary is usually first)"),
+  isAnonymous: zod.boolean(),
+  status: zod.enum(["pending", "approved", "declined"]),
+  flagReason: zod.string().nullish(),
+  moderationReason: zod
+    .string()
+    .nullish()
+    .describe("Shown to the author when a moderator declines the post"),
+  prayCount: zod.number(),
+  commentCount: zod.number(),
+  saveCount: zod.number(),
+  hasPrayed: zod.boolean(),
+  hasCommented: zod.boolean(),
+  isSaved: zod.boolean(),
+  authorId: zod.number().nullish(),
+  authorUsername: zod.string().nullish(),
+  authorDisplayName: zod.string().nullish(),
+  authorAvatarUrl: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  boostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When a premium member last boosted this post (feed priority)"),
+  boostedByUserId: zod
+    .number()
+    .nullish()
+    .describe(
+      "User id of the member whose boost is currently active (for unboost toggle)",
+    ),
+  isPremium: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, free users see a preview only; video\/audio require subscription",
+    ),
+  contentPreview: zod
+    .string()
+    .nullish()
+    .describe("Teaser text when content is locked for the viewer"),
+  contentLocked: zod
+    .boolean()
+    .nullish()
+    .describe("True when the viewer cannot access full text or premium media"),
 });
 
 /**

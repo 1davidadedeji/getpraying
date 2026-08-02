@@ -3,6 +3,7 @@
 import { AdminAudioField } from "@/components/dashboard/AdminAudioField";
 import { FormField } from "@/components/dashboard/FormField";
 import { ScriptureField } from "@/components/dashboard/ScriptureField";
+import { PremiumToggle } from "@/components/dashboard/PremiumToggle";
 import { inputCls } from "@/components/dashboard/form-styles";
 
 export type PathGuideDraft = {
@@ -12,6 +13,7 @@ export type PathGuideDraft = {
   scripture: string;
   audioUrl: string;
   durationMinutes?: number;
+  isPremium: boolean;
 };
 
 export const EMPTY_PATH_GUIDE: PathGuideDraft = {
@@ -20,6 +22,7 @@ export const EMPTY_PATH_GUIDE: PathGuideDraft = {
   content: "",
   scripture: "",
   audioUrl: "",
+  isPremium: false,
 };
 
 export function PathGuideForm({
@@ -88,6 +91,12 @@ export function PathGuideForm({
         disabled={disabled}
         value={draft.audioUrl}
         onChange={(audioUrl) => set({ audioUrl })}
+      />
+      <PremiumToggle
+        className="sm:col-span-2"
+        checked={draft.isPremium}
+        disabled={disabled}
+        onChange={(isPremium) => set({ isPremium })}
       />
     </div>
   );

@@ -12,6 +12,7 @@ export type OfficialGuideRecord = {
   pathId: number | null;
   scheduleSlot: string | null;
   scheduledDate?: string | null;
+  isPremium?: boolean;
   tracks?: {
     id: number;
     title: string;

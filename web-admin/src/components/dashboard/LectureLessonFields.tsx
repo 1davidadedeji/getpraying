@@ -2,6 +2,7 @@
 
 import { FormField } from "@/components/dashboard/FormField";
 import { ScriptureField } from "@/components/dashboard/ScriptureField";
+import { PremiumToggle } from "@/components/dashboard/PremiumToggle";
 import { inputCls } from "@/components/dashboard/form-styles";
 import type { LectureTrackDraft } from "@/components/dashboard/LectureTracksEditor";
 
@@ -11,6 +12,7 @@ export type LectureFormDraft = {
   content: string;
   scripture: string;
   durationMinutes?: number;
+  isPremium: boolean;
   tracks: LectureTrackDraft[];
 };
 
@@ -19,7 +21,7 @@ export function LectureLessonFields({
   onChange,
   disabled,
 }: {
-  draft: Pick<LectureFormDraft, "title" | "subtitle" | "content" | "scripture" | "durationMinutes">;
+  draft: Pick<LectureFormDraft, "title" | "subtitle" | "content" | "scripture" | "durationMinutes" | "isPremium">;
   onChange: (patch: Partial<LectureFormDraft>) => void;
   disabled?: boolean;
 }) {
@@ -69,6 +71,12 @@ export function LectureLessonFields({
           onChange={(e) => onChange({ durationMinutes: Number(e.target.value) || undefined })}
         />
       </FormField>
+      <PremiumToggle
+        className="sm:col-span-2"
+        checked={draft.isPremium ?? false}
+        disabled={disabled}
+        onChange={(isPremium) => onChange({ isPremium })}
+      />
     </div>
   );
 }

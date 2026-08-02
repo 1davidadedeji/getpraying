@@ -25,6 +25,8 @@ import { CapsuleVideoPlayer } from "@/components/CapsuleVideoPlayer";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { isPremiumMediaLocked } from "@/lib/premiumContent";
+import { PremiumContentLock } from "@/components/PremiumContentLock";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type MediaType = "image" | "video" | "audio" | string | null | undefined;
@@ -199,6 +201,7 @@ export function PostMediaBlock({
   postId,
   mediaUrl,
   mediaType,
+  isPremium,
   style,
   compact,
   thumbnail,
@@ -210,6 +213,7 @@ export function PostMediaBlock({
   postId?: number;
   mediaUrl?: string | null;
   mediaType?: MediaType;
+  isPremium?: boolean;
   style?: StyleProp<ViewStyle>;
   compact?: boolean;
   thumbnail?: boolean;
@@ -218,6 +222,7 @@ export function PostMediaBlock({
   mediaLayout?: "feed" | "detail";
 }) {
   const uri = resolveMediaUrl(mediaUrl);
+  const premiumMediaLocked = isPremiumMediaLocked({ isPremium, mediaType, mediaUrl });
   const { uiScale } = useResponsiveLayout();
   const mediaRad = Math.round(clamp(16 * uiScale, 12, 22));
   const thumbH = Math.round(clamp(100 * uiScale, 88, 120));
@@ -242,7 +247,12 @@ export function PostMediaBlock({
     imgFailsRef.current = 0;
   }, [uri]);
 
-  if (!uri) return null;
+  if (!uri) {
+    if (premiumMediaLocked) {
+      return <PremiumContentLock mode="media" style={style} />;
+    }
+    return null;
+  }
 
   const feed = !!feedMediaFocused;
 

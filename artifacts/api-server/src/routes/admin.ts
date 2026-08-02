@@ -25,6 +25,7 @@ import { clearLibraryReadCache } from "../lib/libraryReadCache";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { broadcastPushToRegisteredDevices } from "../lib/broadcastPush";
 import { applyAutoBoostIfEligible } from "../lib/autoBoost";
+import { parseIsPremiumFromBody } from "../lib/premiumContentAccess";
 import {
   parseTracksFromBody,
   syncLectureTracks,
@@ -363,6 +364,32 @@ router.post("/admin/posts/:postId/decline", requireModeratorOrAdmin, async (req,
   await notifyAuthorPostDecision(post.authorId ?? null, post.id, "declined", reason);
 
   const [enriched] = await enrichPosts([post]);
+  res.json(enriched);
+});
+
+router.patch("/admin/posts/:postId/premium", requireModeratorOrAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(rawId, 10);
+  if (Number.isNaN(postId)) {
+    res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+  if (req.body == null || typeof req.body !== "object" || !("isPremium" in req.body)) {
+    res.status(400).json({ error: "isPremium boolean is required" });
+    return;
+  }
+  const isPremium = parseIsPremiumFromBody(req.body);
+  const mod = (req as any).user;
+  const [post] = await db
+    .update(postsTable)
+    .set({ isPremium, updatedAt: new Date() })
+    .where(eq(postsTable.id, postId))
+    .returning();
+  if (!post) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+  const [enriched] = await enrichPosts([post], mod.id);
   res.json(enriched);
 });
 
@@ -752,6 +779,7 @@ router.post("/admin/official-prayers", requireModeratorOrAdmin, async (req, res)
         category,
       }),
       uploadedByUserId: mod.id,
+      isPremium: parseIsPremiumFromBody(req.body),
     })
     .returning();
 
@@ -876,6 +904,11 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
     }
   }
 
+  let isPremiumNext = existing.isPremium;
+  if (req.body != null && "isPremium" in req.body) {
+    isPremiumNext = parseIsPremiumFromBody(req.body, existing.isPremium);
+  }
+
   await db
     .update(officialPrayersTable)
     .set({
@@ -889,6 +922,7 @@ router.put("/admin/official-prayers/:prayerId", requireModeratorOrAdmin, async (
       audioUrl: audioUrlNext,
       durationMinutes: durationNext,
       scheduledDate: scheduledDateNext,
+      isPremium: isPremiumNext,
     })
     .where(eq(officialPrayersTable.id, prayerId));
 

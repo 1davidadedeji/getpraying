@@ -16,6 +16,10 @@ import { filterLibrarySituationPaths } from "../lib/libraryPathCategories";
 import { normalizeOfficialGuideLabel } from "../lib/officialGuideLabel";
 import { resolveSanctuaryCalendarDate, resolveSanctuarySlotDates, isValidIanaTimezone } from "../lib/sanctuarySchedule";
 import {
+  applyPremiumOfficialForViewer,
+  transformLibraryPayloadForViewer,
+} from "../lib/premiumContentAccess";
+import {
   getLibraryReadCache,
   isStaffLibraryUser,
   sendCachedJson,
@@ -39,6 +43,7 @@ const officialSummarySelect = {
   pathId: officialPrayersTable.pathId,
   scheduleSlot: officialPrayersTable.scheduleSlot,
   scheduledDate: officialPrayersTable.scheduledDate,
+  isPremium: officialPrayersTable.isPremium,
   createdAt: officialPrayersTable.createdAt,
   uploaderUsername: usersTable.username,
   uploaderDisplayName: usersTable.displayName,
@@ -57,6 +62,7 @@ type OfficialSummaryRow = {
   pathId: number | null;
   scheduleSlot: string | null;
   scheduledDate: string | null;
+  isPremium: boolean;
   createdAt: Date;
   uploaderUsername: string | null;
   uploaderDisplayName: string | null;
@@ -74,6 +80,7 @@ function mapOfficialSummary(p: OfficialSummaryRow) {
     label: normalizeOfficialGuideLabel(p.label),
     audioVoice: p.audioVoice,
     audioUrl: p.audioUrl,
+    isPremium: p.isPremium,
     pathId: p.pathId,
     scheduleSlot: p.scheduleSlot,
     uploadedByUsername: p.uploaderUsername ?? null,
@@ -118,7 +125,7 @@ function libraryCacheHit(req: import("express").Request, res: import("express").
   if (isStaffLibraryUser((req as { user?: unknown }).user)) return false;
   const cached = getLibraryReadCache(cacheKey);
   if (!cached) return false;
-  sendCachedJson(res, cached);
+  sendCachedJson(res, transformLibraryPayloadForViewer(cached, (req as { user?: unknown }).user));
   return true;
 }
 
@@ -133,7 +140,7 @@ function sendLibraryPayload(
     return;
   }
   setLibraryReadCache(cacheKey, payload);
-  sendCachedJson(res, payload);
+  sendCachedJson(res, transformLibraryPayloadForViewer(payload, (req as { user?: unknown }).user));
 }
 
 router.get("/library/official", optionalAuth, async (req, res): Promise<void> => {
@@ -264,6 +271,7 @@ router.get("/library/official/:id", optionalAuth, async (req, res): Promise<void
       scheduleSlot: officialPrayersTable.scheduleSlot,
       createdAt: officialPrayersTable.createdAt,
       updatedAt: officialPrayersTable.updatedAt,
+      isPremium: officialPrayersTable.isPremium,
       uploaderUsername: usersTable.username,
       uploaderDisplayName: usersTable.displayName,
     })
@@ -277,25 +285,35 @@ router.get("/library/official/:id", optionalAuth, async (req, res): Promise<void
   }
   const isLecture = row.category.toLowerCase() === "lectures";
   const tracks = isLecture ? await fetchTracksForLecture(row.id) : undefined;
-  res.json({
-    id: row.id,
-    title: row.title,
-    subtitle: row.subtitle,
-    content: row.content,
-    category: row.category,
-    durationMinutes: row.durationMinutes,
-    scripture: row.scripture,
-    label: normalizeOfficialGuideLabel(row.label),
-    audioVoice: row.audioVoice,
-    audioUrl: row.audioUrl,
-    pathId: row.pathId,
-    scheduleSlot: row.scheduleSlot,
-    uploadedByUsername: row.uploaderUsername ?? null,
-    uploadedByDisplayName: row.uploaderDisplayName ?? null,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    ...(isLecture ? { tracks: tracks ?? [] } : {}),
-  });
+  const viewer = (req as { user?: unknown }).user;
+  const payload = applyPremiumOfficialForViewer(
+    {
+      id: row.id,
+      title: row.title,
+      subtitle: row.subtitle,
+      content: row.content,
+      category: row.category,
+      durationMinutes: row.durationMinutes,
+      scripture: row.scripture,
+      label: normalizeOfficialGuideLabel(row.label),
+      audioVoice: row.audioVoice,
+      audioUrl: row.audioUrl,
+      pathId: row.pathId,
+      scheduleSlot: row.scheduleSlot,
+      isPremium: row.isPremium,
+      uploadedByUsername: row.uploaderUsername ?? null,
+      uploadedByDisplayName: row.uploaderDisplayName ?? null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      ...(isLecture ? { tracks: tracks ?? [] } : {}),
+    },
+    viewer,
+  );
+  if (isStaffLibraryUser(viewer)) {
+    sendFreshJson(res, payload);
+    return;
+  }
+  res.json(payload);
 });
 
 router.get("/library/saved", requireAuth, async (req, res): Promise<void> => {
