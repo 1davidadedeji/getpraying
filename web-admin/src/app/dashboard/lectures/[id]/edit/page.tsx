@@ -100,7 +100,7 @@ export default function EditLecturePage() {
     return (
       <>
         <PageHeader title="Lesson not found" backHref="/dashboard/lectures" backLabel="Lectures" />
-        <p className="text-[12px] text-[var(--color-muted)]">This lesson may have been removed.</p>
+        <p className="text-[12px] text-(--color-muted)">This lesson may have been removed.</p>
       </>
     );
   }
@@ -122,7 +122,7 @@ export default function EditLecturePage() {
           disabled={saving}
         />
         <LectureTracksEditor token={token} disabled={saving} tracks={tracks} onChange={setTracks} />
-        {error ? <p className="text-[12px] text-[var(--color-danger)]">{error}</p> : null}
+        {error ? <p className="text-[12px] text-(--color-danger)">{error}</p> : null}
         <FormActions
           primaryLabel="Save lesson"
           primaryLoading={saving}

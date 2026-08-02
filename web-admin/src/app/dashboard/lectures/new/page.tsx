@@ -79,7 +79,7 @@ export default function NewLecturePage() {
           disabled={saving}
         />
         <LectureTracksEditor token={token} disabled={saving} tracks={tracks} onChange={setTracks} />
-        {error ? <p className="text-[12px] text-[var(--color-danger)]">{error}</p> : null}
+        {error ? <p className="text-[12px] text-(--color-danger)">{error}</p> : null}
         <FormActions
           primaryLabel="Create lesson"
           primaryLoading={saving}

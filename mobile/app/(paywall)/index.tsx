@@ -36,6 +36,7 @@ import {
   purchaseErrorMessage,
 } from "@/lib/revenuecatPurchase";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
+import { restorePurchasesWithFeedback } from "@/lib/restorePurchases";
 import { clamp } from "@/lib/responsiveMetrics";
 
 export default function PaywallScreen() {
@@ -51,6 +52,7 @@ export default function PaywallScreen() {
   const entitlementRedirected = useRef(false);
   const signingOut = useRef(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const userRef = useRef(user);
   const rcRef = useRef(rc);
   const pendingDeepLinkRef = useRef(pendingDeepLink);
@@ -225,6 +227,24 @@ export default function PaywallScreen() {
       showAppAlert({ title: "Could not start subscription", message: msg });
     } finally {
       setPurchasing(false);
+    }
+  };
+
+  const onRestore = async () => {
+    if (restoring || purchasing) return;
+    setRestoring(true);
+    try {
+      const result = await restorePurchasesWithFeedback({
+        restore: rc.restore,
+        user: userRef.current,
+        rc: { enabled: rc.enabled, customerInfo: rc.customerInfo },
+      });
+      showAppAlert({ title: result.title, message: result.message });
+      if (result.ok) {
+        finishAfterEntitlement({ haptic: false });
+      }
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -424,6 +444,20 @@ export default function PaywallScreen() {
             accessibilityRole="button"
           >
             <Text style={[styles.footerMuted, { fontSize: fsFooter }]}>Sign Out</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => void onRestore()}
+            style={[styles.footerBtn, { paddingVertical: linkPadV }]}
+            disabled={restoring || !rc.enabled}
+            testID="paywall-restore"
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Restore purchases"
+          >
+            <Text style={[styles.footerLink, { fontSize: fsFooter, opacity: restoring ? 0.5 : 1 }]}>
+              {restoring ? "Restoring…" : "Restore Purchases"}
+            </Text>
           </Pressable>
 
           <View style={styles.legalRow}>

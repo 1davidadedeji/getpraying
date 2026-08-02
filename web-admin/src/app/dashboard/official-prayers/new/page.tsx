@@ -66,7 +66,7 @@ export default function NewOfficialPrayerPage() {
       />
       <div className={`${panelCls} p-3 sm:p-4`}>
         <SanctuaryGuideForm draft={draft} onChange={setDraft} token={token} disabled={saving} />
-        {error ? <p className="mt-2 text-[12px] text-[var(--color-danger)]">{error}</p> : null}
+        {error ? <p className="mt-2 text-[12px] text-(--color-danger)">{error}</p> : null}
         <FormActions
           primaryLabel="Create"
           primaryLoading={saving}

@@ -111,7 +111,7 @@ export default function EditPathGuidePage() {
     return (
       <>
         <PageHeader title="Guide not found" backHref={`/dashboard/paths/${pathId}`} backLabel="Path" />
-        <p className="text-[12px] text-[var(--color-muted)]">This guide may have been removed.</p>
+        <p className="text-[12px] text-(--color-muted)">This guide may have been removed.</p>
       </>
     );
   }
@@ -121,7 +121,7 @@ export default function EditPathGuidePage() {
       <PageHeader title="Edit guide" backHref={`/dashboard/paths/${pathId}`} backLabel={pathName} />
       <div className={`${panelCls} p-3 sm:p-4`}>
         <PathGuideForm draft={draft} onChange={setDraft} token={token} disabled={saving} />
-        {error ? <p className="mt-2 text-[12px] text-[var(--color-danger)]">{error}</p> : null}
+        {error ? <p className="mt-2 text-[12px] text-(--color-danger)">{error}</p> : null}
         <FormActions
           primaryLabel="Save"
           primaryLoading={saving}

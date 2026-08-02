@@ -23,6 +23,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Text, TextInput } from "react-native";
+import colors from "@/constants/colors";
 
 import { AppAlertHost } from "@/components/AppAlert";
 import { EntitlementGate } from "@/components/EntitlementGate";

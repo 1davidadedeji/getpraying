@@ -44,13 +44,7 @@ import { isPremiumContentLocked } from "@/lib/premiumContent";
 import { PremiumBadge } from "@/components/PremiumBadge";
 import { PremiumContentLock } from "@/components/PremiumContentLock";
 
-type PostWithCounts = Post & {
-  commentCount?: number;
-  saveCount?: number;
-  hasCommented?: boolean;
-  isPremium?: boolean;
-  contentLocked?: boolean;
-};
+type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCommented?: boolean };
 
 interface PostCardProps {
   post: Post;
@@ -387,7 +381,7 @@ function PostCardInner({
               </View>
             </View>
             <View style={styles.headerRight}>
-              {(localPost as PostWithCounts).isPremium ? <PremiumBadge /> : null}
+              {localPost.isPremium ? <PremiumBadge /> : null}
               {categoryChips.length > 0 && (
                 <View style={styles.headerCats}>
                   {categoryChips.map((c) => (
@@ -407,7 +401,7 @@ function PostCardInner({
           postId={localPost.id}
           mediaUrl={localPost.mediaUrl}
           mediaType={localPost.mediaType}
-          isPremium={(localPost as PostWithCounts).isPremium}
+          isPremium={localPost.isPremium}
           style={styles.media}
           compact={localPost.mediaType === "audio"}
           feedMediaFocused={
@@ -439,7 +433,7 @@ function PostCardInner({
                 numberOfLines={4}
               />
             ) : null}
-            {isPremiumContentLocked(localPost as PostWithCounts) ? (
+            {isPremiumContentLocked(localPost) ? (
               <PremiumContentLock mode="text" style={styles.contentLock} />
             ) : null}
 

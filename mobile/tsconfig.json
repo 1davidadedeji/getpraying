@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "baseUrl": ".",
     "customConditions": [
       "react-native"
     ],
@@ -41,6 +40,5 @@
     {
       "path": "../lib/api-client-react"
     }
-  ],
-  "extends": "../node_modules/expo/tsconfig.base.json"
+  ]
 }

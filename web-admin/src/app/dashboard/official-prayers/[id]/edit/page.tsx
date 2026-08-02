@@ -94,7 +94,7 @@ export default function EditOfficialPrayerPage() {
     return (
       <>
         <PageHeader title="Guide not found" backHref="/dashboard/official-prayers" backLabel="Official guides" />
-        <p className="text-[12px] text-[var(--color-muted)]">{error ?? "This guide may have been removed."}</p>
+        <p className="text-[12px] text-(--color-muted)">{error ?? "This guide may have been removed."}</p>
       </>
     );
   }
@@ -104,7 +104,7 @@ export default function EditOfficialPrayerPage() {
       <PageHeader title="Edit guide" backHref="/dashboard/official-prayers" backLabel="Official guides" />
       <div className={`${panelCls} p-3 sm:p-4`}>
         <SanctuaryGuideForm draft={draft} onChange={setDraft} token={token} disabled={saving} />
-        {error ? <p className="mt-2 text-[12px] text-[var(--color-danger)]">{error}</p> : null}
+        {error ? <p className="mt-2 text-[12px] text-(--color-danger)">{error}</p> : null}
         <FormActions
           primaryLabel="Save"
           primaryLoading={saving}

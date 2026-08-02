@@ -20,9 +20,7 @@ import { showAppAlert } from "@/components/AppAlert";
 import { LAYOUT } from "@/constants/layout";
 import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
-import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
-import { clamp } from "@/lib/responsiveMetrics";
+import { useRevenueCat } from "@/context/revenuecat";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { apiFetch } from "@/lib/api";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
@@ -30,6 +28,10 @@ import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
 import { openWebAdmin } from "@/lib/webAdmin";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
+import { restorePurchasesWithFeedback } from "@/lib/restorePurchases";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
+import { clamp } from "@/lib/responsiveMetrics";
 
 export default function SettingsScreen() {
   useStackHeaderBack("/(tabs)/profile" as Href);
@@ -97,6 +99,8 @@ export default function SettingsScreen() {
   const { pendingCount: modPending } = useModerationBadge();
   const queryClient = useQueryClient();
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [restoringPurchases, setRestoringPurchases] = useState(false);
+  const rc = useRevenueCat();
   const [scheduledNotifsEnabled, setScheduledNotifsEnabled] = useState(
     () => (user as any)?.scheduledNotificationsEnabled ?? true,
   );
@@ -162,6 +166,21 @@ export default function SettingsScreen() {
         },
       ],
     });
+  };
+
+  const handleRestorePurchases = async () => {
+    if (restoringPurchases) return;
+    setRestoringPurchases(true);
+    try {
+      const result = await restorePurchasesWithFeedback({
+        restore: rc.restore,
+        user,
+        rc: { enabled: rc.enabled, customerInfo: rc.customerInfo },
+      });
+      showAppAlert({ title: result.title, message: result.message });
+    } finally {
+      setRestoringPurchases(false);
+    }
   };
 
   const handleLogout = () => {
@@ -249,6 +268,47 @@ export default function SettingsScreen() {
               thumbColor={colors.surface}
             />
           </View>
+        </View>
+      </View>
+
+      <View style={[styles.section, { gap: sui.sectionGap, marginBottom: sui.sectionMb }]}>
+        <Text style={[styles.sectionTitle, { fontSize: sui.sectionTitleFs, letterSpacing: sui.sectionLs }]}>
+          Subscription
+        </Text>
+        <View
+          style={[
+            styles.menuCard,
+            { borderRadius: sui.cardRad, borderWidth: sui.cardBorderW },
+          ]}
+        >
+          <Pressable
+            style={[
+              styles.menuItem,
+              !rc.enabled && styles.menuItemLast,
+              { paddingHorizontal: sui.menuPadH, paddingVertical: sui.menuPadV, gap: sui.menuGap },
+            ]}
+            onPress={() => router.push("/(paywall)?soft=1" as Href)}
+          >
+            <Ionicons name="star-outline" size={sui.menuIcon} color={colors.primary} />
+            <Text style={[styles.menuItemText, { fontSize: sui.menuTextFs }]}>Get Praying Premium</Text>
+            <Feather name="chevron-right" size={sui.chevIcon} color={colors.muted} />
+          </Pressable>
+          {rc.enabled ? (
+            <Pressable
+              style={[
+                styles.menuItem,
+                styles.menuItemLast,
+                { paddingHorizontal: sui.menuPadH, paddingVertical: sui.menuPadV, gap: sui.menuGap },
+              ]}
+              onPress={() => void handleRestorePurchases()}
+              disabled={restoringPurchases}
+            >
+              <Ionicons name="refresh-outline" size={sui.menuIcon} color={colors.primary} />
+              <Text style={[styles.menuItemText, { fontSize: sui.menuTextFs }]}>
+                {restoringPurchases ? "Restoring…" : "Restore purchases"}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
