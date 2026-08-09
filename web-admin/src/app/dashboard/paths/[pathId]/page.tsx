@@ -81,7 +81,7 @@ export default function PathDetailPage() {
     return (
       <>
         <PageHeader title="Path not found" backHref="/dashboard/paths" backLabel="Category guides" />
-        <p className="text-[12px] text-[var(--color-muted)]">This category is not one of the 12 library paths.</p>
+        <p className="text-[12px] text-muted">This category is not one of the 12 library paths.</p>
       </>
     );
   }
@@ -105,12 +105,12 @@ export default function PathDetailPage() {
       />
 
       <div className={`${panelCls} mb-3 p-3`}>
-        {path.tagline ? <p className="text-[12px] font-medium text-[var(--color-accent)]">{path.tagline}</p> : null}
-        <p className="text-[12px] leading-relaxed text-[var(--color-text-secondary)]">{path.description}</p>
+        {path.tagline ? <p className="text-[12px] font-medium text-accent">{path.tagline}</p> : null}
+        <p className="text-[12px] leading-relaxed text-text-secondary">{path.description}</p>
       </div>
 
       {guides.length === 0 ? (
-        <p className="py-6 text-center text-[12px] text-[var(--color-muted)]">No guides on this path yet.</p>
+        <p className="py-6 text-center text-[12px] text-muted">No guides on this path yet.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {guides.map((g) => (
@@ -123,11 +123,11 @@ export default function PathDetailPage() {
                     <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">No audio</span>
                   )}
                   {g.durationMinutes ? (
-                    <span className="text-[10px] text-[var(--color-muted)]">{g.durationMinutes} min</span>
+                    <span className="text-[10px] text-muted">{g.durationMinutes} min</span>
                   ) : null}
                 </div>
-                <p className="truncate text-[13px] font-semibold text-[var(--color-primary)]">{g.title}</p>
-                {g.subtitle ? <p className="truncate text-[11px] text-[var(--color-muted)]">{g.subtitle}</p> : null}
+                <p className="truncate text-[13px] font-semibold text-primary">{g.title}</p>
+                {g.subtitle ? <p className="truncate text-[11px] text-muted">{g.subtitle}</p> : null}
               </div>
               <div className="flex shrink-0 gap-1.5">
                 <Link href={`/dashboard/paths/${pathId}/guides/${g.id}/edit`} className={btnGhost}>

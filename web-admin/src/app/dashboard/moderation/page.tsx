@@ -113,7 +113,7 @@ export default function ModerationPage() {
           pendingCount !== null ? (
             <span
               className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                pendingCount > 0 ? "bg-[var(--color-flame)] text-white" : "bg-[var(--color-border)] text-[var(--color-muted)]"
+                pendingCount > 0 ? "bg-flame text-white" : "bg-border text-muted"
               }`}
             >
               {pendingCount} pending
@@ -146,31 +146,31 @@ export default function ModerationPage() {
               <Link
                 key={post.id}
                 href={`/dashboard/moderation/${post.id}`}
-                className={`${panelCls} block px-2.5 py-2 transition-colors hover:border-[var(--color-flame)]`}
+                className={`${panelCls} block px-2.5 py-2 transition-colors hover:border-flame`}
               >
                 <div className="mb-0.5 flex flex-wrap items-center gap-1">
-                  <span className="text-[11px] font-semibold text-[var(--color-primary)]">
+                  <span className="text-[11px] font-semibold text-primary">
                     {post.isAnonymous ? "Anonymous" : (post.authorDisplayName ?? post.authorUsername ?? "Unknown")}
                   </span>
                   {!post.isAnonymous && post.authorUsername ? (
-                    <span className="text-[10px] text-[var(--color-muted)]">@{post.authorUsername}</span>
+                    <span className="text-[10px] text-muted">@{post.authorUsername}</span>
                   ) : null}
                   {(post.reports?.length ?? 0) > 0 || post.flagReason || (post.flagCount ?? 0) > 0 ? (
                     <ReportedBadge />
                   ) : null}
                   {post.category ? (
-                    <span className="rounded bg-[var(--color-flame)]/10 px-1.5 py-0.5 text-[10px] capitalize text-[var(--color-flame)]">
+                    <span className="rounded bg-flame/10 px-1.5 py-0.5 text-[10px] capitalize text-flame">
                       {post.category}
                     </span>
                   ) : null}
                   {(post.reports?.length ?? 0) > 0 ? (
-                    <span className="text-[10px] text-[var(--color-danger)]">{post.reports!.length} reports</span>
+                    <span className="text-[10px] text-danger">{post.reports!.length} reports</span>
                   ) : null}
-                  <span className="ml-auto text-[10px] text-[var(--color-muted)]">
+                  <span className="ml-auto text-[10px] text-muted">
                     {new Date(post.createdAt).toLocaleString()}
                   </span>
                 </div>
-                <p className="line-clamp-1 text-[11px] text-[var(--color-text-secondary)]">{post.content}</p>
+                <p className="line-clamp-1 text-[11px] text-text-secondary">{post.content}</p>
               </Link>
             ))}
           </div>

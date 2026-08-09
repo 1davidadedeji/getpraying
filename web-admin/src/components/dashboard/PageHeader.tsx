@@ -22,11 +22,11 @@ export function PageHeader({
       {backHref ? <BackLink href={backHref} label={backLabel ?? "Back"} /> : null}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="font-heading text-base font-bold tracking-tight text-[var(--color-primary)] sm:text-lg">
+          <h1 className="font-heading text-base font-bold tracking-tight text-primary sm:text-lg">
             {title}
           </h1>
           {description ? (
-            <p className="mt-0.5 max-w-[56ch] text-[12px] leading-snug text-[var(--color-muted)]">{description}</p>
+            <p className="mt-0.5 max-w-[56ch] text-[12px] leading-snug text-muted">{description}</p>
           ) : null}
         </div>
         {action ? <div className="w-full shrink-0 sm:w-auto">{action}</div> : null}

@@ -130,7 +130,7 @@ export default function UsersPage() {
         action={
           <div className="relative w-full min-w-0 sm:w-60">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
               strokeWidth={1.75}
               aria-hidden
             />
@@ -139,7 +139,7 @@ export default function UsersPage() {
               placeholder="Search username, email…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-9 pr-4 text-[13px] text-[var(--color-primary)] placeholder:text-[#C0BDBA] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--color-flame)]"
+              className="w-full rounded-xl border border-border bg-surface py-2 pl-9 pr-4 text-[13px] text-primary placeholder:text-[#C0BDBA] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-flame"
             />
           </div>
         }
@@ -148,16 +148,16 @@ export default function UsersPage() {
       {loading && users.length === 0 ? (
         <Spinner />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
           <table className="w-full min-w-[860px] text-[13px]">
-            <thead className="border-b border-[var(--color-border)] bg-[var(--color-cream)]">
+            <thead className="border-b border-border bg-cream">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">User</th>
-                <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Email</th>
-                <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Role</th>
-                <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Subscription</th>
-                <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-[var(--color-primary)]">Joined</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary">User</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary">Email</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary">Role</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary">Subscription</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary">Joined</th>
                 <th className="w-8 px-4 py-3" />
               </tr>
             </thead>
@@ -165,14 +165,14 @@ export default function UsersPage() {
               {users.map((u) => (
                 <Fragment key={u.id}>
                   <tr
-                    className={`cursor-pointer border-b border-[var(--color-border)] last:border-0 hover:bg-[color-mix(in_srgb,var(--color-cream)_55%,white)] ${expandedId === u.id ? "bg-[color-mix(in_srgb,var(--color-cream)_55%,white)]" : ""}`}
+                    className={`cursor-pointer border-b border-border last:border-0 hover:bg-[color-mix(in_srgb,var(--color-cream)_55%,white)] ${expandedId === u.id ? "bg-[color-mix(in_srgb,var(--color-cream)_55%,white)]" : ""}`}
                     onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}
                   >
                     <td className="px-4 py-3">
-                      <p className="font-medium text-[var(--color-primary)]">{u.displayName ?? u.username}</p>
-                      <p className="text-[11px] text-[var(--color-muted)]">@{u.username}</p>
+                      <p className="font-medium text-primary">{u.displayName ?? u.username}</p>
+                      <p className="text-[11px] text-muted">@{u.username}</p>
                     </td>
-                    <td className="px-4 py-3 text-[var(--color-text-secondary)]">{u.email}</td>
+                    <td className="px-4 py-3 text-text-secondary">{u.email}</td>
                     <td className="px-4 py-3">
                       <RoleBadge role={u.role} />
                     </td>
@@ -181,7 +181,7 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       {u.isBanned ? (
-                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-[var(--color-danger)]">
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-danger">
                           Banned
                         </span>
                       ) : (
@@ -190,10 +190,10 @@ export default function UsersPage() {
                         </span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[var(--color-muted)]">
+                    <td className="whitespace-nowrap px-4 py-3 text-muted">
                       {new Date(u.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3 text-[var(--color-muted)]">
+                    <td className="px-4 py-3 text-muted">
                       <svg
                         viewBox="0 0 20 20"
                         fill="currentColor"
@@ -208,13 +208,13 @@ export default function UsersPage() {
                     </td>
                   </tr>
                   {expandedId === u.id && (
-                    <tr className="border-b border-[var(--color-border)] bg-[var(--color-cream)]">
+                    <tr className="border-b border-border bg-cream">
                       <td colSpan={7} className="px-4 py-4">
                         <div className="flex flex-wrap items-center gap-4">
-                          <div className="space-y-0.5 text-[12px] text-[var(--color-muted)]">
+                          <div className="space-y-0.5 text-[12px] text-muted">
                             <p>
                               Subscription:{" "}
-                              <span className="font-medium text-[var(--color-primary)]">
+                              <span className="font-medium text-primary">
                                 {formatSubscriptionLabel(u.subscription)}
                               </span>
                             </p>
@@ -241,7 +241,7 @@ export default function UsersPage() {
                               ))}
                             </AdminSelect>
                             {roleUpdating === u.id && (
-                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-flame)] border-t-transparent" />
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-flame border-t-transparent" />
                             )}
                           </div>
 
@@ -255,7 +255,7 @@ export default function UsersPage() {
                               className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40 ${
                                 u.isBanned
                                   ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                  : "bg-red-50 text-[var(--color-danger)] hover:bg-red-100"
+                                  : "bg-red-50 text-danger hover:bg-red-100"
                               }`}
                             >
                               {banBusy === u.id ? "…" : u.isBanned ? "Unban" : "Ban"}
@@ -265,17 +265,17 @@ export default function UsersPage() {
                           {u.id !== me?.id &&
                             (deleteConfirm === u.id ? (
                               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-[12px] font-medium text-[var(--color-danger)]">Delete account?</span>
+                                <span className="text-[12px] font-medium text-danger">Delete account?</span>
                                 <button
                                   disabled={deleteBusy === u.id}
                                   onClick={() => void deleteUser(u.id)}
-                                  className="rounded-lg bg-[var(--color-danger)] px-2.5 py-1 text-[12px] font-medium text-white disabled:opacity-40"
+                                  className="rounded-lg bg-danger px-2.5 py-1 text-[12px] font-medium text-white disabled:opacity-40"
                                 >
                                   {deleteBusy === u.id ? "…" : "Confirm"}
                                 </button>
                                 <button
                                   onClick={() => setDeleteConfirm(null)}
-                                  className="rounded-lg bg-[var(--color-border)] px-2.5 py-1 text-[12px] text-[var(--color-primary)]"
+                                  className="rounded-lg bg-border px-2.5 py-1 text-[12px] text-primary"
                                 >
                                   Cancel
                                 </button>
@@ -286,7 +286,7 @@ export default function UsersPage() {
                                   e.stopPropagation();
                                   setDeleteConfirm(u.id);
                                 }}
-                                className="rounded-lg border border-[color-mix(in_srgb,var(--color-danger)_45%,transparent)] px-3 py-1.5 text-[12px] text-[var(--color-danger)] transition-colors hover:bg-red-50"
+                                className="rounded-lg border border-danger/45 px-3 py-1.5 text-[12px] text-danger transition-colors hover:bg-red-50"
                               >
                                 Delete account
                               </button>
@@ -299,7 +299,7 @@ export default function UsersPage() {
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-[var(--color-muted)]">
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted">
                     {debouncedSearch.trim() ? "No users match your search" : "No users found"}
                   </td>
                 </tr>
@@ -326,9 +326,9 @@ export default function UsersPage() {
 
 function RoleBadge({ role }: { role: string }) {
   const map: Record<string, string> = {
-    admin: "bg-[var(--color-primary)] text-white",
+    admin: "bg-primary text-white",
     moderator: "bg-purple-100 text-purple-700",
-    user: "bg-[var(--color-border)] text-[var(--color-muted)]",
+    user: "bg-border text-muted",
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[role] ?? map.user}`}>{role}</span>
@@ -348,7 +348,7 @@ function SubscriptionBadge({ subscription }: { subscription: string | null | und
   const map: Record<string, string> = {
     premium: "bg-amber-100 text-amber-800",
     trial: "bg-sky-100 text-sky-700",
-    free: "bg-[var(--color-border)] text-[var(--color-muted)]",
+    free: "bg-border text-muted",
   };
   const label = formatSubscriptionLabel(subscription);
   return (

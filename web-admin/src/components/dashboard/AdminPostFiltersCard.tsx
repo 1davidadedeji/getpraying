@@ -46,10 +46,10 @@ export function AdminPostFiltersCard({
         )}
       >
         <div className="relative xl:col-span-2">
-          <label className="mb-0.5 block text-[10px] font-medium text-[var(--color-muted)]">Search</label>
+          <label className="mb-0.5 block text-[10px] font-medium text-muted">Search</label>
           <div className="relative">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
               strokeWidth={1.75}
               aria-hidden
             />
@@ -58,7 +58,7 @@ export function AdminPostFiltersCard({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Content or @username…"
-              className={cn(inputCls, "bg-[var(--color-cream)] pl-9")}
+              className={cn(inputCls, "bg-cream pl-9")}
             />
           </div>
         </div>
@@ -90,17 +90,17 @@ export function AdminPostFiltersCard({
           <option value="50">50</option>
         </AdminSelect>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[var(--color-muted)]">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
         <span>
           {totalMatching != null ? (
             <>
-              <strong className="font-semibold text-[var(--color-primary)]">{totalMatching}</strong> matching
+              <strong className="font-semibold text-primary">{totalMatching}</strong> matching
             </>
           ) : (
             "…"
           )}
         </span>
-        {loading ? <span className="text-[var(--color-flame)]">Updating…</span> : null}
+        {loading ? <span className="text-flame">Updating…</span> : null}
       </div>
     </div>
   );

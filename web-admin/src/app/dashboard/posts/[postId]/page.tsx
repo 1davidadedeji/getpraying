@@ -57,7 +57,7 @@ export default function PostDetailPage() {
     return (
       <>
         <PageHeader title="Not found" backHref="/dashboard/posts" backLabel="All posts" />
-        <p className="text-[11px] text-[var(--color-muted)]">{error ?? "Post unavailable."}</p>
+        <p className="text-[11px] text-muted">{error ?? "Post unavailable."}</p>
       </>
     );
   }
@@ -101,7 +101,7 @@ export default function PostDetailPage() {
           )}
         </div>
       ) : null}
-      {actionError ? <p className="mt-1.5 text-[11px] text-[var(--color-danger)]">{actionError}</p> : null}
+      {actionError ? <p className="mt-1.5 text-[11px] text-danger">{actionError}</p> : null}
     </>
   );
 }

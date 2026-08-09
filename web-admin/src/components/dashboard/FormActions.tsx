@@ -16,7 +16,7 @@ export function FormActions({
   cancelLabel?: string;
 }) {
   return (
-    <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-3">
+    <div className="flex flex-wrap gap-2 border-t border-border pt-3">
       <button
         type="button"
         onClick={onPrimary}

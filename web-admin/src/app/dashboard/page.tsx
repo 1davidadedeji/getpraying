@@ -69,15 +69,15 @@ export default function DashboardPage() {
             { label: "Today", value: stats.prayersToday },
           ].map((s) => (
             <div key={s.label} className={`${panelCls} px-2.5 py-2`}>
-              <p className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">{s.label}</p>
-              <p className={`text-base font-bold ${s.hot ? "text-[var(--color-flame)]" : "text-[var(--color-primary)]"}`}>
+              <p className="text-[10px] uppercase tracking-wide text-muted">{s.label}</p>
+              <p className={`text-base font-bold ${s.hot ? "text-flame" : "text-primary"}`}>
                 {s.value === undefined ? "—" : s.value.toLocaleString()}
               </p>
             </div>
           ))}
         </div>
       ) : pending > 0 ? (
-        <Link href="/dashboard/moderation" className={`${panelCls} mb-3 block px-2.5 py-2 text-[12px] font-medium text-[var(--color-flame)]`}>
+        <Link href="/dashboard/moderation" className={`${panelCls} mb-3 block px-2.5 py-2 text-[12px] font-medium text-flame`}>
           {pending} pending — review now
         </Link>
       ) : null}

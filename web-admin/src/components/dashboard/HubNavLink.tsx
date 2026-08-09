@@ -30,8 +30,8 @@ export function HubNavLink({
         "group flex items-center transition-colors duration-150",
         collapsed ? "justify-center rounded-lg p-2" : "gap-2.5 rounded-lg px-2.5 py-2",
         active
-          ? "bg-[color-mix(in_srgb,var(--color-flame)_12%,var(--color-surface))] text-[var(--color-primary)]"
-          : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]",
+          ? "bg-[color-mix(in_srgb,var(--color-flame)_12%,var(--color-surface))] text-primary"
+          : "text-text-secondary hover:bg-surface hover:text-primary",
         urgent && !active && "bg-[color-mix(in_srgb,var(--color-flame)_8%,var(--color-surface))]",
       )}
     >
@@ -39,9 +39,9 @@ export function HubNavLink({
         className={cn(
           "flex shrink-0 items-center justify-center rounded-md transition-colors",
           collapsed ? "h-8 w-8" : "h-7 w-7",
-          urgent && "bg-[var(--color-flame)] text-white",
-          !urgent && active && "bg-[color-mix(in_srgb,var(--color-flame)_20%,var(--color-cream))] text-[var(--color-primary)]",
-          !urgent && !active && "bg-[var(--color-cream)] text-[var(--color-primary)] group-hover:bg-[color-mix(in_srgb,var(--color-flame)_85%,var(--color-cream))] group-hover:text-white",
+          urgent && "bg-flame text-white",
+          !urgent && active && "bg-[color-mix(in_srgb,var(--color-flame)_20%,var(--color-cream))] text-primary",
+          !urgent && !active && "bg-cream text-primary group-hover:bg-[color-mix(in_srgb,var(--color-flame)_85%,var(--color-cream))] group-hover:text-white",
         )}
       >
         <Icon className="h-[17px] w-[17px]" strokeWidth={1.75} />
@@ -50,7 +50,7 @@ export function HubNavLink({
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-none">{title}</span>
       ) : null}
       {urgent && !collapsed ? (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-flame)]" aria-hidden />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-flame" aria-hidden />
       ) : null}
     </Link>
   );

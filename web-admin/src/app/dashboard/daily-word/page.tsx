@@ -165,7 +165,7 @@ export default function DailyWordPage() {
         description="Welcome screen verse — manual by default (Psalm 34:17), or auto-rotate daily"
       />
 
-      <div className="flex flex-col gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 mb-4">
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5 mb-4">
         <div>
           <p className="text-[11px] font-semibold text-[#8A8FA8] uppercase tracking-wide mb-2">
             Update mode
@@ -204,7 +204,7 @@ export default function DailyWordPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5">
         <p className="text-[12px] text-[#8A8FA8]">
           {source === "override"
             ? "This date has an admin override."

@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-r
 import { cn } from "@/lib/cn";
 
 const btnCls =
-  "inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11px] font-medium text-[var(--color-primary)] transition-colors hover:border-[var(--color-flame)] disabled:opacity-35 sm:px-2.5";
+  "inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-[11px] font-medium text-primary transition-colors hover:border-flame disabled:opacity-35 sm:px-2.5";
 
 export function AdminPaginationBar({
   page,
@@ -31,18 +31,18 @@ export function AdminPaginationBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-2 rounded-lg border border-border bg-surface px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >
-      <p className="text-[12px] text-[var(--color-muted)]">
-        <span className="font-semibold text-[var(--color-primary)]">
+      <p className="text-[12px] text-muted">
+        <span className="font-semibold text-primary">
           {start}-{end}
         </span>{" "}
-        of <span className="font-semibold text-[var(--color-primary)]">{totalMatching}</span>
+        of <span className="font-semibold text-primary">{totalMatching}</span>
         {" · "}
         Page{" "}
-        <span className="font-semibold text-[var(--color-primary)]">{safePage}</span> / {tp}
+        <span className="font-semibold text-primary">{safePage}</span> / {tp}
       </p>
       <div className="flex flex-wrap gap-2">
         <button

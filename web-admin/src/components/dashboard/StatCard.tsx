@@ -14,18 +14,18 @@ export function StatCard({
 }) {
   return (
     <div className={panelCls + " p-3"}>
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
         {label}
       </p>
       <p
         className={cn(
           "text-lg font-bold",
-          accent ? "text-[var(--color-flame)]" : "text-[var(--color-primary)]",
+          accent ? "text-flame" : "text-primary",
         )}
       >
         {value === undefined ? <span className="text-[#C0BDBA]">—</span> : value.toLocaleString()}
       </p>
-      {sub ? <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 text-[11px] text-muted">{sub}</p> : null}
     </div>
   );
 }

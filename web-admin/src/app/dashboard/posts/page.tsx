@@ -120,7 +120,7 @@ export default function PostsPage() {
       {loading && posts.length === 0 ? (
         <Spinner />
       ) : posts.length === 0 ? (
-        <p className="py-6 text-center text-[11px] text-[var(--color-muted)]">
+        <p className="py-6 text-center text-[11px] text-muted">
           {filtersActive ? "No matches" : "No posts"}
         </p>
       ) : (
@@ -130,19 +130,19 @@ export default function PostsPage() {
               <Link
                 key={post.id}
                 href={`/dashboard/posts/${post.id}`}
-                className={`${panelCls} block px-2.5 py-2 transition-colors hover:border-[var(--color-flame)]`}
+                className={`${panelCls} block px-2.5 py-2 transition-colors hover:border-flame`}
               >
                 <div className="mb-0.5 flex flex-wrap items-center gap-1">
-                  <span className="text-[11px] font-medium text-[var(--color-primary)]">
+                  <span className="text-[11px] font-medium text-primary">
                     {post.isAnonymous ? "Anon" : (post.authorDisplayName ?? post.authorUsername ?? "—")}
                   </span>
                   <PostStatusBadge status={post.status} />
                   {post.status === "pending" ? <ReportedBadge /> : null}
-                  <span className="ml-auto text-[10px] text-[var(--color-muted)]">
+                  <span className="ml-auto text-[10px] text-muted">
                     {new Date(post.createdAt).toLocaleDateString()} · {post.prayCount} 🙏
                   </span>
                 </div>
-                <p className="line-clamp-1 text-[11px] text-[var(--color-text-secondary)]">{post.content}</p>
+                <p className="line-clamp-1 text-[11px] text-text-secondary">{post.content}</p>
               </Link>
             ))}
           </div>

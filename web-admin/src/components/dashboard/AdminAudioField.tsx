@@ -48,8 +48,8 @@ export function AdminAudioField({
 
   return (
     <div className={cn("min-w-0", className)}>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">{label}</p>
-      <p className="mb-1.5 text-[11px] text-[var(--color-muted)]">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+      <p className="mb-1.5 text-[11px] text-muted">
         Paste a URL or upload a file (MP3, M4A, WAV, etc.).
       </p>
       <input
@@ -73,14 +73,14 @@ export function AdminAudioField({
           type="button"
           disabled={busy || !token}
           onClick={() => inputRef.current?.click()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[12px] font-semibold text-[var(--color-primary)] shadow-[inset_0_1px_0_color-mix(in_srgb,white_70%,transparent)] transition-colors hover:border-[color-mix(in_srgb,var(--color-flame)_30%,var(--color-border))] disabled:pointer-events-none disabled:opacity-45"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] font-semibold text-primary shadow-[inset_0_1px_0_color-mix(in_srgb,white_70%,transparent)] transition-colors hover:border-flame/30 disabled:pointer-events-none disabled:opacity-45"
         >
           <Upload className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
           {uploading ? "Uploading…" : "Upload audio file"}
         </button>
-        {!token ? <span className="text-[11px] text-[var(--color-muted)]">Sign in to upload.</span> : null}
+        {!token ? <span className="text-[11px] text-muted">Sign in to upload.</span> : null}
       </div>
-      {error ? <p className="mt-1.5 text-[11px] font-medium text-[var(--color-danger)]">{error}</p> : null}
+      {error ? <p className="mt-1.5 text-[11px] font-medium text-danger">{error}</p> : null}
     </div>
   );
 }

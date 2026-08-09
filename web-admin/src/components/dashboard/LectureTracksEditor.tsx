@@ -88,15 +88,15 @@ export function LectureTracksEditor({
   };
 
   return (
-    <div className={cn("rounded-2xl border border-[var(--color-border)] bg-[var(--color-cream)]/30 p-4 sm:p-5", className)}>
+    <div className={cn("rounded-2xl border border-border bg-cream/30 p-4 sm:p-5", className)}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Headphones className="h-5 w-5" aria-hidden />
           </div>
           <div>
-            <p className="text-sm font-semibold text-[var(--color-primary)]">Audio series</p>
-            <p className="mt-0.5 max-w-xl text-[12px] leading-relaxed text-[var(--color-muted)]">
+            <p className="text-sm font-semibold text-primary">Audio series</p>
+            <p className="mt-0.5 max-w-xl text-[12px] leading-relaxed text-muted">
               Each part becomes its own card in the app. Listeners tap a part to play it, and can auto-advance through the series.
             </p>
           </div>
@@ -105,7 +105,7 @@ export function LectureTracksEditor({
           type="button"
           disabled={disabled}
           onClick={() => onChange([...tracks, emptyTrackDraft(`Part ${tracks.length + 1}`)])}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#252c4a] disabled:opacity-40"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#252c4a] disabled:opacity-40"
         >
           <Plus className="h-3.5 w-3.5" aria-hidden />
           Add part
@@ -116,15 +116,15 @@ export function LectureTracksEditor({
         {tracks.map((track, index) => (
           <div
             key={track.clientKey}
-            className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm"
+            className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
           >
-            <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-cream)]/50 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2 border-b border-border bg-cream/50 px-3 py-2.5">
               <div className="flex items-center gap-2">
-                <GripVertical className="h-4 w-4 text-[var(--color-muted)]" aria-hidden />
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--color-primary)] px-2 text-[11px] font-bold text-white">
+                <GripVertical className="h-4 w-4 text-muted" aria-hidden />
+                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-[11px] font-bold text-white">
                   {index + 1}
                 </span>
-                <p className="text-[13px] font-semibold text-[var(--color-primary)]">
+                <p className="text-[13px] font-semibold text-primary">
                   {track.title.trim() || `Part ${index + 1}`}
                 </p>
               </div>
@@ -133,7 +133,7 @@ export function LectureTracksEditor({
                   type="button"
                   disabled={disabled || index === 0}
                   onClick={() => move(index, -1)}
-                  className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-white disabled:opacity-30"
+                  className="rounded-md p-1.5 text-muted hover:bg-white disabled:opacity-30"
                   aria-label="Move part up"
                 >
                   <ChevronUp className="h-4 w-4" />
@@ -142,7 +142,7 @@ export function LectureTracksEditor({
                   type="button"
                   disabled={disabled || index === tracks.length - 1}
                   onClick={() => move(index, 1)}
-                  className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-white disabled:opacity-30"
+                  className="rounded-md p-1.5 text-muted hover:bg-white disabled:opacity-30"
                   aria-label="Move part down"
                 >
                   <ChevronDown className="h-4 w-4" />
@@ -206,7 +206,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">{label}</p>
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
       {children}
     </div>
   );

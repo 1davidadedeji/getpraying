@@ -107,8 +107,8 @@ export default function LecturesPage() {
         <Spinner />
       ) : filteredLectures.length === 0 ? (
         <div className="py-10 text-center">
-          <BookOpen className="mx-auto mb-2 h-6 w-6 text-[var(--color-muted)]" aria-hidden />
-          <p className="text-[12px] text-[var(--color-muted)]">
+          <BookOpen className="mx-auto mb-2 h-6 w-6 text-muted" aria-hidden />
+          <p className="text-[12px] text-muted">
             {lectures.length === 0 ? "No lessons yet" : "No lessons match filters"}
           </p>
         </div>
@@ -127,12 +127,12 @@ export default function LecturesPage() {
                       <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">No audio</span>
                     )}
                     {l.durationMinutes ? (
-                      <span className="text-[10px] text-[var(--color-muted)]">{l.durationMinutes} min</span>
+                      <span className="text-[10px] text-muted">{l.durationMinutes} min</span>
                     ) : null}
                   </div>
-                  <p className="text-[13px] font-semibold text-[var(--color-primary)]">{l.title}</p>
-                  {l.subtitle ? <p className="text-[11px] text-[var(--color-muted)]">{l.subtitle}</p> : null}
-                  <p className="mt-1 line-clamp-2 text-[11px] text-[var(--color-text-secondary)]">{l.content}</p>
+                  <p className="text-[13px] font-semibold text-primary">{l.title}</p>
+                  {l.subtitle ? <p className="text-[11px] text-muted">{l.subtitle}</p> : null}
+                  <p className="mt-1 line-clamp-2 text-[11px] text-text-secondary">{l.content}</p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   <Link href={`/dashboard/lectures/${l.id}/edit`} className={btnGhost}>
@@ -144,7 +144,7 @@ export default function LecturesPage() {
                 </div>
               </div>
               {(l.tracks?.length ?? 0) > 0 ? (
-                <div className="mt-2 border-t border-[var(--color-border)] pt-2">
+                <div className="mt-2 border-t border-border pt-2">
                   <LectureSeriesPreview tracks={l.tracks ?? []} />
                 </div>
               ) : null}

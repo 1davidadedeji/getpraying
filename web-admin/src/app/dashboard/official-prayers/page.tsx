@@ -115,7 +115,7 @@ export default function OfficialPrayersPage() {
       {loading ? (
         <Spinner />
       ) : filteredPrayers.length === 0 ? (
-        <p className="py-8 text-center text-[12px] text-[var(--color-muted)]">
+        <p className="py-8 text-center text-[12px] text-muted">
           {prayers.length === 0 ? "No guides yet" : "No guides match filters"}
         </p>
       ) : (
@@ -130,11 +130,11 @@ export default function OfficialPrayersPage() {
                     <span className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Audio</span>
                   ) : null}
                   {p.durationMinutes ? (
-                    <span className="text-[10px] text-[var(--color-muted)]">{p.durationMinutes} min</span>
+                    <span className="text-[10px] text-muted">{p.durationMinutes} min</span>
                   ) : null}
                 </div>
-                <p className="truncate text-[13px] font-semibold text-[var(--color-primary)]">{p.title}</p>
-                {p.subtitle ? <p className="truncate text-[11px] text-[var(--color-muted)]">{p.subtitle}</p> : null}
+                <p className="truncate text-[13px] font-semibold text-primary">{p.title}</p>
+                {p.subtitle ? <p className="truncate text-[11px] text-muted">{p.subtitle}</p> : null}
               </div>
               <div className="flex shrink-0 gap-1.5">
                 <Link href={`/dashboard/official-prayers/${p.id}/edit`} className={btnGhost}>

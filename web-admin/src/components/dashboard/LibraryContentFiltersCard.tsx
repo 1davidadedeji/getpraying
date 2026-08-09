@@ -40,10 +40,10 @@ export function LibraryContentFiltersCard({
         )}
       >
         <div className="lg:col-span-2">
-          <label className="mb-0.5 block text-[10px] font-medium text-[var(--color-muted)]">Search</label>
+          <label className="mb-0.5 block text-[10px] font-medium text-muted">Search</label>
           <div className="relative">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
               strokeWidth={1.75}
               aria-hidden
             />
@@ -52,7 +52,7 @@ export function LibraryContentFiltersCard({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Keyword…"
-              className={cn(inputCls, "bg-[var(--color-cream)] pl-9")}
+              className={cn(inputCls, "bg-cream pl-9")}
             />
           </div>
         </div>
@@ -72,9 +72,9 @@ export function LibraryContentFiltersCard({
           <option value="no">No audio</option>
         </AdminSelect>
       </div>
-      <p className="mt-2 text-[11px] text-[var(--color-muted)]">
-        Showing <strong className="text-[var(--color-primary)]">{showingCount}</strong> of{" "}
-        <strong className="text-[var(--color-primary)]">{totalCount}</strong>
+      <p className="mt-2 text-[11px] text-muted">
+        Showing <strong className="text-primary">{showingCount}</strong> of{" "}
+        <strong className="text-primary">{totalCount}</strong>
       </p>
     </div>
   );

@@ -27,12 +27,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-[var(--color-cream-muted)] px-4 py-12">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-cream-muted px-4 py-12">
       <div className="w-full max-w-[340px]">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <img src="/logo.png" alt="Get Praying" className="w-16 h-16 object-contain mb-4" />
-          <h1 className="font-heading text-xl font-bold tracking-tight text-[var(--color-primary)]">Get Praying Admin</h1>
+          <h1 className="font-heading text-xl font-bold tracking-tight text-primary">Get Praying Admin</h1>
           <p className="text-[13px] text-[#8A8FA8] mt-1">Sign in with your admin account</p>
         </div>
 

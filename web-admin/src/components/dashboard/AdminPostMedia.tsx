@@ -19,7 +19,7 @@ export function AdminPostMedia({
     return (
       <div className="mt-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="Post attachment" className="max-h-72 max-w-full rounded border border-[var(--color-border)] object-contain" />
+        <img src={src} alt="Post attachment" className="max-h-72 max-w-full rounded border border-border object-contain" />
       </div>
     );
   }
@@ -32,7 +32,7 @@ export function AdminPostMedia({
           controls
           playsInline
           preload="metadata"
-          className="max-h-72 max-w-full rounded border border-[var(--color-border)] bg-black"
+          className="max-h-72 max-w-full rounded border border-border bg-black"
         />
       </div>
     );
@@ -41,7 +41,7 @@ export function AdminPostMedia({
   if (type === "audio") {
     return (
       <div className={`${panelCls} mt-2 p-2`}>
-        <p className="mb-1 text-[10px] font-semibold uppercase text-[var(--color-muted)]">Audio</p>
+        <p className="mb-1 text-[10px] font-semibold uppercase text-muted">Audio</p>
         <audio src={src} controls preload="metadata" className="h-8 w-full max-w-md" />
       </div>
     );
@@ -53,7 +53,7 @@ export function AdminPostMedia({
         href={src}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-[11px] font-medium text-[var(--color-flame)] underline"
+        className="text-[11px] font-medium text-flame underline"
       >
         Open attachment ({type || "file"})
       </a>
