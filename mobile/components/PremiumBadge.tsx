@@ -6,13 +6,24 @@ import colors from "@/constants/colors";
 type Props = {
   style?: StyleProp<ViewStyle>;
   fontSize?: number;
+  /** locked = free viewer overlay; subscriber = paying member indicator */
+  variant?: "locked" | "subscriber";
 };
 
-export function PremiumBadge({ style, fontSize = 10 }: Props) {
+export function PremiumBadge({ style, fontSize = 10, variant = "locked" }: Props) {
+  const isSubscriber = variant === "subscriber";
+  const iconName = isSubscriber ? "star" : "lock-closed";
+  const label = "Premium";
+  const a11y = isSubscriber ? "Premium content included in your subscription" : "Premium content";
+
   return (
-    <View style={[styles.badge, style]} accessibilityLabel="Premium content">
-      <Ionicons name="lock-closed" size={Math.max(9, fontSize - 1)} color={colors.primary} />
-      <Text style={[styles.text, { fontSize }]}>Premium</Text>
+    <View style={[styles.badge, isSubscriber && styles.subscriberBadge, style]} accessibilityLabel={a11y}>
+      <Ionicons
+        name={iconName}
+        size={Math.max(9, fontSize - 1)}
+        color={isSubscriber ? "#B8860B" : colors.primary}
+      />
+      <Text style={[styles.text, isSubscriber && styles.subscriberText, { fontSize }]}>{label}</Text>
     </View>
   );
 }
@@ -29,10 +40,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  subscriberBadge: {
+    backgroundColor: "#FFF8E7",
+    borderColor: "#E8D5A3",
+  },
   text: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: colors.primary,
     letterSpacing: 0.4,
     textTransform: "uppercase",
+  },
+  subscriberText: {
+    color: "#8B6914",
   },
 });

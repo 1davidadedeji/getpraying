@@ -26,7 +26,6 @@ import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { isPremiumMediaLocked } from "@/lib/premiumContent";
-import { PremiumContentLock } from "@/components/PremiumContentLock";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type MediaType = "image" | "video" | "audio" | string | null | undefined;
@@ -249,7 +248,12 @@ export function PostMediaBlock({
 
   if (!uri) {
     if (premiumMediaLocked) {
-      return <PremiumContentLock mode="media" style={style} />;
+      return (
+        <View
+          style={[styles.premiumMediaPlaceholder, radiusStyle, thumbStyle, style]}
+          accessibilityLabel="Premium media locked"
+        />
+      );
     }
     return null;
   }
@@ -400,6 +404,12 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     backgroundColor: colors.cream,
+  },
+  premiumMediaPlaceholder: {
+    width: "100%",
+    minHeight: 160,
+    backgroundColor: colors.cream,
+    alignSelf: "stretch",
   },
   fullscreenModalRoot: {
     flex: 1,

@@ -4,10 +4,11 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/MorningEveningMarks";
+import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
-import { PremiumBadge } from "@/components/PremiumBadge";
+import { usePremiumViewer } from "@/lib/premiumViewer";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type Props = {
@@ -23,6 +24,7 @@ function navigateToGuide(op: OfficialPrayerRow) {
 
 export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props) {
   const { uiScale, cardRadius, iconAction } = useResponsiveLayout();
+  const { subscribed, shouldBlur } = usePremiumViewer();
   const cardPad = Math.round(clamp(16 * uiScale, 14, 20));
   const cardRad = Math.round(clamp(cardRadius * 0.75, 20, 30));
   const cardMb = Math.round(clamp(12 * uiScale, 10, 14));
@@ -50,6 +52,14 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
       <EveningGuideMark size={slotMarkSz} />
     ) : null;
 
+  const isPremium = Boolean(op.isPremium);
+  const premiumLocked = shouldBlur(op);
+  const previewText = op.subtitle?.trim()
+    ? op.subtitle
+    : op.content?.trim()
+      ? op.content
+      : null;
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -71,7 +81,6 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
           {officialGuideBadgeLabel(op.label)}
           {op.scheduleSlot ? ` · ${op.scheduleSlot}` : ""}
         </Text>
-        {op.isPremium ? <PremiumBadge fontSize={fsBadge - 1} /> : null}
         {showSave && onToggleSave ? (
           <Pressable
             onPress={(e) => { e.stopPropagation?.(); onToggleSave(); }}
@@ -89,22 +98,21 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
         ) : null}
       </View>
       <Text style={[styles.officialTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
-      {op.subtitle ? (
-        <FormattedBodyText
-          text={op.subtitle}
-          style={styles.officialSubtitle}
-          fontSize={fsSub}
-          lineHeight={lhSub}
-          numberOfLines={3}
-        />
-      ) : op.content?.trim() ? (
-        <FormattedBodyText
-          text={op.content}
-          style={styles.officialSubtitle}
-          fontSize={fsSub}
-          lineHeight={lhSub}
-          numberOfLines={3}
-        />
+      {previewText ? (
+        <PremiumGatedContent
+          locked={isPremium && premiumLocked}
+          isPremium={isPremium}
+          showSubscriberMarker={subscribed}
+          minHeight={72}
+        >
+          <FormattedBodyText
+            text={previewText}
+            style={styles.officialSubtitle}
+            fontSize={fsSub}
+            lineHeight={lhSub}
+            numberOfLines={3}
+          />
+        </PremiumGatedContent>
       ) : null}
       {op.uploadedByUsername || op.uploadedByDisplayName ? (
         <Text style={[styles.uploadedBy, { fontSize: fsUpload, marginTop: uploadMt }]}>

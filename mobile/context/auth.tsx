@@ -3,7 +3,12 @@ import { setAuthTokenGetter, getMe } from "@workspace/api-client-react";
 import { login as apiLogin, logout as apiLogout } from "@workspace/api-client-react";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@workspace/api-client-react";
-import { clearPushTokenOnServer, registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
+import {
+  clearPushTokenOnServer,
+  registerAndSyncPushToken,
+  resetPushTokenSyncState,
+} from "@/lib/syncExpoPushToken";
+import { setPushDeliveryEnabled } from "@/lib/pushDeliveryGate";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { apiFetch } from "@/lib/api";
 
@@ -65,16 +70,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   useEffect(() => {
-    if (!token) {
+    if (loading) return;
+
+    if (!token || !user) {
+      setPushDeliveryEnabled(false);
       syncedPushTokenJwtRef.current = null;
       return;
     }
-    if (loading) return;
+
+    setPushDeliveryEnabled(true);
     void syncDeviceTimezone(token);
     if (syncedPushTokenJwtRef.current === token) return;
     syncedPushTokenJwtRef.current = token;
     void registerAndSyncPushToken(token);
-  }, [loading, token]);
+  }, [loading, token, user]);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
     const res = await apiLogin({ email, password });
@@ -116,6 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const tok = token;
+    setPushDeliveryEnabled(false);
+    resetPushTokenSyncState();
     try {
       await clearPushTokenOnServer(tok);
     } catch {

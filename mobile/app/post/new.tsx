@@ -55,6 +55,7 @@ import {
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { showSubscriptionPrompt } from "@/context/subscriptionPrompt";
 import { userCanUseBoostNow, userNeedsStoreEntitlementForBoost } from "@/lib/serverSubscription";
+import { isStaffUser } from "@/lib/staffAccess";
 import { clamp } from "@/lib/responsiveMetrics";
 import {
   normalizeVideoMime,
@@ -116,6 +117,8 @@ export default function NewPostScreen() {
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [audioLibraryOpen, setAudioLibraryOpen] = useState(false);
+  const [staffPremiumPost, setStaffPremiumPost] = useState(false);
+  const isStaff = isStaffUser(user);
 
   const previewVideoPlayer = useVideoPlayer(
     pendingMedia?.kind === "video" ? { uri: pendingMedia.uri } : null,
@@ -488,7 +491,8 @@ export default function NewPostScreen() {
           ...(categories ? { categories } : {}),
           ...(mediaUrl && postMediaType ? { mediaUrl, mediaType: postMediaType } : {}),
           ...(applyBoost ? { applyBoost: true } : {}),
-        },
+          ...(isStaff && staffPremiumPost ? { isPremium: true } : {}),
+        } as Parameters<typeof createPost>[0]["data"],
       },
       {
         onSuccess: (res: Post) => {
@@ -644,6 +648,36 @@ export default function NewPostScreen() {
           </Text>
         </View>
       </Pressable>
+
+      {isStaff ? (
+        <Pressable
+          style={[
+            styles.boostBtn,
+            staffPremiumPost && styles.boostBtnActive,
+            {
+              paddingVertical: boostPadV,
+              paddingHorizontal: boostPadH,
+              borderRadius: boostRad,
+            },
+          ]}
+          onPress={() => setStaffPremiumPost((v) => !v)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: staffPremiumPost }}
+          accessibilityLabel="Mark as premium community content"
+        >
+          <Ionicons
+            name={staffPremiumPost ? "star" : "star-outline"}
+            size={Math.round(clamp(20 * uiScale, 18, 24))}
+            color={staffPremiumPost ? colors.primary : colors.muted}
+          />
+          <View style={styles.boostCopy}>
+            <Text style={[styles.boostTitle, { fontSize: fsBoost }]}>Premium content</Text>
+            <Text style={[styles.boostHint, { fontSize: fsChar }]}>
+              Free members see a blurred preview; subscribers get full access.
+            </Text>
+          </View>
+        </Pressable>
+      ) : null}
 
       <Pressable
         style={[

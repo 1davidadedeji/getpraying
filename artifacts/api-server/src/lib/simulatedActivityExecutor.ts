@@ -1,7 +1,6 @@
 import {
   commentsTable,
   db,
-  notificationsTable,
   postPrayersTable,
   postsTable,
   savedPostsTable,
@@ -13,7 +12,11 @@ import { generateSimulatedComment, generateSimulatedPrayerPost } from "./simulat
 import { scheduleEngagementForPost } from "./simulatedActivityPlanner";
 import type { SimulatedJobPayload } from "./simulatedActivityJobs";
 import { markSimulatedJobDone, markSimulatedJobFailed } from "./simulatedActivityJobs";
-import { pushForNotificationById } from "./pushForNotification";
+import {
+  notifyPostOwnerOfCommentEngagement,
+  notifyPostOwnerOfPrayEngagement,
+  notifyPostOwnerOfSaveEngagement,
+} from "./postEngagementNotifications";
 
 async function executePost(payload: SimulatedJobPayload): Promise<boolean> {
   const authorId = payload.authorId;
@@ -58,25 +61,14 @@ async function executePray(postId: number, userId: number): Promise<void> {
     .returning({ id: postPrayersTable.id });
   if (inserted.length === 0) return;
 
-  await db
+  const [updated] = await db
     .update(postsTable)
     .set({ prayCount: sql`${postsTable.prayCount} + 1` })
-    .where(eq(postsTable.id, postId));
+    .where(eq(postsTable.id, postId))
+    .returning({ prayCount: postsTable.prayCount });
 
-  if (post.authorId && post.authorId !== userId && !(await isSeedUserId(post.authorId))) {
-    const [notif] = await db
-      .insert(notificationsTable)
-      .values({
-        userId: post.authorId,
-        type: "prayer",
-        message: "Someone prayed for you",
-        actorId: userId,
-        postId,
-        isRead: false,
-      })
-      .returning({ id: notificationsTable.id });
-    if (notif?.id) void pushForNotificationById(notif.id);
-  }
+  const newCount = Number(updated?.prayCount ?? 0);
+  await notifyPostOwnerOfPrayEngagement(db, post, userId, newCount);
 }
 
 async function executeSave(postId: number, userId: number): Promise<void> {
@@ -84,10 +76,19 @@ async function executeSave(postId: number, userId: number): Promise<void> {
   if (!post || post.status !== "approved") return;
   if (post.authorId === userId) return;
 
-  await db
+  const inserted = await db
     .insert(savedPostsTable)
     .values({ postId, userId })
-    .onConflictDoNothing({ target: [savedPostsTable.postId, savedPostsTable.userId] });
+    .onConflictDoNothing({ target: [savedPostsTable.postId, savedPostsTable.userId] })
+    .returning({ id: savedPostsTable.id });
+  if (inserted.length === 0) return;
+
+  await db
+    .update(usersTable)
+    .set({ savedScrolls: sql`${usersTable.savedScrolls} + 1` })
+    .where(eq(usersTable.id, userId));
+
+  await notifyPostOwnerOfSaveEngagement(db, post, userId);
 }
 
 async function executeComment(
@@ -109,7 +110,7 @@ async function executeComment(
 
   const content =
     presetContent ??
-    (realUserPost ? await generateSimulatedComment(post.content) : await generateSimulatedComment(post.content));
+    (await generateSimulatedComment(post.content, { realUserPost }));
 
   const [created] = await db
     .insert(commentsTable)
@@ -118,33 +119,7 @@ async function executeComment(
 
   if (!created) return;
 
-  if (post.authorId && post.authorId !== userId && !(await isSeedUserId(post.authorId))) {
-    const priorPray = await db
-      .select({ id: postPrayersTable.id })
-      .from(postPrayersTable)
-      .where(and(eq(postPrayersTable.postId, postId), eq(postPrayersTable.userId, userId)))
-      .limit(1);
-
-    if (priorPray.length === 0) {
-      await db
-        .update(usersTable)
-        .set({ prayedFor: sql`${usersTable.prayedFor} + 1` })
-        .where(eq(usersTable.id, post.authorId));
-    }
-
-    const [notif] = await db
-      .insert(notificationsTable)
-      .values({
-        userId: post.authorId,
-        type: "comment",
-        message: "commented on your prayer",
-        actorId: userId,
-        postId,
-        isRead: false,
-      })
-      .returning({ id: notificationsTable.id });
-    if (notif?.id) void pushForNotificationById(notif.id);
-  }
+  await notifyPostOwnerOfCommentEngagement(db, post, userId);
 }
 
 async function executeBoost(postId: number): Promise<void> {

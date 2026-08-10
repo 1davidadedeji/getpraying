@@ -4,6 +4,9 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { apiFetch } from "@/lib/api";
+import { isPushDeliveryEnabled } from "@/lib/pushDeliveryGate";
+
+export { isPushDeliveryEnabled, setPushDeliveryEnabled } from "@/lib/pushDeliveryGate";
 
 const PUSH_BUILD_KEY = "@getpraying/push-build-fingerprint";
 const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
@@ -18,13 +21,14 @@ export function isExpoPushToken(token: string): boolean {
   return t.startsWith(EXPO_PUSH_TOKEN_PREFIX) && t.endsWith("]");
 }
 
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    shouldShowAlert: isPushDeliveryEnabled(),
+    shouldPlaySound: isPushDeliveryEnabled(),
+    shouldSetBadge: isPushDeliveryEnabled(),
+    shouldShowBanner: isPushDeliveryEnabled(),
+    shouldShowList: isPushDeliveryEnabled(),
   }),
 });
 

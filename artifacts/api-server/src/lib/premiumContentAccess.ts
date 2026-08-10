@@ -40,7 +40,7 @@ export function applyPremiumOfficialForViewer<T extends OfficialLike>(
     ...item,
     content: locked ? preview : fullContent,
     contentPreview: preview,
-    contentLocked: locked,
+    contentLocked: true,
     audioUrl: null,
     tracks: item.tracks?.map((t) => ({ ...t, audioUrl: "" })) ?? item.tracks,
   };
@@ -69,7 +69,7 @@ export function applyPremiumPostForViewer<T extends PostLike>(
     ...post,
     content: locked ? preview : fullContent,
     contentPreview: preview,
-    contentLocked: locked,
+    contentLocked: true,
     mediaUrl: stripMedia ? null : post.mediaUrl,
   };
 }

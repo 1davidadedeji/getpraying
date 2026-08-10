@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildEngagementJobs,
   dayWindowMs,
   pickDailyPosters,
 } from "./simulatedActivityPlannerLogic";
@@ -27,6 +28,18 @@ describe("pickDailyPosters", () => {
     const posters = pickDailyPosters(users, previous);
     const overlap = posters.filter((p) => previous.includes(p.id));
     expect(overlap.length).toBeLessThan(posters.length);
+  });
+});
+
+describe("buildEngagementJobs", () => {
+  it("schedules the first real-user engagement within 20 minutes", () => {
+    const users = mockSeedUsers(20);
+    const base = Date.now();
+    const jobs = buildEngagementJobs(42, 100, users, true, base);
+    expect(jobs.length).toBeGreaterThan(0);
+    const first = jobs[0]!;
+    expect(first.executeAt.getTime() - base).toBeLessThanOrEqual(20 * 60_000);
+    expect(first.payload.postId).toBe(42);
   });
 });
 

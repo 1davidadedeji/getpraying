@@ -40,9 +40,9 @@ import { clamp } from "@/lib/responsiveMetrics";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
 import { publishPostEngagement } from "@/lib/postEngagementSync";
-import { isPremiumContentLocked } from "@/lib/premiumContent";
-import { PremiumBadge } from "@/components/PremiumBadge";
-import { PremiumContentLock } from "@/components/PremiumContentLock";
+import { isPremiumMediaLocked } from "@/lib/premiumContent";
+import { PremiumGatedContent } from "@/components/PremiumGatedContent";
+import { usePremiumViewer } from "@/lib/premiumViewer";
 
 type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCommented?: boolean };
 
@@ -96,6 +96,7 @@ function PostCardInner({
   ]);
 
   const { token, user, loading: authLoading } = useAuth();
+  const { subscribed, shouldBlur } = usePremiumViewer();
   const canEngage = !authLoading && Boolean(token);
 
   const engageMutationPendingRef = useRef(0);
@@ -381,7 +382,6 @@ function PostCardInner({
               </View>
             </View>
             <View style={styles.headerRight}>
-              {localPost.isPremium ? <PremiumBadge /> : null}
               {categoryChips.length > 0 && (
                 <View style={styles.headerCats}>
                   {categoryChips.map((c) => (
@@ -397,61 +397,81 @@ function PostCardInner({
           </View>
         </Pressable>
 
-        <PostMediaBlock
-          postId={localPost.id}
-          mediaUrl={localPost.mediaUrl}
-          mediaType={localPost.mediaType}
-          isPremium={localPost.isPremium}
-          style={styles.media}
-          compact={localPost.mediaType === "audio"}
-          feedMediaFocused={
-            feedMediaFocusPostId != null &&
-            feedMediaFocusPostId === localPost.id &&
-            (localPost.mediaType === "video" || localPost.mediaType === "audio")
-          }
-          onOpenPostDetail={
-            localPost.mediaType === "video"
-              ? () =>
-                  navigate(
-                    `${postHref}${postHref.includes("?") ? "&" : "?"}focusMedia=1` as any,
-                  )
-              : undefined
-          }
-        />
-
-        {(og.displayTextWithoutUrl.trim().length > 0 || og.showLinkPreview) ? (
-          <Pressable
-            onPress={() => navigate(postHref as any)}
-            style={({ pressed }) => [pressed && styles.cardBodyPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`Open prayer from ${authorName}`}
-          >
-            {og.displayTextWithoutUrl.trim().length > 0 ? (
-              <FormattedBodyText
-                text={og.displayTextWithoutUrl}
-                style={styles.content}
-                numberOfLines={4}
+        {(() => {
+          const isPremiumPost = Boolean(localPost.isPremium);
+          const premiumLocked = shouldBlur(localPost);
+          const body = (
+            <>
+              <PostMediaBlock
+                postId={localPost.id}
+                mediaUrl={localPost.mediaUrl}
+                mediaType={localPost.mediaType}
+                isPremium={localPost.isPremium}
+                style={styles.media}
+                compact={localPost.mediaType === "audio"}
+                feedMediaFocused={
+                  feedMediaFocusPostId != null &&
+                  feedMediaFocusPostId === localPost.id &&
+                  (localPost.mediaType === "video" || localPost.mediaType === "audio")
+                }
+                onOpenPostDetail={
+                  localPost.mediaType === "video"
+                    ? () =>
+                        navigate(
+                          `${postHref}${postHref.includes("?") ? "&" : "?"}focusMedia=1` as any,
+                        )
+                    : undefined
+                }
               />
-            ) : null}
-            {isPremiumContentLocked(localPost) ? (
-              <PremiumContentLock mode="text" style={styles.contentLock} />
-            ) : null}
 
-            {og.showLinkPreview ? (
-              <OutboundOgLinkCard
-                imageUrl={og.preview?.imageUrl}
-                previewTitle={og.previewTitle}
-                previewHost={og.previewHost}
-                variant="card"
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  void og.openOutboundLink();
-                }}
-                accessibilityLabel={`Open link: ${og.previewTitle || og.previewHost}`}
-              />
-            ) : null}
-          </Pressable>
-        ) : null}
+              {(og.displayTextWithoutUrl.trim().length > 0 || og.showLinkPreview) ? (
+                <Pressable
+                  onPress={() => navigate(postHref as any)}
+                  style={({ pressed }) => [pressed && styles.cardBodyPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open prayer from ${authorName}`}
+                >
+                  {og.displayTextWithoutUrl.trim().length > 0 ? (
+                    <FormattedBodyText
+                      text={og.displayTextWithoutUrl}
+                      style={styles.content}
+                      numberOfLines={4}
+                    />
+                  ) : null}
+
+                  {og.showLinkPreview ? (
+                    <OutboundOgLinkCard
+                      imageUrl={og.preview?.imageUrl}
+                      previewTitle={og.previewTitle}
+                      previewHost={og.previewHost}
+                      variant="card"
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        void og.openOutboundLink();
+                      }}
+                      accessibilityLabel={`Open link: ${og.previewTitle || og.previewHost}`}
+                    />
+                  ) : null}
+                </Pressable>
+              ) : null}
+            </>
+          );
+
+          if (!isPremiumPost) return body;
+
+          return (
+            <PremiumGatedContent
+              locked={premiumLocked}
+              isPremium
+              showSubscriberMarker={subscribed}
+              mode={isPremiumMediaLocked(localPost) ? "media" : "text"}
+              style={styles.premiumContentWrap}
+              minHeight={isPremiumMediaLocked(localPost) ? 160 : 88}
+            >
+              {body}
+            </PremiumGatedContent>
+          );
+        })()}
       </View>
 
       <View style={styles.actions}>
@@ -699,9 +719,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
-  contentLock: {
-    marginTop: 8,
+  premiumContentWrap: {
     marginHorizontal: 16,
+    marginBottom: 10,
   },
   actions: {
     flexDirection: "row",

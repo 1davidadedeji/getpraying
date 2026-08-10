@@ -6,6 +6,14 @@ export function isPremiumContentLocked(item: {
   return Boolean(item.isPremium && item.contentLocked);
 }
 
+/** Whether premium body/media should be blurred for the current viewer. */
+export function shouldBlurPremiumForViewer(
+  item: { isPremium?: boolean | null },
+  subscribed: boolean,
+): boolean {
+  return Boolean(item.isPremium && !subscribed);
+}
+
 /** Premium media (video/audio) stripped for free users — show lock UI instead of player. */
 export function isPremiumMediaLocked(item: {
   isPremium?: boolean | null;

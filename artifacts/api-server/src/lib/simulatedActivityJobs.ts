@@ -3,7 +3,7 @@ import {
   db,
   simulatedActivityJobsTable,
 } from "@workspace/db";
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, lte, sql } from "drizzle-orm";
 
 export type SimulatedActivityAction = "post" | "pray" | "comment" | "save" | "boost";
 
@@ -131,4 +131,19 @@ export async function countPendingSimulatedJobs(): Promise<number> {
     .from(simulatedActivityJobsTable)
     .where(eq(simulatedActivityJobsTable.status, "pending"));
   return Number(row?.count ?? 0);
+}
+
+/** Avoid double-scheduling engagement when approve + create both fire. */
+export async function postAlreadyHasEngagementJobs(postId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(simulatedActivityJobsTable)
+    .where(
+      and(
+        sql`${simulatedActivityJobsTable.payload}->>'postId' = ${String(postId)}`,
+        inArray(simulatedActivityJobsTable.action, ["pray", "comment", "save", "boost"]),
+        inArray(simulatedActivityJobsTable.status, ["pending", "done"]),
+      ),
+    );
+  return Number(row?.count ?? 0) > 0;
 }

@@ -3,6 +3,7 @@ import {
   enqueueSimulatedJobs,
   getDailyPlan,
   isSimulatedActivityEnabled,
+  postAlreadyHasEngagementJobs,
   setDailyPlan,
 } from "./simulatedActivityJobs";
 import {
@@ -52,6 +53,7 @@ export async function scheduleEngagementForPost(
   realUserPost: boolean,
 ): Promise<number> {
   if (!isSimulatedActivityEnabled()) return 0;
+  if (realUserPost && (await postAlreadyHasEngagementJobs(postId))) return 0;
   const seedUsers = await loadSeedUsers();
   const jobs = buildEngagementJobs(postId, authorId, seedUsers, realUserPost);
   await enqueueSimulatedJobs(jobs);

@@ -6,17 +6,25 @@ import { FormattedBodyText } from "@/components/FormattedBodyText";
 import colors from "@/constants/colors";
 import { prefetchCachedAudio } from "@/lib/audioMediaCache";
 import type { LectureTrackRow } from "@/lib/officialPrayer";
+import { usePremiumViewer } from "@/lib/premiumViewer";
 import { showSubscriptionPrompt } from "@/context/subscriptionPrompt";
-import { PremiumContentLock } from "@/components/PremiumContentLock";
+import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 
 type Props = {
   tracks: LectureTrackRow[];
   accentColor?: string;
   isPremiumLocked?: boolean;
+  guideIsPremium?: boolean;
 };
 
 /** Each track in a lecture series is its own card with inline playback when selected. */
-export function LectureTrackList({ tracks, accentColor = colors.primary, isPremiumLocked = false }: Props) {
+export function LectureTrackList({
+  tracks,
+  accentColor = colors.primary,
+  isPremiumLocked = false,
+  guideIsPremium = false,
+}: Props) {
+  const { subscribed } = usePremiumViewer();
   const sorted = useMemo(
     () => [...tracks].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
     [tracks],
@@ -99,44 +107,52 @@ export function LectureTrackList({ tracks, accentColor = colors.primary, isPremi
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={`${isActive ? "Playing" : "Play"} part ${index + 1}: ${track.title}`}
             >
-              <View style={styles.trackCardTop}>
-                <View style={[styles.indexBadge, isActive && styles.indexBadgeActive]}>
-                  <Text style={[styles.indexText, isActive && styles.indexTextActive]}>{index + 1}</Text>
-                </View>
-                <View style={styles.trackCopy}>
-                  <Text style={[styles.trackTitle, isActive && styles.trackTitleActive]} numberOfLines={2}>
-                    {track.title}
-                  </Text>
-                  {track.description ? (
-                    <FormattedBodyText
-                      text={track.description}
-                      style={styles.trackDesc}
-                      fontSize={13}
-                      numberOfLines={isActive ? undefined : 2}
-                    />
+              <PremiumGatedContent
+                locked={isPremiumLocked}
+                isPremium={guideIsPremium}
+                showSubscriberMarker={subscribed}
+                mode="media"
+                minHeight={isActive ? 140 : 88}
+              >
+                <View style={styles.trackCardTop}>
+                  <View style={[styles.indexBadge, isActive && styles.indexBadgeActive]}>
+                    <Text style={[styles.indexText, isActive && styles.indexTextActive]}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.trackCopy}>
+                    <Text style={[styles.trackTitle, isActive && styles.trackTitleActive]} numberOfLines={2}>
+                      {track.title}
+                    </Text>
+                    {track.description ? (
+                      <FormattedBodyText
+                        text={track.description}
+                        style={styles.trackDesc}
+                        fontSize={13}
+                        numberOfLines={isActive ? undefined : 2}
+                      />
+                    ) : null}
+                  </View>
+                  {!isActive ? (
+                    <View style={styles.playFab}>
+                      <Ionicons name="play" size={18} color={accentColor} />
+                    </View>
                   ) : null}
                 </View>
-                {!isActive ? (
-                  <View style={styles.playFab}>
-                    <Ionicons name="play" size={18} color={accentColor} />
+
+                {isActive ? (
+                  <View style={styles.playerWrap}>
+                    {trackPlayable(track) ? (
+                      <CapsuleAudioPlayer
+                        audioUrl={track.audioUrl}
+                        accentColor={accentColor}
+                        onPlaybackFinished={playNext}
+                        autoPlay={autoPlayActive}
+                      />
+                    ) : (
+                      <View style={styles.audioPlaceholder} accessibilityLabel="Premium audio locked" />
+                    )}
                   </View>
                 ) : null}
-              </View>
-
-              {isActive ? (
-                <View style={styles.playerWrap}>
-                  {trackPlayable(track) ? (
-                    <CapsuleAudioPlayer
-                      audioUrl={track.audioUrl}
-                      accentColor={accentColor}
-                      onPlaybackFinished={playNext}
-                      autoPlay={autoPlayActive}
-                    />
-                  ) : (
-                    <PremiumContentLock mode="media" />
-                  )}
-                </View>
-              ) : null}
+              </PremiumGatedContent>
             </Pressable>
           );
         })}
@@ -241,6 +257,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   playerWrap: { marginTop: 2 },
+  audioPlaceholder: {
+    minHeight: 56,
+    borderRadius: 14,
+    backgroundColor: colors.cream,
+  },
   autoAdvanceRow: {
     flexDirection: "row",
     alignItems: "center",

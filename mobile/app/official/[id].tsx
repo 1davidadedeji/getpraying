@@ -27,8 +27,8 @@ import {
   type OfficialPrayerRow,
 } from "@/lib/officialPrayer";
 import { isPremiumContentLocked } from "@/lib/premiumContent";
-import { PremiumBadge } from "@/components/PremiumBadge";
-import { PremiumContentLock } from "@/components/PremiumContentLock";
+import { PremiumGatedContent } from "@/components/PremiumGatedContent";
+import { usePremiumViewer } from "@/lib/premiumViewer";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 
 const DETAIL_TIMEOUT_MS = 25_000;
@@ -63,6 +63,7 @@ export default function OfficialPrayerScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, iconAction } = useResponsiveLayout();
   const { token } = useAuth();
+  const { subscribed, shouldBlur } = usePremiumViewer();
   const bookmarkIcn = Math.round(clamp(26 * uiScale, 22, 30));
   const rowGap = Math.round(clamp(12 * uiScale, 10, 14));
   const topMb = Math.round(clamp(16 * uiScale, 12, 20));
@@ -229,6 +230,8 @@ export default function OfficialPrayerScreen() {
   const showSanctuaryHint = Boolean(!d.pathId && d.scheduleSlot);
   const showSeeAlso = showSeeAlsoRowPath || showSeeAlsoRowCategory || showSanctuaryHint;
   const contentLocked = isPremiumContentLocked(d);
+  const premiumLocked = shouldBlur(d);
+  const isPremiumGuide = Boolean(d.isPremium);
   const showAudioLock = contentLocked && !isLecture && !d.audioUrl;
 
   return (
@@ -266,7 +269,6 @@ export default function OfficialPrayerScreen() {
               Updated {updated.toLocaleDateString()}
             </Text>
           ) : null}
-          {d.isPremium ? <PremiumBadge fontSize={fsBadge} /> : null}
         </View>
         <Pressable
           onPress={() => void toggleSave()}
@@ -288,47 +290,69 @@ export default function OfficialPrayerScreen() {
         <Text style={[styles.scripture, { fontSize: fsScripture, marginBottom: scrMb }]}>&ldquo;{d.scripture}&rdquo;</Text>
       ) : null}
 
-      {isLecture && bodyText ? (
-        <View style={{ marginBottom: scrMb }}>
-          <FormattedBodyText text={bodyText} style={styles.body} fontSize={fsBody} lineHeight={lhBody} />
-          {contentLocked ? <PremiumContentLock mode="text" /> : null}
-        </View>
-      ) : null}
+      {(() => {
+        const guideContent = (
+          <>
+            {isLecture && bodyText ? (
+              <FormattedBodyText text={bodyText} style={styles.body} fontSize={fsBody} lineHeight={lhBody} />
+            ) : null}
 
-      {isLecture ? (
-        <View style={{ marginBottom: scrMb }}>
-          <LectureTrackList tracks={lectureTracks} accentColor={colors.primary} isPremiumLocked={contentLocked} />
-        </View>
-      ) : d.audioUrl ? (
-        <View style={{ marginBottom: scrMb }}>
-          <CapsuleAudioPlayer audioUrl={d.audioUrl} accentColor={colors.primary} />
-        </View>
-      ) : showAudioLock ? (
-        <PremiumContentLock mode="media" style={{ marginBottom: scrMb }} />
-      ) : null}
+            {isLecture ? (
+              <LectureTrackList
+                tracks={lectureTracks}
+                accentColor={colors.primary}
+                isPremiumLocked={contentLocked}
+                guideIsPremium={isPremiumGuide}
+              />
+            ) : d.audioUrl ? (
+              <CapsuleAudioPlayer audioUrl={d.audioUrl} accentColor={colors.primary} />
+            ) : showAudioLock ? (
+              <View style={styles.audioPlaceholder} accessibilityLabel="Premium audio locked" />
+            ) : null}
 
-      {!isLecture && bodyText ? (
-        <View style={{ marginBottom: scrMb }}>
-          <FormattedBodyText
-            text={bodyText}
-            style={styles.body}
-            fontSize={fsBody}
-            lineHeight={lhBody}
-            numberOfLines={bodyExpanded || !longBody ? undefined : 6}
-          />
-          {longBody && !contentLocked ? (
-            <Pressable
-              onPress={() => setBodyExpanded((prev) => !prev)}
-              style={styles.moreToggle}
-              accessibilityRole="button"
-              accessibilityLabel={bodyExpanded ? "Show less description" : "Show full description"}
-            >
-              <Text style={[styles.moreToggleText, { fontSize: fsHint }]}>{bodyExpanded ? "Less" : "More"}</Text>
-            </Pressable>
-          ) : null}
-          {contentLocked ? <PremiumContentLock mode="text" /> : null}
-        </View>
-      ) : null}
+            {!isLecture && bodyText ? (
+              <>
+                <FormattedBodyText
+                  text={bodyText}
+                  style={styles.body}
+                  fontSize={fsBody}
+                  lineHeight={lhBody}
+                  numberOfLines={bodyExpanded || !longBody ? undefined : 6}
+                />
+                {longBody && !contentLocked ? (
+                  <Pressable
+                    onPress={() => setBodyExpanded((prev) => !prev)}
+                    style={styles.moreToggle}
+                    accessibilityRole="button"
+                    accessibilityLabel={bodyExpanded ? "Show less description" : "Show full description"}
+                  >
+                    <Text style={[styles.moreToggleText, { fontSize: fsHint }]}>
+                      {bodyExpanded ? "Less" : "More"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </>
+            ) : null}
+          </>
+        );
+
+        if (!isPremiumGuide) {
+          return <View style={{ marginBottom: scrMb }}>{guideContent}</View>;
+        }
+
+        return (
+          <PremiumGatedContent
+            locked={premiumLocked}
+            isPremium
+            showSubscriberMarker={subscribed}
+            mode={showAudioLock || isLecture ? "media" : "text"}
+            minHeight={showAudioLock || isLecture ? 180 : 120}
+            style={{ marginBottom: scrMb }}
+          >
+            {guideContent}
+          </PremiumGatedContent>
+        );
+      })()}
 
       {d.uploadedByUsername ? (
         <Text style={[styles.uploader, { fontSize: fsUpload, marginTop: uploadMt }]}>
@@ -428,6 +452,11 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   body: { fontFamily: "PlusJakartaSans_400Regular", color: colors.text },
+  audioPlaceholder: {
+    minHeight: 72,
+    borderRadius: 16,
+    backgroundColor: colors.cream,
+  },
   moreToggle: {
     marginTop: 8,
     alignSelf: "flex-start",

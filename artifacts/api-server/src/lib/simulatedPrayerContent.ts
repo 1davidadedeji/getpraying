@@ -133,8 +133,12 @@ export function pickSimulatedComment(): string {
   return pick(COMMENT_TEMPLATES);
 }
 
-export async function generateSimulatedComment(postContent: string): Promise<string> {
-  if (Math.random() > 0.35) return pickSimulatedComment();
+export async function generateSimulatedComment(
+  postContent: string,
+  opts?: { realUserPost?: boolean },
+): Promise<string> {
+  const realUserPost = opts?.realUserPost === true;
+  if (Math.random() > (realUserPost ? 0.2 : 0.35)) return pickSimulatedComment();
 
   const apiKey = getOpenAIKey();
   if (!apiKey) return pickSimulatedComment();
@@ -149,7 +153,9 @@ export async function generateSimulatedComment(postContent: string): Promise<str
           {
             role: "system",
             content:
-              "Write a short supportive comment on a prayer app (1-2 sentences). Warm, Christian, human. No hashtags.",
+              realUserPost
+                ? "Write a short supportive comment on a prayer app (1-2 sentences). Warm, Christian, human. Sound like a real person who read their post — reference something specific when possible. No hashtags."
+                : "Write a short supportive comment on a prayer app (1-2 sentences). Warm, Christian, human. No hashtags.",
           },
           {
             role: "user",

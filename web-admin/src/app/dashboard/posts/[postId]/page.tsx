@@ -4,20 +4,29 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { AdminPostBody } from "@/components/dashboard/AdminPostBody";
+import { PremiumToggle } from "@/components/dashboard/PremiumToggle";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { btnDangerOutline, btnGhost, btnPrimary, inputCls, panelCls } from "@/components/dashboard/form-styles";
 import { Spinner } from "@/components/ui/feedback";
 import { useAuth } from "@/context/auth";
 import { useAdminPost } from "@/lib/useAdminPost";
-import { adminFetch, authHeaders, apiUrl } from "@/lib/api";
+import { useAdminPostPremium } from "@/lib/useAdminPostPremium";
+import { adminFetch } from "@/lib/api";
 
 export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
   const postId = Number(params.postId);
   const { token, user } = useAuth();
-  const { post, loading, error } = useAdminPost(postId);
+  const { post, loading, error, reload } = useAdminPost(postId);
   const isAdmin = user?.role === "admin";
+  const isModerator = user?.role === "moderator" || isAdmin;
+  const { isPremium, premiumSaving, premiumError, savePremium } = useAdminPostPremium(
+    postId,
+    token,
+    post?.isPremium,
+    reload,
+  );
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,7 +52,9 @@ export default function PostDetailPage() {
     if (!token) return;
     setBusy(true);
     try {
-      await adminFetch(`/admin/posts/${postId}/remove`, token, { method: "DELETE", body: JSON.stringify({ reason: removeReason.trim() || "Admin removal"  }),
+      await adminFetch(`/admin/posts/${postId}/remove`, token, {
+        method: "DELETE",
+        body: JSON.stringify({ reason: removeReason.trim() || "Admin removal" }),
       });
       router.push("/dashboard/posts");
     } finally {
@@ -67,11 +78,20 @@ export default function PostDetailPage() {
       <PageHeader title="Post" backHref="/dashboard/posts" backLabel="All posts" />
       <AdminPostBody post={post} />
 
+      {isModerator ? (
+        <PremiumToggle
+          className="mt-2"
+          checked={isPremium}
+          disabled={premiumSaving}
+          onChange={(next) => void savePremium(next)}
+        />
+      ) : null}
+
       {isAdmin ? (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {post.status === "declined" || post.status === "approved" ? (
             <button type="button" disabled={busy} onClick={() => void requeue()} className={btnGhost}>
-              Re-queue
+              Re-queue for moderation
             </button>
           ) : null}
           {post.status === "pending" ? (
@@ -101,6 +121,7 @@ export default function PostDetailPage() {
           )}
         </div>
       ) : null}
+      {premiumError ? <p className="mt-1.5 text-[11px] text-danger">{premiumError}</p> : null}
       {actionError ? <p className="mt-1.5 text-[11px] text-danger">{actionError}</p> : null}
     </>
   );

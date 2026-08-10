@@ -26,6 +26,7 @@ import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
 import { feedCursorWhereClause, feedEngagementPriorityExpr } from "../lib/feedEngagementPriority";
 import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
+import { parseIsPremiumFromBody } from "../lib/premiumContentAccess";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
@@ -460,6 +461,10 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
 
   const boostRequested = applyBoostRequested && postStatus === "pending";
 
+  const isPremium = isStaff && req.body != null && typeof req.body === "object" && "isPremium" in req.body
+    ? parseIsPremiumFromBody(req.body)
+    : false;
+
   const [post] = await db
     .insert(postsTable)
     .values({
@@ -473,6 +478,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
       moderationReason,
       authorId: user.id,
       boostRequested,
+      isPremium,
     })
     .returning();
 

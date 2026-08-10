@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPremiumContentLocked, isPremiumMediaLocked } from "./premiumContent";
+import { isPremiumContentLocked, isPremiumMediaLocked, shouldBlurPremiumForViewer } from "./premiumContent";
 
 describe("isPremiumContentLocked", () => {
   it("returns true when premium and locked", () => {
@@ -29,5 +29,19 @@ describe("isPremiumMediaLocked", () => {
     expect(
       isPremiumMediaLocked({ isPremium: true, mediaType: "video", mediaUrl: "https://x/v.mp4" }),
     ).toBe(false);
+  });
+});
+
+describe("shouldBlurPremiumForViewer", () => {
+  it("blurs premium content for free viewers", () => {
+    expect(shouldBlurPremiumForViewer({ isPremium: true }, false)).toBe(true);
+  });
+
+  it("does not blur free content", () => {
+    expect(shouldBlurPremiumForViewer({ isPremium: false }, false)).toBe(false);
+  });
+
+  it("does not blur premium content for subscribers", () => {
+    expect(shouldBlurPremiumForViewer({ isPremium: true }, true)).toBe(false);
   });
 });

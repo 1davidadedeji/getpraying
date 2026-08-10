@@ -39,8 +39,7 @@ import type { Post, SavePostStateResponse } from "@workspace/api-client-react";
 import { ApiError } from "@workspace/api-client-react";
 import colors from "@/constants/colors";
 import { PostMediaBlock } from "@/components/PostMedia";
-import { PremiumBadge } from "@/components/PremiumBadge";
-import { PremiumContentLock } from "@/components/PremiumContentLock";
+import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import { CommentRichBodyWithOgLink } from "@/components/CommentLinkPreview";
 import { FormattedBodyText } from "@/components/FormattedBodyText";
 import { OutboundOgLinkCard } from "@/components/OutboundOgLinkCard";
@@ -61,7 +60,8 @@ import { publishPostEngagement, publishPostRemoved } from "@/lib/postEngagementS
 import { subscribePostDetailRefresh } from "@/lib/postDetailRefresh";
 import { isNotFoundError, LIVE_COMMENTS_POLL_MS, LIVE_POST_POLL_MS } from "@/lib/liveSync";
 import { useScreenFocused } from "@/hooks/useScreenFocused";
-import { isPremiumContentLocked } from "@/lib/premiumContent";
+import { isPremiumContentLocked, isPremiumMediaLocked } from "@/lib/premiumContent";
+import { usePremiumViewer } from "@/lib/premiumViewer";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -85,6 +85,7 @@ export default function PostDetailScreen() {
   const postId = Number(id);
   const insets = useSafeAreaInsets();
   const { user, token, loading: authLoading } = useAuth();
+  const { subscribed, shouldBlur } = usePremiumViewer();
   const authReady = !authLoading && Boolean(token);
   const [staffDeleteOpen, setStaffDeleteOpen] = useState(false);
   const [staffDeleteReason, setStaffDeleteReason] = useState("");
@@ -726,6 +727,7 @@ export default function PostDetailScreen() {
   const prayerTextForUi = ogPrayer.showLinkPreview ? ogPrayer.displayTextWithoutUrl : postOgSource;
   const postPremium = post as Post & { isPremium?: boolean; contentLocked?: boolean };
   const contentLocked = isPremiumContentLocked(postPremium);
+  const premiumLocked = shouldBlur(postPremium);
   const longBody =
     prayerTextForUi.length > 260 || (prayerTextForUi.match(/\n/g)?.length ?? 0) > 4;
 
@@ -785,7 +787,6 @@ export default function PostDetailScreen() {
             </View>
           </View>
           <View style={[styles.authorRowRight, { gap: rightGap }]}>
-            {postPremium.isPremium ? <PremiumBadge /> : null}
             {post.category && (
               <View style={[styles.categoryBadge, { paddingHorizontal: catPadH, paddingVertical: catPadV, borderRadius: catRad }]}>
                 <Text style={[styles.categoryText, { fontSize: fsCat }]}>
@@ -818,47 +819,106 @@ export default function PostDetailScreen() {
           </View>
         </View>
 
-        <PostMediaBlock
-          mediaUrl={post.mediaUrl}
-          mediaType={post.mediaType}
-          isPremium={postPremium.isPremium}
-          style={[styles.postImage, { marginBottom: postImgMb }]}
-          mediaLayout="detail"
-        />
+        {postPremium.isPremium ? (
+          <PremiumGatedContent
+            locked={premiumLocked}
+            isPremium
+            showSubscriberMarker={subscribed}
+            mode={isPremiumMediaLocked(postPremium) ? "media" : "text"}
+            minHeight={isPremiumMediaLocked(postPremium) ? 180 : 120}
+            style={{ marginBottom: prayerMb }}
+          >
+            <>
+              <PostMediaBlock
+                mediaUrl={post.mediaUrl}
+                mediaType={post.mediaType}
+                isPremium={postPremium.isPremium}
+                style={[styles.postImage, { marginBottom: postImgMb }]}
+                mediaLayout="detail"
+              />
 
-        {(prayerTextForUi.trim().length > 0 || ogPrayer.showLinkPreview) ? (
-          <View style={{ marginBottom: prayerMb }}>
-            {prayerTextForUi.trim().length > 0 ? (
-              <FormattedBodyText
-                text={prayerTextForUi}
-                style={styles.prayerContent}
-                fontSize={fsPrayer}
-                lineHeight={lhPrayer}
-                numberOfLines={bodyExpanded || !longBody ? undefined : 5}
-              />
+              {(prayerTextForUi.trim().length > 0 || ogPrayer.showLinkPreview) ? (
+                <View>
+                  {prayerTextForUi.trim().length > 0 ? (
+                    <FormattedBodyText
+                      text={prayerTextForUi}
+                      style={styles.prayerContent}
+                      fontSize={fsPrayer}
+                      lineHeight={lhPrayer}
+                      numberOfLines={bodyExpanded || !longBody ? undefined : 5}
+                    />
+                  ) : null}
+                  {longBody && !contentLocked ? (
+                    <Pressable
+                      onPress={() => setBodyExpanded((prev) => !prev)}
+                      style={styles.moreToggle}
+                      accessibilityRole="button"
+                      accessibilityLabel={bodyExpanded ? "Show less text" : "Show full prayer text"}
+                    >
+                      <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>
+                        {bodyExpanded ? "Less" : "More"}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  {ogPrayer.showLinkPreview ? (
+                    <OutboundOgLinkCard
+                      variant="detail"
+                      imageUrl={ogPrayer.preview?.imageUrl}
+                      previewTitle={ogPrayer.previewTitle}
+                      previewHost={ogPrayer.previewHost}
+                      onPress={() => void ogPrayer.openOutboundLink()}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+            </>
+          </PremiumGatedContent>
+        ) : (
+          <>
+            <PostMediaBlock
+              mediaUrl={post.mediaUrl}
+              mediaType={post.mediaType}
+              isPremium={postPremium.isPremium}
+              style={[styles.postImage, { marginBottom: postImgMb }]}
+              mediaLayout="detail"
+            />
+
+            {(prayerTextForUi.trim().length > 0 || ogPrayer.showLinkPreview) ? (
+              <View style={{ marginBottom: prayerMb }}>
+                {prayerTextForUi.trim().length > 0 ? (
+                  <FormattedBodyText
+                    text={prayerTextForUi}
+                    style={styles.prayerContent}
+                    fontSize={fsPrayer}
+                    lineHeight={lhPrayer}
+                    numberOfLines={bodyExpanded || !longBody ? undefined : 5}
+                  />
+                ) : null}
+                {longBody && !contentLocked ? (
+                  <Pressable
+                    onPress={() => setBodyExpanded((prev) => !prev)}
+                    style={styles.moreToggle}
+                    accessibilityRole="button"
+                    accessibilityLabel={bodyExpanded ? "Show less text" : "Show full prayer text"}
+                  >
+                    <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>
+                      {bodyExpanded ? "Less" : "More"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {ogPrayer.showLinkPreview ? (
+                  <OutboundOgLinkCard
+                    variant="detail"
+                    imageUrl={ogPrayer.preview?.imageUrl}
+                    previewTitle={ogPrayer.previewTitle}
+                    previewHost={ogPrayer.previewHost}
+                    onPress={() => void ogPrayer.openOutboundLink()}
+                  />
+                ) : null}
+              </View>
             ) : null}
-            {longBody && !contentLocked ? (
-              <Pressable
-                onPress={() => setBodyExpanded((prev) => !prev)}
-                style={styles.moreToggle}
-                accessibilityRole="button"
-                accessibilityLabel={bodyExpanded ? "Show less text" : "Show full prayer text"}
-              >
-                <Text style={[styles.moreToggleText, { fontSize: fsTime + 1 }]}>{bodyExpanded ? "Less" : "More"}</Text>
-              </Pressable>
-            ) : null}
-            {contentLocked ? <PremiumContentLock mode="text" /> : null}
-            {ogPrayer.showLinkPreview ? (
-              <OutboundOgLinkCard
-                variant="detail"
-                imageUrl={ogPrayer.preview?.imageUrl}
-                previewTitle={ogPrayer.previewTitle}
-                previewHost={ogPrayer.previewHost}
-                onPress={() => void ogPrayer.openOutboundLink()}
-              />
-            ) : null}
-          </View>
-        ) : null}
+          </>
+        )}
 
         <View style={[styles.divider, { marginBottom: dividerMb }]} />
 

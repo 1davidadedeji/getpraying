@@ -62,11 +62,20 @@ export function buildEngagementJobs(
     [];
   let cursor = baseTime;
 
-  for (const actor of actors) {
-    cursor += engagementDelayMs(realUserPost) / Math.max(count, 1);
+  for (let i = 0; i < actors.length; i++) {
+    const actor = actors[i]!;
+    let executeAtMs: number;
+    if (realUserPost && i === 0) {
+      // First bot touch soon so new posters feel the community quickly.
+      executeAtMs = baseTime + randInt(3, 20) * 60_000;
+      cursor = executeAtMs;
+    } else {
+      cursor += engagementDelayMs(realUserPost) / Math.max(count, 1);
+      executeAtMs = cursor + randInt(5, 45) * 60_000;
+    }
     const action = pickEngagementAction(realUserPost) as EngagementAction;
     jobs.push({
-      executeAt: new Date(cursor + randInt(5, 45) * 60_000),
+      executeAt: new Date(executeAtMs),
       action,
       payload: {
         postId,
