@@ -7,7 +7,7 @@ import colors from "@/constants/colors";
 import { prefetchCachedAudio } from "@/lib/audioMediaCache";
 import type { LectureTrackRow } from "@/lib/officialPrayer";
 import { usePremiumViewer } from "@/lib/premiumViewer";
-import { showSubscriptionPrompt } from "@/context/subscriptionPrompt";
+import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 
 type Props = {
@@ -91,7 +91,7 @@ export function LectureTrackList({
               key={track.id}
               onPress={() => {
                 if (!trackPlayable(track)) {
-                  showSubscriptionPrompt("premiumContent");
+                  openPremiumPaywall();
                   return;
                 }
                 if (isActive) return;

@@ -466,7 +466,7 @@ function PostCardInner({
               showSubscriberMarker={subscribed}
               mode={isPremiumMediaLocked(localPost) ? "media" : "text"}
               style={styles.premiumContentWrap}
-              minHeight={isPremiumMediaLocked(localPost) ? 160 : 88}
+              minHeight={isPremiumMediaLocked(localPost) ? 160 : 132}
             >
               {body}
             </PremiumGatedContent>

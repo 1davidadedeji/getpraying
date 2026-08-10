@@ -11,8 +11,10 @@ import {
   type ViewStyle,
 } from "react-native";
 import colors from "@/constants/colors";
-import { showSubscriptionPrompt } from "@/context/subscriptionPrompt";
 import { PremiumBadge } from "@/components/PremiumBadge";
+import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
+
+const LOCKED_OVERLAY_MIN_H = 132;
 
 type Props = {
   /** Free viewer — blur content and show centered lock. */
@@ -31,12 +33,12 @@ type Props = {
 function PremiumLockOverlay({ mode = "text" }: { mode?: "text" | "media" }) {
   const isMedia = mode === "media";
   return (
-    <View style={styles.lockCard} accessibilityRole="text" accessibilityLabel="Premium content locked">
+    <View style={styles.lockCard} pointerEvents="none">
       <View style={styles.lockIconCircle}>
         <Ionicons name="lock-closed" size={isMedia ? 22 : 20} color={colors.primary} />
       </View>
-      <PremiumBadge variant="locked" fontSize={11} />
-      <Text style={styles.lockHint}>
+      <Text style={styles.premiumLabel}>Premium</Text>
+      <Text style={styles.lockHint} numberOfLines={2}>
         {isMedia ? "Subscribe to play" : "Subscribe to unlock"}
       </Text>
     </View>
@@ -60,28 +62,40 @@ export function PremiumGatedContent({
     return <>{children}</>;
   }
 
+  const lockedMinHeight = Math.max(minHeight, LOCKED_OVERLAY_MIN_H);
+
+  const handleUnlockPress = () => {
+    if (onUnlockPress) {
+      onUnlockPress();
+      return;
+    }
+    openPremiumPaywall();
+  };
+
   return (
-    <View style={[styles.wrap, locked && { minHeight }, style]}>
-      <View style={locked ? styles.contentDimmed : undefined} pointerEvents={locked ? "none" : "auto"}>
-        {children}
-      </View>
-      {locked ? (
-        <>
+    <View style={[styles.wrap, style, locked && { minHeight: lockedMinHeight }]}>
+      <View style={[styles.blurClip, locked && { minHeight: lockedMinHeight }]}>
+        <View style={locked ? styles.contentDimmed : undefined} pointerEvents={locked ? "none" : "auto"}>
+          {children}
+        </View>
+        {locked ? (
           <BlurView
             intensity={Platform.OS === "ios" ? 28 : 56}
             tint="light"
             style={StyleSheet.absoluteFill}
             experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
           />
-          <Pressable
-            style={styles.overlay}
-            onPress={() => (onUnlockPress ? onUnlockPress() : showSubscriptionPrompt("premiumContent"))}
-            accessibilityRole="button"
-            accessibilityLabel="Subscribe to unlock premium content"
-          >
-            <PremiumLockOverlay mode={mode} />
-          </Pressable>
-        </>
+        ) : null}
+      </View>
+      {locked ? (
+        <Pressable
+          style={styles.overlay}
+          onPress={handleUnlockPress}
+          accessibilityRole="button"
+          accessibilityLabel="Subscribe to unlock premium content"
+        >
+          <PremiumLockOverlay mode={mode} />
+        </Pressable>
       ) : null}
       {showMarker ? (
         <View style={styles.subscriberMarker} pointerEvents="none">
@@ -95,25 +109,30 @@ export function PremiumGatedContent({
 const styles = StyleSheet.create({
   wrap: {
     position: "relative",
-    overflow: "hidden",
+  },
+  blurClip: {
     borderRadius: 12,
+    overflow: "hidden",
   },
   contentDimmed: {
     opacity: 0.55,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+    elevation: 4,
     alignItems: "center",
     justifyContent: "center",
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   lockCard: {
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(255,255,255,0.94)",
     borderWidth: 1,
     borderColor: colors.border,
     maxWidth: 280,
@@ -126,9 +145,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  premiumLabel: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 11,
+    color: colors.primary,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
   lockHint: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: 12,
+    lineHeight: 17,
     color: colors.muted,
     textAlign: "center",
   },
@@ -136,6 +163,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     right: 8,
-    zIndex: 2,
+    zIndex: 3,
+    elevation: 5,
   },
 });
