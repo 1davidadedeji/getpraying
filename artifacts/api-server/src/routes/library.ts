@@ -18,6 +18,7 @@ import { resolveSanctuaryCalendarDate, resolveSanctuarySlotDates, isValidIanaTim
 import {
   applyPremiumOfficialForViewer,
   transformLibraryPayloadForViewer,
+  type PremiumViewer,
 } from "../lib/premiumContentAccess";
 import {
   getLibraryReadCache,
@@ -28,6 +29,11 @@ import {
 } from "../lib/libraryReadCache";
 
 const router: IRouter = Router();
+
+function libraryViewer(req: import("express").Request): PremiumViewer {
+  const user = (req as { user?: PremiumViewer }).user;
+  return user ?? null;
+}
 
 /** List/card fields only — full `content` is loaded on GET /library/official/:id. */
 const officialSummarySelect = {
@@ -122,10 +128,10 @@ function iconForPathCategory(category: string): string {
 }
 
 function libraryCacheHit(req: import("express").Request, res: import("express").Response, cacheKey: string): boolean {
-  if (isStaffLibraryUser((req as { user?: unknown }).user)) return false;
+  if (isStaffLibraryUser(libraryViewer(req))) return false;
   const cached = getLibraryReadCache(cacheKey);
   if (!cached) return false;
-  sendCachedJson(res, transformLibraryPayloadForViewer(cached, (req as { user?: unknown }).user));
+  sendCachedJson(res, transformLibraryPayloadForViewer(cached, libraryViewer(req)));
   return true;
 }
 
@@ -135,12 +141,12 @@ function sendLibraryPayload(
   cacheKey: string,
   payload: unknown,
 ): void {
-  if (isStaffLibraryUser((req as { user?: unknown }).user)) {
+  if (isStaffLibraryUser(libraryViewer(req))) {
     sendFreshJson(res, payload);
     return;
   }
   setLibraryReadCache(cacheKey, payload);
-  sendCachedJson(res, transformLibraryPayloadForViewer(payload, (req as { user?: unknown }).user));
+  sendCachedJson(res, transformLibraryPayloadForViewer(payload, libraryViewer(req)));
 }
 
 router.get("/library/official", optionalAuth, async (req, res): Promise<void> => {
@@ -285,7 +291,7 @@ router.get("/library/official/:id", optionalAuth, async (req, res): Promise<void
   }
   const isLecture = row.category.toLowerCase() === "lectures";
   const tracks = isLecture ? await fetchTracksForLecture(row.id) : undefined;
-  const viewer = (req as { user?: unknown }).user;
+  const viewer = libraryViewer(req);
   const payload = applyPremiumOfficialForViewer(
     {
       id: row.id,
