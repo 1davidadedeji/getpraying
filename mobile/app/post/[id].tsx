@@ -260,11 +260,18 @@ export default function PostDetailScreen() {
   const detailCardBorder = Math.max(1, Math.round(1.5 * uiScale));
   const detailCardOuterMb = Math.round(clamp(16 * uiScale, 14, 20));
 
+  const postIsPremium = Boolean(
+    (data as (Post & { isPremium?: boolean }) | undefined)?.isPremium ??
+      (localPost as (Post & { isPremium?: boolean }) | null)?.isPremium,
+  );
+  const premiumCommentsBlocked = postIsPremium && !subscribed;
+
   const loadComments = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!post?.id) return;
+    if (!Number.isFinite(postId)) return;
+    if (premiumCommentsBlocked) return;
     if (!opts?.silent) setCommentsLoading(true);
     try {
-      const res = await apiFetch(`/posts/${post.id}/comments`, { token });
+      const res = await apiFetch(`/posts/${postId}/comments`, { token });
       if (res.status === 404) {
         setPostUnavailable(true);
         setComments([]);
@@ -277,42 +284,51 @@ export default function PostDetailScreen() {
       const dataJson = await res.json();
       const list = (dataJson.comments ?? []) as CommentRow[];
       setComments(list);
-      if (post?.id) {
-        const userCommented =
-          user?.id != null && list.some((c) => c.authorId === user.id);
-        publishPostEngagement({
-          postId: post.id,
-          commentCount: list.length,
-          hasCommented: userCommented,
-        });
-        setLocalPost((p) =>
-          p
-            ? ({
-                ...p,
-                commentCount: list.length,
-                hasCommented: userCommented,
-              } as Post)
-            : p,
-        );
-      }
+      const userCommented =
+        user?.id != null && list.some((c) => c.authorId === user.id);
+      publishPostEngagement({
+        postId,
+        commentCount: list.length,
+        hasCommented: userCommented,
+      });
+      setLocalPost((p) =>
+        p && p.id === postId
+          ? ({
+              ...p,
+              commentCount: list.length,
+              hasCommented: userCommented,
+            } as Post)
+          : p,
+      );
     } catch {
       if (!opts?.silent) setComments([]);
     } finally {
       if (!opts?.silent) setCommentsLoading(false);
     }
-  }, [post?.id, token, user?.id]);
+  }, [postId, premiumCommentsBlocked, token, user?.id]);
 
   useEffect(() => {
-    if (post?.id && !postNotFound && !isPremiumInteractionBlocked(post, subscribed)) void loadComments();
-  }, [post?.id, post, subscribed, postNotFound, loadComments]);
+    setComments([]);
+    setCommentsLoading(false);
+  }, [postId]);
 
   useEffect(() => {
-    if (!post?.id || !screenFocused || postNotFound || isPremiumInteractionBlocked(post, subscribed)) return;
+    if (!Number.isFinite(postId) || postNotFound) return;
+    if (premiumCommentsBlocked) {
+      setComments([]);
+      setCommentsLoading(false);
+      return;
+    }
+    void loadComments();
+  }, [postId, premiumCommentsBlocked, postNotFound, loadComments]);
+
+  useEffect(() => {
+    if (!Number.isFinite(postId) || !screenFocused || postNotFound || premiumCommentsBlocked) return;
     const interval = setInterval(() => {
       void loadComments({ silent: true });
     }, LIVE_COMMENTS_POLL_MS);
     return () => clearInterval(interval);
-  }, [post?.id, screenFocused, postNotFound, loadComments]);
+  }, [postId, screenFocused, postNotFound, premiumCommentsBlocked, loadComments]);
 
   useEffect(() => {
     return subscribePostDetailRefresh((refreshedId) => {
@@ -757,7 +773,6 @@ export default function PostDetailScreen() {
         ]}
       >
         <View style={{ padding: detailCardPad }}>
-        {isPremiumPost ? <View style={[styles.premiumBanner, { marginBottom: Math.round(10 * uiScale) }]} /> : null}
         <View style={[styles.authorRow, { gap: authorGap, marginBottom: authorRowMb }]}>
           <View style={styles.headerLeftCluster} pointerEvents="box-none">
             <Pressable
@@ -1343,10 +1358,6 @@ const styles = StyleSheet.create({
     borderColor: PREMIUM_POST.cardBorder,
     shadowColor: PREMIUM_POST.star,
     shadowOpacity: 0.1,
-  },
-  premiumBanner: {
-    height: 3,
-    backgroundColor: PREMIUM_POST.bannerBorder,
   },
   cardActionsPremium: {
     borderTopWidth: 1,

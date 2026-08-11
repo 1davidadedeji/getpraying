@@ -367,7 +367,6 @@ function PostCardInner({
           },
         ]}
       >
-        {isPremiumPost ? <View style={[styles.premiumBanner, { marginBottom: Math.round(10 * uiScale) }]} /> : null}
         <Pressable
           onPress={openPostDetail}
           style={({ pressed }) => [pressed && !premiumBlocked && styles.cardBodyPressed]}
@@ -687,10 +686,6 @@ const styles = StyleSheet.create({
     borderColor: PREMIUM_POST.cardBorder,
     shadowColor: PREMIUM_POST.star,
     shadowOpacity: 0.1,
-  },
-  premiumBanner: {
-    height: 3,
-    backgroundColor: PREMIUM_POST.bannerBorder,
   },
   cardBody: {},
   cardBodyPressed: {
