@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import colors from "@/constants/colors";
 import { PremiumBadge } from "@/components/PremiumBadge";
-import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
+import { promptPremiumContentUnlock } from "@/lib/promptPremiumContent";
 
 const LOCKED_OVERLAY_MIN_H = 132;
 
@@ -28,6 +28,8 @@ type Props = {
   mode?: "text" | "media";
   style?: StyleProp<ViewStyle>;
   onUnlockPress?: () => void;
+  /** After subscribe, run this (e.g. start playback). */
+  onUnlocked?: () => void;
 };
 
 function PremiumLockOverlay({ mode = "text" }: { mode?: "text" | "media" }) {
@@ -39,7 +41,7 @@ function PremiumLockOverlay({ mode = "text" }: { mode?: "text" | "media" }) {
       </View>
       <Text style={styles.premiumLabel}>Premium</Text>
       <Text style={styles.lockHint} numberOfLines={2}>
-        {isMedia ? "Subscribe to play" : "Subscribe to unlock"}
+        {isMedia ? "Tap to subscribe and play" : "Tap to subscribe and unlock"}
       </Text>
     </View>
   );
@@ -55,6 +57,7 @@ export function PremiumGatedContent({
   mode = "text",
   style,
   onUnlockPress,
+  onUnlocked,
 }: Props) {
   const showMarker = Boolean(isPremium && showSubscriberMarker && !locked);
 
@@ -69,7 +72,7 @@ export function PremiumGatedContent({
       onUnlockPress();
       return;
     }
-    openPremiumPaywall();
+    promptPremiumContentUnlock(onUnlocked ? { onUnlocked } : undefined);
   };
 
   return (

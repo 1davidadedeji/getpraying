@@ -1,4 +1,3 @@
-import { router, type Href } from "expo-router";
 import React, {
   createContext,
   useCallback,
@@ -14,6 +13,8 @@ import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { apiFetch } from "@/lib/api";
 import { isSubscribed } from "@/lib/subscriptionAccess";
+import { cancelPremiumPlayAfterSubscribe } from "@/lib/premiumUnlockSession";
+import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
 import {
   subscriptionPromptPriority,
   type SubscriptionPromptVariant,
@@ -82,6 +83,9 @@ function SubscriptionPromptCoordinator() {
 
   const onNotNow = useCallback(() => {
     const closing = activeVariantRef.current;
+    if (closing === "premiumContent") {
+      cancelPremiumPlayAfterSubscribe();
+    }
     closePrompt();
     if (closing === "recurring" && token && user) {
       void recordRecurringDismiss(token)
@@ -93,8 +97,11 @@ function SubscriptionPromptCoordinator() {
   }, [closePrompt, refreshUser, token, user]);
 
   const onSubscribe = useCallback(() => {
+    const closing = activeVariantRef.current;
     closePrompt();
-    router.push("/(paywall)?soft=1" as Href);
+    requestAnimationFrame(() => {
+      openPremiumPaywall(closing === "premiumContent" ? "premiumContent" : "generic");
+    });
   }, [closePrompt]);
 
   useEffect(() => {

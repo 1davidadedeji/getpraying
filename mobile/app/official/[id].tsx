@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Href, router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -140,6 +140,14 @@ export default function OfficialPrayerScreen() {
   useEffect(() => {
     void loadDetail();
   }, [loadDetail]);
+
+  const prevSubscribedRef = useRef(subscribed);
+  useEffect(() => {
+    if (!prevSubscribedRef.current && subscribed) {
+      void loadDetail();
+    }
+    prevSubscribedRef.current = subscribed;
+  }, [subscribed, loadDetail]);
 
   const bodyText = (data?.content ?? cachedSummary?.content ?? "").trim();
   const longBody = useMemo(

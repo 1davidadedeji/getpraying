@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import colors from "@/constants/colors";
-import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
+import { promptPremiumContentUnlock } from "@/lib/promptPremiumContent";
 
 type Props = {
   mode?: "text" | "media";
@@ -14,7 +14,7 @@ export function PremiumContentLock({ mode = "text", style, fontSize = 14 }: Prop
   const isMedia = mode === "media";
   return (
     <Pressable
-      onPress={() => openPremiumPaywall()}
+      onPress={() => promptPremiumContentUnlock()}
       style={({ pressed }) => [styles.wrap, isMedia && styles.mediaWrap, pressed && styles.pressed, style]}
       accessibilityRole="button"
       accessibilityLabel="Subscribe to unlock premium content"

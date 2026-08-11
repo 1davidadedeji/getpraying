@@ -16,6 +16,8 @@ type Props = {
   accentColor?: string;
   backgroundColor?: string;
   feedMediaFocused?: boolean;
+  /** Return false to block playback (e.g. premium gate). */
+  onBeforePlay?: () => boolean;
   onPlayingChange?: (playing: boolean) => void;
   /** Called when playback reaches the end (not looped). */
   onPlaybackFinished?: () => void;
@@ -32,6 +34,7 @@ export function CapsuleAudioPlayer({
   onPlayingChange,
   onPlaybackFinished,
   autoPlay = false,
+  onBeforePlay,
 }: Props) {
   const remoteUri = resolveMediaUrl(audioUrl ?? null);
   // Optimistic: mount the player with the remote URL immediately (no await on cache).
@@ -127,6 +130,7 @@ export function CapsuleAudioPlayer({
 
   useEffect(() => {
     if (!autoPlay || !playUri) return;
+    if (onBeforePlay?.() === false) return;
     const cid = controllerIdRef.current;
     if (cid == null) return;
     void (async () => {
@@ -170,6 +174,8 @@ export function CapsuleAudioPlayer({
     const cid = controllerIdRef.current;
     if (cid == null || !playUri) return;
 
+    if (onBeforePlay?.() === false) return;
+
     if (feedMediaFocused && !feedAudible) {
       await pauseAllMediaExcept(cid);
       await ensureAudioMode();
@@ -199,7 +205,7 @@ export function CapsuleAudioPlayer({
       setPlayPending(true);
       player.play();
     }
-  }, [feedMediaFocused, feedAudible, playing, muted, player, playUri]);
+  }, [feedMediaFocused, feedAudible, playing, muted, player, playUri, onBeforePlay]);
 
   const toggleMute = useCallback(async () => {
     if (feedMediaFocused) {

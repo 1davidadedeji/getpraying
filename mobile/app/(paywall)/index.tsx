@@ -37,6 +37,7 @@ import {
 } from "@/lib/revenuecatPurchase";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
 import { restorePurchasesWithFeedback } from "@/lib/restorePurchases";
+import { consumePremiumPlayAfterSubscribe } from "@/lib/premiumUnlockSession";
 import { clamp } from "@/lib/responsiveMetrics";
 
 export default function PaywallScreen() {
@@ -46,9 +47,11 @@ export default function PaywallScreen() {
   const rc = useRevenueCat();
   const queryClient = useQueryClient();
   const { pendingDeepLink, consumePendingHref } = usePendingDeepLink();
-  const { soft } = useLocalSearchParams<{ soft?: string }>();
+  const { soft, source } = useLocalSearchParams<{ soft?: string; source?: string }>();
   const pathname = usePathname();
   const isSoftPaywall = soft === "1" || soft === "true";
+  const paywallSource = typeof source === "string" ? source : undefined;
+  const fromPremiumContent = paywallSource === "premiumContent";
   const entitlementRedirected = useRef(false);
   const signingOut = useRef(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -125,11 +128,17 @@ export default function PaywallScreen() {
       }
       if (isSoftPaywall) {
         dismissPaywall();
+        if (fromPremiumContent) {
+          // Defer until the detail screen is visible again.
+          setTimeout(() => {
+            consumePremiumPlayAfterSubscribe();
+          }, 350);
+        }
         return;
       }
       enterApp();
     },
-    [dismissPaywall, enterApp, isSoftPaywall],
+    [dismissPaywall, enterApp, fromPremiumContent, isSoftPaywall],
   );
 
   // Navigate only after React commits user=null — prevents the tab layout from
@@ -282,13 +291,17 @@ export default function PaywallScreen() {
 
   const headline = rc.isPremiumTrial
     ? "You're subscribed"
-    : isSoftPaywall
-      ? "Subscribe to unlock"
-      : "Subscribe to Get Praying";
+    : fromPremiumContent
+      ? "This Content Is Premium Prayer Content"
+      : isSoftPaywall
+        ? "Subscribe to unlock"
+        : "Subscribe to Get Praying";
 
   const subtitle = rc.isPremiumTrial
     ? "Manage your subscription in the App Store or Google Play."
-    : "Unlimited Prayer Boosts, exclusive content, and premium community features — $6.99/month.";
+    : fromPremiumContent
+      ? "Subscribe to access exclusive prayers and messages from select celebrities and global faith leaders. Your subscription also helps support and grow the Get Praying community."
+      : "Unlimited Prayer Boosts, exclusive content, and premium community features — $6.99/month.";
 
   if (isCheckingSubscription) {
     return (

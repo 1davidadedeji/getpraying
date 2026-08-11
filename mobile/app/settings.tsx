@@ -25,6 +25,7 @@ import { useModerationBadge } from "@/context/moderationBadge";
 import { apiFetch } from "@/lib/api";
 import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
+import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
 import { openWebAdmin } from "@/lib/webAdmin";
 import { logoutThenClearQueryCache } from "@/lib/safeLogout";
@@ -287,7 +288,7 @@ export default function SettingsScreen() {
               !rc.enabled && styles.menuItemLast,
               { paddingHorizontal: sui.menuPadH, paddingVertical: sui.menuPadV, gap: sui.menuGap },
             ]}
-            onPress={() => router.push("/(paywall)?soft=1" as Href)}
+            onPress={() => openPremiumPaywall("settings")}
           >
             <Ionicons name="star-outline" size={sui.menuIcon} color={colors.primary} />
             <Text style={[styles.menuItemText, { fontSize: sui.menuTextFs }]}>Get Praying Premium</Text>

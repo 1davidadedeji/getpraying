@@ -7,7 +7,7 @@ export default function PaywallLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        presentation: "modal",
+        presentation: "fullScreenModal",
         contentStyle: { backgroundColor: colors.cream },
       }}
     />

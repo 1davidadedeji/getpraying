@@ -7,7 +7,6 @@ import colors from "@/constants/colors";
 import { prefetchCachedAudio } from "@/lib/audioMediaCache";
 import type { LectureTrackRow } from "@/lib/officialPrayer";
 import { usePremiumViewer } from "@/lib/premiumViewer";
-import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 
 type Props = {
@@ -90,10 +89,7 @@ export function LectureTrackList({
             <Pressable
               key={track.id}
               onPress={() => {
-                if (!trackPlayable(track)) {
-                  openPremiumPaywall();
-                  return;
-                }
+                if (!trackPlayable(track)) return;
                 if (isActive) return;
                 setAutoPlayActive(true);
                 setActiveTrackId(track.id);
@@ -113,6 +109,10 @@ export function LectureTrackList({
                 showSubscriberMarker={subscribed}
                 mode="media"
                 minHeight={isActive ? 140 : 88}
+                onUnlocked={() => {
+                  setAutoPlayActive(true);
+                  setActiveTrackId(track.id);
+                }}
               >
                 <View style={styles.trackCardTop}>
                   <View style={[styles.indexBadge, isActive && styles.indexBadgeActive]}>
