@@ -1,4 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -15,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, Stack, useFocusEffect, useLocalSearchParams, usePathname, type Href } from "expo-router";
 import { showAppAlert } from "@/components/AppAlert";
+import colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { usePendingDeepLink } from "@/context/pendingDeepLink";
@@ -40,9 +43,15 @@ import { restorePurchasesWithFeedback } from "@/lib/restorePurchases";
 import { consumePremiumPlayAfterSubscribe } from "@/lib/premiumUnlockSession";
 import { clamp } from "@/lib/responsiveMetrics";
 
+const PREMIUM_FEATURES = [
+  { icon: "flash" as const, label: "Unlimited Prayer Boosts" },
+  { icon: "star" as const, label: "Exclusive premium library" },
+  { icon: "heart" as const, label: "Support the community" },
+];
+
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
-  const { gutter, uiScale, cardRadius } = useResponsiveLayout();
+  const { gutter, uiScale } = useResponsiveLayout();
   const { user, logout } = useAuth();
   const rc = useRevenueCat();
   const queryClient = useQueryClient();
@@ -50,8 +59,7 @@ export default function PaywallScreen() {
   const { soft, source } = useLocalSearchParams<{ soft?: string; source?: string }>();
   const pathname = usePathname();
   const isSoftPaywall = soft === "1" || soft === "true";
-  const paywallSource = typeof source === "string" ? source : undefined;
-  const fromPremiumContent = paywallSource === "premiumContent";
+  const fromPremiumContent = source === "premiumContent";
   const entitlementRedirected = useRef(false);
   const signingOut = useRef(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -69,7 +77,6 @@ export default function PaywallScreen() {
   pathnameRef.current = pathname;
 
   const isCheckingSubscription = rc.isCheckingSubscription;
-  /** Freemium: paywall is always soft — user opened it voluntarily or via an upsell prompt. */
   const isMandatoryGate = false;
 
   const enterApp = useCallback(() => {
@@ -105,18 +112,11 @@ export default function PaywallScreen() {
   }, []);
 
   const leavePaywall = useCallback(async () => {
-    if (signingOut.current) return; // double-tap guard
+    if (signingOut.current) return;
     signingOut.current = true;
     await logoutThenClearQueryCache(logout, queryClient);
   }, [logout, queryClient]);
 
-  /**
-   * Back NEVER forces a logout (that surprised users). A soft upsell returns to
-   * the caller; the hard gate returns to the welcome screen — an
-   * entitlement-exempt route where the user stays signed in and can subscribe
-   * later or sign out explicitly via the footer. The welcome screen does not
-   * bounce gated users back here (see app/index.tsx), so this can't ping-pong.
-   */
   const dismissPaywall = useCallback(() => {
     goBackOrFallback((userRef.current ? "/(tabs)" : "/") as Href);
   }, []);
@@ -129,7 +129,6 @@ export default function PaywallScreen() {
       if (isSoftPaywall) {
         dismissPaywall();
         if (fromPremiumContent) {
-          // Defer until the detail screen is visible again.
           setTimeout(() => {
             consumePremiumPlayAfterSubscribe();
           }, 350);
@@ -141,11 +140,6 @@ export default function PaywallScreen() {
     [dismissPaywall, enterApp, fromPremiumContent, isSoftPaywall],
   );
 
-  // Navigate only after React commits user=null — prevents the tab layout from
-  // briefly seeing the old auth state and re-redirecting to paywall.
-  // Use back() so the stack shrinks cleanly: in the signup flow it is
-  // [welcome → paywall], so back() lands on welcome without stacking a second
-  // welcome on top.  replace("/") is the fallback when nothing is below.
   useEffect(() => {
     if (!signingOut.current || user !== null) return;
     signingOut.current = false;
@@ -259,72 +253,46 @@ export default function PaywallScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
-  const edgePad = Math.round(clamp(18 * uiScale, 14, 22));
   const padH = gutter;
-  const containerGap = Math.round(clamp(18 * uiScale, 14, 22));
-  const heroGap = Math.round(clamp(10 * uiScale, 8, 12));
-  const heroPadH = Math.round(clamp(10 * uiScale, 8, 12));
+  const edgePad = Math.round(clamp(20 * uiScale, 16, 24));
+  const emblemSize = Math.round(clamp(72 * uiScale, 64, 80));
+  const emblemIcon = Math.round(clamp(34 * uiScale, 30, 38));
   const fsTitle = Math.round(clamp(28 * uiScale, 24, 32));
-  const fsSub = Math.round(clamp(14 * uiScale, 13, 16));
-  const lhSub = Math.round(fsSub * 1.4);
-  const cardPad = Math.round(clamp(18 * uiScale, 16, 22));
-  const cardRad = Math.round(clamp(cardRadius, 26, 40));
-  const cardGap = Math.round(clamp(14 * uiScale, 12, 16));
-  const shadowR = Math.round(clamp(20 * uiScale, 16, 24));
-  const shadowOff = Math.round(clamp(8 * uiScale, 6, 10));
-  const centerGap = Math.round(clamp(8 * uiScale, 6, 10));
-  const centerPadV = Math.round(clamp(10 * uiScale, 8, 12));
-  const fsLoading = Math.round(clamp(13 * uiScale, 12, 15));
-  const planPadV = Math.round(clamp(16 * uiScale, 14, 18));
-  const planPadH = Math.round(clamp(18 * uiScale, 16, 22));
-  const planRad = Math.round(clamp(32 * uiScale, 28, 36));
-  const fsPlan = Math.round(clamp(16 * uiScale, 15, 18));
-  const fsPlanSub = Math.round(clamp(13 * uiScale, 12, 15));
-  const fsLegal = Math.round(clamp(11 * uiScale, 10, 12));
-  const lhLegal = Math.round(fsLegal * 1.45);
-  const linkPadV = Math.round(clamp(10 * uiScale, 8, 12));
-  const fsLink = Math.round(clamp(14 * uiScale, 13, 16));
-  const fsFooter = Math.round(clamp(13 * uiScale, 12, 15));
+  const fsPrice = Math.round(clamp(36 * uiScale, 32, 42));
+  const fsPriceUnit = Math.round(clamp(15 * uiScale, 14, 17));
+  const fsFeature = Math.round(clamp(15 * uiScale, 14, 17));
+  const fsFine = Math.round(clamp(12 * uiScale, 11, 13));
+  const fsLink = Math.round(clamp(13 * uiScale, 12, 15));
+  const fsBack = Math.round(clamp(15 * uiScale, 14, 17));
+  const featureGap = Math.round(clamp(14 * uiScale, 12, 16));
+  const featureIcon = Math.round(clamp(18 * uiScale, 16, 20));
+  const btnPadV = Math.round(clamp(16 * uiScale, 14, 18));
+  const btnRad = Math.round(clamp(32 * uiScale, 28, 36));
+  const fsBtn = Math.round(clamp(16 * uiScale, 15, 18));
+  const contentGap = Math.round(clamp(24 * uiScale, 20, 28));
 
-  const legalText =
-    "Experience prayer, guidance, and support from faith leaders. Your membership helps support and grow the Get Praying community.";
-
-  const headline = rc.isPremiumTrial
-    ? "You're subscribed"
-    : fromPremiumContent
-      ? "This Content Is Premium Prayer Content"
-      : isSoftPaywall
-        ? "Subscribe to unlock"
-        : "Subscribe to Get Praying";
-
-  const subtitle = rc.isPremiumTrial
-    ? "Manage your subscription in the App Store or Google Play."
-    : fromPremiumContent
-      ? "Subscribe to access exclusive prayers and messages from select celebrities and global faith leaders. Your subscription also helps support and grow the Get Praying community."
-      : "Unlimited Prayer Boosts, exclusive content, and premium community features — $6.99/month.";
+  const subscribed = rc.isPremiumTrial || (rc.isEntitled && hasPremiumEntitlement(rc.customerInfo));
 
   if (isCheckingSubscription) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-        <View style={[styles.flex, styles.subscriptionGate, { paddingTop: topPad + edgePad, paddingBottom: botPad + edgePad }]}>
-          <ActivityIndicator color="#21638D" size="large" />
-          <Text style={[styles.loadingText, { fontSize: fsLoading, marginTop: centerGap }]}>
+        <LinearGradient colors={["#1A1F36", "#252B45"]} style={[styles.flex, styles.centered, { paddingTop: topPad, paddingBottom: botPad }]}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={[styles.loadingText, { fontSize: fsFeature, marginTop: 12 }]}>
             Checking subscription…
           </Text>
-          {/* Escape hatch: never trap the user on this screen if the store check
-              stalls (slow network / misconfigured RevenueCat). */}
           <Pressable
             onPress={() => void leavePaywall()}
-            style={[styles.footerBtn, { paddingVertical: linkPadV, marginTop: containerGap }]}
+            style={{ paddingVertical: 12, marginTop: edgePad }}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
             testID="paywall-checking-sign-out"
           >
-            <Text style={[styles.footerMuted, { fontSize: fsFooter }]}>Sign Out</Text>
+            <Text style={[styles.footerMuted, { fontSize: fsLink }]}>Sign Out</Text>
           </Pressable>
-        </View>
+        </LinearGradient>
       </>
     );
   }
@@ -338,7 +306,7 @@ export default function PaywallScreen() {
           fullScreenGestureEnabled: !isMandatoryGate,
         }}
       />
-      <View style={styles.flex}>
+      <LinearGradient colors={["#1A1F36", "#252B45", "#1A1F36"]} style={styles.flex}>
         <View style={[styles.header, { paddingTop: topPad, paddingHorizontal: padH }]}>
           <Pressable
             onPress={dismissPaywall}
@@ -348,7 +316,8 @@ export default function PaywallScreen() {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Text style={[styles.closeText, { fontSize: fsLink }]}>← Back</Text>
+            <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.85)" />
+            <Text style={[styles.closeText, { fontSize: fsBack }]}>Back</Text>
           </Pressable>
         </View>
 
@@ -356,89 +325,54 @@ export default function PaywallScreen() {
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingHorizontal: padH, paddingBottom: edgePad, gap: containerGap },
+            { paddingHorizontal: padH, paddingBottom: edgePad },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.hero, { gap: heroGap, paddingHorizontal: heroPadH }]}>
-            <Text style={[styles.title, { fontSize: fsTitle }]}>{headline}</Text>
-            <Text style={[styles.subtitle, { fontSize: fsSub, lineHeight: lhSub }]}>{subtitle}</Text>
-          </View>
+          <View style={[styles.hero, { gap: contentGap }]}>
+            <View
+              style={[
+                styles.emblem,
+                {
+                  width: emblemSize,
+                  height: emblemSize,
+                  borderRadius: emblemSize / 2,
+                },
+              ]}
+            >
+              <Ionicons name="star" size={emblemIcon} color={colors.accent} />
+            </View>
 
-          <View
-            style={[
-              styles.card,
-              {
-                padding: cardPad,
-                borderRadius: cardRad,
-                gap: cardGap,
-                shadowRadius: shadowR,
-                shadowOffset: { width: 0, height: shadowOff },
-              },
-            ]}
-          >
-            {!rc.isReady || rc.catalogLoading ? (
-              <View style={[styles.center, { gap: centerGap, paddingVertical: centerPadV }]}>
-                <ActivityIndicator color="#21638D" />
-                <Text style={[styles.loadingText, { fontSize: fsLoading }]}>
-                  Loading subscription options…
-                </Text>
-              </View>
-            ) : !rc.enabled ? (
-              <View style={[styles.center, { gap: centerGap, paddingVertical: centerPadV }]}>
-                <Text style={[styles.loadingText, { fontSize: fsLoading }]}>
-                  RevenueCat keys are not configured yet.
-                </Text>
-              </View>
-            ) : !rc.hasMonthlyOffer ? (
-              <View style={[styles.center, { gap: centerGap, paddingVertical: centerPadV }]}>
-                <Text style={[styles.loadingText, { fontSize: fsLoading }]}>
-                  {rc.catalogError ?? "Monthly subscription is not available yet."}
-                </Text>
-                <Pressable
-                  onPress={() => void rc.refresh()}
-                  style={[
-                    styles.retryBtn,
-                    { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
-                  ]}
-                  testID="paywall-retry"
-                >
-                  <Text style={[styles.retryText, { fontSize: fsPlan }]}>Try again</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <>
-                <Pressable
-                  style={[
-                    styles.planBtn,
-                    styles.planBtnPrimary,
-                    { paddingVertical: planPadV, paddingHorizontal: planPadH, borderRadius: planRad },
-                    purchasing && styles.planBtnDisabled,
-                  ]}
-                  onPress={() => void onPurchase()}
-                  disabled={purchasing}
-                  testID="subscribe-monthly"
-                >
-                  {purchasing ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <View style={styles.planCopy}>
-                      <Text style={[styles.planName, styles.planNamePrimary, { fontSize: fsPlan }]}>
-                        {rc.isPremiumTrial ? "Manage subscription" : "Subscribe"}
-                      </Text>
-                      <Text style={[styles.planSub, { fontSize: fsPlanSub }]}>
-                        {rc.isPremiumTrial
-                          ? "Subscription active · unlimited Boost included"
-                          : "$6.99/month · cancel anytime"}
-                      </Text>
+            <View style={styles.titleBlock}>
+              <Text style={[styles.title, { fontSize: fsTitle }]}>
+                {subscribed ? "You're Premium" : "Get Praying Premium"}
+              </Text>
+              {!subscribed && (
+                <View style={styles.priceRow}>
+                  <Text style={[styles.price, { fontSize: fsPrice }]}>$6.99</Text>
+                  <Text style={[styles.priceUnit, { fontSize: fsPriceUnit }]}>/ month</Text>
+                </View>
+              )}
+            </View>
+
+            {!subscribed && (
+              <View style={[styles.features, { gap: featureGap }]}>
+                {PREMIUM_FEATURES.map((item) => (
+                  <View key={item.label} style={styles.featureRow}>
+                    <View style={styles.featureIconWrap}>
+                      <Ionicons name={item.icon} size={featureIcon} color={colors.accent} />
                     </View>
-                  )}
-                </Pressable>
-                <Text style={[styles.legal, { fontSize: fsLegal, lineHeight: lhLegal }]}>
-                  {legalText}
-                </Text>
-              </>
+                    <Text style={[styles.featureText, { fontSize: fsFeature }]}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {subscribed && (
+              <Text style={[styles.subscribedHint, { fontSize: fsFeature }]}>
+                Manage your plan in the App Store or Google Play.
+              </Text>
             )}
           </View>
         </ScrollView>
@@ -446,54 +380,94 @@ export default function PaywallScreen() {
         <View
           style={[
             styles.footer,
-            { paddingHorizontal: padH, paddingBottom: botPad + edgePad, gap: linkPadV },
+            { paddingHorizontal: padH, paddingBottom: botPad + edgePad, gap: Math.round(clamp(12 * uiScale, 10, 14)) },
           ]}
         >
+          {!rc.isReady || rc.catalogLoading ? (
+            <View style={[styles.catalogState, { paddingVertical: btnPadV }]}>
+              <ActivityIndicator color={colors.accent} />
+              <Text style={[styles.loadingText, { fontSize: fsFeature, marginTop: 8 }]}>
+                Loading subscription…
+              </Text>
+            </View>
+          ) : !rc.enabled ? (
+            <Text style={[styles.loadingText, { fontSize: fsFeature, textAlign: "center" }]}>
+              RevenueCat keys are not configured yet.
+            </Text>
+          ) : !rc.hasMonthlyOffer ? (
+            <View style={styles.catalogState}>
+              <Text style={[styles.loadingText, { fontSize: fsFeature, textAlign: "center" }]}>
+                {rc.catalogError ?? "Monthly subscription is not available yet."}
+              </Text>
+              <Pressable
+                onPress={() => void rc.refresh()}
+                style={[styles.ctaBtn, { paddingVertical: btnPadV, borderRadius: btnRad, marginTop: 12 }]}
+                testID="paywall-retry"
+              >
+                <Text style={[styles.ctaText, { fontSize: fsBtn }]}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <Pressable
+                style={[
+                  styles.ctaBtn,
+                  { paddingVertical: btnPadV, borderRadius: btnRad },
+                  purchasing && styles.ctaBtnDisabled,
+                ]}
+                onPress={() => void onPurchase()}
+                disabled={purchasing}
+                testID="subscribe-monthly"
+              >
+                {purchasing ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={[styles.ctaText, { fontSize: fsBtn }]}>
+                    {subscribed ? "Manage subscription" : "Subscribe"}
+                  </Text>
+                )}
+              </Pressable>
+              {!subscribed && (
+                <Text style={[styles.finePrint, { fontSize: fsFine, lineHeight: Math.round(fsFine * 1.45) }]}>
+                  Auto-renews monthly. Cancel anytime.
+                </Text>
+              )}
+            </>
+          )}
+
+          <View style={styles.footerLinks}>
+            <Pressable
+              onPress={() => void onRestore()}
+              disabled={restoring || !rc.enabled}
+              testID="paywall-restore"
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Restore purchases"
+            >
+              <Text style={[styles.footerLink, { fontSize: fsLink, opacity: restoring ? 0.5 : 1 }]}>
+                {restoring ? "Restoring…" : "Restore"}
+              </Text>
+            </Pressable>
+            <Text style={styles.footerDot}>·</Text>
+            <Pressable onPress={() => void openLegalDocument(TERMS_URL)} hitSlop={8} accessibilityRole="link">
+              <Text style={[styles.footerLink, { fontSize: fsLink }]}>Terms</Text>
+            </Pressable>
+            <Text style={styles.footerDot}>·</Text>
+            <Pressable onPress={() => void openLegalDocument(PRIVACY_URL)} hitSlop={8} accessibilityRole="link">
+              <Text style={[styles.footerLink, { fontSize: fsLink }]}>Privacy</Text>
+            </Pressable>
+          </View>
+
           <Pressable
             onPress={() => void leavePaywall()}
-            style={[styles.footerBtn, { paddingVertical: linkPadV }]}
             testID="paywall-sign-out"
             hitSlop={8}
             accessibilityRole="button"
           >
-            <Text style={[styles.footerMuted, { fontSize: fsFooter }]}>Sign Out</Text>
+            <Text style={[styles.footerMuted, { fontSize: fsLink }]}>Sign Out</Text>
           </Pressable>
-
-          <Pressable
-            onPress={() => void onRestore()}
-            style={[styles.footerBtn, { paddingVertical: linkPadV }]}
-            disabled={restoring || !rc.enabled}
-            testID="paywall-restore"
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Restore purchases"
-          >
-            <Text style={[styles.footerLink, { fontSize: fsFooter, opacity: restoring ? 0.5 : 1 }]}>
-              {restoring ? "Restoring…" : "Restore Purchases"}
-            </Text>
-          </Pressable>
-
-          <View style={styles.legalRow}>
-            <Pressable
-              onPress={() => void openLegalDocument(TERMS_URL)}
-              style={[styles.footerBtn, { paddingVertical: linkPadV }]}
-              hitSlop={8}
-              accessibilityRole="link"
-            >
-              <Text style={[styles.footerLink, { fontSize: fsFooter }]}>Terms of Service</Text>
-            </Pressable>
-            <Text style={[styles.legalDot, { fontSize: fsFooter }]}>·</Text>
-            <Pressable
-              onPress={() => void openLegalDocument(PRIVACY_URL)}
-              style={[styles.footerBtn, { paddingVertical: linkPadV }]}
-              hitSlop={8}
-              accessibilityRole="link"
-            >
-              <Text style={[styles.footerLink, { fontSize: fsFooter }]}>Privacy</Text>
-            </Pressable>
-          </View>
         </View>
-      </View>
+      </LinearGradient>
     </>
   );
 }
@@ -501,14 +475,24 @@ export default function PaywallScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: "#E3F2FD",
   },
-  subscriptionGate: {
+  centered: {
     alignItems: "center",
     justifyContent: "center",
   },
   header: {
     flexShrink: 0,
+  },
+  closeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 2,
+    paddingVertical: 4,
+  },
+  closeText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "rgba(255,255,255,0.85)",
   },
   scroll: {
     flex: 1,
@@ -519,104 +503,113 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: "center",
+    paddingVertical: 8,
+  },
+  emblem: {
+    backgroundColor: "rgba(212,160,67,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(212,160,67,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  titleBlock: {
+    alignItems: "center",
+    gap: 8,
   },
   title: {
     fontFamily: "NotoSerif_700Bold",
-    color: "#0E2A3A",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "rgba(14,42,58,0.72)",
-    textAlign: "center",
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "rgba(33,99,141,0.12)",
-    shadowColor: "#21638D",
-    shadowOpacity: 0.08,
-    elevation: 2,
-  },
-  center: {
-    alignItems: "center",
-  },
-  loadingText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "rgba(14,42,58,0.72)",
-    textAlign: "center",
-  },
-  retryBtn: {
-    backgroundColor: "#21638D",
-    alignItems: "center",
-  },
-  retryText: {
-    fontFamily: "PlusJakartaSans_700Bold",
     color: "#FFFFFF",
+    textAlign: "center",
   },
-  planBtn: {
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  planBtnPrimary: {
-    backgroundColor: "#21638D",
-    borderColor: "rgba(33,99,141,0.2)",
-  },
-  planBtnDisabled: {
-    opacity: 0.7,
-  },
-  planCopy: {
-    alignItems: "center",
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
     gap: 4,
   },
-  planName: {
+  price: {
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#0E2A3A",
-    textAlign: "center",
+    color: colors.accent,
   },
-  planNamePrimary: {
-    color: "#FFFFFF",
+  priceUnit: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "rgba(255,255,255,0.65)",
   },
-  planSub: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "rgba(255,255,255,0.92)",
-    textAlign: "center",
+  features: {
+    width: "100%",
+    maxWidth: 320,
   },
-  legal: {
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  featureIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureText: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "rgba(255,255,255,0.88)",
+  },
+  subscribedHint: {
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "rgba(14,42,58,0.62)",
+    color: "rgba(255,255,255,0.65)",
     textAlign: "center",
+    maxWidth: 280,
   },
   footer: {
     flexShrink: 0,
     alignItems: "center",
   },
-  footerBtn: {
+  catalogState: {
+    width: "100%",
     alignItems: "center",
   },
-  footerLink: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#21638D",
+  ctaBtn: {
+    width: "100%",
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 52,
   },
-  footerMuted: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "rgba(14,42,58,0.55)",
+  ctaBtnDisabled: {
+    opacity: 0.75,
   },
-  legalRow: {
+  ctaText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.primary,
+  },
+  finePrint: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "rgba(255,255,255,0.45)",
+    textAlign: "center",
+  },
+  loadingText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "rgba(255,255,255,0.72)",
+    textAlign: "center",
+  },
+  footerLinks: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
   },
-  legalDot: {
-    color: "rgba(14,42,58,0.45)",
+  footerLink: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "rgba(255,255,255,0.55)",
   },
-  closeBtn: {
-    alignSelf: "flex-start",
-    paddingVertical: 4,
+  footerDot: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 13,
   },
-  closeText: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#21638D",
+  footerMuted: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "rgba(255,255,255,0.38)",
   },
 });

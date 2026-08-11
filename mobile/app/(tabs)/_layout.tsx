@@ -203,7 +203,6 @@ function useNotificationsUnreadCount() {
 /** Aligns with system tab bar: badge over Alerts (3rd tab). Must stay inside TabBarVisibilityProvider. */
 function NativeAlertsUnreadBadge({ unreadCount }: { unreadCount: number }) {
   const insets = useSafeAreaInsets();
-  const { translateY } = useTabBarVisibility();
   const { uiScale } = useResponsiveLayout();
   if (unreadCount <= 0) return null;
   const badgeMinW = Math.round(clamp(16 * uiScale, 14, 18));
@@ -218,10 +217,7 @@ function NativeAlertsUnreadBadge({ unreadCount }: { unreadCount: number }) {
       ? Math.round(clamp(52 * uiScale, 48, 58))
       : Math.round(clamp(58 * uiScale, 52, 64));
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[nativeBadgeStyles.wrap, { transform: [{ translateY }] }]}
-    >
+    <View pointerEvents="none" style={nativeBadgeStyles.wrap}>
       <View
         style={[
           nativeBadgeStyles.row,
@@ -252,7 +248,7 @@ function NativeAlertsUnreadBadge({ unreadCount }: { unreadCount: number }) {
           </View>
         ))}
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -286,7 +282,6 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
   const insets = useSafeAreaInsets();
   const isIOS = Platform.OS === "ios";
   const isDark = useColorScheme() === "dark";
-  const { translateY } = useTabBarVisibility();
   const { iconTab, tabLabelSize, uiScale } = useResponsiveLayout();
   const tabBadgeMinW = Math.round(clamp(16 * uiScale, 14, 18));
   const tabBadgeH = Math.round(clamp(16 * uiScale, 14, 18));
@@ -304,7 +299,7 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
   const bgColor = isIOS ? "transparent" : isDark ? "#1A1F36" : colors.surface;
 
   return (
-    <Animated.View
+    <View
       style={[
         tabBarStyles.container,
         {
@@ -312,7 +307,6 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
           paddingBottom: insets.bottom,
           borderTopWidth: 0,
           borderTopColor: colors.border,
-          transform: [{ translateY }],
         },
       ]}
     >
@@ -402,7 +396,7 @@ function CustomTabBar({ state, navigation }: { state: any; navigation: any }) {
           </Pressable>
         );
       })}
-    </Animated.View>
+    </View>
   );
 }
 
