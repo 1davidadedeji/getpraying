@@ -51,7 +51,7 @@ async function executePost(payload: SimulatedJobPayload): Promise<boolean> {
 
 async function executePray(postId: number, userId: number): Promise<void> {
   const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId)).limit(1);
-  if (!post || post.status !== "approved") return;
+  if (!post || post.status !== "approved" || post.isPremium) return;
   if (post.authorId === userId) return;
 
   const inserted = await db
@@ -73,7 +73,7 @@ async function executePray(postId: number, userId: number): Promise<void> {
 
 async function executeSave(postId: number, userId: number): Promise<void> {
   const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId)).limit(1);
-  if (!post || post.status !== "approved") return;
+  if (!post || post.status !== "approved" || post.isPremium) return;
   if (post.authorId === userId) return;
 
   const inserted = await db
@@ -98,7 +98,7 @@ async function executeComment(
   presetContent?: string,
 ): Promise<void> {
   const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId)).limit(1);
-  if (!post || post.status !== "approved") return;
+  if (!post || post.status !== "approved" || post.isPremium) return;
   if (post.authorId === userId) return;
 
   const existing = await db
@@ -123,6 +123,13 @@ async function executeComment(
 }
 
 async function executeBoost(postId: number): Promise<void> {
+  const [post] = await db
+    .select({ isPremium: postsTable.isPremium })
+    .from(postsTable)
+    .where(eq(postsTable.id, postId))
+    .limit(1);
+  if (post?.isPremium) return;
+
   await db
     .update(postsTable)
     .set({ boostedAt: new Date() })

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { engagementCountForPost, pickSimulatedComment } from "./simulatedPrayerContent";
+import {
+  engagementCountForPost,
+  pickContentLengthTier,
+  pickSimulatedComment,
+} from "./simulatedPrayerContent";
 import { pickEngagementAction, randInt } from "./simulatedActivityRandom";
 
 describe("simulatedActivityRandom", () => {
@@ -32,6 +36,15 @@ describe("simulatedPrayerContent", () => {
   });
 
   it("pickSimulatedComment returns non-empty text", () => {
-    expect(pickSimulatedComment().length).toBeGreaterThan(10);
+    expect(pickSimulatedComment().length).toBeGreaterThan(3);
+    expect(pickSimulatedComment("long").length).toBeGreaterThan(50);
+    expect(pickSimulatedComment("short").length).toBeLessThan(60);
+  });
+
+  it("pickContentLengthTier returns valid tiers", () => {
+    const tiers = new Set(Array.from({ length: 40 }, () => pickContentLengthTier()));
+    expect(tiers.has("short")).toBe(true);
+    expect(tiers.has("normal")).toBe(true);
+    expect(tiers.has("long")).toBe(true);
   });
 });

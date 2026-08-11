@@ -1,3 +1,5 @@
+import { db, postsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { loadSeedUsers } from "./seedUsers";
 import {
   enqueueSimulatedJobs,
@@ -53,6 +55,14 @@ export async function scheduleEngagementForPost(
   realUserPost: boolean,
 ): Promise<number> {
   if (!isSimulatedActivityEnabled()) return 0;
+
+  const [post] = await db
+    .select({ isPremium: postsTable.isPremium })
+    .from(postsTable)
+    .where(eq(postsTable.id, postId))
+    .limit(1);
+  if (post?.isPremium) return 0;
+
   if (realUserPost && (await postAlreadyHasEngagementJobs(postId))) return 0;
   const seedUsers = await loadSeedUsers();
   const jobs = buildEngagementJobs(postId, authorId, seedUsers, realUserPost);

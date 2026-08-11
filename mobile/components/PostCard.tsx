@@ -43,6 +43,8 @@ import { publishPostEngagement } from "@/lib/postEngagementSync";
 import { isPremiumMediaLocked } from "@/lib/premiumContent";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import { usePremiumViewer } from "@/lib/premiumViewer";
+import { gatePremiumInteraction, isPremiumInteractionBlocked } from "@/lib/premiumInteractionGate";
+import { PREMIUM_POST, premiumPostActionColors } from "@/lib/premiumPostTheme";
 
 type PostWithCounts = Post & { commentCount?: number; saveCount?: number; hasCommented?: boolean };
 
@@ -131,6 +133,7 @@ function PostCardInner({
   };
 
   const handlePray = () => {
+    if (gatePremiumInteraction(localPost, subscribed)) return;
     if (authLoading || !ensureSignedIn()) return;
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.4, useNativeDriver: true }),
@@ -186,6 +189,7 @@ function PostCardInner({
   };
 
   const handleSave = () => {
+    if (gatePremiumInteraction(localPost, subscribed)) return;
     if (authLoading || !ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     engageMutationPendingRef.current += 1;
@@ -276,6 +280,7 @@ function PostCardInner({
   };
 
   const handleShare = async () => {
+    if (gatePremiumInteraction(localPost, subscribed)) return;
     const { message } = buildPostSharePayload(localPost);
 
     try {
@@ -300,8 +305,30 @@ function PostCardInner({
       : [];
   })();
 
-  const prayColor = localPost.hasPrayed ? colors.flame : colors.muted;
-  const bookmarkColor = localPost.isSaved ? colors.primary : colors.muted;
+  const isPremiumPost = Boolean((localPost as PostWithCounts).isPremium);
+  const premiumBlocked = isPremiumInteractionBlocked(localPost, subscribed);
+  const actionColors = premiumPostActionColors(isPremiumPost, {
+    hasPrayed: localPost.hasPrayed,
+    isSaved: localPost.isSaved,
+    hasCommented: (localPost as PostWithCounts).hasCommented,
+  });
+
+  const postHref = useMemo(() => {
+    const base = `/post/${localPost.id}`;
+    if (!activeProfileUsername) return base;
+    return `${base}?fromProfile=${encodeURIComponent(activeProfileUsername)}`;
+  }, [activeProfileUsername, localPost.id]);
+
+  const openPostDetail = useCallback(() => {
+    if (gatePremiumInteraction(localPost, subscribed)) return;
+    navigate(postHref as any);
+  }, [localPost, subscribed, navigate, postHref]);
+
+  const openComments = useCallback(() => {
+    if (gatePremiumInteraction(localPost, subscribed)) return;
+    navigate(postHref as any);
+  }, [localPost, subscribed, navigate, postHref]);
+
   const isOwnPost =
     user != null &&
     !localPost.isAnonymous &&
@@ -318,18 +345,32 @@ function PostCardInner({
     navigate(`/user/${encodeURIComponent(localPost.authorUsername)}` as any);
   }, [activeProfileUsername, localPost.authorUsername, localPost.isAnonymous, navigate]);
 
-  const postHref = useMemo(() => {
-    const base = `/post/${localPost.id}`;
-    if (!activeProfileUsername) return base;
-    return `${base}?fromProfile=${encodeURIComponent(activeProfileUsername)}`;
-  }, [activeProfileUsername, localPost.id]);
-
   return (
-    <View style={[styles.card, { borderRadius: cardRadius, marginBottom: Math.round(12 * uiScale), overflow: Platform.OS === "android" ? "visible" : "hidden" }]}>
-      <View style={[styles.cardBody, { padding: cardPad, paddingBottom: Math.round(cardPad * 0.75) }]}>
+    <View
+      style={[
+        styles.card,
+        isPremiumPost && styles.cardPremium,
+        {
+          borderRadius: cardRadius,
+          marginBottom: Math.round(12 * uiScale),
+          overflow: Platform.OS === "android" ? "visible" : "hidden",
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.cardBody,
+          {
+            paddingHorizontal: cardPad,
+            paddingTop: cardPad,
+            paddingBottom: Math.round(cardPad * 0.75),
+          },
+        ]}
+      >
+        {isPremiumPost ? <View style={[styles.premiumBanner, { marginBottom: Math.round(10 * uiScale) }]} /> : null}
         <Pressable
-          onPress={() => navigate(postHref as any)}
-          style={({ pressed }) => [pressed && styles.cardBodyPressed]}
+          onPress={openPostDetail}
+          style={({ pressed }) => [pressed && !premiumBlocked && styles.cardBodyPressed]}
           accessibilityRole="button"
           accessibilityLabel={`Open prayer from ${authorName}`}
         >
@@ -398,7 +439,6 @@ function PostCardInner({
         </Pressable>
 
         {(() => {
-          const isPremiumPost = Boolean(localPost.isPremium);
           const premiumLocked = shouldBlur(localPost);
           const body = (
             <>
@@ -416,18 +456,20 @@ function PostCardInner({
                 }
                 onOpenPostDetail={
                   localPost.mediaType === "video"
-                    ? () =>
+                    ? () => {
+                        if (gatePremiumInteraction(localPost, subscribed)) return;
                         navigate(
                           `${postHref}${postHref.includes("?") ? "&" : "?"}focusMedia=1` as any,
-                        )
+                        );
+                      }
                     : undefined
                 }
               />
 
               {(og.displayTextWithoutUrl.trim().length > 0 || og.showLinkPreview) ? (
                 <Pressable
-                  onPress={() => navigate(postHref as any)}
-                  style={({ pressed }) => [pressed && styles.cardBodyPressed]}
+                  onPress={openPostDetail}
+                  style={({ pressed }) => [pressed && !premiumBlocked && styles.cardBodyPressed]}
                   accessibilityRole="button"
                   accessibilityLabel={`Open prayer from ${authorName}`}
                 >
@@ -463,9 +505,7 @@ function PostCardInner({
             <PremiumGatedContent
               locked={premiumLocked}
               isPremium
-              showSubscriberMarker={subscribed}
               mode={isPremiumMediaLocked(localPost) ? "media" : "text"}
-              style={styles.premiumContentWrap}
               minHeight={isPremiumMediaLocked(localPost) ? 160 : 132}
             >
               {body}
@@ -474,13 +514,19 @@ function PostCardInner({
         })()}
       </View>
 
-      <View style={styles.actions}>
+      <View
+        style={[
+          styles.actions,
+          isPremiumPost && styles.actionsPremium,
+          { paddingHorizontal: cardPad },
+        ]}
+      >
         <View style={styles.actionsPrimary}>
           <Pressable
             onPress={handlePray}
             style={styles.actionBtn}
             testID="pray-btn"
-            disabled={!canEngage}
+            disabled={!canEngage && !premiumBlocked}
             accessibilityRole="button"
             accessibilityLabel={localPost.hasPrayed ? "Praying" : "Pray for this post"}
           >
@@ -488,10 +534,15 @@ function PostCardInner({
               <Ionicons
                 name={localPost.hasPrayed ? "flame" : "flame-outline"}
                 size={iconAction}
-                color={prayColor}
+                color={actionColors.pray}
               />
             </Animated.View>
-            <Text style={[styles.actionCount, localPost.hasPrayed && styles.actionCountActive]}>
+            <Text
+              style={[
+                styles.actionCount,
+                localPost.hasPrayed && { color: actionColors.countPrayActive },
+              ]}
+            >
               {localPost.prayCount}
             </Text>
           </Pressable>
@@ -499,7 +550,7 @@ function PostCardInner({
           <Pressable
             onPress={(e) => {
               e.stopPropagation?.();
-              navigate(postHref as any);
+              openComments();
             }}
             style={styles.actionBtn}
             accessibilityRole="button"
@@ -508,12 +559,12 @@ function PostCardInner({
             <Ionicons
               name={(localPost as PostWithCounts).hasCommented ? "chatbubble" : "chatbubble-outline"}
               size={iconSm}
-              color={(localPost as PostWithCounts).hasCommented ? colors.primary : colors.muted}
+              color={actionColors.comment}
             />
             <Text
               style={[
                 styles.actionCount,
-                (localPost as PostWithCounts).hasCommented && styles.actionCountActive,
+                (localPost as PostWithCounts).hasCommented && { color: actionColors.countCommentActive },
               ]}
             >
               {localPost.commentCount ?? 0}
@@ -524,16 +575,21 @@ function PostCardInner({
             onPress={handleSave}
             style={styles.actionBtn}
             testID="save-btn"
-            disabled={!canEngage}
+            disabled={!canEngage && !premiumBlocked}
             accessibilityRole="button"
             accessibilityLabel={localPost.isSaved ? "Remove from saved" : "Save to library"}
           >
             <Ionicons
               name={localPost.isSaved ? "bookmark" : "bookmark-outline"}
               size={iconAction}
-              color={bookmarkColor}
+              color={actionColors.bookmark}
             />
-            <Text style={[styles.actionCount, localPost.isSaved && styles.actionCountSaved]}>
+            <Text
+              style={[
+                styles.actionCount,
+                localPost.isSaved && { color: actionColors.countSavedActive },
+              ]}
+            >
               {localPost.saveCount ?? 0}
             </Text>
           </Pressable>
@@ -547,13 +603,14 @@ function PostCardInner({
             accessibilityRole="button"
             accessibilityLabel="Share prayer"
           >
-            <Feather name="share-2" size={iconMicro} color={colors.muted} />
+            <Feather name="share-2" size={iconMicro} color={actionColors.share} />
           </Pressable>
 
           {!isOwnPost && token ? (
             <Pressable
               onPress={(e) => {
                 e.stopPropagation?.();
+                if (gatePremiumInteraction(localPost, subscribed)) return;
                 Haptics.selectionAsync();
                 showPostSafetyMenu({
                   postId: localPost.id,
@@ -624,6 +681,16 @@ const styles = StyleSheet.create({
     maxWidth: 640,
     alignSelf: "center" as const,
     width: "100%",
+  },
+  cardPremium: {
+    backgroundColor: PREMIUM_POST.cardBg,
+    borderColor: PREMIUM_POST.cardBorder,
+    shadowColor: PREMIUM_POST.star,
+    shadowOpacity: 0.1,
+  },
+  premiumBanner: {
+    height: 3,
+    backgroundColor: PREMIUM_POST.bannerBorder,
   },
   cardBody: {},
   cardBodyPressed: {
@@ -719,19 +786,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
-  premiumContentWrap: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-  },
   actions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 8,
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.cream,
+  },
+  actionsPremium: {
+    backgroundColor: PREMIUM_POST.actionsBg,
+    borderTopColor: PREMIUM_POST.actionsBorder,
   },
   actionsPrimary: {
     flexDirection: "row",

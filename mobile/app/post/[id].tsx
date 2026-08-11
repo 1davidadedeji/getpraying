@@ -62,6 +62,8 @@ import { isNotFoundError, LIVE_COMMENTS_POLL_MS, LIVE_POST_POLL_MS } from "@/lib
 import { useScreenFocused } from "@/hooks/useScreenFocused";
 import { isPremiumContentLocked, isPremiumMediaLocked } from "@/lib/premiumContent";
 import { usePremiumViewer } from "@/lib/premiumViewer";
+import { gatePremiumInteraction, isPremiumInteractionBlocked } from "@/lib/premiumInteractionGate";
+import { PREMIUM_POST, premiumPostActionColors } from "@/lib/premiumPostTheme";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type CommentRow = {
@@ -301,11 +303,11 @@ export default function PostDetailScreen() {
   }, [post?.id, token, user?.id]);
 
   useEffect(() => {
-    if (post?.id && !postNotFound) void loadComments();
-  }, [post?.id, postNotFound, loadComments]);
+    if (post?.id && !postNotFound && !isPremiumInteractionBlocked(post, subscribed)) void loadComments();
+  }, [post?.id, post, subscribed, postNotFound, loadComments]);
 
   useEffect(() => {
-    if (!post?.id || !screenFocused || postNotFound) return;
+    if (!post?.id || !screenFocused || postNotFound || isPremiumInteractionBlocked(post, subscribed)) return;
     const interval = setInterval(() => {
       void loadComments({ silent: true });
     }, LIVE_COMMENTS_POLL_MS);
@@ -453,7 +455,8 @@ export default function PostDetailScreen() {
   };
 
   const handlePray = () => {
-    if (!post || !ensureSignedIn()) return;
+    if (!post || gatePremiumInteraction(post, subscribed)) return;
+    if (!ensureSignedIn()) return;
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.5, useNativeDriver: true }),
       Animated.spring(flameScale, { toValue: 1, useNativeDriver: true }),
@@ -508,7 +511,8 @@ export default function PostDetailScreen() {
   };
 
   const handleSave = () => {
-    if (!post || !ensureSignedIn()) return;
+    if (!post || gatePremiumInteraction(post, subscribed)) return;
+    if (!ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const prevSaved = post.isSaved;
     const prevSaveCount = (post as Post & { saveCount?: number }).saveCount ?? 0;
@@ -578,7 +582,7 @@ export default function PostDetailScreen() {
   };
 
   const handleShare = async () => {
-    if (!post) return;
+    if (!post || gatePremiumInteraction(post, subscribed)) return;
 
     try {
       Haptics.selectionAsync();
@@ -590,7 +594,7 @@ export default function PostDetailScreen() {
   };
 
   const handleReportFlag = () => {
-    if (!post) return;
+    if (!post || gatePremiumInteraction(post, subscribed)) return;
     Haptics.selectionAsync();
     showPostSafetyMenu({
       postId: post.id,
@@ -604,6 +608,7 @@ export default function PostDetailScreen() {
 
   const submitComment = async () => {
     if (!post || !commentDraft.trim()) return;
+    if (gatePremiumInteraction(post, subscribed)) return;
     if (authLoading) return;
     if (!token) {
       showAppAlert({ title: "Sign in required", message: "Please sign in to leave a comment." });
@@ -728,6 +733,13 @@ export default function PostDetailScreen() {
   const postPremium = post as Post & { isPremium?: boolean; contentLocked?: boolean };
   const contentLocked = isPremiumContentLocked(postPremium);
   const premiumLocked = shouldBlur(postPremium);
+  const premiumInteractionBlocked = isPremiumInteractionBlocked(postPremium, subscribed);
+  const isPremiumPost = Boolean(postPremium.isPremium);
+  const detailActionColors = premiumPostActionColors(isPremiumPost, {
+    hasPrayed: post.hasPrayed,
+    isSaved: post.isSaved,
+    hasCommented: (post as Post & { hasCommented?: boolean }).hasCommented,
+  });
   const longBody =
     prayerTextForUi.length > 260 || (prayerTextForUi.match(/\n/g)?.length ?? 0) > 4;
 
@@ -736,14 +748,16 @@ export default function PostDetailScreen() {
       <View
         style={[
           styles.detailCard,
+          isPremiumPost && styles.detailCardPremium,
           {
-            padding: detailCardPad,
             borderRadius: detailCardRad,
             borderWidth: detailCardBorder,
             marginBottom: detailCardOuterMb,
           },
         ]}
       >
+        <View style={{ padding: detailCardPad }}>
+        {isPremiumPost ? <View style={[styles.premiumBanner, { marginBottom: Math.round(10 * uiScale) }]} /> : null}
         <View style={[styles.authorRow, { gap: authorGap, marginBottom: authorRowMb }]}>
           <View style={styles.headerLeftCluster} pointerEvents="box-none">
             <Pressable
@@ -823,7 +837,6 @@ export default function PostDetailScreen() {
           <PremiumGatedContent
             locked={premiumLocked}
             isPremium
-            showSubscriberMarker={subscribed}
             mode={isPremiumMediaLocked(postPremium) ? "media" : "text"}
             minHeight={isPremiumMediaLocked(postPremium) ? 180 : 120}
             style={{ marginBottom: prayerMb }}
@@ -922,13 +935,13 @@ export default function PostDetailScreen() {
 
         <View style={[styles.divider, { marginBottom: dividerMb }]} />
 
-        <View style={styles.cardActions}>
+        <View style={[styles.cardActions, isPremiumPost && styles.cardActionsPremium]}>
           <View style={styles.cardActionsPrimary}>
             <Pressable
               onPress={handlePray}
               style={styles.cardActionBtn}
               testID="pray-btn-inline"
-              disabled={!canEngage}
+              disabled={!canEngage && !premiumInteractionBlocked}
               accessibilityRole="button"
               accessibilityLabel={post.hasPrayed ? "Praying" : "Pray for this post"}
             >
@@ -936,14 +949,14 @@ export default function PostDetailScreen() {
                 <Ionicons
                   name={post.hasPrayed ? "flame" : "flame-outline"}
                   size={flameIcn}
-                  color={post.hasPrayed ? colors.flame : colors.muted}
+                  color={detailActionColors.pray}
                 />
               </Animated.View>
               <Text
                 style={[
                   styles.cardActionCount,
                   { fontSize: fsPrayCount },
-                  post.hasPrayed && styles.cardActionCountActive,
+                  post.hasPrayed && { color: detailActionColors.countPrayActive },
                 ]}
               >
                 {post.prayCount}
@@ -954,20 +967,20 @@ export default function PostDetailScreen() {
               onPress={handleSave}
               style={styles.cardActionBtn}
               testID="save-btn-inline"
-              disabled={!canEngage}
+              disabled={!canEngage && !premiumInteractionBlocked}
               accessibilityRole="button"
               accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
             >
               <Ionicons
                 name={post.isSaved ? "bookmark" : "bookmark-outline"}
                 size={flameIcn}
-                color={post.isSaved ? colors.primary : colors.muted}
+                color={detailActionColors.bookmark}
               />
               <Text
                 style={[
                   styles.cardActionCount,
                   { fontSize: fsPrayCount },
-                  post.isSaved && styles.cardActionCountSaved,
+                  post.isSaved && { color: detailActionColors.countSavedActive },
                 ]}
               >
                 {(post as Post & { saveCount?: number }).saveCount ?? 0}
@@ -982,11 +995,13 @@ export default function PostDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel="Share prayer"
           >
-            <Feather name="share-2" size={Math.max(14, flameIcn - 2)} color={colors.muted} />
+            <Feather name="share-2" size={Math.max(14, flameIcn - 2)} color={detailActionColors.share} />
           </Pressable>
+        </View>
         </View>
       </View>
 
+      {!premiumInteractionBlocked ? (
       <>
         <Text style={[styles.commentsSectionTitle, { fontSize: fsCommentsTitle, marginBottom: commentsTitleMb }]}>
           Comments
@@ -997,6 +1012,7 @@ export default function PostDetailScreen() {
           </View>
         )}
       </>
+      ) : null}
     </>
   );
 
@@ -1069,7 +1085,7 @@ export default function PostDetailScreen() {
         renderItem={renderComment}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
-          !commentsLoading ? (
+          !premiumInteractionBlocked && !commentsLoading ? (
             <Text style={[styles.emptyComments, { fontSize: emptyFs, marginBottom: emptyMb }]}>No comments yet</Text>
           ) : null
         }
@@ -1080,6 +1096,7 @@ export default function PostDetailScreen() {
         onScrollBeginDrag={Keyboard.dismiss}
       />
 
+      {!premiumInteractionBlocked ? (
       <View style={[styles.stickyComposer, { gap: stickyGap, paddingHorizontal: stickyPadH, paddingVertical: stickyPadV }]}>
         <TextInput
           ref={commentInputRef}
@@ -1098,7 +1115,13 @@ export default function PostDetailScreen() {
           placeholderTextColor={colors.muted}
           value={commentDraft}
           onChangeText={setCommentDraft}
-          onFocus={() => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100)}
+          onFocus={() => {
+            if (gatePremiumInteraction(post, subscribed)) {
+              commentInputRef.current?.blur();
+              return;
+            }
+            setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+          }}
           onBlur={() => Keyboard.dismiss()}
           multiline
           maxLength={2000}
@@ -1126,10 +1149,12 @@ export default function PostDetailScreen() {
           )}
         </Pressable>
       </View>
+      ) : null}
 
       <View
         style={[
           styles.actionBar,
+          isPremiumPost && styles.actionBarPremium,
           {
             paddingHorizontal: actionBarPadH,
             paddingTop: actionBarPadT,
@@ -1147,10 +1172,10 @@ export default function PostDetailScreen() {
               gap: prayBtnGap,
               borderRadius: prayBtnRad,
             },
-            post.hasPrayed && styles.prayBtnActive,
+            post.hasPrayed && (isPremiumPost ? styles.prayBtnActivePremium : styles.prayBtnActive),
           ]}
           testID="pray-btn"
-          disabled={!canEngage}
+          disabled={!canEngage && !premiumInteractionBlocked}
           accessibilityRole="button"
           accessibilityLabel={post.hasPrayed ? "Praying" : "Pray for this"}
         >
@@ -1158,7 +1183,7 @@ export default function PostDetailScreen() {
             <Ionicons
               name={post.hasPrayed ? "flame" : "flame-outline"}
               size={engageIcn}
-              color={post.hasPrayed ? colors.surface : colors.flame}
+              color={post.hasPrayed ? colors.surface : (isPremiumPost ? PREMIUM_POST.prayActive : colors.flame)}
             />
           </Animated.View>
           <Text style={[styles.prayBtnText, { fontSize: fsPrayBtn }, post.hasPrayed && styles.prayBtnTextActive]}>
@@ -1175,17 +1200,17 @@ export default function PostDetailScreen() {
               height: iconBtnSz,
               borderRadius: iconBtnRad,
             },
-            post.isSaved && styles.iconCircleBtnActive,
+            post.isSaved && (isPremiumPost ? styles.iconCircleBtnActivePremium : styles.iconCircleBtnActive),
           ]}
           testID="save-btn"
-          disabled={!canEngage}
+          disabled={!canEngage && !premiumInteractionBlocked}
           accessibilityRole="button"
           accessibilityLabel={post.isSaved ? "Saved" : "Save to library"}
         >
           <Ionicons
             name={post.isSaved ? "bookmark" : "bookmark-outline"}
             size={engageIcn}
-            color={post.isSaved ? colors.surface : colors.primary}
+            color={post.isSaved ? colors.surface : (isPremiumPost ? PREMIUM_POST.bookmarkActive : colors.primary)}
           />
         </Pressable>
 
@@ -1203,7 +1228,7 @@ export default function PostDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel="Share prayer"
         >
-          <Feather name="share-2" size={shareIcn} color={colors.primary} />
+          <Feather name="share-2" size={shareIcn} color={isPremiumPost ? PREMIUM_POST.accentMuted : colors.primary} />
         </Pressable>
       </View>
 
@@ -1312,6 +1337,32 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     overflow: "hidden" as const,
+  },
+  detailCardPremium: {
+    backgroundColor: PREMIUM_POST.cardBg,
+    borderColor: PREMIUM_POST.cardBorder,
+    shadowColor: PREMIUM_POST.star,
+    shadowOpacity: 0.1,
+  },
+  premiumBanner: {
+    height: 3,
+    backgroundColor: PREMIUM_POST.bannerBorder,
+  },
+  cardActionsPremium: {
+    borderTopWidth: 1,
+    borderTopColor: PREMIUM_POST.actionsBorder,
+    marginTop: 4,
+    paddingTop: 8,
+  },
+  actionBarPremium: {
+    backgroundColor: PREMIUM_POST.actionsBg,
+    borderTopColor: PREMIUM_POST.actionsBorder,
+  },
+  prayBtnActivePremium: {
+    backgroundColor: PREMIUM_POST.prayActive,
+  },
+  iconCircleBtnActivePremium: {
+    backgroundColor: PREMIUM_POST.bookmarkActive,
   },
   listContent: {
     alignSelf: "center" as const,
