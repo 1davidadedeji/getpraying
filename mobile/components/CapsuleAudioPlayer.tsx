@@ -73,6 +73,7 @@ export function CapsuleAudioPlayer({
   onPlaybackFinishedRef.current = onPlaybackFinished;
 
   const playing = status.playing;
+  const displayPlaying = playing || playPending;
   const positionMs = Math.round(status.currentTime * 1000);
   const durationMs = Math.round(status.duration * 1000);
   const showBufferingSpinner = playPending && status.isBuffering;
@@ -177,6 +178,11 @@ export function CapsuleAudioPlayer({
     if (onBeforePlay?.() === false) return;
 
     if (feedMediaFocused && !feedAudible) {
+      if (playing || playPending) {
+        player.pause();
+        setPlayPending(false);
+        return;
+      }
       await pauseAllMediaExcept(cid);
       await ensureAudioMode();
       player.volume = 1;
@@ -191,7 +197,7 @@ export function CapsuleAudioPlayer({
       return;
     }
 
-    if (playing) {
+    if (playing || playPending) {
       player.pause();
       setPlayPending(false);
     } else {
@@ -205,11 +211,17 @@ export function CapsuleAudioPlayer({
       setPlayPending(true);
       player.play();
     }
-  }, [feedMediaFocused, feedAudible, playing, muted, player, playUri, onBeforePlay]);
+  }, [feedMediaFocused, feedAudible, playing, playPending, muted, player, playUri, onBeforePlay]);
 
   const toggleMute = useCallback(async () => {
     if (feedMediaFocused) {
       if (!feedAudible) {
+        if (playing || playPending) {
+          player.volume = 1;
+          setMuted(false);
+          setFeedAudible(true);
+          return;
+        }
         void togglePlay();
         return;
       }
@@ -221,7 +233,7 @@ export function CapsuleAudioPlayer({
     const nextMuted = !muted;
     player.volume = nextMuted ? 0 : 1;
     setMuted(nextMuted);
-  }, [feedMediaFocused, feedAudible, muted, player, togglePlay]);
+  }, [feedMediaFocused, feedAudible, playing, playPending, muted, player, togglePlay]);
 
   const seekProgress = useCallback(
     (progress01: number) => {
@@ -240,7 +252,7 @@ export function CapsuleAudioPlayer({
   return (
     <CapsuleMediaControls
       loading={showBufferingSpinner}
-      playing={playing}
+      playing={displayPlaying}
       feedSilent={feedSilent}
       positionMs={positionMs}
       durationMs={durationMs}

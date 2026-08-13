@@ -3,7 +3,8 @@ import { useCallback, useMemo, useState } from "react";
 import type { ViewToken } from "react-native";
 
 /**
- * Home-feed style: pick one post with video/audio to autoplay muted while in view.
+ * Home-feed style: pick one in-view post with video or audio for muted autoplay.
+ * Controls always show pause while playing (including muted feed preview).
  */
 export function useFeedMediaViewability() {
   const [feedMediaFocusPostId, setFeedMediaFocusPostId] = useState<number | null>(null);

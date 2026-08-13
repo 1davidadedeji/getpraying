@@ -6,7 +6,7 @@ import { FormattedBodyText } from "@/components/FormattedBodyText";
 import colors from "@/constants/colors";
 import { prefetchCachedAudio } from "@/lib/audioMediaCache";
 import type { LectureTrackRow } from "@/lib/officialPrayer";
-import { usePremiumViewer } from "@/lib/premiumViewer";
+import { premiumCardStyle } from "@/lib/premiumPostTheme";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 
 type Props = {
@@ -23,7 +23,6 @@ export function LectureTrackList({
   isPremiumLocked = false,
   guideIsPremium = false,
 }: Props) {
-  const { subscribed } = usePremiumViewer();
   const sorted = useMemo(
     () => [...tracks].sort((a, b) => a.orderIndex - b.orderIndex || a.id - b.id),
     [tracks],
@@ -96,6 +95,7 @@ export function LectureTrackList({
               }}
               style={({ pressed }) => [
                 styles.trackCard,
+                guideIsPremium && premiumCardStyle(true),
                 isActive && styles.trackCardActive,
                 !isActive && pressed && styles.trackCardPressed,
               ]}
@@ -106,7 +106,6 @@ export function LectureTrackList({
               <PremiumGatedContent
                 locked={isPremiumLocked}
                 isPremium={guideIsPremium}
-                showSubscriberMarker={subscribed}
                 mode="media"
                 minHeight={isActive ? 140 : 88}
                 onUnlocked={() => {

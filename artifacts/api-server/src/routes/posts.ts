@@ -27,6 +27,7 @@ import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
 import { feedCursorWhereClause, feedEngagementPriorityExpr } from "../lib/feedEngagementPriority";
 import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
 import { parseIsPremiumFromBody } from "../lib/premiumContentAccess";
+import { isMediaOnlyPostContent } from "../lib/postContentDisplay";
 
 const rewriteLimiter = new RateLimiter(30 * 60 * 1000, 3);
 
@@ -378,11 +379,9 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   const hasMedia = mediaUrlStr.length > 0;
 
   if (!contentTrimmed && !hasMedia) {
-    res.status(400).json({ error: "Write something or attach an image." });
+    res.status(400).json({ error: "Write something or attach media." });
     return;
   }
-
-  const storedContent = contentTrimmed || "(Image)";
 
   const rawMediaType =
     typeof mediaType === "string" ? mediaType.trim().toLowerCase() : null;
@@ -395,6 +394,9 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
       storedMediaType = "image";
     }
   }
+
+  /** Empty string when media-only — never infer "(Image)" for audio/video. */
+  const storedContent = contentTrimmed;
 
   const rawTagOrder: string[] = [];
   if (typeof category === "string" && category.trim()) {
@@ -430,7 +432,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
   } else if (hasMedia) {
     postStatus = "pending";
     moderationReason = "Media requires manual review.";
-  } else if (storedContent && storedContent !== "(Image)") {
+  } else if (storedContent && !isMediaOnlyPostContent(storedContent)) {
     const modResult = await moderatePost(storedContent);
     if (modResult.outcome === "approved") {
       postStatus = "approved";

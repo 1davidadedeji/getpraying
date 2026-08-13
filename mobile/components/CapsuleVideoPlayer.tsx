@@ -207,8 +207,13 @@ export function CapsuleVideoPlayer({
       return;
     }
 
-    // Feed cell first tap → unmute rather than pause.
+    // Muted feed preview: pause when playing; unmute when stopped.
     if (feedMediaFocused && !feedAudible) {
+      if (playing) {
+        player.pause();
+        setPlaying(false);
+        return;
+      }
       await pauseAllMediaExcept(cid);
       setMuted(false);
       setFeedAudible(true);
@@ -229,6 +234,11 @@ export function CapsuleVideoPlayer({
 
   const toggleMute = useCallback(() => {
     if (feedMediaFocused && !feedAudible) {
+      if (playing) {
+        setMuted(false);
+        setFeedAudible(true);
+        return;
+      }
       void togglePlay();
       return;
     }

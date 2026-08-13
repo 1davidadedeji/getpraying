@@ -14,6 +14,19 @@ export function shouldBlurPremiumForViewer(
   return Boolean(item.isPremium && !subscribed);
 }
 
+/** Feed/detail posts — authors always see their own premium content. */
+export function shouldBlurPremiumPostForViewer(
+  post: { isPremium?: boolean | null; authorId?: number | null },
+  subscribed: boolean,
+  viewerUserId?: number | null,
+): boolean {
+  if (!post.isPremium || subscribed) return false;
+  if (viewerUserId != null && post.authorId != null && viewerUserId === post.authorId) {
+    return false;
+  }
+  return true;
+}
+
 /** Premium media (video/audio) stripped for free users — show lock UI instead of player. */
 export function isPremiumMediaLocked(item: {
   isPremium?: boolean | null;

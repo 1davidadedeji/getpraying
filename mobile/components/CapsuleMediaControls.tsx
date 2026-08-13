@@ -80,6 +80,11 @@ export function CapsuleMediaControls({
   const trackRad = Math.max(1, trackH / 2);
   const controlsDisabled = disabled;
   const seekDisabled = disabled || durationMs <= 0;
+  const playA11y = playing
+    ? feedSilent
+      ? "Pause muted preview"
+      : "Pause"
+    : "Play";
 
   return (
     <View
@@ -91,6 +96,7 @@ export function CapsuleMediaControls({
           paddingHorizontal: pillPadH,
           gap,
         },
+        feedSilent && playing && styles.pillFeedPreview,
       ]}
     >
       <Pressable
@@ -98,13 +104,13 @@ export function CapsuleMediaControls({
         disabled={controlsDisabled}
         style={styles.iconHit}
         accessibilityRole="button"
-        accessibilityLabel={playing && !feedSilent ? "Pause" : feedSilent ? "Tap to listen" : "Play"}
+        accessibilityLabel={playA11y}
       >
         {loading ? (
           <ActivityIndicator size="small" color={accentColor} />
         ) : (
           <Ionicons
-            name={playing && !feedSilent ? "pause" : "play"}
+            name={playing ? "pause" : "play"}
             size={iconPlay}
             color={accentColor}
           />
@@ -142,7 +148,7 @@ export function CapsuleMediaControls({
         disabled={controlsDisabled}
         style={styles.iconHit}
         accessibilityRole="button"
-        accessibilityLabel={showMuted ? "Unmute" : "Mute"}
+        accessibilityLabel={showMuted ? (feedSilent && playing ? "Unmute preview" : "Unmute") : "Mute"}
       >
         <Ionicons
           name={showMuted ? "volume-mute" : "volume-medium"}
@@ -162,6 +168,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     borderRadius: 999,
+  },
+  pillFeedPreview: {
+    borderWidth: 1,
+    borderColor: "rgba(26,31,54,0.14)",
   },
   iconHit: {
     minWidth: 28,

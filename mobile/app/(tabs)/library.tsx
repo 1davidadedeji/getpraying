@@ -20,6 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getGetSavedPrayersQueryKey } from "@workspace/api-client-react";
 import type { Post } from "@workspace/api-client-react";
 import { SanctuarySlotCard } from "@/components/SanctuarySlotCard";
+import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import { EveningGuideMark, MorningGuideMark } from "@/components/guideIcons/MorningEveningMarks";
 import { OfficialGuideCard } from "@/components/OfficialGuideCard";
 import PostCard from "@/components/PostCard";
@@ -38,6 +39,8 @@ import {
 import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
 import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
+import { usePremiumViewer } from "@/lib/premiumViewer";
+import { premiumCardBorderStyle } from "@/lib/premiumPostTheme";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { isEveningSanctuarySlotNow } from "@/lib/localClock";
 import * as RM from "@/lib/responsiveMetrics";
@@ -106,6 +109,7 @@ export default function LibraryScreen() {
     sectionParam === "morning" || sectionParam === "evening" ? sectionParam : null;
   const { windowWidth, windowHeight, gutter, uiScale } = useResponsiveLayout();
   const { token } = useAuth();
+  const { shouldBlur } = usePremiumViewer();
   const categoriesScrollRef = useRef<ScrollView>(null);
   const sanctuarySectionY = useRef(0);
   const savedListRef = useRef<FlatList>(null);
@@ -507,6 +511,8 @@ export default function LibraryScreen() {
         lectureIx >= 0 ? lectureIx % LECTURE_VISUAL_THEMES.length : 0;
       const theme = LECTURE_VISUAL_THEMES[themeIx];
       const artIx = lectureIx >= 0 ? lectureIx % LECTURE_ARTWORK_ICONS.length : 0;
+      const isPremium = Boolean(op.isPremium);
+      const premiumLocked = shouldBlur(op);
 
       const sub = truncateLecturePreview(
         (op.subtitle?.trim() ?? op.content?.trim() ?? "").trim() || "Listen to this guide.",
@@ -521,6 +527,7 @@ export default function LibraryScreen() {
               width: lectureCardWidth,
               backgroundColor: theme.bg,
             },
+            isPremium && premiumCardBorderStyle(true),
             pressed && styles.cardPressed,
           ]}
           onPress={() => openOfficialPrayer(op.id)}
@@ -537,9 +544,15 @@ export default function LibraryScreen() {
           <Text style={[styles.lectureCardTitleSerif, { color: theme.titleColor }]} numberOfLines={2}>
             {op.title}
           </Text>
-          <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={4}>
-            {sub}
-          </Text>
+          <PremiumGatedContent
+            locked={isPremium && premiumLocked}
+            isPremium={isPremium}
+            minHeight={72}
+          >
+            <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={4}>
+              {sub}
+            </Text>
+          </PremiumGatedContent>
           <View
             pointerEvents="none"
             style={[
@@ -556,7 +569,7 @@ export default function LibraryScreen() {
         </Pressable>
       );
     },
-    [lectureCardWidth, lecturesGuides, uiScale, openOfficialPrayer],
+    [lectureCardWidth, lecturesGuides, uiScale, openOfficialPrayer, shouldBlur],
   );
 
   const openPath = (cat: CategoryItem) => {

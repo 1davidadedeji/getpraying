@@ -9,6 +9,7 @@ import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import { usePremiumViewer } from "@/lib/premiumViewer";
+import { premiumCardBorderStyle } from "@/lib/premiumPostTheme";
 
 type Slot = "morning" | "evening";
 
@@ -65,7 +66,7 @@ export function SanctuarySlotCard({
   compact = false,
 }: Props) {
   const { uiScale } = useResponsiveLayout();
-  const { subscribed, shouldBlur } = usePremiumViewer();
+  const { shouldBlur } = usePremiumViewer();
   const t = SLOT_THEME[slot];
   const density = compact ? 0.86 : 1;
   const slotIcon = Math.round(clamp(40 * uiScale * density, compact ? 32 : 36, compact ? 40 : 46));
@@ -144,6 +145,7 @@ export function SanctuarySlotCard({
           borderRadius: cornerRad,
           marginBottom: cardMb,
         },
+        isPremium && premiumCardBorderStyle(true),
       ]}
     >
       <View style={[styles.topRow, { gap: rowGap, marginBottom: topRowMb }]}>
@@ -182,7 +184,6 @@ export function SanctuarySlotCard({
         <PremiumGatedContent
           locked={premiumLocked}
           isPremium
-          showSubscriberMarker={subscribed}
           mode={prayer?.audioUrl || premiumLocked ? "media" : "text"}
           minHeight={compact ? 88 : 120}
         >

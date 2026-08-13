@@ -129,6 +129,7 @@ export async function enrichPost(post: typeof postsTable.$inferSelect, userId?: 
       isPremium: post.isPremium ?? false,
     },
     viewer,
+    { viewerUserId: userId ?? null, authorId: post.authorId ?? null },
   );
 }
 
@@ -237,6 +238,7 @@ export async function enrichPosts(posts: typeof postsTable.$inferSelect[], userI
         isPremium: post.isPremium ?? false,
       },
       viewer,
+      { viewerUserId: userId ?? null, authorId: post.authorId ?? null },
     );
   });
 }

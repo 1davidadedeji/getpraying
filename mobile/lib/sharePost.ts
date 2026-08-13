@@ -1,4 +1,5 @@
 import { postShareUrl } from "@/lib/publicWebOrigin";
+import { postTextForDisplay } from "@/lib/postDisplayContent";
 
 type ShareablePost = {
   id: number;
@@ -11,7 +12,7 @@ type ShareablePost = {
 };
 
 function postSharePreviewText(content: string, mediaType?: string | null): string {
-  const trimmed = content.trim();
+  const trimmed = postTextForDisplay(content, { mediaType });
   if (trimmed.length > 0) {
     const snippet = `${trimmed.slice(0, 200)}${trimmed.length > 200 ? "\u2026" : ""}`;
     return `"${snippet}"`;

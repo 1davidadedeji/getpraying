@@ -56,8 +56,14 @@ type PostLike = {
 export function applyPremiumPostForViewer<T extends PostLike>(
   post: T,
   viewer: PremiumViewer,
+  opts?: { viewerUserId?: number | null; authorId?: number | null },
 ): T & { contentPreview?: string; contentLocked?: boolean } {
-  if (!post.isPremium || userHasPremiumContentAccess(viewer)) {
+  const isAuthor =
+    opts?.viewerUserId != null &&
+    opts?.authorId != null &&
+    opts.viewerUserId === opts.authorId;
+
+  if (!post.isPremium || userHasPremiumContentAccess(viewer) || isAuthor) {
     return post;
   }
 

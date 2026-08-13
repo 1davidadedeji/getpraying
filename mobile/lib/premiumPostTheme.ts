@@ -1,3 +1,4 @@
+import { Platform, type ViewStyle } from "react-native";
 import colors from "@/constants/colors";
 
 /** Visual palette for premium prayer posts (visible to all viewers). */
@@ -21,6 +22,38 @@ export type PremiumActionState = {
   isSaved?: boolean;
   hasCommented?: boolean;
 };
+
+const premiumShadow: ViewStyle =
+  Platform.OS === "web"
+    ? {}
+    : {
+        shadowColor: PREMIUM_POST.star,
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
+      };
+
+/** Gold card chrome for premium library posts and guides (replaces default surface). */
+export function premiumCardStyle(isPremium: boolean): ViewStyle {
+  if (!isPremium) return {};
+  return {
+    backgroundColor: PREMIUM_POST.cardBg,
+    borderColor: PREMIUM_POST.cardBorder,
+    borderWidth: 1,
+    ...premiumShadow,
+  };
+}
+
+/** Gold border on cards that keep a custom background (sanctuary slots, lecture carousel). */
+export function premiumCardBorderStyle(isPremium: boolean): ViewStyle {
+  if (!isPremium) return {};
+  return {
+    borderColor: PREMIUM_POST.cardBorder,
+    borderWidth: 1,
+    ...premiumShadow,
+  };
+}
 
 export function premiumPostActionColors(isPremium: boolean, state: PremiumActionState) {
   if (!isPremium) {

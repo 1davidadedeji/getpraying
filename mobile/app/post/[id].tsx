@@ -60,7 +60,8 @@ import { publishPostEngagement, publishPostRemoved } from "@/lib/postEngagementS
 import { subscribePostDetailRefresh } from "@/lib/postDetailRefresh";
 import { isNotFoundError, LIVE_COMMENTS_POLL_MS, LIVE_POST_POLL_MS } from "@/lib/liveSync";
 import { useScreenFocused } from "@/hooks/useScreenFocused";
-import { isPremiumContentLocked, isPremiumMediaLocked } from "@/lib/premiumContent";
+import { isPremiumContentLocked, isPremiumMediaLocked, shouldBlurPremiumPostForViewer } from "@/lib/premiumContent";
+import { postTextForDisplay } from "@/lib/postDisplayContent";
 import { usePremiumViewer } from "@/lib/premiumViewer";
 import { gatePremiumInteraction, isPremiumInteractionBlocked } from "@/lib/premiumInteractionGate";
 import { PREMIUM_POST, premiumPostActionColors } from "@/lib/premiumPostTheme";
@@ -87,7 +88,7 @@ export default function PostDetailScreen() {
   const postId = Number(id);
   const insets = useSafeAreaInsets();
   const { user, token, loading: authLoading } = useAuth();
-  const { subscribed, shouldBlur } = usePremiumViewer();
+  const { subscribed } = usePremiumViewer();
   const authReady = !authLoading && Boolean(token);
   const [staffDeleteOpen, setStaffDeleteOpen] = useState(false);
   const [staffDeleteReason, setStaffDeleteReason] = useState("");
@@ -159,10 +160,9 @@ export default function PostDetailScreen() {
 
   const post = localPost ?? (data as any);
 
-  const postOgSource =
-    post && typeof post.content === "string" && post.content !== "(Image)"
-      ? post.content
-      : "";
+  const postOgSource = post
+    ? postTextForDisplay(post.content, { mediaUrl: post.mediaUrl, mediaType: post.mediaType })
+    : "";
 
   const ogPrayer = useOpenGraphPreviewState(postOgSource, post?.id ?? 0);
 
@@ -471,7 +471,7 @@ export default function PostDetailScreen() {
   };
 
   const handlePray = () => {
-    if (!post || gatePremiumInteraction(post, subscribed)) return;
+    if (!post || gatePremiumInteraction(post, subscribed, user?.id)) return;
     if (!ensureSignedIn()) return;
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.5, useNativeDriver: true }),
@@ -527,7 +527,7 @@ export default function PostDetailScreen() {
   };
 
   const handleSave = () => {
-    if (!post || gatePremiumInteraction(post, subscribed)) return;
+    if (!post || gatePremiumInteraction(post, subscribed, user?.id)) return;
     if (!ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const prevSaved = post.isSaved;
@@ -598,7 +598,7 @@ export default function PostDetailScreen() {
   };
 
   const handleShare = async () => {
-    if (!post || gatePremiumInteraction(post, subscribed)) return;
+    if (!post || gatePremiumInteraction(post, subscribed, user?.id)) return;
 
     try {
       Haptics.selectionAsync();
@@ -610,7 +610,7 @@ export default function PostDetailScreen() {
   };
 
   const handleReportFlag = () => {
-    if (!post || gatePremiumInteraction(post, subscribed)) return;
+    if (!post || gatePremiumInteraction(post, subscribed, user?.id)) return;
     Haptics.selectionAsync();
     showPostSafetyMenu({
       postId: post.id,
@@ -624,7 +624,7 @@ export default function PostDetailScreen() {
 
   const submitComment = async () => {
     if (!post || !commentDraft.trim()) return;
-    if (gatePremiumInteraction(post, subscribed)) return;
+    if (gatePremiumInteraction(post, subscribed, user?.id)) return;
     if (authLoading) return;
     if (!token) {
       showAppAlert({ title: "Sign in required", message: "Please sign in to leave a comment." });
@@ -748,8 +748,8 @@ export default function PostDetailScreen() {
   const prayerTextForUi = ogPrayer.showLinkPreview ? ogPrayer.displayTextWithoutUrl : postOgSource;
   const postPremium = post as Post & { isPremium?: boolean; contentLocked?: boolean };
   const contentLocked = isPremiumContentLocked(postPremium);
-  const premiumLocked = shouldBlur(postPremium);
-  const premiumInteractionBlocked = isPremiumInteractionBlocked(postPremium, subscribed);
+  const premiumInteractionBlocked = isPremiumInteractionBlocked(postPremium, subscribed, user?.id);
+  const premiumLocked = shouldBlurPremiumPostForViewer(postPremium, subscribed, user?.id);
   const isPremiumPost = Boolean(postPremium.isPremium);
   const detailActionColors = premiumPostActionColors(isPremiumPost, {
     hasPrayed: post.hasPrayed,
@@ -1131,7 +1131,7 @@ export default function PostDetailScreen() {
           value={commentDraft}
           onChangeText={setCommentDraft}
           onFocus={() => {
-            if (gatePremiumInteraction(post, subscribed)) {
+            if (gatePremiumInteraction(post, subscribed, user?.id)) {
               commentInputRef.current?.blur();
               return;
             }

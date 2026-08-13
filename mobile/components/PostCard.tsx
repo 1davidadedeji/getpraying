@@ -39,8 +39,9 @@ import { getApiErrorMessage } from "@/lib/apiErrors";
 import { clamp } from "@/lib/responsiveMetrics";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useOpenGraphPreviewState } from "@/hooks/useOpenGraphPreviewState";
+import { postTextForDisplay } from "@/lib/postDisplayContent";
 import { publishPostEngagement } from "@/lib/postEngagementSync";
-import { isPremiumMediaLocked } from "@/lib/premiumContent";
+import { isPremiumMediaLocked, shouldBlurPremiumPostForViewer } from "@/lib/premiumContent";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import { usePremiumViewer } from "@/lib/premiumViewer";
 import { gatePremiumInteraction, isPremiumInteractionBlocked } from "@/lib/premiumInteractionGate";
@@ -74,7 +75,13 @@ function PostCardInner({
   const queryClient = useQueryClient();
   const flameScale = useRef(new Animated.Value(1)).current;
   const [localPost, setLocalPost] = useState<PostWithCounts>(post);
-  const og = useOpenGraphPreviewState(localPost.content, localPost.id);
+  const og = useOpenGraphPreviewState(
+    postTextForDisplay(localPost.content, {
+      mediaUrl: localPost.mediaUrl,
+      mediaType: localPost.mediaType,
+    }),
+    localPost.id,
+  );
 
   useEffect(() => {
     if (engageMutationPendingRef.current > 0) return;
@@ -98,7 +105,7 @@ function PostCardInner({
   ]);
 
   const { token, user, loading: authLoading } = useAuth();
-  const { subscribed, shouldBlur } = usePremiumViewer();
+  const { subscribed } = usePremiumViewer();
   const canEngage = !authLoading && Boolean(token);
 
   const engageMutationPendingRef = useRef(0);
@@ -133,7 +140,7 @@ function PostCardInner({
   };
 
   const handlePray = () => {
-    if (gatePremiumInteraction(localPost, subscribed)) return;
+    if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
     if (authLoading || !ensureSignedIn()) return;
     Animated.sequence([
       Animated.spring(flameScale, { toValue: 1.4, useNativeDriver: true }),
@@ -189,7 +196,7 @@ function PostCardInner({
   };
 
   const handleSave = () => {
-    if (gatePremiumInteraction(localPost, subscribed)) return;
+    if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
     if (authLoading || !ensureSignedIn()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     engageMutationPendingRef.current += 1;
@@ -280,7 +287,7 @@ function PostCardInner({
   };
 
   const handleShare = async () => {
-    if (gatePremiumInteraction(localPost, subscribed)) return;
+    if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
     const { message } = buildPostSharePayload(localPost);
 
     try {
@@ -306,7 +313,7 @@ function PostCardInner({
   })();
 
   const isPremiumPost = Boolean((localPost as PostWithCounts).isPremium);
-  const premiumBlocked = isPremiumInteractionBlocked(localPost, subscribed);
+  const premiumBlocked = isPremiumInteractionBlocked(localPost, subscribed, user?.id);
   const actionColors = premiumPostActionColors(isPremiumPost, {
     hasPrayed: localPost.hasPrayed,
     isSaved: localPost.isSaved,
@@ -320,12 +327,12 @@ function PostCardInner({
   }, [activeProfileUsername, localPost.id]);
 
   const openPostDetail = useCallback(() => {
-    if (gatePremiumInteraction(localPost, subscribed)) return;
+    if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
     navigate(postHref as any);
   }, [localPost, subscribed, navigate, postHref]);
 
   const openComments = useCallback(() => {
-    if (gatePremiumInteraction(localPost, subscribed)) return;
+    if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
     navigate(postHref as any);
   }, [localPost, subscribed, navigate, postHref]);
 
@@ -438,7 +445,7 @@ function PostCardInner({
         </Pressable>
 
         {(() => {
-          const premiumLocked = shouldBlur(localPost);
+          const premiumLocked = shouldBlurPremiumPostForViewer(localPost, subscribed, user?.id);
           const body = (
             <>
               <PostMediaBlock
@@ -456,7 +463,7 @@ function PostCardInner({
                 onOpenPostDetail={
                   localPost.mediaType === "video"
                     ? () => {
-                        if (gatePremiumInteraction(localPost, subscribed)) return;
+                        if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
                         navigate(
                           `${postHref}${postHref.includes("?") ? "&" : "?"}focusMedia=1` as any,
                         );
@@ -609,7 +616,7 @@ function PostCardInner({
             <Pressable
               onPress={(e) => {
                 e.stopPropagation?.();
-                if (gatePremiumInteraction(localPost, subscribed)) return;
+                if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
                 Haptics.selectionAsync();
                 showPostSafetyMenu({
                   postId: localPost.id,

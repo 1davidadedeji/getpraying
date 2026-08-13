@@ -54,6 +54,7 @@ import {
 } from "@/lib/mediaUpload";
 import { ensurePhotoLibraryPermission } from "@/lib/ensureMediaPermission";
 import { showSubscriptionPrompt } from "@/context/subscriptionPrompt";
+import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
 import { userCanUseBoostNow, userNeedsStoreEntitlementForBoost } from "@/lib/serverSubscription";
 import { isStaffUser } from "@/lib/staffAccess";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -401,7 +402,7 @@ export default function NewPostScreen() {
         });
         return;
       }
-      router.push("/(paywall)?soft=1" as Href);
+      openPremiumPaywall("boost");
       return;
     }
 

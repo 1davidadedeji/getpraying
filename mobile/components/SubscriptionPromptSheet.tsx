@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import colors from "@/constants/colors";
@@ -30,6 +31,8 @@ export function SubscriptionPromptSheet({
   const cardPad = Math.round(clamp(22 * uiScale, 18, 26));
   const cardRad = Math.round(clamp(28 * uiScale, 24, 32));
   const cardMaxW = Math.round(clamp(400 * uiScale, 300, 440));
+  const emblemSize = Math.round(clamp(52 * uiScale, 44, 58));
+  const emblemIcon = Math.round(clamp(24 * uiScale, 20, 28));
   const titleFs = Math.round(clamp(20 * uiScale, 18, 24));
   const msgFs = Math.round(clamp(15 * uiScale, 14, 17));
   const msgLh = Math.round(msgFs * 1.45);
@@ -50,6 +53,19 @@ export function SubscriptionPromptSheet({
           ]}
           accessibilityViewIsModal
         >
+          <View
+            style={[
+              styles.emblem,
+              {
+                width: emblemSize,
+                height: emblemSize,
+                borderRadius: emblemSize / 2,
+                marginBottom: Math.round(clamp(14 * uiScale, 12, 16)),
+              },
+            ]}
+          >
+            <Ionicons name="star" size={emblemIcon} color={colors.accent} />
+          </View>
           <Text style={[styles.title, { fontSize: titleFs }]}>{copy.title}</Text>
           <ScrollView
             style={styles.messageScroll}
@@ -69,7 +85,7 @@ export function SubscriptionPromptSheet({
               accessibilityRole="button"
             >
               {purchasing ? (
-                <ActivityIndicator color={colors.surface} />
+                <ActivityIndicator color={colors.primary} />
               ) : (
                 <Text style={[styles.primaryBtnText, { fontSize: btnLabelFs }]}>{copy.subscribeLabel}</Text>
               )}
@@ -95,57 +111,68 @@ export function SubscriptionPromptSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.62)",
     justifyContent: "center",
     alignItems: "center",
   },
   card: {
     width: "100%",
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    backgroundColor: "#252B45",
+    borderWidth: 1,
+    borderColor: "rgba(212,160,67,0.28)",
     maxHeight: "82%",
+    alignItems: "center",
+  },
+  emblem: {
+    backgroundColor: "rgba(212,160,67,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(212,160,67,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     fontFamily: "NotoSerif_700Bold",
-    color: colors.primary,
+    color: "#FFFFFF",
     marginBottom: 12,
+    textAlign: "center",
   },
   messageScroll: {
     maxHeight: 280,
     marginBottom: 16,
+    width: "100%",
   },
   messageScrollContent: {
     paddingBottom: 4,
   },
   message: {
     fontFamily: "PlusJakartaSans_400Regular",
-    color: colors.textSecondary,
+    color: "rgba(255,255,255,0.78)",
+    textAlign: "center",
   },
   actions: {
     width: "100%",
   },
   primaryBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 48,
   },
   primaryBtnText: {
     fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.surface,
+    color: colors.primary,
     textAlign: "center",
   },
   secondaryBtn: {
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
     minHeight: 48,
   },
   secondaryBtnText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: colors.primary,
+    color: "rgba(255,255,255,0.72)",
     textAlign: "center",
   },
 });

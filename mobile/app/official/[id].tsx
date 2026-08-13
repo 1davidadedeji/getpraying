@@ -29,6 +29,7 @@ import {
 import { isPremiumContentLocked } from "@/lib/premiumContent";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import { usePremiumViewer } from "@/lib/premiumViewer";
+import { premiumCardStyle } from "@/lib/premiumPostTheme";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 
 const DETAIL_TIMEOUT_MS = 25_000;
@@ -292,6 +293,20 @@ export default function OfficialPrayerScreen() {
         </Pressable>
       </View>
 
+      <View
+        style={
+          isPremiumGuide
+            ? [
+                premiumCardStyle(true),
+                {
+                  padding: Math.round(clamp(16 * uiScale, 14, 20)),
+                  borderRadius: Math.round(clamp(20 * uiScale, 18, 24)),
+                  marginBottom: scrMb,
+                },
+              ]
+            : undefined
+        }
+      >
       <Text style={[styles.title, { fontSize: fsTitle, marginBottom: titleMb }]}>{d.title}</Text>
       {d.subtitle ? <Text style={[styles.subtitle, { fontSize: fsSub, marginBottom: subMb }]}>{d.subtitle}</Text> : null}
       {d.scripture ? (
@@ -352,15 +367,14 @@ export default function OfficialPrayerScreen() {
           <PremiumGatedContent
             locked={premiumLocked}
             isPremium
-            showSubscriberMarker={subscribed}
             mode={showAudioLock || isLecture ? "media" : "text"}
             minHeight={showAudioLock || isLecture ? 180 : 120}
-            style={{ marginBottom: scrMb }}
           >
             {guideContent}
           </PremiumGatedContent>
         );
       })()}
+      </View>
 
       {d.uploadedByUsername ? (
         <Text style={[styles.uploader, { fontSize: fsUpload, marginTop: uploadMt }]}>

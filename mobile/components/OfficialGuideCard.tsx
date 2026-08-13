@@ -9,6 +9,7 @@ import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
 import { usePremiumViewer } from "@/lib/premiumViewer";
+import { premiumCardStyle } from "@/lib/premiumPostTheme";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type Props = {
@@ -24,7 +25,7 @@ function navigateToGuide(op: OfficialPrayerRow) {
 
 export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props) {
   const { uiScale, cardRadius, iconAction } = useResponsiveLayout();
-  const { subscribed, shouldBlur } = usePremiumViewer();
+  const { shouldBlur } = usePremiumViewer();
   const cardPad = Math.round(clamp(16 * uiScale, 14, 20));
   const cardRad = Math.round(clamp(cardRadius * 0.75, 20, 30));
   const cardMb = Math.round(clamp(12 * uiScale, 10, 14));
@@ -69,6 +70,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
           borderRadius: cardRad,
           marginBottom: cardMb,
         },
+        isPremium && premiumCardStyle(true),
         pressed && styles.pressed,
       ]}
       onPress={() => navigateToGuide(op)}
@@ -102,7 +104,6 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
         <PremiumGatedContent
           locked={isPremium && premiumLocked}
           isPremium={isPremium}
-          showSubscriberMarker={subscribed}
           minHeight={72}
         >
           <FormattedBodyText

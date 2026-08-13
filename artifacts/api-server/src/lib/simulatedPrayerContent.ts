@@ -111,19 +111,217 @@ const FALLBACK_TEMPLATES: { category: string; text: string; tier: ContentLengthT
   },
 ];
 
-const COMMENT_TEMPLATES: { text: string; tier: ContentLengthTier }[] = [
-  { tier: "short", text: "Praying for you." },
-  { tier: "short", text: "Amen." },
-  { tier: "short", text: "God hears you." },
-  { tier: "short", text: "Standing with you." },
-  { tier: "normal", text: "Praying for you right now. God sees every tear." },
-  { tier: "normal", text: "Lifting you up. You are not alone in this." },
-  { tier: "normal", text: "The Lord is near to the brokenhearted. Praying for comfort." },
-  { tier: "normal", text: "Standing with you in prayer. God is faithful." },
-  { tier: "normal", text: "You're in my prayers today and every day." },
-  { tier: "long", text: "I've been where you are — the waiting is exhausting. Praying God gives you strength for today only, and people who show up without needing perfect words." },
-  { tier: "long", text: "Thank you for sharing this honestly. I'm asking the Lord to meet you in the middle of the uncertainty and to surprise you with provision you didn't see coming." },
+export type CommentTheme =
+  | "healing"
+  | "anxiety"
+  | "gratitude"
+  | "work"
+  | "family"
+  | "relationships"
+  | "guidance"
+  | "provision"
+  | "hope"
+  | "peace"
+  | "general";
+
+const THEME_KEYWORDS: { theme: CommentTheme; patterns: RegExp[] }[] = [
+  {
+    theme: "healing",
+    patterns: [
+      /\bheal(ing|ed)?\b/i,
+      /\bsurgery\b/i,
+      /\brecover(y|ing)?\b/i,
+      /\bhospital\b/i,
+      /\bcancer\b/i,
+      /\billness\b/i,
+      /\bdiagnos/i,
+      /\bpain\b/i,
+      /\bdoctor/i,
+    ],
+  },
+  {
+    theme: "anxiety",
+    patterns: [
+      /\banxi/i,
+      /\bworr(y|ied|ies)\b/i,
+      /\bstress(ed|ful)?\b/i,
+      /\bfear(ful|s)?\b/i,
+      /\bpanic\b/i,
+      /\bmind (won'?t|racing|spinning)\b/i,
+      /\boverwhelm/i,
+    ],
+  },
+  {
+    theme: "gratitude",
+    patterns: [
+      /\bgrateful\b/i,
+      /\bthank(ful|s)?\b/i,
+      /\bpraise\b/i,
+      /\bblessing/i,
+      /\bmiracle\b/i,
+      /\banswered\b/i,
+    ],
+  },
+  {
+    theme: "work",
+    patterns: [
+      /\bwork\b/i,
+      /\bjob\b/i,
+      /\bcareer\b/i,
+      /\binterview\b/i,
+      /\bboss\b/i,
+      /\bworkplace\b/i,
+      /\bcoworker/i,
+      /\bunemployment\b/i,
+      /\blayoff/i,
+    ],
+  },
+  {
+    theme: "family",
+    patterns: [
+      /\bfamily\b/i,
+      /\bmom\b/i,
+      /\bdad\b/i,
+      /\bmother\b/i,
+      /\bfather\b/i,
+      /\bparent/i,
+      /\bkid(s)?\b/i,
+      /\bchild(ren)?\b/i,
+      /\bson\b/i,
+      /\bdaughter\b/i,
+      /\bspouse\b/i,
+      /\bwife\b/i,
+      /\bhusband\b/i,
+    ],
+  },
+  {
+    theme: "relationships",
+    patterns: [
+      /\brelationship/i,
+      /\bmarriage\b/i,
+      /\bfriend(ship)?\b/i,
+      /\btension\b/i,
+      /\bconflict\b/i,
+      /\breconcile/i,
+      /\bforgiveness\b/i,
+    ],
+  },
+  {
+    theme: "guidance",
+    patterns: [
+      /\bguidance\b/i,
+      /\bdecision\b/i,
+      /\bclarity\b/i,
+      /\bwisdom\b/i,
+      /\bdirection\b/i,
+      /\bcrossroads\b/i,
+      /\bdiscern/i,
+    ],
+  },
+  {
+    theme: "provision",
+    patterns: [
+      /\bprovision\b/i,
+      /\bfinanc/i,
+      /\bmoney\b/i,
+      /\bbills?\b/i,
+      /\brent\b/i,
+      /\bdebt\b/i,
+      /\bprovid/i,
+    ],
+  },
+  {
+    theme: "hope",
+    patterns: [/\bhope\b/i, /\bwaiting\b/i, /\bweary\b/i, /\bgray season\b/i, /\bdiscourag/i],
+  },
+  {
+    theme: "peace",
+    patterns: [/\bpeace\b/i, /\brest\b/i, /\bsleep\b/i, /\bquiet\b/i, /\bcalm\b/i],
+  },
 ];
+
+const COMMENT_BY_THEME: Record<
+  CommentTheme,
+  { tier: ContentLengthTier; text: string }[]
+> = {
+  healing: [
+    { tier: "short", text: "Praying for healing and strength." },
+    { tier: "short", text: "Asking God for a good recovery." },
+    { tier: "normal", text: "Praying for skilled care, eased pain, and healing that surprises everyone." },
+    { tier: "normal", text: "Lifting up this recovery — strength for today and hope for tomorrow." },
+    { tier: "long", text: "Thank you for sharing this. I'm praying for the recovery ahead — for rest, good care, and healing that goes deeper than any scan can show." },
+  ],
+  anxiety: [
+    { tier: "short", text: "Praying for peace over that anxiety." },
+    { tier: "short", text: "Asking God to quiet your mind." },
+    { tier: "normal", text: "Praying the Lord settles your thoughts and gives rest you can feel." },
+    { tier: "normal", text: "Standing with you — asking for peace in the middle of the worry." },
+    { tier: "long", text: "I've felt that racing mind too. Praying God gives you one calm breath at a time, and reminds you that you don't have to carry all of this alone." },
+  ],
+  gratitude: [
+    { tier: "short", text: "Celebrating this with you — amen!" },
+    { tier: "short", text: "Praise God for this blessing." },
+    { tier: "normal", text: "So glad you shared this. Giving thanks with you for what God has done." },
+    { tier: "normal", text: "This is beautiful — praying you keep noticing His kindness in the details." },
+    { tier: "long", text: "Thank you for pointing us back to gratitude. I'm praising God with you and praying this reminder of His faithfulness stays close when harder days come." },
+  ],
+  work: [
+    { tier: "short", text: "Praying for clarity at work." },
+    { tier: "short", text: "Asking God to open the right door." },
+    { tier: "normal", text: "Praying over this job situation — wisdom, favor, and doors only God can open." },
+    { tier: "normal", text: "Lifting up your work decision. Asking for peace and clear next steps." },
+    { tier: "long", text: "Work decisions can weigh so heavy. I'm praying for wise counsel, closed doors that close cleanly, and courage to walk through the right one when it opens." },
+  ],
+  family: [
+    { tier: "short", text: "Praying for your family today." },
+    { tier: "short", text: "Asking God to cover your home." },
+    { tier: "normal", text: "Praying for grace and soft hearts in your family right now." },
+    { tier: "normal", text: "Lifting up your loved ones — for protection, unity, and peace at home." },
+    { tier: "long", text: "Family needs hit differently. I'm praying for every person you named in your heart — for patience, healing conversations, and God's nearness in your home." },
+  ],
+  relationships: [
+    { tier: "short", text: "Praying for grace in that relationship." },
+    { tier: "short", text: "Asking God to soften hearts." },
+    { tier: "normal", text: "Praying for honest words, soft hearts, and real reconciliation where it's needed." },
+    { tier: "normal", text: "Standing with you — asking God to bring peace into that tension." },
+    { tier: "long", text: "Relationships can be so tender and so hard. Praying for wisdom in how you show up, for forgiveness where it's needed, and for God to restore what feels broken." },
+  ],
+  guidance: [
+    { tier: "short", text: "Praying for clear guidance." },
+    { tier: "short", text: "Asking God for wisdom here." },
+    { tier: "normal", text: "Praying for clarity on this decision and peace when the path becomes clear." },
+    { tier: "normal", text: "Asking the Lord to light the next step — not the whole staircase." },
+    { tier: "long", text: "Crossroads are exhausting. I'm praying for wise counsel, for closed doors to close cleanly, and for a settled peace when the right direction becomes obvious." },
+  ],
+  provision: [
+    { tier: "short", text: "Praying for God's provision." },
+    { tier: "short", text: "Asking the Lord to provide." },
+    { tier: "normal", text: "Praying for timely provision and peace while you wait on God to make a way." },
+    { tier: "normal", text: "Lifting up these needs — asking God to meet you in practical ways." },
+    { tier: "long", text: "Financial pressure is so heavy. I'm asking God to provide what you need, open unexpected doors, and give you rest from the constant calculating." },
+  ],
+  hope: [
+    { tier: "short", text: "Praying hope rises again." },
+    { tier: "short", text: "Asking God for light in this season." },
+    { tier: "normal", text: "Praying for fresh hope and strength to keep showing up while you wait." },
+    { tier: "normal", text: "Standing with you — asking God to send small signs that morning is coming." },
+    { tier: "long", text: "Waiting seasons are long. I'm praying God renews your hope, sends people who sit with you, and reminds you that this chapter isn't the whole story." },
+  ],
+  peace: [
+    { tier: "short", text: "Praying for deep peace tonight." },
+    { tier: "short", text: "Asking God for real rest." },
+    { tier: "normal", text: "Praying the Lord quiets your spirit and gives rest you can feel in your body." },
+    { tier: "normal", text: "Lifting you up — asking for calm where things feel noisy." },
+    { tier: "long", text: "When peace feels far, I'm praying God draws near — settling your thoughts, easing the tension, and giving you rest that lasts past the morning." },
+  ],
+  general: [
+    { tier: "short", text: "Praying specifically over what you shared." },
+    { tier: "short", text: "God hears every word of this." },
+    { tier: "normal", text: "Thank you for trusting us with this. I'm praying over every detail you named." },
+    { tier: "normal", text: "Lifting this request up — asking God to meet you right in the middle of it." },
+    { tier: "long", text: "Thank you for sharing this honestly. I'm asking the Lord to meet you in the specifics of what you wrote and to surprise you with His nearness and help." },
+  ],
+};
 
 export type GeneratedPrayer = { content: string; category: string | null };
 
@@ -209,9 +407,34 @@ export async function generateSimulatedPrayerPost(): Promise<GeneratedPrayer> {
   }
 }
 
-export function pickSimulatedComment(tier: ContentLengthTier = pickContentLengthTier()): string {
-  const pool = COMMENT_TEMPLATES.filter((item) => item.tier === tier);
-  return pick(pool.length > 0 ? pool : COMMENT_TEMPLATES).text;
+/** Detect the dominant prayer theme from post text for correlated bot comments. */
+export function detectCommentTheme(postContent: string): CommentTheme {
+  const text = postContent.trim();
+  if (!text) return "general";
+
+  let best: CommentTheme = "general";
+  let bestScore = 0;
+  for (const entry of THEME_KEYWORDS) {
+    let score = 0;
+    for (const re of entry.patterns) {
+      if (re.test(text)) score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = entry.theme;
+    }
+  }
+  return bestScore > 0 ? best : "general";
+}
+
+export function pickSimulatedComment(
+  postContent: string,
+  tier: ContentLengthTier = pickContentLengthTier(),
+): string {
+  const theme = detectCommentTheme(postContent);
+  const themed = COMMENT_BY_THEME[theme];
+  const pool = themed.filter((item) => item.tier === tier);
+  return pick(pool.length > 0 ? pool : themed).text;
 }
 
 export async function generateSimulatedComment(
@@ -221,10 +444,16 @@ export async function generateSimulatedComment(
   const realUserPost = opts?.realUserPost === true;
   const tier = pickContentLengthTier();
   const bounds = COMMENT_LENGTH[tier];
-  if (Math.random() > (realUserPost ? 0.2 : 0.35)) return pickSimulatedComment(tier);
+  const fallback = () => pickSimulatedComment(postContent, tier);
+
+  // Prefer post-aware AI; keep a small share of short themed fallbacks for variety.
+  const useFallbackFlavor = Math.random() < (realUserPost ? 0.12 : 0.18);
+  if (useFallbackFlavor) return fallback();
 
   const apiKey = getOpenAIKey();
-  if (!apiKey) return pickSimulatedComment(tier);
+  if (!apiKey) return fallback();
+
+  const theme = detectCommentTheme(postContent);
 
   try {
     const res = await fetch(OPENAI_RESPONSES_URL, {
@@ -236,24 +465,25 @@ export async function generateSimulatedComment(
           {
             role: "system",
             content:
-              realUserPost
-                ? `Write a supportive comment on a prayer app. Warm, Christian, human. Sound like a real person who read their post — reference something specific when possible. No hashtags. ${bounds.prompt}`
-                : `Write a supportive comment on a prayer app. Warm, Christian, human. No hashtags. ${bounds.prompt}`,
+              `Write a supportive comment on a Christian prayer app. Warm and human — like someone who actually read the post. ` +
+              `You MUST reference something specific from the prayer (the situation, person, decision, need, or hope). ` +
+              `Do not write vague lines like "Praying for you", "Amen", or "Standing with you" unless you also name the specific ask. ` +
+              `No hashtags, no emojis, no quotation marks around the comment. Detected theme hint: ${theme}. ${bounds.prompt}`,
           },
           {
             role: "user",
-            content: `Prayer post:\n${postContent.slice(0, 800)}\n\nWrite one comment.`,
+            content: `Prayer post:\n${postContent.slice(0, 800)}\n\nWrite one comment that clearly relates to this post.`,
           },
         ],
       }),
     });
-    if (!res.ok) return pickSimulatedComment(tier);
+    if (!res.ok) return fallback();
     const data = (await res.json()) as unknown;
     const text = extractOutputText(data)?.trim();
-    if (!text || text.length < bounds.min || text.length > bounds.max) return pickSimulatedComment(tier);
+    if (!text || text.length < bounds.min || text.length > bounds.max) return fallback();
     return text;
   } catch {
-    return pickSimulatedComment(tier);
+    return fallback();
   }
 }
 

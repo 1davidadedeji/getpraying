@@ -35,4 +35,15 @@ describe("applyPremiumPostForViewer", () => {
     expect(out.contentLocked).toBe(true);
     expect(out.mediaUrl).toBeNull();
   });
+
+  it("leaves premium posts untouched for the author", () => {
+    const item = {
+      isPremium: true,
+      content: "My premium prayer",
+      mediaType: "audio",
+      mediaUrl: "https://cdn/a.mp3",
+    };
+    const out = applyPremiumPostForViewer(item, { subscription: "free" }, { viewerUserId: 7, authorId: 7 });
+    expect(out).toEqual(item);
+  });
 });
