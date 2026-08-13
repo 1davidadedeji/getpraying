@@ -73,6 +73,8 @@
   "dependencies": {
     "@expo-google-fonts/noto-serif": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@react-native-firebase/analytics": "^26.2.0",
+    "@react-native-firebase/app": "^26.2.0",
     "@tanstack/query-core": "catalog:",
     "@tanstack/react-query": "catalog:",
     "expo": "~54.0.34",
@@ -81,10 +83,12 @@
     "expo-media-library": "~18.2.1",
     "expo-notifications": "~0.32.17",
     "expo-sharing": "~14.0.8",
+    "expo-tracking-transparency": "~6.0.8",
     "expo-updates": "~29.0.18",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-collapsible-tab-view": "^8.0.1",
+    "react-native-fbsdk-next": "^13.4.3",
     "react-native-pager-view": "6.9.1",
     "react-native-purchases": "^9.15.0"
   }

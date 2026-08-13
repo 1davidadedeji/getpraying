@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 import type {
   CustomerInfo,
   PurchasesOfferings,
@@ -8,6 +8,7 @@ import type {
 } from "react-native-purchases";
 import { showAppAlert } from "@/components/AppAlert";
 import { useAuth } from "@/context/auth";
+import { logPurchase } from "@/lib/analytics";
 import {
   billingIssueDetectedAt,
   hasBillingIssue,
@@ -73,7 +74,6 @@ function getPurchases() {
 }
 
 function getRevenueCatApiKey(): string {
-  const { Platform } = require("react-native");
   const iosKey =
     process.env.EXPO_PUBLIC_RC_IOS_KEY ??
     process.env.EXPO_PUBLIC_RC_APPLE_KEY ??
@@ -83,6 +83,33 @@ function getRevenueCatApiKey(): string {
     process.env.EXPO_PUBLIC_RC_GOOGLE_KEY ??
     "";
   return Platform.OS === "ios" ? iosKey : androidKey;
+}
+
+function collectRcDeviceIdentifiers(Purchases: ReturnType<typeof getPurchases>): void {
+  try {
+    if (typeof Purchases.collectDeviceIdentifiers === "function") {
+      Purchases.collectDeviceIdentifiers();
+    }
+  } catch {
+    /* analytics must not block billing */
+  }
+}
+
+function purchaseAnalyticsFromPackage(pkg: PurchasesPackage) {
+  const p = pkg.product;
+  return {
+    productId: p.identifier,
+    value: typeof p.price === "number" ? p.price : Number(p.price) || 0,
+    currency: p.currencyCode ?? "USD",
+  };
+}
+
+function purchaseAnalyticsFromStoreProduct(product: PurchasesStoreProduct) {
+  return {
+    productId: product.identifier,
+    value: typeof product.price === "number" ? product.price : Number(product.price) || 0,
+    currency: product.currencyCode ?? "USD",
+  };
 }
 
 /** Tie purchases to the signed-in account so restore works across devices. Non-blocking. */
@@ -248,6 +275,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
 
         const Purchases = getPurchases();
         await Purchases.configure({ apiKey });
+        collectRcDeviceIdentifiers(Purchases);
         setEnabled(true);
         // Unblock splash + entitlement gate before StoreKit customer-info fetch (slow on physical iOS).
         setIsReady(true);
@@ -300,6 +328,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     const { customerInfo: info } = await Purchases.purchasePackage(pkg);
     setOptimisticEntitlement(true);
     applyCustomerInfo(info);
+    logPurchase(purchaseAnalyticsFromPackage(pkg));
     void refreshUserFromServer();
   }, [enabled, applyCustomerInfo, refreshUserFromServer]);
 
@@ -315,6 +344,7 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
       const { customerInfo: info } = await Purchases.purchaseStoreProduct(monthlyStoreProduct);
       setOptimisticEntitlement(true);
       applyCustomerInfo(info);
+      logPurchase(purchaseAnalyticsFromStoreProduct(monthlyStoreProduct));
       void refreshUserFromServer();
       return;
     }

@@ -11,6 +11,7 @@ import {
 import { setPushDeliveryEnabled } from "@/lib/pushDeliveryGate";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { apiFetch } from "@/lib/api";
+import { logSignUp, setUserId } from "@/lib/analytics";
 
 const TOKEN_KEY = "@getpraying/token";
 const USER_KEY = "@getpraying/user";
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const fresh = await getMe();
           setToken(storedToken);
           setUser(fresh);
+          setUserId(String(fresh.id));
           await AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
         } catch {
           await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
@@ -92,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);
     setToken(tok);
     setUser(u);
+    setUserId(String(u.id));
     return u;
   }, []);
 
@@ -120,6 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.multiSet([[TOKEN_KEY, tok], [USER_KEY, JSON.stringify(u)]]);
     setToken(tok);
     setUser(u);
+    logSignUp("email");
+    setUserId(String(u.id));
     return u;
   }, []);
 

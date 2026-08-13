@@ -19,9 +19,11 @@
       "associatedDomains": [
         "applinks:share.getpraying.com"
       ],
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "CFBundleDisplayName": "Get Praying",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "This allows us to optimize your experience and measure ad performance."
       },
       "bundleIdentifier": "com.getpraying.app"
     },
@@ -126,6 +128,20 @@
           "icon": "./assets/images/notification-icon.png",
           "color": "#1A1F36",
           "defaultChannel": "default"
+        }
+      ],
+      "@react-native-firebase/app",
+      "expo-tracking-transparency",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "<META_APP_ID>",
+          "clientToken": "<META_CLIENT_TOKEN>",
+          "displayName": "Get Praying",
+          "scheme": "fb<META_APP_ID>",
+          "advertiserIDCollectionEnabled": true,
+          "autoLogAppEventsEnabled": true,
+          "iosUserTrackingPermission": "This allows us to optimize your experience and measure ad performance."
         }
       ]
     ],

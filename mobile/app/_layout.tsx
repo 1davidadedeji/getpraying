@@ -30,6 +30,7 @@ import { EntitlementGate } from "@/components/EntitlementGate";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
 import { SanctuaryScheduleCoordinator } from "@/components/SanctuaryScheduleCoordinator";
 import { ensureAppBackgroundMediaPause } from "@/lib/mediaPlaybackCoordinator";
+import { initAnalytics, logAppOpen } from "@/lib/analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/auth";
 import { FeedNoticeProvider } from "@/context/feedNotice";
@@ -178,6 +179,9 @@ export default function RootLayout() {
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.cream);
     ensureAppBackgroundMediaPause();
+    void initAnalytics().then(() => {
+      logAppOpen();
+    });
   }, []);
 
   const [fontsLoaded, fontError] = useFonts({
