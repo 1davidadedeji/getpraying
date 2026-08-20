@@ -26,7 +26,7 @@ import {
   type LectureTrackRow,
   type OfficialPrayerRow,
 } from "@/lib/officialPrayer";
-import { isPremiumContentLocked } from "@/lib/premiumContent";
+import { isPremiumContentLocked, isSanctuaryOfficialPrayer } from "@/lib/premiumContent";
 import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import { usePremiumViewer } from "@/lib/premiumViewer";
 import { premiumCardStyle } from "@/lib/premiumPostTheme";
@@ -64,7 +64,7 @@ export default function OfficialPrayerScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale, iconAction } = useResponsiveLayout();
   const { token } = useAuth();
-  const { subscribed, shouldBlur } = usePremiumViewer();
+  const { subscribed, shouldBlurOfficial } = usePremiumViewer();
   const bookmarkIcn = Math.round(clamp(26 * uiScale, 22, 30));
   const rowGap = Math.round(clamp(12 * uiScale, 10, 14));
   const topMb = Math.round(clamp(16 * uiScale, 12, 20));
@@ -239,8 +239,8 @@ export default function OfficialPrayerScreen() {
   const showSanctuaryHint = Boolean(!d.pathId && d.scheduleSlot);
   const showSeeAlso = showSeeAlsoRowPath || showSeeAlsoRowCategory || showSanctuaryHint;
   const contentLocked = isPremiumContentLocked(d);
-  const premiumLocked = shouldBlur(d);
-  const isPremiumGuide = Boolean(d.isPremium);
+  const premiumLocked = shouldBlurOfficial(d);
+  const isPremiumGuide = Boolean(d.isPremium) && !isSanctuaryOfficialPrayer(d);
   const showAudioLock = contentLocked && !isLecture && !d.audioUrl;
 
   return (
@@ -324,7 +324,7 @@ export default function OfficialPrayerScreen() {
               <LectureTrackList
                 tracks={lectureTracks}
                 accentColor={colors.primary}
-                isPremiumLocked={contentLocked}
+                isPremiumLocked={premiumLocked}
                 guideIsPremium={isPremiumGuide}
               />
             ) : d.audioUrl ? (

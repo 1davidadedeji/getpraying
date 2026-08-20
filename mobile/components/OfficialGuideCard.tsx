@@ -10,6 +10,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
 import { usePremiumViewer } from "@/lib/premiumViewer";
 import { premiumCardStyle } from "@/lib/premiumPostTheme";
+import { promptPremiumContentUnlock } from "@/lib/promptPremiumContent";
 import { clamp } from "@/lib/responsiveMetrics";
 
 type Props = {
@@ -25,7 +26,7 @@ function navigateToGuide(op: OfficialPrayerRow) {
 
 export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props) {
   const { uiScale, cardRadius, iconAction } = useResponsiveLayout();
-  const { shouldBlur } = usePremiumViewer();
+  const { shouldBlurOfficial } = usePremiumViewer();
   const cardPad = Math.round(clamp(16 * uiScale, 14, 20));
   const cardRad = Math.round(clamp(cardRadius * 0.75, 20, 30));
   const cardMb = Math.round(clamp(12 * uiScale, 10, 14));
@@ -54,12 +55,41 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
     ) : null;
 
   const isPremium = Boolean(op.isPremium);
-  const premiumLocked = shouldBlur(op);
+  const premiumLocked = shouldBlurOfficial(op);
   const previewText = op.subtitle?.trim()
     ? op.subtitle
     : op.content?.trim()
       ? op.content
-      : null;
+      : op.contentPreview?.trim()
+        ? op.contentPreview
+        : null;
+
+  const handlePress = () => {
+    if (premiumLocked) {
+      promptPremiumContentUnlock();
+      return;
+    }
+    navigateToGuide(op);
+  };
+
+  const gatedBody = (
+    <>
+      <Text style={[styles.officialTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
+      {previewText ? (
+        <FormattedBodyText
+          text={previewText}
+          style={styles.officialSubtitle}
+          fontSize={fsSub}
+          lineHeight={lhSub}
+          numberOfLines={3}
+        />
+      ) : (
+        <Text style={[styles.officialSubtitle, { fontSize: fsSub, lineHeight: lhSub }]} numberOfLines={2}>
+          Tap to unlock this premium guide.
+        </Text>
+      )}
+    </>
+  );
 
   return (
     <Pressable
@@ -73,7 +103,7 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
         isPremium && premiumCardStyle(true),
         pressed && styles.pressed,
       ]}
-      onPress={() => navigateToGuide(op)}
+      onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={`Open guide: ${op.title}`}
     >
@@ -99,31 +129,26 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
           </Pressable>
         ) : null}
       </View>
-      <Text style={[styles.officialTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
-      {previewText ? (
-        <PremiumGatedContent
-          locked={isPremium && premiumLocked}
-          isPremium={isPremium}
-          minHeight={72}
-        >
-          <FormattedBodyText
-            text={previewText}
-            style={styles.officialSubtitle}
-            fontSize={fsSub}
-            lineHeight={lhSub}
-            numberOfLines={3}
-          />
+
+      {isPremium && premiumLocked ? (
+        <PremiumGatedContent locked isPremium minHeight={100}>
+          {gatedBody}
         </PremiumGatedContent>
-      ) : null}
+      ) : (
+        gatedBody
+      )}
+
       {op.uploadedByUsername || op.uploadedByDisplayName ? (
         <Text style={[styles.uploadedBy, { fontSize: fsUpload, marginTop: uploadMt }]}>
           Uploaded by{" "}
           {op.uploadedByUsername ? `@${op.uploadedByUsername}` : op.uploadedByDisplayName}
         </Text>
       ) : null}
-      <View style={[styles.tapHint, { right: hintRight, bottom: hintBottom }]}>
-        <Ionicons name="chevron-forward" size={chevIcn} color={colors.muted} />
-      </View>
+      {!premiumLocked ? (
+        <View style={[styles.tapHint, { right: hintRight, bottom: hintBottom }]}>
+          <Ionicons name="chevron-forward" size={chevIcn} color={colors.muted} />
+        </View>
+      ) : null}
     </Pressable>
   );
 }

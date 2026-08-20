@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import colors from "@/constants/colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
@@ -67,13 +67,9 @@ export function SubscriptionPromptSheet({
             <Ionicons name="star" size={emblemIcon} color={colors.accent} />
           </View>
           <Text style={[styles.title, { fontSize: titleFs }]}>{copy.title}</Text>
-          <ScrollView
-            style={styles.messageScroll}
-            contentContainerStyle={styles.messageScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <Text style={[styles.message, { fontSize: msgFs, lineHeight: msgLh }]}>{copy.message}</Text>
-          </ScrollView>
+          <Text style={[styles.message, { fontSize: msgFs, lineHeight: msgLh, marginBottom: 16 }]}>
+            {copy.message}
+          </Text>
           <View style={[styles.actions, { gap: actionsGap }]}>
             <Pressable
               onPress={onSubscribe}
@@ -133,16 +129,8 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: "NotoSerif_700Bold",
     color: "#FFFFFF",
-    marginBottom: 12,
+    marginBottom: 10,
     textAlign: "center",
-  },
-  messageScroll: {
-    maxHeight: 280,
-    marginBottom: 16,
-    width: "100%",
-  },
-  messageScrollContent: {
-    paddingBottom: 4,
   },
   message: {
     fontFamily: "PlusJakartaSans_400Regular",

@@ -15,7 +15,7 @@ export function subscriptionPromptCopy(
       return {
         title: "You've Used Your Free Prayer Boost",
         message:
-          "Subscribe to Get Praying for unlimited Prayer Boosts and help support the Get Praying community.\n\nYour subscription also includes access to exclusive prayer content from select celebrities and global faith leaders, along with premium community features.",
+          "Subscribe for unlimited Prayer Boosts and exclusive library content from faith leaders worldwide.",
         subscribeLabel: SUBSCRIBE_LABEL,
         notNowLabel: NOT_NOW_LABEL,
       };
@@ -24,16 +24,16 @@ export function subscriptionPromptCopy(
       return {
         title: `You've Been Praying With Us for ${days} Days`,
         message:
-          "Now, help support the Get Praying community and unlock the full experience.\n\nSubscribe to access exclusive prayer content from select celebrities and global faith leaders in the library, unlimited Prayer Boosts, and premium community features.\n\nA portion of every subscription helps support and grow the Get Praying community.",
+          "Unlock the full library, unlimited boosts, and premium features — and help grow the Get Praying community.",
         subscribeLabel: SUBSCRIBE_LABEL,
         notNowLabel: NOT_NOW_LABEL,
       };
     }
     case "premiumContent":
       return {
-        title: "This Content Is Premium Prayer Content",
+        title: "Premium Prayer Content",
         message:
-          "Subscribe to access exclusive prayers and messages from select celebrities and global faith leaders.\n\nYour subscription also helps support and grow the Get Praying community.",
+          "Subscribe to unlock this guide and other exclusive prayers from global faith leaders.",
         subscribeLabel: SUBSCRIBE_LABEL,
         notNowLabel: NOT_NOW_LABEL,
       };

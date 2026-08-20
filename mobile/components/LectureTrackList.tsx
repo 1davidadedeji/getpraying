@@ -107,7 +107,8 @@ export function LectureTrackList({
                 locked={isPremiumLocked}
                 isPremium={guideIsPremium}
                 mode="media"
-                minHeight={isActive ? 140 : 88}
+                overlaySize={isActive ? "default" : "compact"}
+                minHeight={isActive ? 140 : 96}
                 onUnlocked={() => {
                   setAutoPlayActive(true);
                   setActiveTrackId(track.id);
@@ -130,7 +131,7 @@ export function LectureTrackList({
                       />
                     ) : null}
                   </View>
-                  {!isActive ? (
+                  {!isActive && !isPremiumLocked ? (
                     <View style={styles.playFab}>
                       <Ionicons name="play" size={18} color={accentColor} />
                     </View>

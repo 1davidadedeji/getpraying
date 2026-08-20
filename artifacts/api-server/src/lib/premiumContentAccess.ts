@@ -20,15 +20,25 @@ export function parseIsPremiumFromBody(body: unknown, fallback = false): boolean
 
 type OfficialLike = {
   isPremium?: boolean | null;
+  scheduleSlot?: string | null;
   content?: string | null;
   audioUrl?: string | null;
   tracks?: LectureTrackDto[] | null;
 };
 
+/** Morning/evening sanctuary guides are always free for every viewer. */
+export function isSanctuaryScheduleSlot(scheduleSlot: string | null | undefined): boolean {
+  const slot = scheduleSlot?.trim().toLowerCase();
+  return slot === "morning" || slot === "evening";
+}
+
 export function applyPremiumOfficialForViewer<T extends OfficialLike>(
   item: T,
   viewer: PremiumViewer,
 ): T & { contentPreview?: string; contentLocked?: boolean } {
+  if (isSanctuaryScheduleSlot(item.scheduleSlot)) {
+    return item;
+  }
   if (!item.isPremium || userHasPremiumContentAccess(viewer)) {
     return item;
   }

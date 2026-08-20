@@ -1,6 +1,6 @@
 import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
-import { shouldBlurPremiumForViewer } from "@/lib/premiumContent";
+import { shouldBlurOfficialForViewer, shouldBlurPremiumForViewer } from "@/lib/premiumContent";
 import { isSubscribed } from "@/lib/subscriptionAccess";
 
 export { shouldBlurPremiumForViewer } from "@/lib/premiumContent";
@@ -12,5 +12,7 @@ export function usePremiumViewer() {
   return {
     subscribed,
     shouldBlur: (item: { isPremium?: boolean | null }) => shouldBlurPremiumForViewer(item, subscribed),
+    shouldBlurOfficial: (item: { isPremium?: boolean | null; scheduleSlot?: string | null }) =>
+      shouldBlurOfficialForViewer(item, subscribed),
   };
 }

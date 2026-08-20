@@ -7,9 +7,6 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { clamp } from "@/lib/responsiveMetrics";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
-import { PremiumGatedContent } from "@/components/PremiumGatedContent";
-import { usePremiumViewer } from "@/lib/premiumViewer";
-import { premiumCardBorderStyle } from "@/lib/premiumPostTheme";
 
 type Slot = "morning" | "evening";
 
@@ -66,7 +63,6 @@ export function SanctuarySlotCard({
   compact = false,
 }: Props) {
   const { uiScale } = useResponsiveLayout();
-  const { shouldBlur } = usePremiumViewer();
   const t = SLOT_THEME[slot];
   const density = compact ? 0.86 : 1;
   const slotIcon = Math.round(clamp(40 * uiScale * density, compact ? 32 : 36, compact ? 40 : 46));
@@ -102,39 +98,6 @@ export function SanctuarySlotCard({
     ? `${slotLabel} · SET BY ${setByName.toUpperCase()}`
     : slotLabel;
 
-  const isPremium = Boolean(prayer?.isPremium);
-  const premiumLocked = prayer ? shouldBlur(prayer) : false;
-
-  const slotContent = (
-    <>
-      <FormattedBodyText
-        text={body}
-        style={[styles.desc, { color: t.accent, marginBottom: descMb }]}
-        fontSize={fsDesc}
-        lineHeight={lhDesc}
-        numberOfLines={compact ? 2 : 3}
-      />
-
-      {prayer?.scripture && !compact ? (
-        <Text style={[styles.scripture, { color: t.accent, fontSize: fsScripture, marginBottom: scriptureMb }]}>
-          — {prayer.scripture}
-        </Text>
-      ) : null}
-
-      {prayer?.audioUrl ? (
-        <CapsuleAudioPlayer
-          audioUrl={prayer.audioUrl}
-          accentColor={t.accent}
-          backgroundColor="rgba(255,255,255,0.45)"
-        />
-      ) : prayer?.durationMinutes && !compact && !premiumLocked ? (
-        <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
-      ) : premiumLocked && isPremium ? (
-        <View style={styles.audioPlaceholder} accessibilityLabel="Premium audio locked" />
-      ) : null}
-    </>
-  );
-
   return (
     <View
       style={[
@@ -145,7 +108,6 @@ export function SanctuarySlotCard({
           borderRadius: cornerRad,
           marginBottom: cardMb,
         },
-        isPremium && premiumCardBorderStyle(true),
       ]}
     >
       <View style={[styles.topRow, { gap: rowGap, marginBottom: topRowMb }]}>
@@ -180,22 +142,32 @@ export function SanctuarySlotCard({
         ) : null}
       </View>
 
-      {isPremium ? (
-        <PremiumGatedContent
-          locked={premiumLocked}
-          isPremium
-          mode={prayer?.audioUrl || premiumLocked ? "media" : "text"}
-          minHeight={compact ? 88 : 120}
-        >
-          {slotContent}
-        </PremiumGatedContent>
-      ) : (
-        slotContent
-      )}
+      <FormattedBodyText
+        text={body}
+        style={[styles.desc, { color: t.accent, marginBottom: descMb }]}
+        fontSize={fsDesc}
+        lineHeight={lhDesc}
+        numberOfLines={compact ? 2 : 3}
+      />
+
+      {prayer?.scripture && !compact ? (
+        <Text style={[styles.scripture, { color: t.accent, fontSize: fsScripture, marginBottom: scriptureMb }]}>
+          — {prayer.scripture}
+        </Text>
+      ) : null}
+
+      {prayer?.audioUrl ? (
+        <CapsuleAudioPlayer
+          audioUrl={prayer.audioUrl}
+          accentColor={t.accent}
+          backgroundColor="rgba(255,255,255,0.45)"
+        />
+      ) : prayer?.durationMinutes && !compact ? (
+        <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
+      ) : null}
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   card: {
@@ -234,10 +206,5 @@ const styles = StyleSheet.create({
   duration: {
     fontFamily: "PlusJakartaSans_400Regular",
     opacity: 0.6,
-  },
-  audioPlaceholder: {
-    minHeight: 56,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.35)",
   },
 });

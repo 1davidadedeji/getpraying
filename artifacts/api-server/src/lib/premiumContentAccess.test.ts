@@ -15,6 +15,16 @@ describe("applyPremiumOfficialForViewer", () => {
     const item = { isPremium: true, content: "Full guide", audioUrl: "https://cdn/a.mp3" };
     expect(applyPremiumOfficialForViewer(item, { subscription: "premium" })).toEqual(item);
   });
+
+  it("leaves morning/evening sanctuary guides free for all viewers", () => {
+    const item = {
+      isPremium: true,
+      scheduleSlot: "morning",
+      content: "Morning prayer",
+      audioUrl: "https://cdn/a.mp3",
+    };
+    expect(applyPremiumOfficialForViewer(item, { subscription: "free" })).toEqual(item);
+  });
 });
 
 describe("applyPremiumPostForViewer", () => {

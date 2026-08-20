@@ -109,7 +109,7 @@ export default function LibraryScreen() {
     sectionParam === "morning" || sectionParam === "evening" ? sectionParam : null;
   const { windowWidth, windowHeight, gutter, uiScale } = useResponsiveLayout();
   const { token } = useAuth();
-  const { shouldBlur } = usePremiumViewer();
+  const { shouldBlurOfficial } = usePremiumViewer();
   const categoriesScrollRef = useRef<ScrollView>(null);
   const sanctuarySectionY = useRef(0);
   const savedListRef = useRef<FlatList>(null);
@@ -512,28 +512,15 @@ export default function LibraryScreen() {
       const theme = LECTURE_VISUAL_THEMES[themeIx];
       const artIx = lectureIx >= 0 ? lectureIx % LECTURE_ARTWORK_ICONS.length : 0;
       const isPremium = Boolean(op.isPremium);
-      const premiumLocked = shouldBlur(op);
+      const premiumLocked = shouldBlurOfficial(op);
 
       const sub = truncateLecturePreview(
-        (op.subtitle?.trim() ?? op.content?.trim() ?? "").trim() || "Listen to this guide.",
+        (op.subtitle?.trim() ?? op.content?.trim() ?? op.contentPreview?.trim() ?? "").trim() || "Listen to this guide.",
         100,
       );
 
-      return (
-        <Pressable
-          style={({ pressed }) => [
-            styles.lectureCardTall,
-            {
-              width: lectureCardWidth,
-              backgroundColor: theme.bg,
-            },
-            isPremium && premiumCardBorderStyle(true),
-            pressed && styles.cardPressed,
-          ]}
-          onPress={() => openOfficialPrayer(op.id)}
-          accessibilityRole="button"
-          accessibilityLabel={`Open lecture: ${op.title}`}
-        >
+      const lectureBody = (
+        <>
           <View style={[styles.lectureIconOrb, { backgroundColor: theme.iconBg }]}>
             <Ionicons
               name={LECTURE_ARTWORK_ICONS[artIx]}
@@ -544,32 +531,61 @@ export default function LibraryScreen() {
           <Text style={[styles.lectureCardTitleSerif, { color: theme.titleColor }]} numberOfLines={2}>
             {op.title}
           </Text>
-          <PremiumGatedContent
-            locked={isPremium && premiumLocked}
-            isPremium={isPremium}
-            minHeight={72}
-          >
-            <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={4}>
-              {sub}
-            </Text>
-          </PremiumGatedContent>
-          <View
-            pointerEvents="none"
-            style={[
-              styles.lectureChevronFab,
-              { bottom: Math.round(14 * uiScale), right: Math.round(14 * uiScale), backgroundColor: theme.chevronBg },
-            ]}
-          >
-            <Ionicons
-              name="chevron-forward"
-              size={Math.round(17 * uiScale)}
-              color={theme.chevronColor}
-            />
-          </View>
+          <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={premiumLocked ? 3 : 4}>
+            {sub}
+          </Text>
+        </>
+      );
+
+      return (
+        <Pressable
+          style={({ pressed }) => [
+            styles.lectureCardTall,
+            {
+              width: lectureCardWidth,
+              backgroundColor: theme.bg,
+              minHeight: premiumLocked ? Math.round(196 * uiScale) : undefined,
+            },
+            isPremium && premiumCardBorderStyle(true),
+            pressed && styles.cardPressed,
+          ]}
+          onPress={() => openOfficialPrayer(op.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open lecture: ${op.title}`}
+        >
+          {isPremium && premiumLocked ? (
+            <PremiumGatedContent
+              locked
+              isPremium
+              overlaySize="compact"
+              mode="media"
+              minHeight={Math.round(148 * uiScale)}
+              style={styles.lectureGateWrap}
+            >
+              {lectureBody}
+            </PremiumGatedContent>
+          ) : (
+            lectureBody
+          )}
+          {!premiumLocked ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.lectureChevronFab,
+                { bottom: Math.round(14 * uiScale), right: Math.round(14 * uiScale), backgroundColor: theme.chevronBg },
+              ]}
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={Math.round(17 * uiScale)}
+                color={theme.chevronColor}
+              />
+            </View>
+          ) : null}
         </Pressable>
       );
     },
-    [lectureCardWidth, lecturesGuides, uiScale, openOfficialPrayer, shouldBlur],
+    [lectureCardWidth, lecturesGuides, uiScale, openOfficialPrayer, shouldBlurOfficial],
   );
 
   const openPath = (cat: CategoryItem) => {
@@ -1137,12 +1153,17 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     alignItems: "center",
     position: "relative",
-    overflow: "visible",
+    overflow: "hidden",
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
+  },
+  lectureGateWrap: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
   },
   lectureExploreCard: {
     backgroundColor: "#F0EEE8",

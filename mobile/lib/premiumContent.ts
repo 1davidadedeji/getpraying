@@ -6,12 +6,27 @@ export function isPremiumContentLocked(item: {
   return Boolean(item.isPremium && item.contentLocked);
 }
 
+/** Morning/evening sanctuary guides are always free — no premium lock. */
+export function isSanctuaryOfficialPrayer(item: { scheduleSlot?: string | null }): boolean {
+  const slot = item.scheduleSlot?.trim().toLowerCase();
+  return slot === "morning" || slot === "evening";
+}
+
 /** Whether premium body/media should be blurred for the current viewer. */
 export function shouldBlurPremiumForViewer(
   item: { isPremium?: boolean | null },
   subscribed: boolean,
 ): boolean {
   return Boolean(item.isPremium && !subscribed);
+}
+
+/** Official library guides — sanctuary slots bypass premium blur. */
+export function shouldBlurOfficialForViewer(
+  item: { isPremium?: boolean | null; scheduleSlot?: string | null },
+  subscribed: boolean,
+): boolean {
+  if (isSanctuaryOfficialPrayer(item)) return false;
+  return shouldBlurPremiumForViewer(item, subscribed);
 }
 
 /** Feed/detail posts — authors always see their own premium content. */
