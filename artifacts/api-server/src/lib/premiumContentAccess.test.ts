@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPremiumOfficialForViewer, applyPremiumPostForViewer } from "./premiumContentAccess";
+import { applyPremiumOfficialForViewer, applyPremiumPostForViewer, transformLibraryPayloadForViewer } from "./premiumContentAccess";
 
 describe("applyPremiumOfficialForViewer", () => {
   it("marks contentLocked for premium guides even when body is empty", () => {
@@ -24,6 +24,25 @@ describe("applyPremiumOfficialForViewer", () => {
       audioUrl: "https://cdn/a.mp3",
     };
     expect(applyPremiumOfficialForViewer(item, { subscription: "free" })).toEqual(item);
+  });
+});
+
+describe("transformLibraryPayloadForViewer", () => {
+  it("strips premium path guides for free viewers", () => {
+    const body = {
+      id: 58,
+      name: "Anxiety",
+      officialPrayers: [
+        {
+          isPremium: true,
+          content: "Long path guide body",
+          audioUrl: "https://cdn/a.mp3",
+        },
+      ],
+    };
+    const out = transformLibraryPayloadForViewer(body, { subscription: "free" }) as typeof body;
+    expect(out.officialPrayers[0]?.contentLocked).toBe(true);
+    expect(out.officialPrayers[0]?.audioUrl).toBeNull();
   });
 });
 

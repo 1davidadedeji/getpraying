@@ -114,5 +114,21 @@ export function transformLibraryPayloadForViewer(body: unknown, viewer: PremiumV
     };
   }
 
+  if (Array.isArray(o.officialPrayers)) {
+    return {
+      ...o,
+      officialPrayers: o.officialPrayers.map((p) =>
+        applyPremiumOfficialForViewer(p as OfficialLike, viewer),
+      ),
+      ...(Array.isArray(o.savedOfficialPrayers)
+        ? {
+            savedOfficialPrayers: o.savedOfficialPrayers.map((p) =>
+              applyPremiumOfficialForViewer(p as OfficialLike, viewer),
+            ),
+          }
+        : {}),
+    };
+  }
+
   return body;
 }

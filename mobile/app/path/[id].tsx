@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import type { Href } from "expo-router";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { getGetPathQueryKey, useGetPath } from "@workspace/api-client-react";
 import type { OfficialPrayer } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CapsuleAudioPlayer } from "@/components/CapsuleAudioPlayer";
 import { FormattedBodyText } from "@/components/FormattedBodyText";
+import { PremiumGatedContent } from "@/components/PremiumGatedContent";
 import colors from "@/constants/colors";
 import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { iconKeyForPathCategory } from "@/constants/pathCategoryIcon";
@@ -26,9 +27,20 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useStackHeaderBack } from "@/hooks/useStackHeaderBack";
 import { officialGuideBadgeLabel, type OfficialPrayerRow } from "@/lib/officialPrayer";
 import { apiFetch } from "@/lib/api";
+import { usePremiumViewer } from "@/lib/premiumViewer";
+import { premiumCardStyle } from "@/lib/premiumPostTheme";
+import { promptPremiumContentUnlock } from "@/lib/promptPremiumContent";
 import { clamp } from "@/lib/responsiveMetrics";
 
-function toOfficialRow(p: OfficialPrayer & { audioUrl?: string | null; scheduleSlot?: string | null }): OfficialPrayerRow {
+function toOfficialRow(
+  p: OfficialPrayer & {
+    audioUrl?: string | null;
+    scheduleSlot?: string | null;
+    isPremium?: boolean | null;
+    contentLocked?: boolean | null;
+    contentPreview?: string | null;
+  },
+): OfficialPrayerRow {
   return {
     id: p.id,
     title: p.title,
@@ -44,6 +56,9 @@ function toOfficialRow(p: OfficialPrayer & { audioUrl?: string | null; scheduleS
     audioUrl: p.audioUrl ?? (p as { audioUrl?: string | null }).audioUrl ?? null,
     durationMinutes: p.durationMinutes ?? null,
     createdAt: p.createdAt as string | Date | null,
+    isPremium: Boolean(p.isPremium),
+    contentLocked: p.contentLocked ?? undefined,
+    contentPreview: p.contentPreview ?? null,
   };
 }
 
@@ -59,6 +74,7 @@ function PathSessionCard({
   showSave: boolean;
 }) {
   const { uiScale, iconAction, cardRadius } = useResponsiveLayout();
+  const { shouldBlurOfficial } = usePremiumViewer();
   const mins = op.durationMinutes;
   const headerGap = Math.round(clamp(10 * uiScale, 8, 12));
   const headerMb = Math.round(clamp(10 * uiScale, 8, 12));
@@ -73,8 +89,48 @@ function PathSessionCard({
   const scrMb = Math.round(clamp(12 * uiScale, 10, 14));
   const hit = Math.round(clamp(8 * uiScale, 6, 10));
 
+  const isPremium = Boolean(op.isPremium);
+  const premiumLocked = shouldBlurOfficial(op);
+
+  const handleOpen = () => {
+    if (premiumLocked) {
+      promptPremiumContentUnlock();
+      return;
+    }
+    router.push(`/official/${op.id}` as never);
+  };
+
+  const sessionBody = (
+    <>
+      <Text style={[styles.sessionCardTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
+      {op.scripture ? (
+        <Text style={[styles.sessionScripture, { fontSize: fsScripture, marginBottom: scrMb }]}>{op.scripture}</Text>
+      ) : null}
+      {op.subtitle?.trim() ? (
+        <Text style={[styles.sessionPreview, { fontSize: fsScripture, marginBottom: scrMb }]} numberOfLines={2}>
+          {op.subtitle}
+        </Text>
+      ) : null}
+      {op.audioUrl ? (
+        <CapsuleAudioPlayer audioUrl={op.audioUrl} accentColor={colors.primary} />
+      ) : premiumLocked && isPremium ? (
+        <View style={styles.audioPlaceholder} accessibilityLabel="Premium audio locked" />
+      ) : null}
+    </>
+  );
+
   return (
-    <View style={[styles.sessionCard, { padding: cardPad, borderRadius: cardRad, marginBottom: Math.round(4 * uiScale) }]}>
+    <Pressable
+      onPress={handleOpen}
+      style={({ pressed }) => [
+        styles.sessionCard,
+        { padding: cardPad, borderRadius: cardRad, marginBottom: Math.round(4 * uiScale) },
+        isPremium && premiumCardStyle(true),
+        pressed && styles.sessionCardPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`Open guide: ${op.title}`}
+    >
       <View style={[styles.sessionCardHeader, { gap: headerGap, marginBottom: headerMb }]}>
         <Ionicons name="pulse-outline" size={iconAction} color={colors.primary} />
         <View style={[styles.durationBadge, { paddingHorizontal: badgePadH, paddingVertical: badgePadV }]}>
@@ -85,21 +141,30 @@ function PathSessionCard({
           </Text>
         </View>
         {showSave ? (
-          <Pressable onPress={onToggleSave} style={styles.sessionSave} hitSlop={hit} accessibilityRole="button">
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onToggleSave();
+            }}
+            style={styles.sessionSave}
+            hitSlop={hit}
+            accessibilityRole="button"
+          >
             <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={iconAction} color={colors.primary} />
           </Pressable>
         ) : (
           <View style={{ flex: 1 }} />
         )}
       </View>
-      <Text style={[styles.sessionCardTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
-      {op.scripture ? (
-        <Text style={[styles.sessionScripture, { fontSize: fsScripture, marginBottom: scrMb }]}>{op.scripture}</Text>
-      ) : null}
-      {op.audioUrl ? (
-        <CapsuleAudioPlayer audioUrl={op.audioUrl} accentColor={colors.primary} />
-      ) : null}
-    </View>
+
+      {isPremium && premiumLocked ? (
+        <PremiumGatedContent locked isPremium mode="media" minHeight={120}>
+          {sessionBody}
+        </PremiumGatedContent>
+      ) : (
+        sessionBody
+      )}
+    </Pressable>
   );
 }
 
@@ -110,6 +175,7 @@ export default function PathDetailScreen() {
   const insets = useSafeAreaInsets();
   const { gutter, uiScale } = useResponsiveLayout();
   const { token } = useAuth();
+  const { subscribed } = usePremiumViewer();
   const queryClient = useQueryClient();
   const { data, isLoading } = useGetPath(pathId, {
     query: {
@@ -119,6 +185,14 @@ export default function PathDetailScreen() {
       gcTime: 15 * 60 * 1000,
     },
   });
+
+  const prevSubscribedRef = useRef(subscribed);
+  useEffect(() => {
+    if (!prevSubscribedRef.current && subscribed) {
+      void queryClient.invalidateQueries({ queryKey: getGetPathQueryKey(pathId) });
+    }
+    prevSubscribedRef.current = subscribed;
+  }, [subscribed, queryClient, pathId]);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
   const scrollBot = Math.round(clamp(40 * uiScale, 32, 48));
@@ -298,6 +372,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  sessionCardPressed: {
+    opacity: 0.9,
+  },
   sessionCardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -319,5 +396,14 @@ const styles = StyleSheet.create({
   sessionScripture: {
     fontFamily: "PlusJakartaSans_500Medium",
     color: colors.muted,
+  },
+  sessionPreview: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.textSecondary,
+  },
+  audioPlaceholder: {
+    minHeight: 56,
+    borderRadius: 14,
+    backgroundColor: colors.cream,
   },
 });

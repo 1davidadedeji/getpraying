@@ -363,7 +363,9 @@ router.get("/library/saved-official", requireAuth, async (req, res): Promise<voi
     .orderBy(desc(savedOfficialPrayersTable.createdAt));
 
   res.json({
-    prayers: rows.map((p) => mapOfficialSummary(p)),
+    prayers: rows.map((p) =>
+      applyPremiumOfficialForViewer(mapOfficialSummary(p), libraryViewer(req)),
+    ),
   });
 });
 
