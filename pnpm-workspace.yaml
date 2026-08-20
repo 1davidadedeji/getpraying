@@ -77,11 +77,11 @@ nodeLinker: hoisted
 # pnpm v11+: dependency install scripts (replaces onlyBuiltDependencies / ignoredBuiltDependencies).
 # Required for Vercel/CI where strictDepBuilds rejects unapproved builds (esbuild native binary, sharp, etc.).
 allowBuilds:
-  '@firebase/util': set this to true or false
+  '@firebase/util': true
   '@swc/core': true
   esbuild: true
   msw: true
-  protobufjs: set this to true or false
+  protobufjs: true
   sharp: true
   unrs-resolver: true
 
