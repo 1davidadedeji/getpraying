@@ -40,10 +40,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# Firebase / Google services credentials (never commit)
-*firebase-adminsdk*.json
-google-services.json
-GoogleService-Info.plist
+# Firebase / Google services credentials — replace dummy committed stubs before prod analytics.
+# *firebase-adminsdk*.json
 
 # local env files
 .env*.local

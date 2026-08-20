@@ -103,6 +103,9 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "useFrameworks": "static"
+          },
           "android": {
             "usesCleartextTraffic": true,
             "enableProguardInReleaseBuilds": true,
@@ -131,14 +134,15 @@
         }
       ],
       "@react-native-firebase/app",
+      "./plugins/withRnFirebasePodfile.js",
       "expo-tracking-transparency",
       [
         "react-native-fbsdk-next",
         {
-          "appID": "<META_APP_ID>",
-          "clientToken": "<META_CLIENT_TOKEN>",
+          "appID": "123456789012345",
+          "clientToken": "dummy_meta_client_token_replace_before_release",
           "displayName": "Get Praying",
-          "scheme": "fb<META_APP_ID>",
+          "scheme": "fb123456789012345",
           "advertiserIDCollectionEnabled": true,
           "autoLogAppEventsEnabled": true,
           "iosUserTrackingPermission": "This allows us to optimize your experience and measure ad performance."
