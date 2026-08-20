@@ -133,7 +133,14 @@
           "defaultChannel": "default"
         }
       ],
-      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ],
       "./plugins/withRnFirebasePodfile.js",
       "expo-tracking-transparency",
       [
