@@ -28,6 +28,27 @@ describe("applyPremiumOfficialForViewer", () => {
 });
 
 describe("transformLibraryPayloadForViewer", () => {
+  it("keeps sanctuary slot audio for free viewers", () => {
+    const body = {
+      morning: {
+        isPremium: true,
+        scheduleSlot: "morning",
+        content: "Morning prayer",
+        audioUrl: "https://cdn/morning.mp3",
+      },
+      evening: {
+        isPremium: true,
+        scheduleSlot: "evening",
+        content: "Evening prayer",
+        audioUrl: "https://cdn/evening.mp3",
+      },
+    };
+    const out = transformLibraryPayloadForViewer(body, { subscription: "free" }) as typeof body;
+    expect(out.morning.audioUrl).toBe("https://cdn/morning.mp3");
+    expect(out.evening.audioUrl).toBe("https://cdn/evening.mp3");
+    expect(out.morning.contentLocked).toBeUndefined();
+  });
+
   it("strips premium path guides for free viewers", () => {
     const body = {
       id: 58,

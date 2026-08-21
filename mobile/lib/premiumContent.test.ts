@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   isPremiumContentLocked,
   isPremiumMediaLocked,
+  isSanctuaryOfficialPrayer,
+  shouldBlurOfficialForViewer,
   shouldBlurPremiumForViewer,
   shouldBlurPremiumPostForViewer,
 } from "./premiumContent";
@@ -34,6 +36,29 @@ describe("isPremiumMediaLocked", () => {
     expect(
       isPremiumMediaLocked({ isPremium: true, mediaType: "video", mediaUrl: "https://x/v.mp4" }),
     ).toBe(false);
+  });
+});
+
+describe("shouldBlurOfficialForViewer", () => {
+  it("never blurs morning/evening sanctuary guides", () => {
+    expect(
+      shouldBlurOfficialForViewer({ isPremium: true, scheduleSlot: "morning" }, false),
+    ).toBe(false);
+    expect(
+      shouldBlurOfficialForViewer({ isPremium: true, scheduleSlot: "evening" }, false),
+    ).toBe(false);
+  });
+
+  it("blurs other premium official guides for free viewers", () => {
+    expect(shouldBlurOfficialForViewer({ isPremium: true, scheduleSlot: null }, false)).toBe(true);
+  });
+});
+
+describe("isSanctuaryOfficialPrayer", () => {
+  it("detects morning and evening slots", () => {
+    expect(isSanctuaryOfficialPrayer({ scheduleSlot: "morning" })).toBe(true);
+    expect(isSanctuaryOfficialPrayer({ scheduleSlot: " EVENING " })).toBe(true);
+    expect(isSanctuaryOfficialPrayer({ scheduleSlot: "lectures" })).toBe(false);
   });
 });
 

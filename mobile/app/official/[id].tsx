@@ -241,7 +241,8 @@ export default function OfficialPrayerScreen() {
   const contentLocked = isPremiumContentLocked(d);
   const premiumLocked = shouldBlurOfficial(d);
   const isPremiumGuide = Boolean(d.isPremium) && !isSanctuaryOfficialPrayer(d);
-  const showAudioLock = contentLocked && !isLecture && !d.audioUrl;
+  const showAudioLock =
+    contentLocked && !isLecture && !d.audioUrl && !isSanctuaryOfficialPrayer(d);
 
   return (
     <ScrollView

@@ -601,7 +601,6 @@ export default function FeedScreen() {
     key.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
   const isEveningReflection = isEveningSanctuarySlotNow();
-  const showSanctuaryAudio = user?.scheduledNotificationsEnabled !== false;
   const guideSlot: "morning" | "evening" = isEveningReflection ? "evening" : "morning";
   const guideMarkSize = Math.round(clamp(reflIcn * 0.92, 16, 24));
 
@@ -652,20 +651,18 @@ export default function FeedScreen() {
         accessibilityLabel="Search feed"
       />
 
-      {showSanctuaryAudio ? (
-        <SanctuarySlotCard
-          compact
-          slot={guideSlot}
-          prayer={guideSlot === "evening" ? sanctuary.evening : sanctuary.morning}
-          leadingSlotIcon={
-            guideSlot === "evening" ? (
-              <EveningGuideMark size={guideMarkSize} />
-            ) : (
-              <MorningGuideMark size={guideMarkSize} />
-            )
-          }
-        />
-      ) : null}
+      <SanctuarySlotCard
+        compact
+        slot={guideSlot}
+        prayer={guideSlot === "evening" ? sanctuary.evening : sanctuary.morning}
+        leadingSlotIcon={
+          guideSlot === "evening" ? (
+            <EveningGuideMark size={guideMarkSize} />
+          ) : (
+            <MorningGuideMark size={guideMarkSize} />
+          )
+        }
+      />
 
       <Pressable
         onPress={() => router.push("/post/new" as never)}
@@ -756,7 +753,6 @@ export default function FeedScreen() {
       feedSearchFs,
       feedSearchIcon,
       searchClearIcn,
-      showSanctuaryAudio,
       guideSlot,
       sanctuary.morning,
       sanctuary.evening,
