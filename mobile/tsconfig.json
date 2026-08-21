@@ -1,45 +1,13 @@
 {
+  "extends": "../node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
-    "allowJs": true,
-    "customConditions": [
-      "react-native"
-    ],
-    "esModuleInterop": true,
-    "jsx": "react-native",
-    "lib": [
-      "DOM",
-      "ESNext"
-    ],
-    "module": "preserve",
-    "moduleDetection": "force",
-    "moduleResolution": "bundler",
-    "noEmit": true,
-    "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@workspace/api-client-react": [
-        "../lib/api-client-react/src/index.ts"
-      ]
-    },
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
     "strict": true,
-    "target": "ESNext"
-  },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ],
-  "exclude": [
-    "_archived/**"
-  ],
-  "references": [
-    {
-      "path": "../lib/api-client-react"
+    "paths": {
+      "@/*": ["./*"],
+      "@workspace/api-client-react": ["../lib/api-client-react/src/index.ts"]
     }
-  ],
-  "extends": "expo/tsconfig.base"
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["_archived/**"],
+  "references": [{ "path": "../lib/api-client-react" }]
 }
