@@ -31,6 +31,7 @@ import { FEATHER_ICON_MAP } from "@/constants/featherIconMap";
 import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
+import { loadSanctuaryState } from "@/lib/sanctuaryLoad";
 import {
   DEFAULT_FOCUS_FETCH_THROTTLE_MS,
   runLibraryFocusFetch,
@@ -269,13 +270,8 @@ export default function LibraryScreen() {
     }
     if (!cached) setLoadingOfficial(true);
     try {
-      const data = await fetchLibraryCached<SanctuaryPayload>(path, token, opts);
-      if (data) {
-        setSanctuary({
-          morning: data.morning ?? null,
-          evening: data.evening ?? null,
-        });
-      }
+      const data = await loadSanctuaryState(token, opts);
+      setSanctuary(data);
     } catch {
       if (!cached) setSanctuary({ morning: null, evening: null });
     } finally {

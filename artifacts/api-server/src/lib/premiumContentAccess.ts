@@ -21,22 +21,27 @@ export function parseIsPremiumFromBody(body: unknown, fallback = false): boolean
 type OfficialLike = {
   isPremium?: boolean | null;
   scheduleSlot?: string | null;
+  category?: string | null;
   content?: string | null;
   audioUrl?: string | null;
   tracks?: LectureTrackDto[] | null;
 };
 
 /** Morning/evening sanctuary guides are always free for every viewer. */
-export function isSanctuaryScheduleSlot(scheduleSlot: string | null | undefined): boolean {
+export function isSanctuaryScheduleSlot(
+  scheduleSlot: string | null | undefined,
+  category?: string | null,
+): boolean {
   const slot = scheduleSlot?.trim().toLowerCase();
-  return slot === "morning" || slot === "evening";
+  if (slot === "morning" || slot === "evening") return true;
+  return category?.trim().toLowerCase() === "sanctuary";
 }
 
 export function applyPremiumOfficialForViewer<T extends OfficialLike>(
   item: T,
   viewer: PremiumViewer,
 ): T & { contentPreview?: string; contentLocked?: boolean } {
-  if (isSanctuaryScheduleSlot(item.scheduleSlot)) {
+  if (isSanctuaryScheduleSlot(item.scheduleSlot, item.category)) {
     return item;
   }
   if (!item.isPremium || userHasPremiumContentAccess(viewer)) {

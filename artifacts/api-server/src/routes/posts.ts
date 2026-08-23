@@ -332,17 +332,20 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   ]);
 
   const hasMore = posts.length > limit;
-  const page = declusterFeedPostsByAuthor(posts.slice(0, limit));
+  const sqlPage = posts.slice(0, limit);
+  const page = declusterFeedPostsByAuthor(sqlPage);
   const feedPriorities = new Map(page.map((row) => [row.id, Number(row.feedPriority ?? 1)]));
   const enriched = await enrichPosts(
     page.map(({ feedPriority: _fp, ...post }) => post),
     currentUser?.id,
   );
+  const enrichedById = new Map(enriched.map((post) => [post.id, post]));
 
   let nextCursor: string | null = null;
-  if (hasMore && enriched.length > 0) {
-    const last = enriched[enriched.length - 1]!;
-    nextCursor = encodeFeedCursor(last, feedPriorities.get(last.id));
+  if (hasMore && sqlPage.length > 0) {
+    const cursorRow = sqlPage[sqlPage.length - 1]!;
+    const cursorPost = enrichedById.get(cursorRow.id) ?? cursorRow;
+    nextCursor = encodeFeedCursor(cursorPost, feedPriorities.get(cursorRow.id));
   }
 
   const globalNewestCreatedAt = newestRow[0]?.newest

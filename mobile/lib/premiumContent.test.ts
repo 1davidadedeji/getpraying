@@ -60,6 +60,10 @@ describe("isSanctuaryOfficialPrayer", () => {
     expect(isSanctuaryOfficialPrayer({ scheduleSlot: " EVENING " })).toBe(true);
     expect(isSanctuaryOfficialPrayer({ scheduleSlot: "lectures" })).toBe(false);
   });
+
+  it("detects legacy sanctuary category guides", () => {
+    expect(isSanctuaryOfficialPrayer({ category: "sanctuary" })).toBe(true);
+  });
 });
 
 describe("shouldBlurPremiumForViewer", () => {

@@ -39,6 +39,7 @@ import {
   shouldRunThrottledFocusFetch,
 } from "@/lib/focusFetchThrottle";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
+import { loadSanctuaryState } from "@/lib/sanctuaryLoad";
 import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
 import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
@@ -54,14 +55,6 @@ import { subscribeAppActive } from "@/lib/appResume";
 import { applyEngagementPatch, filterRemovedPost, filterPostsByAuthorUsername, subscribePostEngagement, subscribePostRemoved, subscribeUserBlocked } from "@/lib/postEngagementSync";
 
 const PAGE_SIZE = 20;
-const NEW_POSTS_SINCE_LIMIT = 50;
-
-function mergeNewPostsAtTop(incoming: Post[], current: Post[]): Post[] {
-  if (incoming.length === 0) return current;
-  const seen = new Set(incoming.map((p) => p.id));
-  const rest = current.filter((p) => !seen.has(p.id));
-  return [...incoming, ...rest];
-}
 const NEW_POSTS_POLL_MS = 45_000;
 /** Show the “new prayers” pill once the user has scrolled slightly (avoids flash on first paint). */
 const NEW_POSTS_SCROLL_GATE_PX = 0;
@@ -237,37 +230,12 @@ export default function FeedScreen() {
       });
     }
     try {
-      const data = await fetchLibraryCached<SanctuaryPayload>(path, token, opts);
-      if (data) {
-        setSanctuary({
-          morning: data.morning ?? null,
-          evening: data.evening ?? null,
-        });
-      }
+      const data = await loadSanctuaryState(token, opts);
+      setSanctuary(data);
     } catch {
       /* keep previous sanctuary */
     }
   }, [token]);
-
-  const fetchPostsSince = useCallback(
-    async (
-      maxKnownCreatedAt: string,
-    ): Promise<{ posts: Post[]; globalNewestCreatedAt: string | null }> => {
-      const params = new URLSearchParams({
-        maxKnownCreatedAt,
-        limit: String(NEW_POSTS_SINCE_LIMIT),
-      });
-      const res = await apiFetch(`/posts/since?${params}`, { token });
-      if (!res.ok) return { posts: [], globalNewestCreatedAt: null };
-      const data = await res.json();
-      return {
-        posts: Array.isArray(data.posts) ? data.posts : [],
-        globalNewestCreatedAt:
-          typeof data.globalNewestCreatedAt === "string" ? data.globalNewestCreatedAt : null,
-      };
-    },
-    [token],
-  );
 
   const fetchPage = useCallback(
     async (
@@ -436,6 +404,7 @@ export default function FeedScreen() {
       };
 
       const interval = setInterval(() => void pollNewPosts(), NEW_POSTS_POLL_MS);
+      void pollNewPosts();
       return () => {
         clearInterval(interval);
         if (newPostsCountDebounceRef.current) {
@@ -467,28 +436,14 @@ export default function FeedScreen() {
     newPostsScrollGateRef.current = false;
     setNewPostsScrollGate(false);
     try {
-      const maxKnown = maxKnownCreatedAtRef.current;
-      const [sinceResult, pageResult] = await Promise.all([
-        maxKnown
-          ? fetchPostsSince(maxKnown)
-          : Promise.resolve({ posts: [] as Post[], globalNewestCreatedAt: null }),
-        fetchPage(undefined, null),
-      ]);
-
-      const merged = mergeNewPostsAtTop(sinceResult.posts, pageResult.posts);
-      setPosts(merged.length > 0 ? merged : pageResult.posts);
-      setNextCursor(pageResult.nextCursor);
-      applyFeedWatermark(
-        pageResult.globalNewestCreatedAt ?? sinceResult.globalNewestCreatedAt,
-      );
-      setError(false);
+      await loadFreshRef.current({ silent: true, category: null });
       requestAnimationFrame(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: true });
       });
     } catch {
       setError(true);
     }
-  }, [fetchPage, fetchPostsSince, applyFeedWatermark]);
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -502,6 +457,7 @@ export default function FeedScreen() {
       const result = await fetchPage(undefined, category);
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
+      lastFreshAtRef.current = Date.now();
       if (!category) applyFeedWatermark(result.globalNewestCreatedAt);
       void loadSanctuary();
     } catch { /* keep current data */ } finally {

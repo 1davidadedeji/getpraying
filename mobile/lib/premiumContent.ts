@@ -7,9 +7,13 @@ export function isPremiumContentLocked(item: {
 }
 
 /** Morning/evening sanctuary guides are always free — no premium lock. */
-export function isSanctuaryOfficialPrayer(item: { scheduleSlot?: string | null }): boolean {
+export function isSanctuaryOfficialPrayer(item: {
+  scheduleSlot?: string | null;
+  category?: string | null;
+}): boolean {
   const slot = item.scheduleSlot?.trim().toLowerCase();
-  return slot === "morning" || slot === "evening";
+  if (slot === "morning" || slot === "evening") return true;
+  return item.category?.trim().toLowerCase() === "sanctuary";
 }
 
 /** Whether premium body/media should be blurred for the current viewer. */
@@ -22,7 +26,7 @@ export function shouldBlurPremiumForViewer(
 
 /** Official library guides — sanctuary slots bypass premium blur. */
 export function shouldBlurOfficialForViewer(
-  item: { isPremium?: boolean | null; scheduleSlot?: string | null },
+  item: { isPremium?: boolean | null; scheduleSlot?: string | null; category?: string | null },
   subscribed: boolean,
 ): boolean {
   if (isSanctuaryOfficialPrayer(item)) return false;

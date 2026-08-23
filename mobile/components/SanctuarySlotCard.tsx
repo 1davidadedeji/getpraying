@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { FormattedBodyText } from "@/components/FormattedBodyText";
@@ -98,6 +99,10 @@ export function SanctuarySlotCard({
     ? `${slotLabel} · SET BY ${setByName.toUpperCase()}`
     : slotLabel;
 
+  const openGuide = () => {
+    if (prayer?.id) router.push(`/official/${prayer.id}` as never);
+  };
+
   return (
     <View
       style={[
@@ -110,7 +115,14 @@ export function SanctuarySlotCard({
         },
       ]}
     >
-      <View style={[styles.topRow, { gap: rowGap, marginBottom: topRowMb }]}>
+      <Pressable
+        onPress={prayer?.id ? openGuide : undefined}
+        disabled={!prayer?.id}
+        style={({ pressed }) => [pressed && prayer?.id ? styles.cardPressed : null]}
+        accessibilityRole={prayer?.id ? "button" : undefined}
+        accessibilityLabel={prayer?.id ? `Open guide: ${title}` : undefined}
+      >
+        <View style={[styles.topRow, { gap: rowGap, marginBottom: topRowMb }]}>
         <View
           style={[
             styles.slotIconBg,
@@ -155,6 +167,7 @@ export function SanctuarySlotCard({
           — {prayer.scripture}
         </Text>
       ) : null}
+      </Pressable>
 
       {prayer?.audioUrl ? (
         <CapsuleAudioPlayer
@@ -162,7 +175,7 @@ export function SanctuarySlotCard({
           accentColor={t.accent}
           backgroundColor="rgba(255,255,255,0.45)"
         />
-      ) : prayer?.durationMinutes && !compact ? (
+      ) : prayer?.durationMinutes ? (
         <Text style={[styles.duration, { color: t.accent, fontSize: fsDuration }]}>{prayer.durationMinutes} min</Text>
       ) : null}
     </View>
@@ -173,6 +186,9 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.06)",
+  },
+  cardPressed: {
+    opacity: 0.92,
   },
   topRow: {
     flexDirection: "row",

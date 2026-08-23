@@ -25,6 +25,16 @@ describe("applyPremiumOfficialForViewer", () => {
     };
     expect(applyPremiumOfficialForViewer(item, { subscription: "free" })).toEqual(item);
   });
+
+  it("leaves legacy sanctuary category guides free for all viewers", () => {
+    const item = {
+      isPremium: true,
+      category: "sanctuary",
+      content: "Morning prayer",
+      audioUrl: "https://cdn/a.mp3",
+    };
+    expect(applyPremiumOfficialForViewer(item, { subscription: "free" })).toEqual(item);
+  });
 });
 
 describe("transformLibraryPayloadForViewer", () => {
