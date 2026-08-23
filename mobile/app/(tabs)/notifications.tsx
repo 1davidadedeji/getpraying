@@ -30,6 +30,11 @@ import {
 } from "@/lib/notificationNavigation";
 import { useTabScrollToTop } from "@/hooks/useTabScrollToTop";
 import { useScreenFocused } from "@/hooks/useScreenFocused";
+import {
+  notificationPostPreview,
+  notificationSubtitle,
+  notificationTitle,
+} from "@/lib/notificationDisplay";
 
 type NotifType = string;
 type NotifRow = Omit<Notification, "type"> & { type: string };
@@ -41,48 +46,6 @@ function normalizeNotificationsPayload(data: unknown): NotifRow[] {
     if (Array.isArray(raw)) return raw as NotifRow[];
   }
   return [];
-}
-
-function notificationBody(n: Omit<Notification, "type"> & { type: NotifType }): string {
-  if (n.type === "post_reported") {
-    return "Our team will review your prayer.";
-  }
-  return n.message;
-}
-
-function notificationTitle(n: Omit<Notification, "type"> & { type: NotifType }): string {
-  switch (n.type) {
-    case "prayer":
-      return n.actorUsername ? `${n.actorUsername} prayed with you` : "Someone prayed with you";
-    case "prayer_milestone":
-      return "Your prayer is spreading";
-    case "saved":
-      return n.actorUsername ? `${n.actorUsername} saved your prayer` : "Someone saved your prayer";
-    case "comment":
-      return n.actorUsername ? `${n.actorUsername} commented` : "New comment";
-    case "follow":
-      return n.actorUsername ? `${n.actorUsername} followed you` : "New follower";
-    case "post_reported":
-      return "Your prayer was reported";
-    case "reminder":
-      return "Prayer reminder";
-    case "category_new":
-      return n.category ? `New in library: ${n.category}` : "New library content";
-    case "post_approved":
-      return "Prayer approved";
-    case "post_declined":
-      return "Prayer not approved";
-    case "mod_queue":
-      return "Moderation needed";
-    case "role_updated":
-      return "Your role was updated";
-    case "boost_alert":
-      return "Boosted prayer";
-    case "system":
-      return "Update";
-    default:
-      return "Notification";
-  }
 }
 
 function NotificationItem({
@@ -143,6 +106,8 @@ function NotificationItem({
                         : colors.accent;
 
   const opensWeb = notificationOpensWebAdmin(t, userRole);
+  const subtitle = notificationSubtitle(item);
+  const preview = notificationPostPreview(item);
   const hasDestination =
     opensWeb ||
     !!item.postId ||
@@ -173,12 +138,16 @@ function NotificationItem({
         <Text style={styles.notifTitle} numberOfLines={2} ellipsizeMode="tail">
           {notificationTitle(item)}
         </Text>
-        <Text style={styles.notifBody} numberOfLines={2}>{notificationBody(item)}</Text>
-        {item.postPreview && (
-          <Text style={styles.notifPreview} numberOfLines={1}>
-            "{item.postPreview}"
+        {subtitle ? (
+          <Text style={styles.notifBody} numberOfLines={2}>
+            {subtitle}
           </Text>
-        )}
+        ) : null}
+        {preview ? (
+          <Text style={styles.notifPreview} numberOfLines={2}>
+            &ldquo;{preview}&rdquo;
+          </Text>
+        ) : null}
         <Text style={styles.notifTime}>{timeAgo(item.createdAt)}</Text>
       </View>
       {!item.isRead && <View style={styles.unreadDot} />}

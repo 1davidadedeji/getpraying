@@ -2,8 +2,20 @@ import { Router, type IRouter } from "express";
 import { db, notificationsTable, usersTable, postsTable } from "@workspace/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
+import { isMediaOnlyPostContent } from "../lib/postContentDisplay";
 
 const router: IRouter = Router();
+
+function notificationPostPreview(post: {
+  content: string;
+  mediaUrl: string | null;
+}): string | null {
+  const trimmed = post.content.trim();
+  if (isMediaOnlyPostContent(trimmed)) return null;
+  if (!trimmed && post.mediaUrl?.trim()) return null;
+  if (!trimmed) return null;
+  return trimmed.substring(0, 100);
+}
 
 router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
@@ -25,10 +37,10 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
     for (const a of actors) actorsMap.set(a.id, { username: a.username, avatarUrl: a.avatarUrl });
   }
 
-  let postsMap = new Map<number, { content: string }>();
+  let postsMap = new Map<number, { content: string; mediaUrl: string | null }>();
   if (postIds.length > 0) {
     const posts = await db.select().from(postsTable).where(inArray(postsTable.id, postIds));
-    for (const p of posts) postsMap.set(p.id, { content: p.content });
+    for (const p of posts) postsMap.set(p.id, { content: p.content, mediaUrl: p.mediaUrl });
   }
 
   res.json(
@@ -39,11 +51,11 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
       return {
         id: n.id,
         type: n.type,
-        message: actor && !hideActor ? `${actor.username} ${n.message}` : n.message,
+        message: n.message,
         actorUsername: hideActor ? null : (actor?.username ?? null),
         actorAvatarUrl: hideActor ? null : (actor?.avatarUrl ?? null),
         postId: n.postId,
-        postPreview: post ? post.content.substring(0, 100) : null,
+        postPreview: post ? notificationPostPreview(post) : null,
         category: n.category,
         isRead: n.isRead,
         createdAt: n.createdAt,
