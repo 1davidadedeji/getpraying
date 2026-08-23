@@ -519,7 +519,7 @@ export default function LibraryScreen() {
         100,
       );
 
-      const lectureBody = (
+      const lecturePreview = (
         <>
           <View style={[styles.lectureIconOrb, { backgroundColor: theme.iconBg }]}>
             <Ionicons
@@ -528,9 +528,6 @@ export default function LibraryScreen() {
               color={theme.iconColor}
             />
           </View>
-          <Text style={[styles.lectureCardTitleSerif, { color: theme.titleColor }]} numberOfLines={2}>
-            {op.title}
-          </Text>
           <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={premiumLocked ? 3 : 4}>
             {sub}
           </Text>
@@ -553,19 +550,36 @@ export default function LibraryScreen() {
           accessibilityRole="button"
           accessibilityLabel={`Open lecture: ${op.title}`}
         >
+          <Text
+            style={[styles.lectureCardTitleSerif, { color: theme.titleColor, marginBottom: Math.round(8 * uiScale) }]}
+            numberOfLines={2}
+          >
+            {op.title}
+          </Text>
           {isPremium && premiumLocked ? (
             <PremiumGatedContent
               locked
               isPremium
               overlaySize="compact"
               mode="media"
-              minHeight={Math.round(148 * uiScale)}
+              minHeight={Math.round(120 * uiScale)}
               style={styles.lectureGateWrap}
             >
-              {lectureBody}
+              {lecturePreview}
             </PremiumGatedContent>
           ) : (
-            lectureBody
+            <>
+              <View style={[styles.lectureIconOrb, { backgroundColor: theme.iconBg }]}>
+                <Ionicons
+                  name={LECTURE_ARTWORK_ICONS[artIx]}
+                  size={Math.round(26 * uiScale)}
+                  color={theme.iconColor}
+                />
+              </View>
+              <Text style={[styles.lectureCardSubSans, { color: theme.subColor }]} numberOfLines={4}>
+                {sub}
+              </Text>
+            </>
           )}
           {!premiumLocked ? (
             <View

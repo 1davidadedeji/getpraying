@@ -26,7 +26,7 @@ export function isRecurringPromptDue(
   if (subscriptionSuppressesRecurringPrompt(user.subscription)) return false;
 
   const daysJoined = daysSinceJoined(user.createdAt, now);
-  if (daysJoined < 7) return false;
+  if (daysJoined < 2) return false;
 
   const lastShown = user.subscriptionPromptLastShownAt;
   if (lastShown == null) return true;
@@ -35,7 +35,7 @@ export function isRecurringPromptDue(
   if (Number.isNaN(last.getTime())) return true;
 
   const daysSinceLastShown = Math.floor((now.getTime() - last.getTime()) / MS_PER_DAY);
-  return daysSinceLastShown >= 7;
+  return daysSinceLastShown >= 2;
 }
 
 export function recurringPromptStatus(

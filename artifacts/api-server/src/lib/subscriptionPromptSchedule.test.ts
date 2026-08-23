@@ -24,46 +24,46 @@ describe("subscriptionSuppressesRecurringPrompt", () => {
 });
 
 describe("isRecurringPromptDue", () => {
-  it("is false before day 7", () => {
+  it("is false before day 2", () => {
     expect(
       isRecurringPromptDue(
         { subscription: "free", createdAt: joined, subscriptionPromptLastShownAt: null },
-        new Date("2026-01-07T12:00:00.000Z"),
+        new Date("2026-01-02T12:00:00.000Z"),
       ),
     ).toBe(false);
   });
 
-  it("is true on day 7 when never shown", () => {
+  it("is true on day 2 when never shown", () => {
     expect(
       isRecurringPromptDue(
         { subscription: "free", createdAt: joined, subscriptionPromptLastShownAt: null },
-        new Date("2026-01-08T12:00:00.000Z"),
+        new Date("2026-01-03T12:00:00.000Z"),
       ),
     ).toBe(true);
   });
 
-  it("is false within 7 days of last dismiss", () => {
+  it("is false within 2 days of last dismiss", () => {
     expect(
       isRecurringPromptDue(
         {
           subscription: "free",
           createdAt: joined,
-          subscriptionPromptLastShownAt: new Date("2026-01-08T12:00:00.000Z"),
+          subscriptionPromptLastShownAt: new Date("2026-01-03T12:00:00.000Z"),
         },
-        new Date("2026-01-14T12:00:00.000Z"),
+        new Date("2026-01-04T12:00:00.000Z"),
       ),
     ).toBe(false);
   });
 
-  it("is true again 7+ days after dismiss", () => {
+  it("is true again 2+ days after dismiss", () => {
     expect(
       isRecurringPromptDue(
         {
           subscription: "free",
           createdAt: joined,
-          subscriptionPromptLastShownAt: new Date("2026-01-08T12:00:00.000Z"),
+          subscriptionPromptLastShownAt: new Date("2026-01-03T12:00:00.000Z"),
         },
-        new Date("2026-01-15T12:00:00.000Z"),
+        new Date("2026-01-05T12:00:00.000Z"),
       ),
     ).toBe(true);
   });

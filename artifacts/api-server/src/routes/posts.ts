@@ -24,7 +24,8 @@ import { pushForNotificationById } from "../lib/pushForNotification";
 import { getFeedExcludedAuthorIds, isBlockedBetween } from "../lib/userBlocks";
 import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
-import { feedCursorWhereClause, feedEngagementPriorityExpr } from "../lib/feedEngagementPriority";
+import { declusterFeedPostsByAuthor } from "../lib/feedDecluster";
+import { feedCursorWhereClause, feedPagePriorityExpr } from "../lib/feedEngagementPriority";
 import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
 import { parseIsPremiumFromBody } from "../lib/premiumContentAccess";
 import { isMediaOnlyPostContent } from "../lib/postContentDisplay";
@@ -287,10 +288,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const category = req.query.category as string | undefined;
   const currentUser = (req as any).user as { id: number } | undefined;
   const sortTs = feedTimelineSortTsExpr(currentUser?.id);
-  const usePersonalizedFeed = currentUser != null;
-  const priorityExpr = usePersonalizedFeed
-    ? feedEngagementPriorityExpr(currentUser.id)
-    : sql<number>`1`;
+  const priorityExpr = feedPagePriorityExpr(currentUser?.id);
 
   let conditions: PostWhere = eq(postsTable.status, "approved");
   if (category && String(category).trim()) {
@@ -306,12 +304,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   if (cursorDecoded) {
     conditions = and(
       conditions,
-      usePersonalizedFeed
-        ? feedCursorWhereClause(priorityExpr, sortTs, cursorDecoded)
-        : or(
-            sql`${sortTs} < ${new Date(cursorDecoded.k)}`,
-            sql`(${sortTs} = ${new Date(cursorDecoded.k)} AND ${postsTable.id} < ${cursorDecoded.i})`,
-          )!,
+      feedCursorWhereClause(priorityExpr, sortTs, cursorDecoded),
     )!;
   }
   conditions = await applyBlockedAuthorFilter(conditions, currentUser?.id);
@@ -327,7 +320,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
       .from(postsTable)
       .where(conditions)
       .orderBy(
-        ...(usePersonalizedFeed ? [asc(priorityExpr)] : []),
+        asc(priorityExpr),
         desc(sortTs),
         desc(postsTable.id),
       )
@@ -339,7 +332,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   ]);
 
   const hasMore = posts.length > limit;
-  const page = posts.slice(0, limit);
+  const page = declusterFeedPostsByAuthor(posts.slice(0, limit));
   const feedPriorities = new Map(page.map((row) => [row.id, Number(row.feedPriority ?? 1)]));
   const enriched = await enrichPosts(
     page.map(({ feedPriority: _fp, ...post }) => post),
@@ -537,6 +530,44 @@ router.get("/posts/:postId", optionalAuth, async (req, res): Promise<void> => {
 
   const enriched = await enrichPost(post, currentUser?.id);
   res.json(enriched);
+});
+
+router.post("/posts/:postId/boost", requireAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(rawId, 10);
+  const user = (req as any).user;
+  if (Number.isNaN(postId)) {
+    res.status(400).json({ error: "Invalid post id" });
+    return;
+  }
+
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId)).limit(1);
+  if (!post || post.status !== "approved") {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+  if (post.authorId !== user.id) {
+    res.status(403).json({ error: "Only the author can boost this post" });
+    return;
+  }
+  if (post.boostedAt != null) {
+    const enriched = await enrichPost(post, user.id);
+    res.json({ post: enriched, boostedAt: enriched.boostedAt ?? null });
+    return;
+  }
+
+  const freeHasPendingOrUsed = isFreeSubscription(user.subscription)
+    ? await freeUserHasBoostPendingOrUsed(user.id, post.id)
+    : false;
+  const boostErr = await boostAvailabilityError(user, { freeHasPendingOrUsed });
+  if (boostErr) {
+    res.status(402).json({ error: boostErr, code: "boost_unavailable" });
+    return;
+  }
+
+  const boosted = await applyBoostToPost(post, user);
+  const enriched = await enrichPost(boosted, user.id);
+  res.json({ post: enriched, boostedAt: enriched.boostedAt ?? null });
 });
 
 const FLAG_THRESHOLD = 1;

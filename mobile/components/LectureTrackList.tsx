@@ -103,55 +103,58 @@ export function LectureTrackList({
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={`${isActive ? "Playing" : "Play"} part ${index + 1}: ${track.title}`}
             >
+              <View style={styles.trackCardTop}>
+                <View style={[styles.indexBadge, isActive && styles.indexBadgeActive]}>
+                  <Text style={[styles.indexText, isActive && styles.indexTextActive]}>{index + 1}</Text>
+                </View>
+                <View style={styles.trackCopy}>
+                  <Text style={[styles.trackTitle, isActive && styles.trackTitleActive]} numberOfLines={2}>
+                    {track.title}
+                  </Text>
+                </View>
+                {!isActive && !isPremiumLocked ? (
+                  <View style={styles.playFab}>
+                    <Ionicons name="play" size={18} color={accentColor} />
+                  </View>
+                ) : null}
+              </View>
+
               <PremiumGatedContent
                 locked={isPremiumLocked}
                 isPremium={guideIsPremium}
                 mode="media"
                 overlaySize={isActive ? "default" : "compact"}
-                minHeight={isActive ? 140 : 96}
+                minHeight={isActive ? 100 : 72}
                 onUnlocked={() => {
                   setAutoPlayActive(true);
                   setActiveTrackId(track.id);
                 }}
               >
-                <View style={styles.trackCardTop}>
-                  <View style={[styles.indexBadge, isActive && styles.indexBadgeActive]}>
-                    <Text style={[styles.indexText, isActive && styles.indexTextActive]}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.trackCopy}>
-                    <Text style={[styles.trackTitle, isActive && styles.trackTitleActive]} numberOfLines={2}>
-                      {track.title}
-                    </Text>
-                    {track.description ? (
-                      <FormattedBodyText
-                        text={track.description}
-                        style={styles.trackDesc}
-                        fontSize={13}
-                        numberOfLines={isActive ? undefined : 2}
-                      />
-                    ) : null}
-                  </View>
-                  {!isActive && !isPremiumLocked ? (
-                    <View style={styles.playFab}>
-                      <Ionicons name="play" size={18} color={accentColor} />
+                <>
+                  {track.description ? (
+                    <FormattedBodyText
+                      text={track.description}
+                      style={styles.trackDesc}
+                      fontSize={13}
+                      numberOfLines={isActive ? undefined : 2}
+                    />
+                  ) : null}
+
+                  {isActive ? (
+                    <View style={styles.playerWrap}>
+                      {trackPlayable(track) ? (
+                        <CapsuleAudioPlayer
+                          audioUrl={track.audioUrl}
+                          accentColor={accentColor}
+                          onPlaybackFinished={playNext}
+                          autoPlay={autoPlayActive}
+                        />
+                      ) : (
+                        <View style={styles.audioPlaceholder} accessibilityLabel="Premium audio locked" />
+                      )}
                     </View>
                   ) : null}
-                </View>
-
-                {isActive ? (
-                  <View style={styles.playerWrap}>
-                    {trackPlayable(track) ? (
-                      <CapsuleAudioPlayer
-                        audioUrl={track.audioUrl}
-                        accentColor={accentColor}
-                        onPlaybackFinished={playNext}
-                        autoPlay={autoPlayActive}
-                      />
-                    ) : (
-                      <View style={styles.audioPlaceholder} accessibilityLabel="Premium audio locked" />
-                    )}
-                  </View>
-                ) : null}
+                </>
               </PremiumGatedContent>
             </Pressable>
           );
@@ -238,9 +241,9 @@ const styles = StyleSheet.create({
   indexTextActive: { color: colors.surface },
   trackCopy: { flex: 1, gap: 4 },
   trackTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: "NotoSerif_700Bold",
     fontSize: 15,
-    color: colors.text,
+    color: colors.primary,
   },
   trackTitleActive: { color: colors.primary },
   trackDesc: {

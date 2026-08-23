@@ -72,23 +72,18 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
     navigateToGuide(op);
   };
 
-  const gatedBody = (
-    <>
-      <Text style={[styles.officialTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
-      {previewText ? (
-        <FormattedBodyText
-          text={previewText}
-          style={styles.officialSubtitle}
-          fontSize={fsSub}
-          lineHeight={lhSub}
-          numberOfLines={3}
-        />
-      ) : (
-        <Text style={[styles.officialSubtitle, { fontSize: fsSub, lineHeight: lhSub }]} numberOfLines={2}>
-          Tap to unlock this premium guide.
-        </Text>
-      )}
-    </>
+  const gatedPreview = previewText ? (
+    <FormattedBodyText
+      text={previewText}
+      style={styles.officialSubtitle}
+      fontSize={fsSub}
+      lineHeight={lhSub}
+      numberOfLines={3}
+    />
+  ) : (
+    <Text style={[styles.officialSubtitle, { fontSize: fsSub, lineHeight: lhSub }]} numberOfLines={2}>
+      Tap to unlock this premium guide.
+    </Text>
   );
 
   return (
@@ -130,12 +125,14 @@ export function OfficialGuideCard({ op, isSaved, onToggleSave, showSave }: Props
         ) : null}
       </View>
 
+      <Text style={[styles.officialTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
+
       {isPremium && premiumLocked ? (
         <PremiumGatedContent locked isPremium minHeight={100}>
-          {gatedBody}
+          {gatedPreview}
         </PremiumGatedContent>
       ) : (
-        gatedBody
+        gatedPreview
       )}
 
       {op.uploadedByUsername || op.uploadedByDisplayName ? (

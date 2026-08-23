@@ -100,9 +100,8 @@ function PathSessionCard({
     router.push(`/official/${op.id}` as never);
   };
 
-  const sessionBody = (
+  const gatedSessionBody = (
     <>
-      <Text style={[styles.sessionCardTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
       {op.scripture ? (
         <Text style={[styles.sessionScripture, { fontSize: fsScripture, marginBottom: scrMb }]}>{op.scripture}</Text>
       ) : null}
@@ -157,12 +156,14 @@ function PathSessionCard({
         )}
       </View>
 
+      <Text style={[styles.sessionCardTitle, { fontSize: fsTitle, marginBottom: titleMb }]}>{op.title}</Text>
+
       {isPremium && premiumLocked ? (
         <PremiumGatedContent locked isPremium mode="media" minHeight={120}>
-          {sessionBody}
+          {gatedSessionBody}
         </PremiumGatedContent>
       ) : (
-        sessionBody
+        gatedSessionBody
       )}
     </Pressable>
   );
@@ -390,8 +391,8 @@ const styles = StyleSheet.create({
   },
   sessionSave: { marginLeft: "auto" },
   sessionCardTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: colors.text,
+    fontFamily: "NotoSerif_700Bold",
+    color: colors.primary,
   },
   sessionScripture: {
     fontFamily: "PlusJakartaSans_500Medium",
