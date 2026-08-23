@@ -56,7 +56,7 @@ describe("transformLibraryPayloadForViewer", () => {
     const out = transformLibraryPayloadForViewer(body, { subscription: "free" }) as typeof body;
     expect(out.morning.audioUrl).toBe("https://cdn/morning.mp3");
     expect(out.evening.audioUrl).toBe("https://cdn/evening.mp3");
-    expect(out.morning.contentLocked).toBeUndefined();
+    expect((out.morning as { contentLocked?: boolean }).contentLocked).toBeUndefined();
   });
 
   it("strips premium path guides for free viewers", () => {
@@ -72,7 +72,7 @@ describe("transformLibraryPayloadForViewer", () => {
       ],
     };
     const out = transformLibraryPayloadForViewer(body, { subscription: "free" }) as typeof body;
-    expect(out.officialPrayers[0]?.contentLocked).toBe(true);
+    expect((out.officialPrayers[0] as { contentLocked?: boolean })?.contentLocked).toBe(true);
     expect(out.officialPrayers[0]?.audioUrl).toBeNull();
   });
 });

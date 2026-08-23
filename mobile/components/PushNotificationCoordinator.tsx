@@ -2,7 +2,6 @@ import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { usePathname, useSegments } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { AppState, type AppStateStatus } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetNotificationsQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -26,11 +25,11 @@ import {
   enrichNotificationPayload,
   normalizeNotificationPayload,
 } from "@/lib/notificationPayload";
-import { scheduleOnAppActive } from "@/lib/appResume";
+import { subscribeAppActive } from "@/lib/appResume";
 import {
-  pushTokenNeedsBuildResync,
-  registerAndSyncPushToken,
+  refreshPushRegistration,
 } from "@/lib/syncExpoPushToken";
+import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { requestSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 
 const PUSH_TOKEN_LISTENER_DEBOUNCE_MS = 1_500;
@@ -137,7 +136,7 @@ export function PushNotificationCoordinator() {
       }
       pushTokenListenerDebounceRef.current = setTimeout(() => {
         pushTokenListenerDebounceRef.current = null;
-        void registerAndSyncPushToken(jwt);
+        void refreshPushRegistration(jwt);
       }, PUSH_TOKEN_LISTENER_DEBOUNCE_MS);
     });
 
@@ -150,22 +149,18 @@ export function PushNotificationCoordinator() {
       }
     });
 
-    const onAppState = (state: AppStateStatus) => {
-      if (state !== "active") return;
+    const unsubResume = subscribeAppActive(() => {
       const jwt = tokenRef.current;
       if (!jwt) return;
-      scheduleOnAppActive(async () => {
-        if (!(await pushTokenNeedsBuildResync())) return;
-        void registerAndSyncPushToken(jwt);
-      }, 600);
-    };
-    const subApp = AppState.addEventListener("change", onAppState);
+      void syncDeviceTimezone(jwt);
+      void refreshPushRegistration(jwt);
+    }, 800);
 
     return () => {
       subResponse.remove();
       subToken.remove();
       subIncoming.remove();
-      subApp.remove();
+      unsubResume();
       if (pushTokenListenerDebounceRef.current) {
         clearTimeout(pushTokenListenerDebounceRef.current);
         pushTokenListenerDebounceRef.current = null;

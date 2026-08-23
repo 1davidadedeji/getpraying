@@ -83,8 +83,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPushDeliveryEnabled(true);
     void syncDeviceTimezone(token);
     if (syncedPushTokenJwtRef.current === token) return;
-    syncedPushTokenJwtRef.current = token;
-    void registerAndSyncPushToken(token);
+    void (async () => {
+      let ok = await registerAndSyncPushToken(token);
+      if (!ok) {
+        await new Promise((r) => setTimeout(r, 4_000));
+        ok = await registerAndSyncPushToken(token);
+      }
+      if (ok) syncedPushTokenJwtRef.current = token;
+    })();
   }, [loading, token, user]);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {

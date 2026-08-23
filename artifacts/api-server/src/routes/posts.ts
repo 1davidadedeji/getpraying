@@ -344,8 +344,10 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   let nextCursor: string | null = null;
   if (hasMore && sqlPage.length > 0) {
     const cursorRow = sqlPage[sqlPage.length - 1]!;
-    const cursorPost = enrichedById.get(cursorRow.id) ?? cursorRow;
-    nextCursor = encodeFeedCursor(cursorPost, feedPriorities.get(cursorRow.id));
+    const cursorPost = enrichedById.get(cursorRow.id);
+    if (cursorPost) {
+      nextCursor = encodeFeedCursor(cursorPost, feedPriorities.get(cursorRow.id));
+    }
   }
 
   const globalNewestCreatedAt = newestRow[0]?.newest

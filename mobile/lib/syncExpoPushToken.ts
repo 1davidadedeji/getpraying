@@ -60,7 +60,7 @@ type PostedPushSnapshot = {
   buildFingerprint: string;
 };
 
-let inflightSync: Promise<void> | null = null;
+let inflightSync: Promise<boolean> | null = null;
 let inflightSyncJwt: string | null = null;
 let lastPosted: PostedPushSnapshot | null = null;
 
@@ -88,9 +88,10 @@ async function postPushTokenToServer(
     platform?: string;
     buildFingerprint?: string;
   },
+  opts?: { force?: boolean },
 ): Promise<boolean> {
   const buildFingerprint = payload.buildFingerprint ?? "";
-  if (matchesLastPosted(apiJwt, payload.token, buildFingerprint)) {
+  if (!opts?.force && matchesLastPosted(apiJwt, payload.token, buildFingerprint)) {
     return true;
   }
 
@@ -121,34 +122,35 @@ async function postPushTokenToServer(
 /**
  * After Expo rotates the push token, persist it without calling `getExpoPushTokenAsync` again.
  */
-export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: string): Promise<void> {
-  if (!apiJwt || !Device.isDevice || !expoToken.trim()) return;
+export async function syncProvidedExpoPushToServer(apiJwt: string, expoToken: string): Promise<boolean> {
+  if (!apiJwt || !Device.isDevice || !expoToken.trim()) return false;
   if (!isExpoPushToken(expoToken)) {
-    // Native APNs/FCM rotation events are not Expo tokens — fetch once via guarded register.
-    await registerAndSyncPushToken(apiJwt);
-    return;
+    return registerAndSyncPushToken(apiJwt);
   }
   await ensureAndroidNotificationChannel();
-  await postPushTokenToServer(apiJwt, {
+  return postPushTokenToServer(apiJwt, {
     token: expoToken.trim(),
     platform: Platform.OS,
     buildFingerprint: currentBuildFingerprint(),
   });
 }
 
-export async function registerAndSyncPushToken(apiJwt: string | null): Promise<void> {
-  if (!apiJwt || !Device.isDevice) return;
+export async function registerAndSyncPushToken(
+  apiJwt: string | null,
+  opts?: { force?: boolean },
+): Promise<boolean> {
+  if (!apiJwt || !Device.isDevice) return false;
 
   if (BYPASS_PUSH_TOKEN_SYNC) {
     console.info("[push] BYPASS_PUSH_TOKEN_SYNC — skipping registerAndSyncPushToken (ios boot test)");
-    return;
+    return false;
   }
 
   if (inflightSync && inflightSyncJwt === apiJwt) {
-    return inflightSync;
+    return inflightSync.then(() => lastPosted?.jwt === apiJwt && lastPosted.token != null);
   }
 
-  const run = async (): Promise<void> => {
+  const run = async (): Promise<boolean> => {
     await ensureAndroidNotificationChannel();
 
     const { status: existing } = await Notifications.getPermissionsAsync();
@@ -163,10 +165,10 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
 
     if (final !== "granted") {
       console.warn("[push] notification permission not granted:", final);
-      if (!matchesLastPosted(apiJwt, null, "")) {
-        await postPushTokenToServer(apiJwt, { token: null });
+      if (!opts?.force && matchesLastPosted(apiJwt, null, "")) {
+        return true;
       }
-      return;
+      return postPushTokenToServer(apiJwt, { token: null }, opts);
     }
 
     const buildFingerprint = currentBuildFingerprint();
@@ -178,30 +180,43 @@ export async function registerAndSyncPushToken(apiJwt: string | null): Promise<v
       const expoToken = tokenRes.data?.trim() ?? "";
       if (!isExpoPushToken(expoToken)) {
         console.warn("[push] unexpected token format from getExpoPushTokenAsync:", expoToken.slice(0, 40));
-        return;
+        return false;
       }
-      if (matchesLastPosted(apiJwt, expoToken, buildFingerprint)) {
-        return;
+      if (!opts?.force && matchesLastPosted(apiJwt, expoToken, buildFingerprint)) {
+        return true;
       }
-      const ok = await postPushTokenToServer(apiJwt, {
-        token: expoToken,
-        platform: Platform.OS,
-        buildFingerprint,
-      });
+      const ok = await postPushTokenToServer(
+        apiJwt,
+        {
+          token: expoToken,
+          platform: Platform.OS,
+          buildFingerprint,
+        },
+        opts,
+      );
       if (ok) await AsyncStorage.setItem(PUSH_BUILD_KEY, buildFingerprint);
+      return ok;
     } catch (err) {
       console.warn("[push] getExpoPushTokenAsync failed:", err);
+      return false;
     }
   };
 
   inflightSyncJwt = apiJwt;
-  inflightSync = run().finally(() => {
+  const pending = run().finally(() => {
     if (inflightSyncJwt === apiJwt) {
       inflightSync = null;
       inflightSyncJwt = null;
     }
   });
-  return inflightSync;
+  inflightSync = pending;
+  return pending;
+}
+
+/** Re-register token + timezone with the API (e.g. on every foreground). */
+export async function refreshPushRegistration(apiJwt: string | null): Promise<boolean> {
+  if (!apiJwt) return false;
+  return registerAndSyncPushToken(apiJwt, { force: true });
 }
 
 /** Whether the app build changed since the last successful push-token sync. */

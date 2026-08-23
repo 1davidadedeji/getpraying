@@ -23,7 +23,7 @@ import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { useModerationBadge } from "@/context/moderationBadge";
 import { apiFetch } from "@/lib/api";
-import { registerAndSyncPushToken } from "@/lib/syncExpoPushToken";
+import { refreshPushRegistration } from "@/lib/syncExpoPushToken";
 import { syncDeviceTimezone } from "@/lib/syncDeviceTimezone";
 import { openPremiumPaywall } from "@/lib/openPremiumPaywall";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legalUrls";
@@ -119,7 +119,7 @@ export default function SettingsScreen() {
         body: JSON.stringify({ scheduledNotificationsEnabled: value }),
       });
       void syncDeviceTimezone(token);
-      void registerAndSyncPushToken(token);
+      void refreshPushRegistration(token);
     } catch {
       /* revert on failure */
       setScheduledNotifsEnabled(!value);

@@ -17,8 +17,60 @@ const CHUNK_SIZE = 96;
 type ExpoTicket = {
   status?: string;
   message?: string;
+  id?: string;
   details?: { error?: string };
 };
+
+type PendingReceipt = {
+  ticketId: string;
+  token: string;
+};
+
+const RECEIPT_POLL_DELAY_MS = 15_000;
+
+function scheduleReceiptPoll(entries: PendingReceipt[]): void {
+  if (entries.length === 0) return;
+  const batch = [...entries];
+  setTimeout(() => {
+    void pollExpoPushReceipts(batch);
+  }, RECEIPT_POLL_DELAY_MS);
+}
+
+async function pollExpoPushReceipts(entries: PendingReceipt[]): Promise<void> {
+  const ids = entries.map((e) => e.ticketId).filter(Boolean);
+  if (ids.length === 0) return;
+
+  try {
+    const res = await fetch("https://exp.host/--/api/v2/push/getReceipts", {
+      method: "POST",
+      headers: expoPushRequestHeaders(),
+      body: JSON.stringify({ ids }),
+    });
+    const bodyText = await res.text().catch(() => "");
+    if (!res.ok) {
+      console.warn("[push] Expo receipt poll non-OK:", res.status, bodyText.slice(0, 200));
+      return;
+    }
+
+    const json = JSON.parse(bodyText || "{}") as {
+      data?: Record<string, { status?: string; message?: string; details?: { error?: string } }>;
+    };
+    const data = json.data ?? {};
+    for (const entry of entries) {
+      const receipt = data[entry.ticketId];
+      if (!receipt) continue;
+      if (receipt.status === "error") {
+        await handleTicketError(entry.token, {
+          status: "error",
+          message: receipt.message,
+          details: receipt.details,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("[push] Expo receipt poll failed:", e);
+  }
+}
 
 function isValidExpoToken(token: string): boolean {
   const t = token.trim();
@@ -57,6 +109,7 @@ async function handleTicketError(token: string, ticket: ExpoTicket | undefined):
 
 async function postExpoBatch(batch: ExpoPushMessage[]): Promise<boolean[]> {
   const results: boolean[] = batch.map(() => false);
+  const receiptEntries: PendingReceipt[] = [];
   if (batch.length === 0) return results;
 
   try {
@@ -83,8 +136,13 @@ async function postExpoBatch(batch: ExpoPushMessage[]): Promise<boolean[]> {
     const tickets = Array.isArray(json.data) ? json.data : [];
     for (let i = 0; i < batch.length; i++) {
       const token = batch[i]!.to;
-      results[i] = await handleTicketError(token, tickets[i]);
+      const ticket = tickets[i];
+      results[i] = await handleTicketError(token, ticket);
+      if (ticket?.status === "ok" && ticket.id) {
+        receiptEntries.push({ ticketId: ticket.id, token });
+      }
     }
+    scheduleReceiptPoll(receiptEntries);
     return results;
   } catch (e) {
     console.warn("[push] Expo push request failed:", e);
