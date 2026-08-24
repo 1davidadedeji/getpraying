@@ -1,6 +1,7 @@
 import { subscriptionTierGrantsUnlimitedBoost } from "./boostEligibility";
 import { buildContentPreview } from "./contentPreview";
 import type { LectureTrackDto } from "./lectureTracks";
+import { signPremiumMediaUrlIfEntitled } from "./signedMediaUrl";
 
 export type PremiumViewer = {
   role?: string | null;
@@ -45,6 +46,18 @@ export function applyPremiumOfficialForViewer<T extends OfficialLike>(
     return item;
   }
   if (!item.isPremium || userHasPremiumContentAccess(viewer)) {
+    if (item.isPremium && userHasPremiumContentAccess(viewer)) {
+      const entitled = { isPremium: true, entitled: true };
+      return {
+        ...item,
+        audioUrl: signPremiumMediaUrlIfEntitled(item.audioUrl, entitled),
+        tracks:
+          item.tracks?.map((t) => ({
+            ...t,
+            audioUrl: signPremiumMediaUrlIfEntitled(t.audioUrl, entitled) ?? "",
+          })) ?? item.tracks,
+      };
+    }
     return item;
   }
 
@@ -79,6 +92,16 @@ export function applyPremiumPostForViewer<T extends PostLike>(
     opts.viewerUserId === opts.authorId;
 
   if (!post.isPremium || userHasPremiumContentAccess(viewer) || isAuthor) {
+    if (post.isPremium && (userHasPremiumContentAccess(viewer) || isAuthor)) {
+      const entitled = { isPremium: true, entitled: true };
+      const stripMedia = post.mediaType === "video" || post.mediaType === "audio";
+      return {
+        ...post,
+        mediaUrl: stripMedia
+          ? signPremiumMediaUrlIfEntitled(post.mediaUrl, entitled)
+          : post.mediaUrl,
+      };
+    }
     return post;
   }
 
