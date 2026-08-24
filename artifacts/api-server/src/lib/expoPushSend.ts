@@ -26,17 +26,16 @@ type PendingReceipt = {
   token: string;
 };
 
-const RECEIPT_POLL_DELAY_MS = 15_000;
+const RECEIPT_POLL_DELAYS_MS = [15_000, 30_000, 45_000];
 
 function scheduleReceiptPoll(entries: PendingReceipt[]): void {
   if (entries.length === 0) return;
-  const batch = [...entries];
   setTimeout(() => {
-    void pollExpoPushReceipts(batch);
-  }, RECEIPT_POLL_DELAY_MS);
+    void pollExpoPushReceipts([...entries], 0);
+  }, RECEIPT_POLL_DELAYS_MS[0]!);
 }
 
-async function pollExpoPushReceipts(entries: PendingReceipt[]): Promise<void> {
+async function pollExpoPushReceipts(entries: PendingReceipt[], attempt: number): Promise<void> {
   const ids = entries.map((e) => e.ticketId).filter(Boolean);
   if (ids.length === 0) return;
 
@@ -49,6 +48,7 @@ async function pollExpoPushReceipts(entries: PendingReceipt[]): Promise<void> {
     const bodyText = await res.text().catch(() => "");
     if (!res.ok) {
       console.warn("[push] Expo receipt poll non-OK:", res.status, bodyText.slice(0, 200));
+      await scheduleReceiptRetry(entries, attempt);
       return;
     }
 
@@ -56,9 +56,13 @@ async function pollExpoPushReceipts(entries: PendingReceipt[]): Promise<void> {
       data?: Record<string, { status?: string; message?: string; details?: { error?: string } }>;
     };
     const data = json.data ?? {};
+    const pending: PendingReceipt[] = [];
     for (const entry of entries) {
       const receipt = data[entry.ticketId];
-      if (!receipt) continue;
+      if (!receipt) {
+        pending.push(entry);
+        continue;
+      }
       if (receipt.status === "error") {
         await handleTicketError(entry.token, {
           status: "error",
@@ -67,9 +71,24 @@ async function pollExpoPushReceipts(entries: PendingReceipt[]): Promise<void> {
         });
       }
     }
+    if (pending.length > 0) {
+      await scheduleReceiptRetry(pending, attempt);
+    }
   } catch (e) {
     console.warn("[push] Expo receipt poll failed:", e);
+    await scheduleReceiptRetry(entries, attempt);
   }
+}
+
+function scheduleReceiptRetry(entries: PendingReceipt[], attempt: number): Promise<void> {
+  const nextAttempt = attempt + 1;
+  if (nextAttempt >= RECEIPT_POLL_DELAYS_MS.length) return Promise.resolve();
+  const delay = RECEIPT_POLL_DELAYS_MS[nextAttempt]! - RECEIPT_POLL_DELAYS_MS[attempt]!;
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      void pollExpoPushReceipts(entries, nextAttempt).finally(resolve);
+    }, delay);
+  });
 }
 
 function isValidExpoToken(token: string): boolean {
