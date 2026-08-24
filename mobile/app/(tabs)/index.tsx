@@ -42,6 +42,7 @@ import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import { loadSanctuaryState } from "@/lib/sanctuaryLoad";
 import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
 import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
+import { nextFullScreenFeedLoading, shouldSkipSilentFeedPostReload } from "@/lib/feedLoadState";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
@@ -88,6 +89,8 @@ export default function FeedScreen() {
   const feedFetchGenerationRef = useRef(0);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(true);
+  loadingRef.current = loading;
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
@@ -275,11 +278,19 @@ export default function FeedScreen() {
   const loadFresh = useCallback(async (opts?: { silent?: boolean; category?: string | null }) => {
     const category = opts?.category !== undefined ? opts.category : feedCategoryRef.current;
     const generation = ++feedFetchGenerationRef.current;
+    const silent = Boolean(opts?.silent);
     if (newPostsCountDebounceRef.current) {
       clearTimeout(newPostsCountDebounceRef.current);
       newPostsCountDebounceRef.current = null;
     }
-    if (!opts?.silent) setLoading(true);
+    setLoading((currentlyLoading) =>
+      nextFullScreenFeedLoading({
+        currentlyLoading,
+        silent,
+        isCurrentGeneration: true,
+        phase: "start",
+      }),
+    );
     try {
       const result = await fetchPage(undefined, category);
       if (generation !== feedFetchGenerationRef.current) return;
@@ -293,11 +304,18 @@ export default function FeedScreen() {
     } catch {
       if (generation !== feedFetchGenerationRef.current) return;
       if (category !== feedCategoryRef.current) return;
-      if (!opts?.silent) setError(true);
+      if (!silent) setError(true);
     } finally {
-      if (generation === feedFetchGenerationRef.current && category === feedCategoryRef.current) {
-        if (!opts?.silent) setLoading(false);
-      }
+      const isCurrent =
+        generation === feedFetchGenerationRef.current && category === feedCategoryRef.current;
+      setLoading((currentlyLoading) =>
+        nextFullScreenFeedLoading({
+          currentlyLoading,
+          silent,
+          isCurrentGeneration: isCurrent,
+          phase: "settle",
+        }),
+      );
     }
   }, [fetchPage, applyFeedWatermark]);
 
@@ -331,7 +349,10 @@ export default function FeedScreen() {
       lastFeedSanctuaryFocusRef.current = now;
       runFeedFocusFetch({
         loadSanctuary: () => loadSanctuaryRef.current(),
-        loadPosts: () => loadFreshRef.current({ silent: true }),
+        loadPosts: () => {
+          if (shouldSkipSilentFeedPostReload(loadingRef.current)) return;
+          return loadFreshRef.current({ silent: true });
+        },
       });
     }, []),
   );
