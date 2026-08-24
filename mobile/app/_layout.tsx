@@ -27,6 +27,7 @@ import colors from "@/constants/colors";
 
 import { AppAlertHost } from "@/components/AppAlert";
 import { EntitlementGate } from "@/components/EntitlementGate";
+import { PremiumEntitlementCoordinator } from "@/components/PremiumEntitlementCoordinator";
 import { PushNotificationCoordinator } from "@/components/PushNotificationCoordinator";
 import { SanctuaryScheduleCoordinator } from "@/components/SanctuaryScheduleCoordinator";
 import { ensureAppBackgroundMediaPause } from "@/lib/mediaPlaybackCoordinator";
@@ -214,6 +215,7 @@ export default function RootLayout() {
               <FeedNoticeProvider>
                 <ModerationBadgeProvider>
                   <RevenueCatProvider>
+                    <PremiumEntitlementCoordinator />
                     <SubscriptionPromptProvider>
                     <SplashHideGate fontsReady={fontsReady} />
                     <KeyboardProvider>

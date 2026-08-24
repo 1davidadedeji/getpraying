@@ -60,3 +60,16 @@ export async function resolveCachedAudioUri(
 export function prefetchCachedAudio(audioUrl: string | null | undefined): void {
   void resolveCachedAudioUri(audioUrl);
 }
+
+/** Drop downloaded premium audio when subscription ends. */
+export async function clearAudioMediaCache(): Promise<void> {
+  inflightDownloads.clear();
+  try {
+    const info = await FileSystem.getInfoAsync(CACHE_DIR);
+    if (info.exists) {
+      await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
+    }
+  } catch {
+    /* best-effort */
+  }
+}

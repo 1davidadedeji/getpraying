@@ -144,10 +144,9 @@ export default function OfficialPrayerScreen() {
 
   const prevSubscribedRef = useRef(subscribed);
   useEffect(() => {
-    if (!prevSubscribedRef.current && subscribed) {
-      void loadDetail();
-    }
+    if (prevSubscribedRef.current === subscribed) return;
     prevSubscribedRef.current = subscribed;
+    void loadDetail();
   }, [subscribed, loadDetail]);
 
   const bodyText = (data?.content ?? cachedSummary?.content ?? "").trim();
@@ -328,7 +327,7 @@ export default function OfficialPrayerScreen() {
                 isPremiumLocked={premiumLocked}
                 guideIsPremium={isPremiumGuide}
               />
-            ) : d.audioUrl ? (
+            ) : d.audioUrl && !premiumLocked ? (
               <CapsuleAudioPlayer audioUrl={d.audioUrl} accentColor={colors.primary} />
             ) : showAudioLock ? (
               <View style={styles.audioPlaceholder} accessibilityLabel="Premium audio locked" />

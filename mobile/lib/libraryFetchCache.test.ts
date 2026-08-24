@@ -5,7 +5,11 @@ vi.mock("./api", () => ({
 }));
 
 import { apiFetch } from "./api";
-import { clearLibraryCache, fetchLibraryCached } from "./libraryFetchCache";
+import {
+  clearLibraryCache,
+  fetchLibraryCached,
+  setLibraryFetchEntitlement,
+} from "./libraryFetchCache";
 
 function jsonResponse(data: unknown, ok = true): Response {
   return {
@@ -17,6 +21,7 @@ function jsonResponse(data: unknown, ok = true): Response {
 describe("fetchLibraryCached in-flight coalescing", () => {
   beforeEach(() => {
     clearLibraryCache();
+    setLibraryFetchEntitlement(false);
     vi.mocked(apiFetch).mockReset();
   });
 
@@ -84,5 +89,19 @@ describe("fetchLibraryCached in-flight coalescing", () => {
     expect(apiFetch).toHaveBeenCalledTimes(2);
     expect(first).toEqual({ v: 1 });
     expect(second).toEqual({ v: 2 });
+  });
+
+  it("separates cache entries by premium entitlement", async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce(jsonResponse({ audioUrl: "https://cdn/free.mp3" }))
+      .mockResolvedValueOnce(jsonResponse({ audioUrl: "https://cdn/premium.mp3" }));
+
+    const free = await fetchLibraryCached("/library/official/1", "tok");
+    setLibraryFetchEntitlement(true);
+    const premium = await fetchLibraryCached("/library/official/1", "tok");
+
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(free).toEqual({ audioUrl: "https://cdn/free.mp3" });
+    expect(premium).toEqual({ audioUrl: "https://cdn/premium.mp3" });
   });
 });

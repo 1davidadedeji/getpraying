@@ -189,10 +189,9 @@ export default function PathDetailScreen() {
 
   const prevSubscribedRef = useRef(subscribed);
   useEffect(() => {
-    if (!prevSubscribedRef.current && subscribed) {
-      void queryClient.invalidateQueries({ queryKey: getGetPathQueryKey(pathId) });
-    }
+    if (prevSubscribedRef.current === subscribed) return;
     prevSubscribedRef.current = subscribed;
+    void queryClient.invalidateQueries({ queryKey: getGetPathQueryKey(pathId) });
   }, [subscribed, queryClient, pathId]);
 
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;

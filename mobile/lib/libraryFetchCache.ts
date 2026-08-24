@@ -8,8 +8,20 @@ const inflight = new Map<string, Promise<unknown>>();
 /** Client-side cache for library reads (stale-while-revalidate). */
 export const LIBRARY_FETCH_CACHE_MS = 120_000;
 
+/** Premium vs free responses differ — bust cache when entitlement changes. */
+let entitlementKey = "f";
+
+/** Update entitlement tier; clears in-memory library cache when the tier changes. */
+export function setLibraryFetchEntitlement(subscribed: boolean): void {
+  const next = subscribed ? "p" : "f";
+  if (next === entitlementKey) return;
+  entitlementKey = next;
+  store.clear();
+  inflight.clear();
+}
+
 function cacheKey(path: string, token: string | null | undefined): string {
-  return `${path}|${token ?? ""}`;
+  return `${path}|${token ?? ""}|${entitlementKey}`;
 }
 
 export function peekLibraryCache<T>(path: string, token: string | null | undefined): T | null {
