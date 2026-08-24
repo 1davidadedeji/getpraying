@@ -84,6 +84,8 @@ export default function FeedScreen() {
   const [feedCategory, setFeedCategory] = useState<string | null>(null);
   const feedCategoryRef = useRef<string | null>(null);
   feedCategoryRef.current = feedCategory;
+  /** Bumped on category change and each fresh fetch — stale responses are ignored. */
+  const feedFetchGenerationRef = useRef(0);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -136,6 +138,7 @@ export default function FeedScreen() {
     { id: number; username: string; displayName?: string | null; avatarUrl?: string | null }[]
   >([]);
   const [searchPosts, setSearchPosts] = useState<Post[]>([]);
+  const searchRequestIdRef = useRef(0);
   const [feedSearchFacet, setFeedSearchFacet] = useState<"all" | "people" | "prayers">("all");
 
   const feedSearchFs = Math.round(clamp(15 * uiScale, 14, 17));
@@ -149,6 +152,7 @@ export default function FeedScreen() {
   const searchFacetPadH = Math.round(clamp(10 * uiScale, 8, 12));
 
   const clearCommittedSearchState = useCallback(() => {
+    searchRequestIdRef.current += 1;
     setCommittedSearchQuery("");
     setSearchUsers([]);
     setSearchPosts([]);
@@ -158,9 +162,11 @@ export default function FeedScreen() {
 
   const fetchSearchResults = useCallback(
     async (q: string) => {
+      const requestId = ++searchRequestIdRef.current;
       setSearchLoading(true);
       try {
         const res = await apiFetch(`/search?${new URLSearchParams({ q })}`, { token });
+        if (requestId !== searchRequestIdRef.current) return;
         if (!res.ok) {
           setSearchUsers([]);
           setSearchPosts([]);
@@ -170,13 +176,17 @@ export default function FeedScreen() {
           users?: { id: number; username: string; displayName?: string | null; avatarUrl?: string | null }[];
           posts?: Post[];
         };
+        if (requestId !== searchRequestIdRef.current) return;
         setSearchUsers(Array.isArray(data.users) ? data.users : []);
         setSearchPosts(Array.isArray(data.posts) ? data.posts : []);
       } catch {
+        if (requestId !== searchRequestIdRef.current) return;
         setSearchUsers([]);
         setSearchPosts([]);
       } finally {
-        setSearchLoading(false);
+        if (requestId === searchRequestIdRef.current) {
+          setSearchLoading(false);
+        }
       }
     },
     [token],
@@ -261,6 +271,7 @@ export default function FeedScreen() {
 
   const loadFresh = useCallback(async (opts?: { silent?: boolean; category?: string | null }) => {
     const category = opts?.category !== undefined ? opts.category : feedCategoryRef.current;
+    const generation = ++feedFetchGenerationRef.current;
     if (newPostsCountDebounceRef.current) {
       clearTimeout(newPostsCountDebounceRef.current);
       newPostsCountDebounceRef.current = null;
@@ -268,6 +279,8 @@ export default function FeedScreen() {
     if (!opts?.silent) setLoading(true);
     try {
       const result = await fetchPage(undefined, category);
+      if (generation !== feedFetchGenerationRef.current) return;
+      if (category !== feedCategoryRef.current) return;
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
       lastFreshAtRef.current = Date.now();
@@ -275,9 +288,13 @@ export default function FeedScreen() {
       setError(false);
       setNewPostCount(0);
     } catch {
+      if (generation !== feedFetchGenerationRef.current) return;
+      if (category !== feedCategoryRef.current) return;
       if (!opts?.silent) setError(true);
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (generation === feedFetchGenerationRef.current && category === feedCategoryRef.current) {
+        if (!opts?.silent) setLoading(false);
+      }
     }
   }, [fetchPage, applyFeedWatermark]);
 
@@ -322,6 +339,7 @@ export default function FeedScreen() {
       categoryFetchInitialized.current = true;
       return;
     }
+    feedFetchGenerationRef.current += 1;
     setPosts([]);
     setNextCursor(null);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -452,16 +470,21 @@ export default function FeedScreen() {
       newPostsCountDebounceRef.current = null;
     }
     setNewPostCount(0);
+    const generation = ++feedFetchGenerationRef.current;
+    const category = feedCategoryRef.current;
     try {
-      const category = feedCategoryRef.current;
       const result = await fetchPage(undefined, category);
+      if (generation !== feedFetchGenerationRef.current) return;
+      if (category !== feedCategoryRef.current) return;
       setPosts(result.posts);
       setNextCursor(result.nextCursor);
       lastFreshAtRef.current = Date.now();
       if (!category) applyFeedWatermark(result.globalNewestCreatedAt);
       void loadSanctuary();
     } catch { /* keep current data */ } finally {
-      setRefreshing(false);
+      if (generation === feedFetchGenerationRef.current && category === feedCategoryRef.current) {
+        setRefreshing(false);
+      }
     }
   }, [fetchPage, loadSanctuary, applyFeedWatermark]);
 
@@ -474,9 +497,17 @@ export default function FeedScreen() {
     setLoadingMore(true);
     setLoadMoreError(false);
     const cursor = nextCursorRef.current;
+    const generationAtStart = feedFetchGenerationRef.current;
+    const categoryAtStart = feedCategoryRef.current;
     const startedAt = Date.now();
     try {
-      let result = await fetchPage(cursor, feedCategoryRef.current);
+      let result = await fetchPage(cursor, categoryAtStart);
+      if (
+        generationAtStart !== feedFetchGenerationRef.current ||
+        categoryAtStart !== feedCategoryRef.current
+      ) {
+        return;
+      }
       const dedupeFresh = (page: Post[]) => {
         const existingIds = new Set(postsRef.current.map((p) => p.id));
         return page.filter((p) => !existingIds.has(p.id));
@@ -489,7 +520,13 @@ export default function FeedScreen() {
         result.nextCursor !== cursor &&
         result.posts.length > 0
       ) {
-        result = await fetchPage(result.nextCursor, feedCategoryRef.current);
+        result = await fetchPage(result.nextCursor, categoryAtStart);
+        if (
+          generationAtStart !== feedFetchGenerationRef.current ||
+          categoryAtStart !== feedCategoryRef.current
+        ) {
+          return;
+        }
         fresh = dedupeFresh(result.posts);
       }
 
