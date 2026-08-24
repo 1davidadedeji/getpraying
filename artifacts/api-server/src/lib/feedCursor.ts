@@ -43,3 +43,44 @@ export function decodeFeedCursor(raw: string | undefined): FeedCursorDecoded | n
     return null;
   }
 }
+
+type FeedCursorSource = Pick<
+  PostWithMeta,
+  "id" | "boostedAt" | "createdAt" | "hasPrayed" | "hasCommented" | "isSaved"
+>;
+
+/** Last row in feed order among a SQL page — stable even when the page is de-clustered for display. */
+export function pickFeedPageCursorRow<T extends { id: number }>(
+  sqlPage: T[],
+  feedPriorityFor: (row: T) => number,
+  sortSourceFor: (row: T) => FeedCursorSource,
+): T | null {
+  if (sqlPage.length === 0) return null;
+
+  let cursorRow = sqlPage[sqlPage.length - 1]!;
+  let cursorRank = feedOrderRank(sortSourceFor(cursorRow), feedPriorityFor(cursorRow));
+
+  for (let i = sqlPage.length - 2; i >= 0; i--) {
+    const row = sqlPage[i]!;
+    const rank = feedOrderRank(sortSourceFor(row), feedPriorityFor(row));
+    if (compareFeedOrderRank(rank, cursorRank) > 0) {
+      cursorRow = row;
+      cursorRank = rank;
+    }
+  }
+
+  return cursorRow;
+}
+
+/** Higher rank = later in the feed (priority tier asc, sort ts desc, id desc). */
+function feedOrderRank(row: FeedCursorSource, priority: number): [number, number, number] {
+  const sortTs = feedSortTimestampForCursor(row).getTime();
+  return [priority, -sortTs, -row.id];
+}
+
+function compareFeedOrderRank(a: [number, number, number], b: [number, number, number]): number {
+  for (let i = 0; i < 3; i++) {
+    if (a[i]! !== b[i]!) return a[i]! < b[i]! ? -1 : 1;
+  }
+  return 0;
+}

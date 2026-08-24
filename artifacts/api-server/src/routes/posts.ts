@@ -23,7 +23,7 @@ import { insertPostReport, userAlreadyReportedPost } from "../lib/postReports";
 import { pushForNotificationById } from "../lib/pushForNotification";
 import { getFeedExcludedAuthorIds, isBlockedBetween } from "../lib/userBlocks";
 import { RateLimiter } from "../lib/rateLimit";
-import { decodeFeedCursor, encodeFeedCursor } from "../lib/feedCursor";
+import { decodeFeedCursor, encodeFeedCursor, pickFeedPageCursorRow } from "../lib/feedCursor";
 import { declusterFeedPostsByAuthor } from "../lib/feedDecluster";
 import { feedCursorWhereClause, feedPagePriorityExpr } from "../lib/feedEngagementPriority";
 import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
@@ -333,20 +333,29 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
 
   const hasMore = posts.length > limit;
   const sqlPage = posts.slice(0, limit);
-  const page = declusterFeedPostsByAuthor(sqlPage);
-  const feedPriorities = new Map(page.map((row) => [row.id, Number(row.feedPriority ?? 1)]));
-  const enriched = await enrichPosts(
-    page.map(({ feedPriority: _fp, ...post }) => post),
+  const feedPriorities = new Map(
+    sqlPage.map((row) => [row.id, Number(row.feedPriority ?? 1)]),
+  );
+  const sqlEnriched = await enrichPosts(
+    sqlPage.map(({ feedPriority: _fp, ...post }) => post),
     currentUser?.id,
   );
-  const enrichedById = new Map(enriched.map((post) => [post.id, post]));
+  const sqlEnrichedById = new Map(sqlEnriched.map((post) => [post.id, post]));
+  const page = declusterFeedPostsByAuthor(sqlPage);
+  const enriched = page
+    .map((row) => sqlEnrichedById.get(row.id))
+    .filter((post): post is NonNullable<typeof post> => post != null);
 
   let nextCursor: string | null = null;
   if (hasMore && sqlPage.length > 0) {
-    const cursorRow = sqlPage[sqlPage.length - 1]!;
-    const cursorPost = enrichedById.get(cursorRow.id);
-    if (cursorPost) {
-      nextCursor = encodeFeedCursor(cursorPost, feedPriorities.get(cursorRow.id));
+    const cursorSource = pickFeedPageCursorRow(
+      sqlPage,
+      (row) => feedPriorities.get(row.id) ?? 1,
+      (row) => sqlEnrichedById.get(row.id) ?? row,
+    );
+    const cursorPost = cursorSource ? sqlEnrichedById.get(cursorSource.id) : undefined;
+    if (cursorPost && cursorSource) {
+      nextCursor = encodeFeedCursor(cursorPost, feedPriorities.get(cursorSource.id));
     }
   }
 
