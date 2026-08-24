@@ -10,11 +10,24 @@ describe("computeFeedPagePriority", () => {
     expect(
       computeFeedPagePriority({
         isOwnPost: true,
+        isRecentOwnPost: true,
         isRealAuthor: true,
         hasRelationship: false,
         hasCategoryAffinity: false,
       }),
     ).toBe(FEED_PAGE_PRIORITY.OWN);
+  });
+
+  it("does not let older own posts form a wall above the community", () => {
+    expect(
+      computeFeedPagePriority({
+        isOwnPost: true,
+        isRecentOwnPost: false,
+        isRealAuthor: true,
+        hasRelationship: true,
+        hasCategoryAffinity: false,
+      }),
+    ).toBe(FEED_PAGE_PRIORITY.OTHER_REAL);
   });
 
   it("ranks followed or engaged-with authors above strangers", () => {

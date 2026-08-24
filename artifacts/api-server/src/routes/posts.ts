@@ -25,6 +25,7 @@ import { getFeedExcludedAuthorIds, isBlockedBetween } from "../lib/userBlocks";
 import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor, pickFeedPageCursorRow } from "../lib/feedCursor";
 import { declusterFeedPostsByAuthor } from "../lib/feedDecluster";
+import { mixFeedPageByTier } from "../lib/feedPageMix";
 import { feedCursorWhereClause, feedAuthorIsSeedExpr, feedPagePriorityExpr } from "../lib/feedEngagementPriority";
 import { shouldPersonalizeFeed } from "../lib/feedPersonalize";
 import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
@@ -349,7 +350,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     currentUser?.id,
   );
   const sqlEnrichedById = new Map(sqlEnriched.map((post) => [post.id, post]));
-  const page = declusterFeedPostsByAuthor(sqlPage);
+  const page = declusterFeedPostsByAuthor(mixFeedPageByTier(sqlPage));
   const enriched = page
     .map((row) => sqlEnrichedById.get(row.id))
     .filter((post): post is NonNullable<typeof post> => post != null);

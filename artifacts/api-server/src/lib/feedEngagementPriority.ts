@@ -202,8 +202,10 @@ export function feedPagePriorityExpr(
   if (opts?.personalize === false) {
     return sql<number>`(
       case
-        when ${postsTable.authorId} = ${viewerId} then 0
-        when ${realAuthor} then 1
+      when ${postsTable.authorId} = ${viewerId}
+        and ${postsTable.createdAt} >= now() - interval '7 days' then 0
+      when ${postsTable.authorId} = ${viewerId} then 1
+      when ${realAuthor} then 1
         else 2
       end
     )`;
@@ -214,7 +216,9 @@ export function feedPagePriorityExpr(
 
   return sql<number>`(
     case
-      when ${postsTable.authorId} = ${viewerId} then 0
+      when ${postsTable.authorId} = ${viewerId}
+        and ${postsTable.createdAt} >= now() - interval '7 days' then 0
+      when ${postsTable.authorId} = ${viewerId} then 3
       when ${realAuthor} and ${engagement} = 0 then 1
       when ${realAuthor} and ${affinity} then 2
       when ${realAuthor} then 3

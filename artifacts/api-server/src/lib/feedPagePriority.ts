@@ -9,6 +9,8 @@ export const FEED_PAGE_PRIORITY = {
 
 export type FeedPagePriorityInput = {
   isOwnPost: boolean;
+  /** Own posts older than the recency window sit with other real community posts. */
+  isRecentOwnPost?: boolean;
   isRealAuthor: boolean;
   hasRelationship: boolean;
   hasCategoryAffinity: boolean;
@@ -25,7 +27,8 @@ export type FeedPagePriorityInput = {
  * Boost is a timestamp bump within a tier, not a wall above the feed.
  */
 export function computeFeedPagePriority(input: FeedPagePriorityInput): number {
-  if (input.isOwnPost) return FEED_PAGE_PRIORITY.OWN;
+  if (input.isOwnPost && input.isRecentOwnPost !== false) return FEED_PAGE_PRIORITY.OWN;
+  if (input.isOwnPost) return FEED_PAGE_PRIORITY.OTHER_REAL;
   if (!input.isRealAuthor) return FEED_PAGE_PRIORITY.SEED;
   if (input.hasRelationship) return FEED_PAGE_PRIORITY.RELATIONSHIP;
   if (input.hasCategoryAffinity) return FEED_PAGE_PRIORITY.AFFINITY;
