@@ -25,7 +25,8 @@ export function useFeedMediaViewability() {
       if (post.mediaType !== "video" && post.mediaType !== "audio") continue;
       if (!best || (t.index ?? Infinity) < (best.index ?? Infinity)) best = t;
     }
-    setFeedMediaFocusPostId(best?.item ? (best.item as Post).id : null);
+    if (!best?.item) return;
+    setFeedMediaFocusPostId((best.item as Post).id);
   }, []);
 
   const clearFeedMediaFocus = useCallback(() => setFeedMediaFocusPostId(null), []);

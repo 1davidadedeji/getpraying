@@ -101,55 +101,54 @@ export function CapsuleMediaControls({
     >
       <Pressable
         onPress={onTogglePlay}
-        disabled={controlsDisabled}
-        style={styles.iconHit}
-        accessibilityRole="button"
-        accessibilityLabel={playA11y}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color={accentColor} />
-        ) : (
-          <Ionicons
-            name={playing ? "pause" : "play"}
-            size={iconPlay}
-            color={accentColor}
-          />
-        )}
-      </Pressable>
+          disabled={controlsDisabled}
+          style={styles.iconHit}
+          accessibilityRole="button"
+          accessibilityLabel={playA11y}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={accentColor} />
+          ) : (
+            <Ionicons
+              name={playing ? "pause" : "play"}
+              size={iconPlay}
+              color={accentColor}
+            />
+          )}
+        </Pressable>
 
-      <Text style={[styles.time, { fontSize: fsTime, color: accentColor }]} numberOfLines={1}>
-        {timeLabel}
-      </Text>
+        <Text style={[styles.time, { fontSize: fsTime, color: accentColor }]} numberOfLines={1}>
+          {timeLabel}
+        </Text>
 
-      <Pressable
-        onPress={onTrackPress}
-        onLayout={onTrackLayout}
-        style={styles.trackPressable}
-        disabled={seekDisabled}
-        accessibilityRole="adjustable"
-        accessibilityLabel="Seek position"
-      >
-        <View style={[styles.track, { height: trackH, borderRadius: trackRad }]}>
-          <View
-            style={[
-              styles.fill,
-              {
-                width: `${Math.round(progress01 * 100)}%`,
-                backgroundColor: accentColor,
-                borderRadius: trackRad,
-              },
-            ]}
-          />
-        </View>
-      </Pressable>
+        <Pressable
+          onPress={onTrackPress}
+          onLayout={onTrackLayout}
+          style={styles.trackPressable}
+          disabled={seekDisabled}
+          accessibilityRole="adjustable"
+          accessibilityLabel="Seek position"
+        >
+          <View style={[styles.track, { height: trackH, borderRadius: trackRad }]}>
+            <View
+              style={[
+                styles.fill,
+                {
+                  width: `${Math.round(progress01 * 100)}%`,
+                  backgroundColor: accentColor,
+                  borderRadius: trackRad,
+                },
+              ]}
+            />
+          </View>
+        </Pressable>
 
-      <Pressable
-        onPress={onToggleMute}
-        disabled={controlsDisabled}
-        style={styles.iconHit}
-        accessibilityRole="button"
-        accessibilityLabel={showMuted ? (feedSilent && playing ? "Unmute preview" : "Unmute") : "Mute"}
-      >
+        <Pressable
+          onPress={onToggleMute}
+          style={styles.iconHit}
+          accessibilityRole="button"
+          accessibilityLabel={showMuted ? (feedSilent && playing ? "Unmute preview" : "Unmute") : "Mute"}
+        >
         <Ionicons
           name={showMuted ? "volume-mute" : "volume-medium"}
           size={iconVol}

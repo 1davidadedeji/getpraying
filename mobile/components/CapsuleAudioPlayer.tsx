@@ -9,6 +9,7 @@ import {
   registerMediaController,
 } from "@/lib/mediaPlaybackCoordinator";
 import { resolveCachedAudioUri } from "@/lib/audioMediaCache";
+import { getFeedAudioUnlocked, setFeedAudioUnlocked } from "@/lib/feedMuteSession";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 type Props = {
@@ -160,12 +161,12 @@ export function CapsuleAudioPlayer({
     void (async () => {
       await pauseAllMediaExcept(cid);
       await ensureAudioMode();
-      player.volume = 0;
-      player.seekTo(0);
+      const unlocked = getFeedAudioUnlocked();
+      player.volume = unlocked ? 1 : 0;
       setPlayPending(true);
       player.play();
-      setMuted(true);
-      setFeedAudible(false);
+      setMuted(!unlocked);
+      setFeedAudible(unlocked);
       endedRef.current = false;
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -186,6 +187,7 @@ export function CapsuleAudioPlayer({
       await pauseAllMediaExcept(cid);
       await ensureAudioMode();
       player.volume = 1;
+      setFeedAudioUnlocked(true);
       if (endedRef.current) {
         player.seekTo(0);
         endedRef.current = false;
@@ -217,7 +219,9 @@ export function CapsuleAudioPlayer({
     if (feedMediaFocused) {
       if (!feedAudible) {
         if (playing || playPending) {
+          await ensureAudioMode();
           player.volume = 1;
+          setFeedAudioUnlocked(true);
           setMuted(false);
           setFeedAudible(true);
           return;
@@ -226,6 +230,7 @@ export function CapsuleAudioPlayer({
         return;
       }
       player.volume = 0;
+      setFeedAudioUnlocked(false);
       setMuted(true);
       setFeedAudible(false);
       return;
@@ -256,7 +261,7 @@ export function CapsuleAudioPlayer({
       feedSilent={feedSilent}
       positionMs={positionMs}
       durationMs={durationMs}
-      muted={muted}
+      muted={feedSilent || muted}
       accentColor={accentColor}
       backgroundColor={backgroundColor}
       onTogglePlay={() => void togglePlay()}

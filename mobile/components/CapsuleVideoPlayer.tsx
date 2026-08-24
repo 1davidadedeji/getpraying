@@ -14,7 +14,8 @@ import {
 import colors from "@/constants/colors";
 import { CapsuleMediaControls } from "@/components/CapsuleMediaControls";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import { pauseAllMediaExcept, registerMediaController } from "@/lib/mediaPlaybackCoordinator";
+import { pauseAllMediaExcept, registerMediaController, ensureAudioMode } from "@/lib/mediaPlaybackCoordinator";
+import { getFeedAudioUnlocked, setFeedAudioUnlocked } from "@/lib/feedMuteSession";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { clamp } from "@/lib/responsiveMetrics";
 
@@ -79,12 +80,12 @@ export function CapsuleVideoPlayer({
     videoOpacity.setValue(0);
     setReady(false);
     setPlaying(false);
-    setMuted(feedMediaFocused);
+    setMuted(!getFeedAudioUnlocked());
     setFeedAudible(false);
     setEnded(false);
     setPositionMs(0);
     setDurationMs(0);
-  }, [uri, videoOpacity, feedMediaFocused]);
+  }, [uri, videoOpacity]);
 
   // ── Status change: fade in when ready, capture video dimensions ─────────────
   // useEventListener is a hook form of player.addListener — safe inside render.
@@ -116,10 +117,7 @@ export function CapsuleVideoPlayer({
     setPlaying(false);
     setEnded(true);
     wasPlayingRef.current = false;
-    // Park just before the end so the last frame stays visible.
-    const parkAt = Math.max(0, player.duration - 0.08);
-    player.currentTime = parkAt;
-    setPositionMs(Math.round(parkAt * 1000));
+    player.pause();
     if (durationMs > 0) setPositionMs(durationMs);
   });
 
@@ -140,10 +138,8 @@ export function CapsuleVideoPlayer({
   useEffect(() => {
     const { id, unregister } = registerMediaController(async () => {
       player.pause();
-      if (feedMediaFocused) player.currentTime = 0;
       setPlaying(false);
       setFeedAudible(false);
-      setMuted(true);
     });
     controllerIdRef.current = id;
     return () => {
@@ -159,7 +155,6 @@ export function CapsuleVideoPlayer({
         player.pause();
         setPlaying(false);
         setFeedAudible(false);
-        setMuted(true);
       }
     });
     return () => sub.remove();
@@ -168,23 +163,20 @@ export function CapsuleVideoPlayer({
   // ── Feed focus: auto-play muted when cell enters view ───────────────────────
   useEffect(() => {
     if (!feedMediaFocused) {
-      setFeedAudible(false);
-      setMuted(false);
       setPlaying(false);
-      setEnded(false);
       player.pause();
-      player.currentTime = 0;
-      setPositionMs(0);
       return;
     }
     const cid = controllerIdRef.current;
     if (cid == null) return;
+    const unlocked = getFeedAudioUnlocked();
     void pauseAllMediaExcept(cid);
-    // Start muted autoplay — player.muted is already synced via the isMuted effect.
+    if (unlocked) void ensureAudioMode();
+    player.muted = !unlocked;
     player.play();
     setPlaying(true);
-    setMuted(true);
-    setFeedAudible(false);
+    setMuted(!unlocked);
+    setFeedAudible(unlocked);
     setEnded(false);
   }, [feedMediaFocused, player]);
 
@@ -215,8 +207,11 @@ export function CapsuleVideoPlayer({
         return;
       }
       await pauseAllMediaExcept(cid);
+      await ensureAudioMode();
+      setFeedAudioUnlocked(true);
       setMuted(false);
       setFeedAudible(true);
+      player.muted = false;
       player.play();
       setPlaying(true);
       return;
@@ -235,16 +230,27 @@ export function CapsuleVideoPlayer({
   const toggleMute = useCallback(() => {
     if (feedMediaFocused && !feedAudible) {
       if (playing) {
+        void ensureAudioMode();
+        setFeedAudioUnlocked(true);
         setMuted(false);
         setFeedAudible(true);
+        player.muted = false;
         return;
       }
       void togglePlay();
       return;
     }
-    setMuted((m) => !m);
-    if (feedMediaFocused) setFeedAudible((a) => !a);
-  }, [feedMediaFocused, feedAudible, togglePlay]);
+    setMuted((m) => {
+      const next = !m;
+      if (feedMediaFocused) {
+        setFeedAudioUnlocked(!next);
+        setFeedAudible(!next);
+      }
+      if (!next) void ensureAudioMode();
+      player.muted = next;
+      return next;
+    });
+  }, [feedMediaFocused, feedAudible, playing, player, togglePlay]);
 
   const seekProgress = useCallback(
     (progress01: number) => {
@@ -312,14 +318,14 @@ export function CapsuleVideoPlayer({
           feedSilent={feedSilent}
           positionMs={positionMs}
           durationMs={durationMs}
-          muted={muted}
+          muted={isMuted}
           accentColor={accentColor}
           backgroundColor={backgroundColor}
           onTogglePlay={() => void togglePlay()}
           onToggleMute={toggleMute}
           onSeek={seekProgress}
           trailing={trailing}
-          disabled={!ready}
+          disabled={false}
         />
       </View>
     </View>
