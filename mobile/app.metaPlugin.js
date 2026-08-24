@@ -35,8 +35,13 @@ function metaPluginFromEnv(env) {
   ];
 }
 
+function shouldAutolinkMetaSdk(env) {
+  return metaPluginFromEnv(env).length > 0;
+}
+
 module.exports = {
   isPlaceholderMetaAppId,
   isPlaceholderMetaClientToken,
   metaPluginFromEnv,
+  shouldAutolinkMetaSdk,
 };

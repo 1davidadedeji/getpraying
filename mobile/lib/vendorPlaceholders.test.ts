@@ -12,6 +12,7 @@ import {
   isPlaceholderMetaClientToken,
   metaPluginFromEnv,
   plistStringValue,
+  shouldAutolinkMetaSdk,
 } from "./vendorPlaceholders";
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -72,6 +73,16 @@ describe("placeholder detectors", () => {
         }),
       ],
     ]);
+  });
+
+  it("does not autolink the Facebook SDK without real Meta credentials", () => {
+    expect(shouldAutolinkMetaSdk({})).toBe(false);
+    expect(
+      shouldAutolinkMetaSdk({
+        EXPO_PUBLIC_META_APP_ID: "258193847261094",
+        EXPO_PUBLIC_META_CLIENT_TOKEN: "a1b2c3d4e5f6789012345678",
+      }),
+    ).toBe(true);
   });
 });
 

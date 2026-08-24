@@ -2,6 +2,7 @@ import {
   isPlaceholderMetaAppId as isPlaceholderMetaAppIdJs,
   isPlaceholderMetaClientToken as isPlaceholderMetaClientTokenJs,
   metaPluginFromEnv as metaPluginFromEnvJs,
+  shouldAutolinkMetaSdk as shouldAutolinkMetaSdkJs,
 } from "../app.metaPlugin.js";
 
 export type EnvMap = Record<string, string | undefined>;
@@ -11,6 +12,7 @@ export type ExpoPluginEntry = string | [string, Record<string, unknown>];
 export const isPlaceholderMetaAppId = isPlaceholderMetaAppIdJs as (appId: string) => boolean;
 export const isPlaceholderMetaClientToken = isPlaceholderMetaClientTokenJs as (token: string) => boolean;
 export const metaPluginFromEnv = metaPluginFromEnvJs as (env: EnvMap) => ExpoPluginEntry[];
+export const shouldAutolinkMetaSdk = shouldAutolinkMetaSdkJs as (env: EnvMap) => boolean;
 
 const ZERO_AIZA_KEY = /^AIzaSy0+$/i;
 const DUMMY_GCM_SENDERS = new Set(["123456789012", "123456789012", "123456789012"]);
