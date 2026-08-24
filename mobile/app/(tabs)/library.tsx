@@ -272,7 +272,7 @@ export default function LibraryScreen() {
     if (!cached) setLoadingOfficial(true);
     try {
       const data = await loadSanctuaryState(token, opts);
-      setSanctuary(data);
+      if (data) setSanctuary(data);
     } catch {
       if (!cached) setSanctuary({ morning: null, evening: null });
     } finally {

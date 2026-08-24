@@ -2,6 +2,10 @@ import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import type { OfficialPrayerRow } from "@/lib/officialPrayer";
 import { isSanctuaryOfficialPrayer } from "@/lib/premiumContent";
 import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
+import {
+  beginSanctuaryFetch,
+  isSanctuaryFetchStale,
+} from "@/lib/sanctuaryFetchGuard";
 
 export type SanctuaryState = {
   morning: OfficialPrayerRow | null;
@@ -36,16 +40,19 @@ function payloadNeedsForceRefresh(data: SanctuaryPayload | null | undefined): bo
 export async function loadSanctuaryState(
   token: string | null | undefined,
   opts?: { force?: boolean },
-): Promise<SanctuaryState> {
+): Promise<SanctuaryState | null> {
+  const generation = beginSanctuaryFetch(token);
   const path = sanctuaryLibraryPath();
   const force = opts?.force || payloadNeedsForceRefresh(peekLibraryCache<SanctuaryPayload>(path, token));
 
   const data = await fetchLibraryCached<SanctuaryPayload>(path, token, { force });
+  if (isSanctuaryFetchStale(token, generation)) return null;
   if (!data) return { morning: null, evening: null };
 
   const state = normalizeSanctuaryPayload(data);
   if (!force && payloadNeedsForceRefresh(state)) {
     const retry = await fetchLibraryCached<SanctuaryPayload>(path, token, { force: true });
+    if (isSanctuaryFetchStale(token, generation)) return null;
     if (retry) return normalizeSanctuaryPayload(retry);
   }
 

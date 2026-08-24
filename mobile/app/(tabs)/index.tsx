@@ -241,7 +241,7 @@ export default function FeedScreen() {
     }
     try {
       const data = await loadSanctuaryState(token, opts);
-      setSanctuary(data);
+      if (data) setSanctuary(data);
     } catch {
       /* keep previous sanctuary */
     }
