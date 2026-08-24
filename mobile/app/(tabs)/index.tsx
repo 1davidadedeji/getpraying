@@ -103,6 +103,8 @@ export default function FeedScreen() {
   // Timestamp of the last successful full-page refresh — used to suppress silent
   // auto-refreshes that would discard the user's scroll position.
   const lastFreshAtRef = useRef<number>(0);
+  /** Current list scroll offset — resume refresh only when near the top. */
+  const feedScrollYRef = useRef(0);
   const [error, setError] = useState(false);
   const listRef = useRef<FlatList>(null);
   const {
@@ -386,6 +388,9 @@ export default function FeedScreen() {
       // Only reset the feed if the user was away long enough that freshness matters.
       // Shorter gaps just let the new-posts poll handle surfacing new content.
       if (Date.now() - lastFreshAtRef.current < 5 * 60 * 1000) return;
+      // Mid-scroll silent replace jumps the user — only full-refresh when near top;
+      // otherwise the new-posts pill / focus poll will surface fresh content.
+      if (feedScrollYRef.current > NEW_POSTS_SCROLL_GATE_PX + 80) return;
       void loadFresh({ silent: true });
     }, 500);
   }, [loadFresh, loading, refreshing]);
@@ -569,6 +574,7 @@ export default function FeedScreen() {
       onScrollHideBar(event);
       const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
       const y = contentOffset.y;
+      feedScrollYRef.current = y;
       const passed = y >= NEW_POSTS_SCROLL_GATE_PX;
       if (passed !== newPostsScrollGateRef.current) {
         newPostsScrollGateRef.current = passed;
