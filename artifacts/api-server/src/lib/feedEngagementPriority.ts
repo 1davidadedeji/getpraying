@@ -118,33 +118,70 @@ export function feedEngagementPriorityExpr(viewerId: number): SQL<number> {
   )`;
 }
 
-/** Viewer already engaged with this specific post (pray/save/comment). */
-function viewerEngagedOnPostExpr(viewerId: number) {
-  const viewerPrayed = sql`exists (
-    select 1 from ${postPrayersTable}
-    where ${postPrayersTable.postId} = ${postsTable.id}
-      and ${postPrayersTable.userId} = ${viewerId}
+function viewerCategoryAffinityExpr(viewerId: number): SQL<boolean> {
+  const preferred = sql`exists (
+    select 1 from ${usersTable} u
+    where u.id = ${viewerId}
+      and (
+        (
+          ${postsTable.category} is not null
+          and ${postsTable.category} = any(coalesce(u.preferred_categories, '{}'))
+        )
+        or exists (
+          select 1
+          from jsonb_array_elements_text(coalesce(${postsTable.categoryTags}, '[]')::jsonb) as tag
+          where tag = any(coalesce(u.preferred_categories, '{}'))
+        )
+      )
   )`;
-  const viewerSaved = sql`exists (
-    select 1 from ${savedPostsTable}
-    where ${savedPostsTable.postId} = ${postsTable.id}
-      and ${savedPostsTable.userId} = ${viewerId}
+
+  const engagedCategory = sql`exists (
+    select 1
+    from ${postPrayersTable} pp
+    inner join ${postsTable} engaged on engaged.id = pp.post_id
+    where pp.user_id = ${viewerId}
+      and engaged.category is not null
+      and (
+        engaged.category = ${postsTable.category}
+        or coalesce(${postsTable.categoryTags}, '[]')::jsonb @> jsonb_build_array(engaged.category)
+      )
   )`;
-  const viewerCommented = sql`exists (
-    select 1 from ${commentsTable}
-    where ${commentsTable.postId} = ${postsTable.id}
-      and ${commentsTable.authorId} = ${viewerId}
+
+  const savedCategory = sql`exists (
+    select 1
+    from ${savedPostsTable} sp
+    inner join ${postsTable} engaged on engaged.id = sp.post_id
+    where sp.user_id = ${viewerId}
+      and engaged.category is not null
+      and (
+        engaged.category = ${postsTable.category}
+        or coalesce(${postsTable.categoryTags}, '[]')::jsonb @> jsonb_build_array(engaged.category)
+      )
   )`;
-  return sql`(${viewerPrayed} or ${viewerSaved} or ${viewerCommented})`;
+
+  const commentedCategory = sql`exists (
+    select 1
+    from ${commentsTable} c
+    inner join ${postsTable} engaged on engaged.id = c.post_id
+    where c.author_id = ${viewerId}
+      and engaged.category is not null
+      and (
+        engaged.category = ${postsTable.category}
+        or coalesce(${postsTable.categoryTags}, '[]')::jsonb @> jsonb_build_array(engaged.category)
+      )
+  )`;
+
+  return sql<boolean>`(${preferred} or ${engagedCategory} or ${savedCategory} or ${commentedCategory})`;
 }
 
 /**
- * Combined feed page priority (lower = higher in feed):
- * 0 = boosted and still surfaced (author viewing own post, or viewer has not engaged yet)
+ * Combined feed page priority (lower = higher in feed). Matches `computeFeedPagePriority`:
+ * 0 = viewer's own posts
  * 1 = real authors the viewer follows or has prayed/saved/commented with
- * 2 = other real community posts
- * 3 = seed/simulated and anonymous posts
- * Within each tier: reverse-chronological by boosted/created timestamp, then id.
+ * 2 = real posts in a similar niche (preferred or engaged categories)
+ * 3 = other real community posts
+ * 4 = seed/simulated and anonymous posts
+ * Boost only affects sort timestamp within a tier, not the tier itself.
  * Logged-out viewers: boosted → real → seed/anonymous.
  */
 export function feedPagePriorityExpr(viewerId: number | undefined): SQL<number> {
@@ -160,22 +197,16 @@ export function feedPagePriorityExpr(viewerId: number | undefined): SQL<number> 
     )`;
   }
 
-  const engagedOnPost = viewerEngagedOnPostExpr(viewerId);
-  const boostSurfaced = sql`(
-    ${postsTable.boostedAt} is not null
-    and (
-      ${postsTable.authorId} = ${viewerId}
-      or not (${engagedOnPost})
-    )
-  )`;
   const engagement = feedEngagementPriorityExpr(viewerId);
+  const affinity = viewerCategoryAffinityExpr(viewerId);
 
   return sql<number>`(
     case
-      when ${boostSurfaced} then 0
+      when ${postsTable.authorId} = ${viewerId} then 0
       when ${realAuthor} and ${engagement} = 0 then 1
-      when ${realAuthor} then 2
-      else 3
+      when ${realAuthor} and ${affinity} then 2
+      when ${realAuthor} then 3
+      else 4
     end
   )`;
 }
