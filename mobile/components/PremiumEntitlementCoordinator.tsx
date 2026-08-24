@@ -3,6 +3,7 @@ import { useAuth } from "@/context/auth";
 import { useRevenueCat } from "@/context/revenuecat";
 import { clearAudioMediaCache } from "@/lib/audioMediaCache";
 import { setLibraryFetchEntitlement } from "@/lib/libraryFetchCache";
+import { setPremiumPromptAccess } from "@/lib/promptPremiumContent";
 import { isSubscribed } from "@/lib/subscriptionAccess";
 
 /**
@@ -19,6 +20,7 @@ export function PremiumEntitlementCoordinator() {
     if (prevRef.current === subscribed) return;
     prevRef.current = subscribed;
     setLibraryFetchEntitlement(subscribed);
+    setPremiumPromptAccess(subscribed);
     if (!subscribed) {
       void clearAudioMediaCache();
     }
