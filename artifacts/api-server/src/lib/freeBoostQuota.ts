@@ -8,7 +8,11 @@ export async function freeUserHasBoostPendingOrUsed(
 ): Promise<boolean> {
   const conditions = [
     eq(postsTable.authorId, userId),
-    or(eq(postsTable.boostRequested, true), isNotNull(postsTable.boostedAt)),
+    ne(postsTable.status, "declined"),
+    or(
+      and(eq(postsTable.boostRequested, true), eq(postsTable.status, "pending")),
+      and(isNotNull(postsTable.boostedAt), eq(postsTable.status, "approved")),
+    ),
   ];
   if (excludePostId != null) {
     conditions.push(ne(postsTable.id, excludePostId));

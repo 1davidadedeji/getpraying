@@ -354,6 +354,7 @@ router.post("/admin/posts/:postId/decline", requireModeratorOrAdmin, async (req,
       moderationReason: reason,
       flagReason: null,
       flagCount: 0,
+      boostRequested: false,
     })
     .where(eq(postsTable.id, postId))
     .returning();
