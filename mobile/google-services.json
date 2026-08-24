@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "123456789012",
-    "project_id": "getpraying-dummy",
-    "storage_bucket": "getpraying-dummy.appspot.com"
+    "project_number": "498943674600",
+    "project_id": "get-praying-497816",
+    "storage_bucket": "get-praying-497816.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:0000000000000001",
+        "mobilesdk_app_id": "1:498943674600:android:9e2cd908a19331094e615d",
         "android_client_info": {
           "package_name": "com.getpraying.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSy000000000000000000000000000000000"
+          "current_key": "AIzaSyAQoQSc3YCIA7SW0dDwbXJcdP1J-v42mw8"
         }
       ],
       "services": {
