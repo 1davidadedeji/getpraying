@@ -1,15 +1,22 @@
 import { useNavigation } from "expo-router";
 import { useEffect } from "react";
+import { shouldJumpFeedToTopOnTabPress } from "@/lib/feedSessionPolicy";
 
 /**
- * When the user taps the current (or any) tab in the bottom bar, scroll this screen back to the top.
- * Matches common “tap tab to return home” behavior.
+ * Tap-the-Feed-tab-again jumps to top. Arriving from Alerts/Profile must not.
  */
 export function useTabScrollToTop(onTabPress: () => void) {
   const navigation = useNavigation();
 
   useEffect(() => {
     const unsub = navigation.addListener("tabPress" as never, () => {
+      if (
+        !shouldJumpFeedToTopOnTabPress({
+          feedTabAlreadyFocused: navigation.isFocused(),
+        })
+      ) {
+        return;
+      }
       onTabPress();
     });
     return unsub;

@@ -43,6 +43,7 @@ import { loadSanctuaryState } from "@/lib/sanctuaryLoad";
 import { sanctuaryLibraryPath } from "@/lib/sanctuarySchedule";
 import { subscribeSanctuaryRefresh } from "@/lib/sanctuaryRefresh";
 import { nextFullScreenFeedLoading, shouldSkipSilentFeedPostReload } from "@/lib/feedLoadState";
+import { shouldPrefetchNextFeedPage, shouldReplaceFeedOnSilentRefresh } from "@/lib/feedSessionPolicy";
 import { pickFeedWatermarkIso } from "@/lib/feedWatermark";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { useFeedMediaViewability } from "@/hooks/useFeedMediaViewability";
@@ -61,7 +62,7 @@ const NEW_POSTS_POLL_MS = 45_000;
 const NEW_POSTS_SCROLL_GATE_PX = 0;
 const NEW_POSTS_COUNT_DEBOUNCE_MS = 550;
 /** iOS scroll proximity fallback — FlatList onEndReached is unreliable with variable-height cells. */
-const LOAD_MORE_SCROLL_PADDING_PX = 360;
+const LOAD_MORE_SCROLL_PADDING_PX = 1400;
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
@@ -351,6 +352,15 @@ export default function FeedScreen() {
         loadSanctuary: () => loadSanctuaryRef.current(),
         loadPosts: () => {
           if (shouldSkipSilentFeedPostReload(loadingRef.current)) return;
+          if (
+            !shouldReplaceFeedOnSilentRefresh({
+              scrollY: feedScrollYRef.current,
+              postCount: postsRef.current.length,
+              pageSize: PAGE_SIZE,
+            })
+          ) {
+            return;
+          }
           return loadFreshRef.current({ silent: true });
         },
       });
@@ -610,9 +620,24 @@ export default function FeedScreen() {
       // so proximity scroll is the dependable load-more trigger everywhere.
       // handleLoadMore is guarded by loadingMoreRef, so this can't double-fetch.
       if (nextCursorRef.current) {
+        const remainingPx = contentSize.height - layoutMeasurement.height - y;
+        const remainingItemsGuess = Math.max(
+          0,
+          postsRef.current.length - Math.ceil(Math.max(0, y) / Math.max(layoutMeasurement.height, 1)),
+        );
         const nearBottom =
           layoutMeasurement.height + y >= contentSize.height - LOAD_MORE_SCROLL_PADDING_PX;
-        if (nearBottom) void handleLoadMoreRef.current();
+        if (
+          nearBottom ||
+          shouldPrefetchNextFeedPage({
+            remainingItems: remainingItemsGuess,
+            hasNextPage: true,
+            alreadyLoading: loadingMoreRef.current,
+          }) ||
+          remainingPx <= layoutMeasurement.height * 2
+        ) {
+          void handleLoadMoreRef.current();
+        }
       }
     },
     [onScrollHideBar],
@@ -906,7 +931,7 @@ export default function FeedScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
         onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.4}
+        onEndReachedThreshold={0.85}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         // Never clip: removeClippedSubviews detaches cells the list *thinks* are
