@@ -59,6 +59,7 @@ import { subscribeAppActive } from "@/lib/appResume";
 import { publishPostEngagement, publishPostRemoved } from "@/lib/postEngagementSync";
 import { subscribePostDetailRefresh } from "@/lib/postDetailRefresh";
 import { isNotFoundError, LIVE_COMMENTS_POLL_MS, LIVE_POST_POLL_MS } from "@/lib/liveSync";
+import { shouldMarkPostUnavailableFromComments } from "@/lib/postAvailability";
 import { useScreenFocused } from "@/hooks/useScreenFocused";
 import { isPremiumContentLocked, isPremiumMediaLocked, shouldBlurPremiumPostForViewer } from "@/lib/premiumContent";
 import { postTextForDisplay } from "@/lib/postDisplayContent";
@@ -133,6 +134,8 @@ export default function PostDetailScreen() {
   });
 
   const postNotFound = postUnavailable || (isError && isNotFoundError(error));
+  const hasLoadedPostRef = useRef(false);
+  hasLoadedPostRef.current = Boolean(localPost ?? data);
 
   useEffect(() => {
     if (engageMutationPendingRef.current > 0) return;
@@ -273,7 +276,9 @@ export default function PostDetailScreen() {
     try {
       const res = await apiFetch(`/posts/${postId}/comments`, { token });
       if (res.status === 404) {
-        setPostUnavailable(true);
+        if (shouldMarkPostUnavailableFromComments(404, hasLoadedPostRef.current)) {
+          setPostUnavailable(true);
+        }
         setComments([]);
         return;
       }

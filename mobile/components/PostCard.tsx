@@ -327,14 +327,12 @@ function PostCardInner({
   }, [activeProfileUsername, localPost.id]);
 
   const openPostDetail = useCallback(() => {
-    if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
     navigate(postHref as any);
-  }, [localPost, subscribed, navigate, postHref]);
+  }, [navigate, postHref]);
 
   const openComments = useCallback(() => {
-    if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
     navigate(postHref as any);
-  }, [localPost, subscribed, navigate, postHref]);
+  }, [navigate, postHref]);
 
   const isOwnPost =
     user != null &&
@@ -463,7 +461,6 @@ function PostCardInner({
                 onOpenPostDetail={
                   localPost.mediaType === "video"
                     ? () => {
-                        if (gatePremiumInteraction(localPost, subscribed, user?.id)) return;
                         navigate(
                           `${postHref}${postHref.includes("?") ? "&" : "?"}focusMedia=1` as any,
                         );
