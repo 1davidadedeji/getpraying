@@ -170,7 +170,7 @@ export default function NotificationsScreen() {
   const { gutter } = useResponsiveLayout();
   const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
-  const { data, isLoading, refetch, isFetching } = useGetNotifications({
+  const { data, isLoading, isError, refetch, isFetching } = useGetNotifications({
     query: {
       queryKey: getGetNotificationsQueryKey(),
       staleTime: 20_000,
@@ -304,6 +304,12 @@ export default function NotificationsScreen() {
       ListEmptyComponent={
         isLoading ? (
           <ActivityIndicator color={colors.accent} style={styles.loader} />
+        ) : isError ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={48} color={colors.muted} />
+            <Text style={styles.emptyTitle}>Couldn&apos;t load notifications</Text>
+            <Text style={styles.emptySubtitle}>Pull down to try again</Text>
+          </View>
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="notifications-outline" size={48} color={colors.muted} />
