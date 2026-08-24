@@ -1,9 +1,18 @@
+import {
+  isPlaceholderMetaAppId as isPlaceholderMetaAppIdJs,
+  isPlaceholderMetaClientToken as isPlaceholderMetaClientTokenJs,
+  metaPluginFromEnv as metaPluginFromEnvJs,
+} from "../app.metaPlugin.js";
+
 export type EnvMap = Record<string, string | undefined>;
 
 export type ExpoPluginEntry = string | [string, Record<string, unknown>];
 
+export const isPlaceholderMetaAppId = isPlaceholderMetaAppIdJs as (appId: string) => boolean;
+export const isPlaceholderMetaClientToken = isPlaceholderMetaClientTokenJs as (token: string) => boolean;
+export const metaPluginFromEnv = metaPluginFromEnvJs as (env: EnvMap) => ExpoPluginEntry[];
+
 const ZERO_AIZA_KEY = /^AIzaSy0+$/i;
-const META_DUMMY_APP_ID = "123456789012345";
 const DUMMY_GCM_SENDERS = new Set(["123456789012", "123456789012", "123456789012"]);
 
 export function isPlaceholderGoogleApiKey(key: string): boolean {
@@ -33,18 +42,6 @@ export function isPlaceholderGoogleAppId(appId: string): boolean {
   return /^0+1?$/i.test(hex);
 }
 
-export function isPlaceholderMetaAppId(appId: string): boolean {
-  const value = appId.trim();
-  if (!/^\d{8,}$/.test(value)) return true;
-  return value === META_DUMMY_APP_ID;
-}
-
-export function isPlaceholderMetaClientToken(token: string): boolean {
-  const value = token.trim();
-  if (value.length < 8) return true;
-  return /dummy|placeholder|replace_before|replace me/i.test(value);
-}
-
 export function iosGoogleAppIdFromAndroidAppId(androidAppId: string): string {
   const match = androidAppId.trim().match(/^1:(\d+):android:([a-f0-9]+)$/i);
   if (!match) return "";
@@ -54,27 +51,4 @@ export function iosGoogleAppIdFromAndroidAppId(androidAppId: string): string {
 export function plistStringValue(plist: string, key: string): string {
   const match = plist.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]*)</string>`));
   return match?.[1] ?? "";
-}
-
-export function metaPluginFromEnv(env: EnvMap): ExpoPluginEntry[] {
-  const appID = env.EXPO_PUBLIC_META_APP_ID?.trim() ?? "";
-  const clientToken = env.EXPO_PUBLIC_META_CLIENT_TOKEN?.trim() ?? "";
-  if (isPlaceholderMetaAppId(appID) || isPlaceholderMetaClientToken(clientToken)) {
-    return [];
-  }
-  return [
-    [
-      "react-native-fbsdk-next",
-      {
-        appID,
-        clientToken,
-        displayName: "Get Praying",
-        scheme: `fb${appID}`,
-        advertiserIDCollectionEnabled: true,
-        autoLogAppEventsEnabled: true,
-        iosUserTrackingPermission:
-          "This allows us to optimize your experience and measure ad performance.",
-      },
-    ],
-  ];
 }
