@@ -17,4 +17,16 @@ describe("declusterFeedPostsByAuthor", () => {
   it("returns single-item lists unchanged", () => {
     expect(declusterFeedPostsByAuthor([{ id: 1, authorId: 5 }])).toEqual([{ id: 1, authorId: 5 }]);
   });
+
+  it("alternates real and seed buckets when authors differ", () => {
+    const posts = [
+      { id: 1, authorId: 10, authorIsSeed: true },
+      { id: 2, authorId: 11, authorIsSeed: true },
+      { id: 3, authorId: 20, authorIsSeed: false },
+      { id: 4, authorId: 21, authorIsSeed: false },
+    ];
+    const result = declusterFeedPostsByAuthor(posts);
+    expect(result[0]!.authorIsSeed).not.toBe(result[1]!.authorIsSeed);
+    expect(result.map((p) => p.id).sort()).toEqual([1, 2, 3, 4]);
+  });
 });

@@ -6,7 +6,8 @@ import type { PostWithMeta } from "./postHelpers";
  * prayed, saved, or commented — so boosts mostly resurface for users who have not engaged yet.
  *
  * When `feedPriority` is set (authenticated personalized feed), ordering is:
- * priority tier ASC (0 = engaged authors first), then sort timestamp DESC, then id DESC.
+ * priority tier ASC (0 = boosted still surfaced, 1 = real relationships, 2 = other real,
+ * 3 = seed/anonymous), then sort timestamp DESC, then id DESC.
  */
 export type FeedCursorDecoded = { p: number; k: number; i: number };
 

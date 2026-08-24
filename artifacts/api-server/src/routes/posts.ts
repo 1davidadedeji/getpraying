@@ -25,7 +25,7 @@ import { getFeedExcludedAuthorIds, isBlockedBetween } from "../lib/userBlocks";
 import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor, pickFeedPageCursorRow } from "../lib/feedCursor";
 import { declusterFeedPostsByAuthor } from "../lib/feedDecluster";
-import { feedCursorWhereClause, feedPagePriorityExpr } from "../lib/feedEngagementPriority";
+import { feedCursorWhereClause, feedAuthorIsSeedExpr, feedPagePriorityExpr } from "../lib/feedEngagementPriority";
 import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
 import { parseIsPremiumFromBody } from "../lib/premiumContentAccess";
 import { isMediaOnlyPostContent } from "../lib/postContentDisplay";
@@ -316,6 +316,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
       .select({
         ...postColumns,
         feedPriority: priorityExpr,
+        authorIsSeed: feedAuthorIsSeedExpr(),
       })
       .from(postsTable)
       .where(conditions)
@@ -337,7 +338,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     sqlPage.map((row) => [row.id, Number(row.feedPriority ?? 1)]),
   );
   const sqlEnriched = await enrichPosts(
-    sqlPage.map(({ feedPriority: _fp, ...post }) => post),
+    sqlPage.map(({ feedPriority: _fp, authorIsSeed: _seed, ...post }) => post),
     currentUser?.id,
   );
   const sqlEnrichedById = new Map(sqlEnriched.map((post) => [post.id, post]));

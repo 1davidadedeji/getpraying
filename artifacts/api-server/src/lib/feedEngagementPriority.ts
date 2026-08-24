@@ -1,9 +1,43 @@
-import { commentsTable, postPrayersTable, postsTable, savedPostsTable } from "@workspace/db";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import {
+  commentsTable,
+  postPrayersTable,
+  postsTable,
+  savedPostsTable,
+  userFollowsTable,
+  usersTable,
+} from "@workspace/db";
+import { sql, type SQL } from "drizzle-orm";
+import { SEED_EMAIL_SUFFIX } from "./seedUsers";
+
+const SEED_EMAIL_SQL_LIKE = `%${SEED_EMAIL_SUFFIX}`;
+
+/** Post author is a real (non-seed) account. Anonymous posts return false. */
+function isRealUserAuthorExpr(): SQL<boolean> {
+  return sql`(
+    ${postsTable.authorId} is not null
+    and exists (
+      select 1 from ${usersTable} u
+      where u.id = ${postsTable.authorId}
+        and u.email not like ${SEED_EMAIL_SQL_LIKE}
+    )
+  )`;
+}
+
+/** Post author is a seed / simulated community account. */
+export function feedAuthorIsSeedExpr(): SQL<boolean> {
+  return sql<boolean>`(
+    ${postsTable.authorId} is not null
+    and exists (
+      select 1 from ${usersTable} u
+      where u.id = ${postsTable.authorId}
+        and u.email like ${SEED_EMAIL_SQL_LIKE}
+    )
+  )`;
+}
 
 /**
- * Feed tier: 0 = viewer has mutual / one-way engagement with post author; 1 = everyone else.
- * Anonymous posts (null author) always tier 1.
+ * Feed tier: 0 = viewer has relationship with a real post author; 1 = no relationship.
+ * Seed/simulated authors never qualify — bot engagement must not inflate relationship rank.
  */
 export function feedEngagementPriorityExpr(viewerId: number): SQL<number> {
   const viewerPrayedAuthor = sql`exists (
@@ -54,37 +88,94 @@ export function feedEngagementPriorityExpr(viewerId: number): SQL<number> {
       and ${postsTable.authorId} is not null
   )`;
 
+  const viewerFollowsAuthor = sql`exists (
+    select 1 from ${userFollowsTable}
+    where ${userFollowsTable.followerId} = ${viewerId}
+      and ${userFollowsTable.followingId} = ${postsTable.authorId}
+      and ${postsTable.authorId} is not null
+  )`;
+
+  const authorFollowsViewer = sql`exists (
+    select 1 from ${userFollowsTable}
+    where ${userFollowsTable.followerId} = ${postsTable.authorId}
+      and ${userFollowsTable.followingId} = ${viewerId}
+      and ${postsTable.authorId} is not null
+  )`;
+
+  const realAuthor = isRealUserAuthorExpr();
+
   return sql<number>`(
     case
       when ${postsTable.authorId} is null then 1
+      when not (${realAuthor}) then 1
       when (
         ${viewerPrayedAuthor} or ${viewerSavedAuthor} or ${viewerCommentedAuthor}
         or ${authorPrayedViewer} or ${authorCommentedViewer} or ${authorSavedViewer}
+        or ${viewerFollowsAuthor} or ${authorFollowsViewer}
       ) then 0
       else 1
     end
   )`;
 }
 
+/** Viewer already engaged with this specific post (pray/save/comment). */
+function viewerEngagedOnPostExpr(viewerId: number) {
+  const viewerPrayed = sql`exists (
+    select 1 from ${postPrayersTable}
+    where ${postPrayersTable.postId} = ${postsTable.id}
+      and ${postPrayersTable.userId} = ${viewerId}
+  )`;
+  const viewerSaved = sql`exists (
+    select 1 from ${savedPostsTable}
+    where ${savedPostsTable.postId} = ${postsTable.id}
+      and ${savedPostsTable.userId} = ${viewerId}
+  )`;
+  const viewerCommented = sql`exists (
+    select 1 from ${commentsTable}
+    where ${commentsTable.postId} = ${postsTable.id}
+      and ${commentsTable.authorId} = ${viewerId}
+  )`;
+  return sql`(${viewerPrayed} or ${viewerSaved} or ${viewerCommented})`;
+}
+
 /**
  * Combined feed page priority (lower = higher in feed):
- * For authenticated viewers (matches product spec):
- *   0 = authors the viewer has a relationship with (pray/save/comment either way)
- *   1 = everyone else
- * Boosted posts still rise within a tier via COALESCE(boosted_at, created_at) sort.
- * Logged-out viewers: boosted posts first, then everything else.
+ * 0 = boosted and still surfaced (author viewing own post, or viewer has not engaged yet)
+ * 1 = real authors the viewer follows or has prayed/saved/commented with
+ * 2 = other real community posts
+ * 3 = seed/simulated and anonymous posts
+ * Within each tier: reverse-chronological by boosted/created timestamp, then id.
+ * Logged-out viewers: boosted → real → seed/anonymous.
  */
 export function feedPagePriorityExpr(viewerId: number | undefined): SQL<number> {
+  const realAuthor = isRealUserAuthorExpr();
+
   if (viewerId == null) {
-    return sql<number>`(case when ${postsTable.boostedAt} is not null then 0 else 1 end)`;
+    return sql<number>`(
+      case
+        when ${postsTable.boostedAt} is not null then 0
+        when ${realAuthor} then 1
+        else 2
+      end
+    )`;
   }
 
+  const engagedOnPost = viewerEngagedOnPostExpr(viewerId);
+  const boostSurfaced = sql`(
+    ${postsTable.boostedAt} is not null
+    and (
+      ${postsTable.authorId} = ${viewerId}
+      or not (${engagedOnPost})
+    )
+  )`;
   const engagement = feedEngagementPriorityExpr(viewerId);
 
   return sql<number>`(
     case
-      when ${engagement} = 0 then 0
-      else 1
+      when ${boostSurfaced} then 0
+      when ${realAuthor} and ${engagement} = 0 then 1
+      when ${realAuthor} then 2
+      else 3
     end
   )`;
 }
