@@ -44,7 +44,7 @@ export async function ensureAndroidNotificationChannel(): Promise<void> {
 
 function projectIdForExpoPush(): string | undefined {
   const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined;
-  const id = extra?.eas?.projectId;
+  const id = extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   return typeof id === "string" && id.length > 0 ? id : undefined;
 }
 
@@ -165,10 +165,10 @@ export async function registerAndSyncPushToken(
 
     if (final !== "granted") {
       console.warn("[push] notification permission not granted:", final);
-      if (!opts?.force && matchesLastPosted(apiJwt, null, "")) {
-        return true;
+      if (!matchesLastPosted(apiJwt, null, "")) {
+        await postPushTokenToServer(apiJwt, { token: null }, opts);
       }
-      return postPushTokenToServer(apiJwt, { token: null }, opts);
+      return false;
     }
 
     const buildFingerprint = currentBuildFingerprint();

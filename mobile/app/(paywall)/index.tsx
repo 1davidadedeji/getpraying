@@ -198,7 +198,7 @@ export default function PaywallScreen() {
       return;
     }
 
-    if (rc.canUseBoost || (rc.isEntitled && hasPremiumEntitlement(rc.customerInfo))) {
+    if (rc.isEntitled && hasPremiumEntitlement(rc.customerInfo)) {
       finishAfterEntitlement();
       return;
     }

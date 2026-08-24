@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (ok) syncedPushTokenJwtRef.current = token;
     })();
-  }, [loading, token, user]);
+  }, [loading, token, user?.id]);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
     const res = await apiLogin({ email, password });

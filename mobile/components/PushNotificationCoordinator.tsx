@@ -124,6 +124,14 @@ export function PushNotificationCoordinator() {
   }, [canNavigateNow, flushPendingNotification]);
 
   useEffect(() => {
+    if (!token) return;
+    const timer = setTimeout(() => {
+      void refreshPushRegistration(token);
+    }, 2_500);
+    return () => clearTimeout(timer);
+  }, [token]);
+
+  useEffect(() => {
     const subResponse = Notifications.addNotificationResponseReceivedListener((response) => {
       void handleNotificationResponse(response);
     });
