@@ -351,7 +351,18 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
     const cursorSource = pickFeedPageCursorRow(
       sqlPage,
       (row) => feedPriorities.get(row.id) ?? 1,
-      (row) => sqlEnrichedById.get(row.id) ?? row,
+      (row) => {
+        const enrichedRow = sqlEnrichedById.get(row.id);
+        if (enrichedRow) return enrichedRow;
+        return {
+          id: row.id,
+          boostedAt: row.boostedAt,
+          createdAt: row.createdAt,
+          hasPrayed: false,
+          hasCommented: false,
+          isSaved: false,
+        };
+      },
     );
     const cursorPost = cursorSource ? sqlEnrichedById.get(cursorSource.id) : undefined;
     if (cursorPost && cursorSource) {
