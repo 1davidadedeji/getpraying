@@ -89,6 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await new Promise((r) => setTimeout(r, 4_000));
         ok = await registerAndSyncPushToken(token);
       }
+      if (!ok) {
+        await new Promise((r) => setTimeout(r, 30_000));
+        ok = await registerAndSyncPushToken(token);
+      }
       if (ok) syncedPushTokenJwtRef.current = token;
     })();
   }, [loading, token, user]);
