@@ -32,6 +32,7 @@ import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/lib/api";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
 import { loadSanctuaryState } from "@/lib/sanctuaryLoad";
+import { promptPremiumContentUnlock } from "@/lib/promptPremiumContent";
 import {
   DEFAULT_FOCUS_FETCH_THROTTLE_MS,
   runLibraryFocusFetch,
@@ -475,11 +476,15 @@ export default function LibraryScreen() {
   );
 
   const openOfficialPrayer = useCallback(
-    (id: number) => {
-      void fetchLibraryCached(`/library/official/${id}`, token, { force: true });
-      router.push(`/official/${id}` as never);
+    (op: OfficialPrayerRow) => {
+      if (shouldBlurOfficial(op)) {
+        promptPremiumContentUnlock();
+        return;
+      }
+      void fetchLibraryCached(`/library/official/${op.id}`, token, { force: true });
+      router.push(`/official/${op.id}` as never);
     },
-    [token],
+    [token, shouldBlurOfficial],
   );
 
   const renderLectureCarouselItem = useCallback(
@@ -542,7 +547,7 @@ export default function LibraryScreen() {
             isPremium && premiumCardBorderStyle(true),
             pressed && styles.cardPressed,
           ]}
-          onPress={() => openOfficialPrayer(op.id)}
+          onPress={() => openOfficialPrayer(op)}
           accessibilityRole="button"
           accessibilityLabel={`Open lecture: ${op.title}`}
         >

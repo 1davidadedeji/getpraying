@@ -23,8 +23,8 @@ const router: IRouter = Router();
 
 const APP_ORIGIN = (process.env.SHARE_WEB_ORIGIN ?? "https://share.getpraying.com").replace(/\/$/, "");
 const API_PUBLIC_BASE = (
-  process.env.EXPO_PUBLIC_API_BASE_URL ??
   process.env.API_PUBLIC_BASE_URL ??
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
   "https://api.getpraying.com"
 ).replace(/\/$/, "");
 const APP_NAME = "Get Praying";

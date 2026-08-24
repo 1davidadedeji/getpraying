@@ -55,6 +55,9 @@ Thumbs.db
 # Next.js (local build output — never commit)
 web-admin/.next
 
-# Environment secrets
+# Environment secrets (never commit)
 .env
+**/.env
+!.env.example
+!**/.env.example
 .vercel
