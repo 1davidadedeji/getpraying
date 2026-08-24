@@ -1,7 +1,8 @@
 /**
- * Server-provided latest approved `created_at` from GET `/posts`.
- * Used as the watermark for GET `/posts/new-count?maxKnownCreatedAt=…` so boost
- * sorting on the feed page cannot hide newer posts from the poll.
+ * Server-provided latest feed-visible timestamp from GET `/posts`
+ * (`coalesce(approved_at, created_at)`). Used as the watermark for
+ * GET `/posts/new-count?maxKnownCreatedAt=…` so a post approved after
+ * create still shows the “new prayers” pill. Boost sorting cannot hide it.
  */
 export function pickFeedWatermarkIso(
   globalNewestCreatedAt: string | null | undefined,

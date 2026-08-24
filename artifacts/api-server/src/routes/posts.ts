@@ -26,6 +26,7 @@ import { RateLimiter } from "../lib/rateLimit";
 import { decodeFeedCursor, encodeFeedCursor, pickFeedPageCursorRow } from "../lib/feedCursor";
 import { declusterFeedPostsByAuthor } from "../lib/feedDecluster";
 import { feedCursorWhereClause, feedAuthorIsSeedExpr, feedPagePriorityExpr } from "../lib/feedEngagementPriority";
+import { shouldPersonalizeFeed } from "../lib/feedPersonalize";
 import { maybeScheduleRealUserPostEngagement } from "../lib/simulatedActivityScheduler";
 import { parseIsPremiumFromBody } from "../lib/premiumContentAccess";
 import { isMediaOnlyPostContent } from "../lib/postContentDisplay";
@@ -187,11 +188,13 @@ router.get("/posts/trending", optionalAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
-/** Home feed “new prayers” pill: `created_at > maxKnownCreatedAt` (`boosted_at` ignored). */
+const feedVisibleAtSql = sql`coalesce(${postsTable.approvedAt}, ${postsTable.createdAt})`;
+
+/** Home feed “new prayers” pill: visible_at > watermark (`boosted_at` ignored). */
 router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => {
   const raw = req.query.maxKnownCreatedAt;
   const newestRowPromise = db
-    .select({ newest: sql<Date | null>`max(${postsTable.createdAt})` })
+    .select({ newest: sql<Date | null>`max(${feedVisibleAtSql})` })
     .from(postsTable)
     .where(eq(postsTable.status, "approved"));
 
@@ -221,7 +224,7 @@ router.get("/posts/new-count", optionalAuth, async (req, res): Promise<void> => 
       .where(
         and(
           eq(postsTable.status, "approved"),
-          sql`date_trunc('millisecond', ${postsTable.createdAt}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
+          sql`date_trunc('millisecond', ${feedVisibleAtSql}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
         ),
       ),
     newestRowPromise,
@@ -261,15 +264,15 @@ router.get("/posts/since", optionalAuth, async (req, res): Promise<void> => {
         await applyBlockedAuthorFilter(
           and(
             eq(postsTable.status, "approved"),
-            sql`date_trunc('millisecond', ${postsTable.createdAt}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
+            sql`date_trunc('millisecond', ${feedVisibleAtSql}) > date_trunc('millisecond', ${cutoff}::timestamptz)`,
           )!,
           currentUser?.id,
         ),
       )
-      .orderBy(desc(postsTable.createdAt), desc(postsTable.id))
+      .orderBy(desc(feedVisibleAtSql), desc(postsTable.id))
       .limit(limit),
     db
-      .select({ newest: sql<Date | null>`max(${postsTable.createdAt})` })
+      .select({ newest: sql<Date | null>`max(${feedVisibleAtSql})` })
       .from(postsTable)
       .where(eq(postsTable.status, "approved")),
   ]);
@@ -287,8 +290,12 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
   const cursorDecoded = decodeFeedCursor(req.query.cursor as string | undefined);
   const category = req.query.category as string | undefined;
   const currentUser = (req as any).user as { id: number } | undefined;
+  const personalize = shouldPersonalizeFeed({
+    isSignedIn: Boolean(currentUser?.id),
+    queryValue: typeof req.query.personalize === "string" ? req.query.personalize : undefined,
+  });
   const sortTs = feedTimelineSortTsExpr(currentUser?.id);
-  const priorityExpr = feedPagePriorityExpr(currentUser?.id);
+  const priorityExpr = feedPagePriorityExpr(currentUser?.id, { personalize });
 
   let conditions: PostWhere = eq(postsTable.status, "approved");
   if (category && String(category).trim()) {
@@ -327,7 +334,7 @@ router.get("/posts", optionalAuth, async (req, res): Promise<void> => {
       )
       .limit(limit + 1),
     db
-      .select({ newest: sql<Date | null>`max(${postsTable.createdAt})` })
+      .select({ newest: sql<Date | null>`max(${feedVisibleAtSql})` })
       .from(postsTable)
       .where(eq(postsTable.status, "approved")),
   ]);
@@ -500,6 +507,7 @@ router.post("/posts", requireAuth, async (req, res): Promise<void> => {
       authorId: user.id,
       boostRequested,
       isPremium,
+      approvedAt: postStatus === "approved" ? new Date() : null,
     })
     .returning();
 

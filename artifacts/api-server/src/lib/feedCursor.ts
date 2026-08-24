@@ -5,9 +5,10 @@ import type { PostWithMeta } from "./postHelpers";
  * For authenticated viewers, boosted posts use `created_at` instead when the viewer has already
  * prayed, saved, or commented — so boosts mostly resurface for users who have not engaged yet.
  *
- * When `feedPriority` is set (authenticated personalized feed), ordering is:
+ * When `feedPriority` is set (authenticated For You feed), ordering is:
  * priority tier ASC (0 = own, 1 = relationships, 2 = similar niche, 3 = other real,
  * 4 = seed/anonymous), then sort timestamp DESC, then id DESC.
+ * Boost only changes the sort timestamp inside a tier.
  */
 export type FeedCursorDecoded = { p: number; k: number; i: number };
 

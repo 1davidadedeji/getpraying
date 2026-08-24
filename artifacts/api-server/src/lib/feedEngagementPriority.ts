@@ -182,15 +182,27 @@ function viewerCategoryAffinityExpr(viewerId: number): SQL<boolean> {
  * 3 = other real community posts
  * 4 = seed/simulated and anonymous posts
  * Boost only affects sort timestamp within a tier, not the tier itself.
- * Logged-out viewers: boosted → real → seed/anonymous.
+ * Logged-out viewers: real → seed/anonymous (boost is not a wall).
  */
-export function feedPagePriorityExpr(viewerId: number | undefined): SQL<number> {
+export function feedPagePriorityExpr(
+  viewerId: number | undefined,
+  opts?: { personalize?: boolean },
+): SQL<number> {
   const realAuthor = isRealUserAuthorExpr();
 
   if (viewerId == null) {
     return sql<number>`(
       case
-        when ${postsTable.boostedAt} is not null then 0
+        when ${realAuthor} then 0
+        else 1
+      end
+    )`;
+  }
+
+  if (opts?.personalize === false) {
+    return sql<number>`(
+      case
+        when ${postsTable.authorId} = ${viewerId} then 0
         when ${realAuthor} then 1
         else 2
       end

@@ -37,6 +37,7 @@ async function executePost(payload: SimulatedJobPayload): Promise<boolean> {
       status: "approved",
       authorId,
       isAnonymous: false,
+      approvedAt: new Date(),
     })
     .returning();
 

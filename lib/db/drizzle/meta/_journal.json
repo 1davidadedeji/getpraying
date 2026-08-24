@@ -50,6 +50,13 @@
       "when": 1775300000000,
       "tag": "0013_users_expo_push_token",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777000000000,
+      "tag": "0030_posts_approved_at",
+      "breakpoints": true
     }
   ]
 }

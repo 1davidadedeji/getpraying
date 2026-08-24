@@ -60,9 +60,10 @@ describe("computeFeedPagePriority", () => {
 });
 
 describe("computeLoggedOutFeedPagePriority", () => {
-  it("surfaces boosted posts, then real authors, then seed", () => {
-    expect(computeLoggedOutFeedPagePriority({ isBoosted: true, isRealAuthor: false })).toBe(0);
-    expect(computeLoggedOutFeedPagePriority({ isBoosted: false, isRealAuthor: true })).toBe(1);
-    expect(computeLoggedOutFeedPagePriority({ isBoosted: false, isRealAuthor: false })).toBe(2);
+  it("puts real authors above seed; boost does not create its own wall", () => {
+    expect(computeLoggedOutFeedPagePriority({ isBoosted: true, isRealAuthor: true })).toBe(0);
+    expect(computeLoggedOutFeedPagePriority({ isBoosted: false, isRealAuthor: true })).toBe(0);
+    expect(computeLoggedOutFeedPagePriority({ isBoosted: true, isRealAuthor: false })).toBe(1);
+    expect(computeLoggedOutFeedPagePriority({ isBoosted: false, isRealAuthor: false })).toBe(1);
   });
 });

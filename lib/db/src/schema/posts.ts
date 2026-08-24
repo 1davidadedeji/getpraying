@@ -30,12 +30,15 @@ export const postsTable = pgTable("posts", {
   isPremium: boolean("is_premium").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  /** When the post became publicly visible. Null while pending. */
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
 });
 
 export const insertPostSchema = createInsertSchema(postsTable).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  approvedAt: true,
   prayCount: true,
   status: true,
 });

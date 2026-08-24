@@ -257,6 +257,7 @@ export default function FeedScreen() {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("cursor", cursor);
       if (category) params.set("category", category);
+      if (token) params.set("personalize", "true");
 
       const res = await apiFetchGetOnce(`/posts?${params}`, { token });
       if (!res.ok) throw new Error(`GET /posts failed: ${res.status}`);

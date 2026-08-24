@@ -311,7 +311,14 @@ router.post("/admin/posts/:postId/approve", requireModeratorOrAdmin, async (req,
 
   const [post] = await db
     .update(postsTable)
-    .set({ status: "approved", moderatedByUserId: mod.id, moderationReason: null, flagReason: null, flagCount: 0 })
+    .set({
+      status: "approved",
+      moderatedByUserId: mod.id,
+      moderationReason: null,
+      flagReason: null,
+      flagCount: 0,
+      approvedAt: sql`coalesce(${postsTable.approvedAt}, now())`,
+    })
     .where(eq(postsTable.id, postId))
     .returning();
 

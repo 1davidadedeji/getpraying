@@ -37,11 +37,9 @@ export type LoggedOutFeedPagePriorityInput = {
   isRealAuthor: boolean;
 };
 
-/** Logged-out: boosted → real → seed/anonymous. */
+/** Logged-out: real community, then seed/anonymous. Boost only bumps sort time inside a tier. */
 export function computeLoggedOutFeedPagePriority(
   input: LoggedOutFeedPagePriorityInput,
 ): number {
-  if (input.isBoosted) return 0;
-  if (input.isRealAuthor) return 1;
-  return 2;
+  return input.isRealAuthor ? 0 : 1;
 }
