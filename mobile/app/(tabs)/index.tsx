@@ -35,7 +35,7 @@ import { apiFetch } from "@/lib/api";
 import { apiFetchGetOnce } from "@/lib/inFlightGet";
 import {
   DEFAULT_FOCUS_FETCH_THROTTLE_MS,
-  runFeedSanctuaryFocusFetch,
+  runFeedFocusFetch,
   shouldRunThrottledFocusFetch,
 } from "@/lib/focusFetchThrottle";
 import { fetchLibraryCached, peekLibraryCache } from "@/lib/libraryFetchCache";
@@ -328,7 +328,10 @@ export default function FeedScreen() {
         return;
       }
       lastFeedSanctuaryFocusRef.current = now;
-      runFeedSanctuaryFocusFetch(() => loadSanctuaryRef.current());
+      runFeedFocusFetch({
+        loadSanctuary: () => loadSanctuaryRef.current(),
+        loadPosts: () => loadFreshRef.current({ silent: true }),
+      });
     }, []),
   );
 

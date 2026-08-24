@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_FOCUS_FETCH_THROTTLE_MS,
+  runFeedFocusFetch,
   runFeedSanctuaryFocusFetch,
   runLibraryFocusFetch,
   shouldRunThrottledFocusFetch,
@@ -85,6 +86,14 @@ describe("library focus fetch (simulated tab navigation)", () => {
 });
 
 describe("feed sanctuary focus fetch (simulated tab navigation)", () => {
+  it("refetches posts and sanctuary when returning to the feed tab", () => {
+    const loadSanctuary = vi.fn();
+    const loadPosts = vi.fn();
+    runFeedFocusFetch({ loadSanctuary, loadPosts });
+    expect(loadSanctuary).toHaveBeenCalledTimes(1);
+    expect(loadPosts).toHaveBeenCalledTimes(1);
+  });
+
   it("throttles sanctuary refresh on rapid feed tab refocus", () => {
     let lastRunAt = 0;
     const loadSanctuary = vi.fn();

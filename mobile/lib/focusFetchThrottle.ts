@@ -40,7 +40,16 @@ export function runLibraryFocusFetch(
   }
 }
 
-/** Feed tab focus refresh — sanctuary slot cards only (feed page load is mount-gated). */
+/** Feed tab focus refresh — sanctuary cards and the post list (throttled by the caller). */
+export function runFeedFocusFetch(loaders: {
+  loadSanctuary: () => void | Promise<void>;
+  loadPosts: () => void | Promise<void>;
+}): void {
+  void loaders.loadSanctuary();
+  void loaders.loadPosts();
+}
+
+/** @deprecated Use runFeedFocusFetch so newly approved posts appear without opening Profile. */
 export function runFeedSanctuaryFocusFetch(loadSanctuary: () => void | Promise<void>): void {
-  void loadSanctuary();
+  runFeedFocusFetch({ loadSanctuary, loadPosts: () => undefined });
 }
