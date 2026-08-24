@@ -36,12 +36,24 @@ export function isPurchaseAlreadyOwnedError(err: unknown): boolean {
 }
 
 export function purchaseErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error && err.message.trim()) return err.message;
-  if (err && typeof err === "object" && "message" in err) {
-    const msg = String((err as { message?: unknown }).message ?? "").trim();
-    if (msg) return msg;
+  let raw = "";
+  if (err instanceof Error && err.message.trim()) raw = err.message.trim();
+  else if (err && typeof err === "object" && "message" in err) {
+    raw = String((err as { message?: unknown }).message ?? "").trim();
   }
-  return fallback;
+  if (!raw) return fallback;
+
+  const lower = raw.toLowerCase();
+  if (lower.includes("not configured for billing through google play")) {
+    return "This build was not installed from Google Play, so subscriptions cannot start. Install Get Praying from the Play testing track, then try again.";
+  }
+  if (
+    lower.includes("arguments provided are invalid") ||
+    lower.includes("one or more of the arguments")
+  ) {
+    return "Google Play rejected this subscription product. Install from the Play testing track and confirm the monthly plan is active.";
+  }
+  return raw;
 }
 
 export function describeEntitlementAfterPurchase(info: CustomerInfo | null | undefined): {
