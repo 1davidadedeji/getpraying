@@ -165,9 +165,8 @@ export async function registerAndSyncPushToken(
 
     if (final !== "granted") {
       console.warn("[push] notification permission not granted:", final);
-      if (!matchesLastPosted(apiJwt, null, "")) {
-        await postPushTokenToServer(apiJwt, { token: null }, opts);
-      }
+      // Do not POST token:null. Denial is not logout — a previously registered
+      // token must stay on the server until the user signs out.
       return false;
     }
 
